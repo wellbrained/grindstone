@@ -32,11 +32,15 @@ const navigation = computed(() => [
       </template>
     </UHeader>
 
-    <UMain class="flex-1">
+    <!-- min-h-0 overrides UMain's full-screen min height, so the footer sits at the bottom of the screen on short pages (sticky footer) -->
+    <UMain class="min-h-0 flex-1">
       <slot />
     </UMain>
 
-    <UFooter>
+    <UFooter
+      class="border-t border-default"
+      :ui="{ container: 'max-w-[110rem]' }"
+    >
       <template #left>
         <p class="text-sm text-muted">
           {{ t('layout.footer', { name: site.name }) }}
