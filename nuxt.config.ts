@@ -31,10 +31,6 @@ export default defineNuxtConfig({
     }
   },
 
-  routeRules: {
-    '/': { prerender: true }
-  },
-
   // ports come from CoreHub: dev 4003
   devServer: { port: 4003 },
 

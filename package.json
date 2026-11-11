@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "nuxt build",
-    "dev": "nuxt dev",
+    "dev": "nuxt dev --host localhost",
     "preview": "nuxt preview",
     "postinstall": "nuxt prepare",
     "lint": "eslint .",
@@ -13,6 +13,7 @@
     "typecheck": "nuxt typecheck",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "playwright test",
     "generate": "nuxt generate"
   },
   "dependencies": {
@@ -34,6 +35,7 @@
   "devDependencies": {
     "@nuxt/eslint": "^1.17.0",
     "@nuxt/test-utils": "^4.3.3",
+    "@playwright/test": "^1.65.0",
     "@vue/test-utils": "^2.5.1",
     "eslint": "^10.12.0",
     "eslint-plugin-better-tailwindcss": "^4.9.0",

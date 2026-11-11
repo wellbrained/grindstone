@@ -6,6 +6,10 @@ import { getDefaultAttributes } from 'eslint-plugin-better-tailwindcss/api/defau
 export default withNuxt(
   betterTailwindcss.configs['correctness-error'],
   {
+    rules: {
+      // plain CSS classes of the graph and the spark effect (component styles and main.css), not Tailwind utilities
+      'better-tailwindcss/no-unknown-classes': ['error', { ignore: ['^cg-', '^spark$'] }]
+    },
     settings: {
       'better-tailwindcss': {
         entryPoint: 'app/assets/css/main.css',

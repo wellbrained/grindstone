@@ -1,5 +1,74 @@
 {
+  "layout": {
+    "colorMode": "Switch between light and dark mode",
+    "footer": "{name}: practice real developer skills, in the browser."
+  },
   "home": {
-    "comingSoon": "The git track is being built: levels in a terminal, a live commit graph and teammates who push while you work."
+    "kicker": "Git track",
+    "title": "Practice git until it stops being scary",
+    "pitch": "Short, game-like scenarios in a real-feeling terminal. Every command you type redraws a live commit graph, so you see what branch, merge and rebase actually do.",
+    "teammates": "And you are not alone in the repo: simulated teammates push to origin while you work. Learn to sync, rebase and resolve conflicts the way it happens on a team.",
+    "local": "Runs in your browser. Progress stays on this device.",
+    "start": "Start",
+    "continue": "Continue: {title}",
+    "again": "Play again",
+    "track": "The levels",
+    "solved": "Solved",
+    "best": "best: {n} commands",
+    "open": "Not solved yet"
+  },
+  "play": {
+    "level": "Level {n} of {total}",
+    "hint": "Hint ({used}/{total})",
+    "reset": "Reset",
+    "solved": "Level solved",
+    "debrief": "Show debrief",
+    "keyboard": "Best with a keyboard: type the commands into the terminal below."
+  },
+  "goals": {
+    "title": "Goals",
+    "count": "{met} of {total} done",
+    "done": "(done)",
+    "open": "(not done yet)",
+    "conflicts": "Files with conflicts",
+    "openFile": "Open {path} in the editor"
+  },
+  "terminal": {
+    "label": "Terminal",
+    "title": "Terminal",
+    "keys": "Tab completes · Up and Down: history · Ctrl+L clears",
+    "output": "Terminal output",
+    "input": "Terminal input: type a command and press Enter",
+    "intro": "Welcome. Type commands below and press Enter.",
+    "introHelp": "Stuck? Type hint. Everything else: help.",
+    "teammate": "Teammate",
+    "solved": "Level solved. All goals are met.",
+    "saved": "Saved {path}."
+  },
+  "graph": {
+    "label": "Commit graph",
+    "title": "Commit graph",
+    "showOrigin": "Show origin",
+    "empty": "No commits yet. The graph draws itself as soon as you make one.",
+    "summary": "Commit graph with {n} commit | Commit graph with {n} commits",
+    "legend": "Filled labels are your branches, outlined ones are origin/* (your copy of the remote). The ringed commit is HEAD."
+  },
+  "editor": {
+    "description": "Edit the file and save it. Saving counts as a command.",
+    "markers": "This file still has conflict markers",
+    "markersHelp": "Keep the lines you want and delete the marker lines that start with seven less-than, equals or greater-than signs.",
+    "label": "Contents of {path}",
+    "cancel": "Cancel",
+    "save": "Save"
+  },
+  "debrief": {
+    "solved": "{title}: solved.",
+    "commands": "Commands (shortest solution)",
+    "hints": "Hints used",
+    "verdictBest": "That matches the shortest solution we know. Nicely done.",
+    "verdictMore": "{n} command more than the shortest solution. | {n} commands more than the shortest solution.",
+    "stay": "Stay here",
+    "next": "Next level",
+    "all": "Back to all levels"
   }
 }

@@ -2,20 +2,161 @@
 @import "@nuxt/ui";
 
 @theme static {
-  --font-sans: 'Public Sans', sans-serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  /* mono carries the terminal, the graph labels and the goals (docs/adr/0003-look.md) */
+  --font-mono: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+}
 
-  /* Opt-in font: use the `font-inter` class where you want it */
-  --font-inter: 'Inter', sans-serif;
+/*
+ * The look (docs/adr/0003-look.md): terminal-inspired, a warm ember accent.
+ * Dark (default): Nord-like greys. Light: a cool grey page with white cards.
+ * Contrast (WCAG AA): every accent and branch colour is >= 4.5:1 on the page, card and terminal backgrounds of its theme.
+ */
+:root {
+  --ui-bg: #e9ecf0;
+  --ui-bg-muted: #f6f7f9;
+  --ui-bg-elevated: #ffffff;
+  --ui-bg-accented: #e2e6eb;
+  --ui-border: #cfd5dd;
+  --ui-border-muted: #e3e7ec;
+  --ui-border-accented: #aeb6c2;
+  --ui-text: #1c2533;
+  --ui-text-highlighted: #0b1220;
+  --ui-text-toned: #334155;
+  --ui-text-muted: #475467;
+  --ui-text-dimmed: #5d6b7e;
 
-  --color-green-50: #EFFDF5;
-  --color-green-100: #D9FBE8;
-  --color-green-200: #B3F5D1;
-  --color-green-300: #75EDAE;
-  --color-green-400: #00DC82;
-  --color-green-500: #00C16A;
-  --color-green-600: #00A155;
-  --color-green-700: #007F45;
-  --color-green-800: #016538;
-  --color-green-900: #0A5331;
-  --color-green-950: #052E16;
+  /* ember: a darker orange in light so white text and the orange itself stay readable */
+  --ui-primary: #b23a08;
+  --ui-secondary: #6d28d9;
+  --ui-success: #1c7437;
+  --ui-warning: #8a5a00;
+  --ui-info: #1d63c9;
+  --ui-error: #be123c;
+
+  --app-terminal: #f6f7f9;
+  --app-terminal-border: #cfd5dd;
+
+  /* branch palette: one colour per branch line, in the terminal and the graph (app/utils/branch-palette.ts) */
+  --branch-0: #1d63c9;
+  --branch-1: #2a7210;
+  --branch-2: #7a3fd0;
+  --branch-3: #8a5a00;
+  --branch-4: #0b756a;
+  --branch-5: #b3204f;
+  --branch-6: #4a5d80;
+  /* text on a filled branch pill */
+  --branch-ink: #ffffff;
+}
+
+.dark {
+  --ui-bg: #232831;
+  --ui-bg-muted: #2a303b;
+  --ui-bg-elevated: #2a303b;
+  --ui-bg-accented: #353c4a;
+  --ui-border: #353c4a;
+  --ui-border-muted: #2f3542;
+  --ui-border-accented: #434c5e;
+  --ui-text: #e5e9f0;
+  --ui-text-highlighted: #eceff4;
+  --ui-text-toned: #d8dee9;
+  --ui-text-muted: #a7b0c0;
+  --ui-text-dimmed: #8e97a8;
+
+  --ui-primary: #ff8a3d;
+  --ui-secondary: #bb9af7;
+  --ui-success: #9ece6a;
+  --ui-warning: #f0c05a;
+  --ui-info: #7fb4ff;
+  --ui-error: #f7768e;
+
+  --app-terminal: #1b1f27;
+  --app-terminal-border: #353c4a;
+
+  --branch-0: #7fb4ff;
+  --branch-1: #8fd16a;
+  --branch-2: #c4a2f5;
+  --branch-3: #f0c05a;
+  --branch-4: #5fd6c6;
+  --branch-5: #f78fb3;
+  --branch-6: #a9b8d9;
+  --branch-ink: #1b1f27;
+}
+
+/* a class per palette slot (app/utils/branch-palette.ts picks the slot): sets `color`, so `currentColor` carries it into SVG */
+.branch-c-0 { color: var(--branch-0); }
+.branch-c-1 { color: var(--branch-1); }
+.branch-c-2 { color: var(--branch-2); }
+.branch-c-3 { color: var(--branch-3); }
+.branch-c-4 { color: var(--branch-4); }
+.branch-c-5 { color: var(--branch-5); }
+.branch-c-6 { color: var(--branch-6); }
+
+html {
+  scrollbar-gutter: stable;
+}
+
+body {
+  overflow-x: clip;
+}
+
+/* anything clickable shows the hand cursor; Tailwind 4 leaves buttons on the arrow */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"],
+  [role="switch"],
+  [role="checkbox"],
+  [role="menuitem"],
+  [role="option"],
+  summary,
+  label[for] {
+    cursor: pointer;
+  }
+}
+
+/* the spark: embers fly out of the terminal when a level is solved (SparkBurst.vue) */
+@keyframes spark-fly {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--spark-x), var(--spark-y)) scale(0.2);
+  }
+}
+
+/* a new commit in the graph throws one ring (CommitGraph.vue) */
+@keyframes spark-ring {
+  0% {
+    opacity: 0.9;
+    transform: scale(0.6);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.6);
+  }
+}
+
+/* the ember dots of SparkBurst.vue */
+.spark {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--ui-primary);
+  box-shadow: 0 0 8px var(--ui-primary);
+  pointer-events: none;
+  animation: spark-fly 0.9s ease-out both;
+  animation-delay: var(--spark-delay, 0s);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spark {
+    animation: none;
+    display: none;
+  }
 }

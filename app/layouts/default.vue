@@ -1,43 +1,33 @@
 <script setup lang="ts">
-import type { NavigationMenuItem } from '@nuxt/ui'
-
 const { site } = useAppConfig()
-
-const navigation: NavigationMenuItem[] = [
-  { label: 'Home', to: '/', exact: true }
-]
+const { t } = useI18n()
 </script>
 
 <template>
-  <div>
-    <UHeader :title="site.name">
+  <div class="flex min-h-dvh flex-col">
+    <UHeader
+      :title="site.name"
+      to="/"
+      :toggle="false"
+      :ui="{ container: 'max-w-[110rem]' }"
+    >
       <template #title>
-        <AppLogo class="w-auto h-6 shrink-0" />
+        <AppLogo class="h-6 w-auto shrink-0" />
       </template>
-
-      <UNavigationMenu :items="navigation" />
 
       <template #right>
-        <UColorModeButton />
-      </template>
-
-      <template #body>
-        <UNavigationMenu
-          :items="navigation"
-          orientation="vertical"
-          class="-mx-2.5"
-        />
+        <UColorModeButton :aria-label="t('layout.colorMode')" />
       </template>
     </UHeader>
 
-    <UMain>
+    <UMain class="flex-1">
       <slot />
     </UMain>
 
     <UFooter>
       <template #left>
         <p class="text-sm text-muted">
-          © {{ new Date().getFullYear() }} {{ site.name }}
+          {{ t('layout.footer', { name: site.name }) }}
         </p>
       </template>
     </UFooter>
