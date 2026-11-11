@@ -1,0 +1,11 @@
+{
+  "language": "Sprache",
+  "example": {
+    "greeting": "Hallo {name}!",
+    "intro": "Dieser Text kommt aus i18n/locales/de.json.",
+    "apples": "Keine Äpfel | Ein Apfel | {count} Äpfel",
+    "add": "Apfel hinzufügen",
+    "reset": "Zurücksetzen",
+    "current": "Aktuelle Sprache"
+  }
+}

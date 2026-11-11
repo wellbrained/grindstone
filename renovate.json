@@ -1,0 +1,40 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["github>nuxt/renovate-config-nuxt"],
+  "platformAutomerge": false,
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "pnpm version in devEngines.packageManager (package.json) — not detected by Renovate's npm manager",
+      "managerFilePatterns": ["/^package\\.json$/"],
+      "matchStrings": [
+        "\"devEngines\":\\s*\\{\\s*\"packageManager\":\\s*\\{\\s*\"name\":\\s*\"pnpm\",\\s*\"version\":\\s*\"(?<currentValue>[^\"]+)\""
+      ],
+      "depNameTemplate": "pnpm",
+      "datasourceTemplate": "npm"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Automerge low-risk updates once CI and the minimum release age (25h, from the Nuxt preset) have passed. Majors and 0.x minors (often breaking) stay manual. platformAutomerge is off so Renovate itself waits for the checks — the repo has no required status checks, so GitHub's auto-merge would merge immediately.",
+      "matchUpdateTypes": ["patch", "minor", "lockFileMaintenance"],
+      "matchCurrentVersion": "!/^0\\./",
+      "automerge": true
+    },
+    {
+      "description": "lockFileMaintenance has no current version — allow automerge explicitly",
+      "matchUpdateTypes": ["lockFileMaintenance"],
+      "automerge": true
+    },
+    {
+      "description": "Update pnpm in packageManager and devEngines in the same PR",
+      "matchDepNames": ["pnpm"],
+      "groupName": "pnpm"
+    },
+    {
+      "description": "Hold TypeScript below 7: typescript-eslint (lint) and vue-tsc (typecheck) don't support the Go-based TS 7 yet (typescript-eslint tracks support for 7.1). Remove this rule once both support it.",
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "<7"
+    }
+  ]
+}

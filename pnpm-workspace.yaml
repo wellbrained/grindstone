@@ -1,0 +1,9 @@
+allowBuilds:
+  '@parcel/watcher': false
+  '@tailwindcss/oxide': false
+  # layers/db-sqlite: better-sqlite3 ships prebuilt binaries for all platforms. Allowing its build would
+  # trigger a node-gyp compile, which needs a C++ toolchain (Visual Studio on Windows).
+  better-sqlite3: false
+  esbuild: false
+  unrs-resolver: false
+  vue-demi: false

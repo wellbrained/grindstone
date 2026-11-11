@@ -1,0 +1,11 @@
+{
+  "language": "Language",
+  "example": {
+    "greeting": "Hello {name}!",
+    "intro": "This text comes from i18n/locales/en.json.",
+    "apples": "No apples | One apple | {count} apples",
+    "add": "Add apple",
+    "reset": "Reset",
+    "current": "Current locale"
+  }
+}
