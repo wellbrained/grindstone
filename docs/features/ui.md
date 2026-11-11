@@ -23,7 +23,9 @@ Both layouts are one skeleton (`PlayWorkbench`), so a switch feels like panels o
 | md to lg | One column: level panel, graph, terminal. | Level panel, Files (16rem), graph, editor (26rem), terminal. |
 | < md | One column: level panel, terminal, graph. The terminal does not autofocus on touch devices (`pointer: coarse`), so the keyboard does not pop up unasked. | Level panel, Files (14rem), editor (26rem), terminal, graph. Opening a file scrolls the editor into view (without the keyboard). |
 
-Motion: a panel opens and closes in 220 ms (ease-out curve), as plain CSS (`.reveal` in `main.css`): stacked, its row grows from `0fr` to `1fr`; in the lg grid it is a flex item whose `flex-grow` (editor) or `flex-basis` (Files) grows from 0. Off under `prefers-reduced-motion: reduce`.
+Motion: a panel opens and closes in 260 ms (ease-in-out, it moves things already on screen), as plain CSS (`.reveal` in `main.css`): stacked, its row grows from `0fr` to `1fr`; in the lg grid it is a flex item whose `flex-grow` (editor) or `flex-basis` (Files) grows from 0. The panel's content fades in once the box is mostly open (160 ms after a 110 ms delay) and fades out first when it closes (90 ms), so it is never seen squeezed. Off under `prefers-reduced-motion: reduce`.
+
+Modals (file picker, editor panel, debrief) do not shift the page: `html` keeps a stable scrollbar gutter, so `<UApp :scroll-body="false">` stops the scroll lock from adding the scrollbar width as body padding.
 
 No horizontal page scroll down to 360px: terminal text wraps (`whitespace-pre-wrap`), the graph scrolls inside its own box. In the Terminal layout `edit <file>` and the conflicted-files list open the editor panel (`FileEditor`, a modal); in the IDE they open a tab. **Open file** in the editor header (`FilePicker`, a command palette over the working tree with status letters) is the keyboard way to a file.
 

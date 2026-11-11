@@ -49,7 +49,9 @@ export default defineNuxtConfig({
   fonts: {
     families: [
       { name: 'Inter', provider: 'google', weights: [400, 500, 600, 700] },
-      { name: 'JetBrains Mono', provider: 'google', weights: [400, 500, 700] }
+      { name: 'JetBrains Mono', provider: 'google', weights: [400, 500, 700] },
+      // the wordmark only (AppLogo, docs/adr/0005-logo.md)
+      { name: 'Tektur', provider: 'google', weights: [500, 900] }
     ]
   }
 })

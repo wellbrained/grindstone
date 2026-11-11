@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Second mark, kept on Nik's wish (2026-11-11): a grindstone wheel with one freshly ground, lit edge. Not used in the app yet. -->
+  <mask id="hole"><rect width="32" height="32" fill="#fff"/><circle cx="16" cy="16" r="3.4" fill="#000"/></mask>
+  <path d="M13.7 3.2A13 13 0 1 0 28.8 13.7Z" fill="#1c2533" mask="url(#hole)"/>
+  <path d="M14.6 2.4 29.6 12.8" stroke="#b23a08" stroke-width="2.8" stroke-linecap="round"/>
+</svg>

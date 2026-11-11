@@ -1,6 +1,8 @@
 export default defineAppConfig({
   site: {
     name: 'Grindstone',
+    // the public address, for absolute links such as the share image
+    url: 'https://grindstone.dkiessling.de',
     description: 'Practice real developer skills in short, game-like scenarios. First track: git.'
   },
 
