@@ -7,9 +7,13 @@ const props = defineProps<{
   layout: GraphLayout
   /** Whether the repo has an origin, so the "show origin" toggle makes sense. */
   hasOrigin: boolean
+  /** The header becomes a toggle that folds the graph away (the side panel of the IDE and Mix layouts). */
+  collapsible?: boolean
 }>()
 
 const showOrigin = defineModel<boolean>('showOrigin', { default: false })
+const open = defineModel<boolean>('open', { default: true })
+const bodyId = useId()
 
 const { t } = useI18n()
 
@@ -78,25 +82,54 @@ const summary = computed(() => t('graph.summary', props.layout.nodes.length))
 <template>
   <section
     :aria-label="t('graph.label')"
-    class="flex h-full min-h-48 flex-col overflow-hidden rounded-lg border border-default bg-elevated"
+    class="flex flex-col overflow-hidden rounded-lg border border-default bg-elevated"
+    :class="open ? 'h-full min-h-48' : 'shrink-0'"
   >
-    <header class="flex items-center justify-between gap-3 border-b border-default px-3 py-1.5">
+    <header
+      class="flex items-center justify-between gap-3 px-3 py-1.5"
+      :class="open && 'border-b border-default'"
+    >
       <h2 class="flex items-center gap-1.5 font-mono text-xs font-medium text-muted">
-        <UIcon
-          name="i-lucide-git-fork"
-          class="size-4"
-        />
-        {{ t('graph.title') }}
+        <button
+          v-if="collapsible"
+          type="button"
+          class="-mx-1 flex items-center gap-1.5 rounded px-1 hover:text-highlighted focus-visible:outline-2 focus-visible:outline-primary"
+          :aria-expanded="open"
+          :aria-controls="bodyId"
+          @click="open = !open"
+        >
+          <UIcon
+            name="i-lucide-chevron-down"
+            class="size-3.5 transition-transform"
+            :class="!open && '-rotate-90'"
+          />
+          <UIcon
+            name="i-lucide-git-fork"
+            class="size-4"
+          />
+          {{ t('graph.title') }}
+        </button>
+        <template v-else>
+          <UIcon
+            name="i-lucide-git-fork"
+            class="size-4"
+          />
+          {{ t('graph.title') }}
+        </template>
       </h2>
       <USwitch
-        v-if="hasOrigin"
+        v-if="hasOrigin && open"
         v-model="showOrigin"
         size="xs"
         :label="t('graph.showOrigin')"
       />
     </header>
 
-    <div class="min-h-0 flex-1 overflow-auto p-2">
+    <div
+      v-show="open"
+      :id="bodyId"
+      class="min-h-0 flex-1 overflow-auto p-2"
+    >
       <p
         v-if="!layout.nodes.length"
         class="px-2 py-6 text-center text-sm text-muted"
@@ -198,7 +231,10 @@ const summary = computed(() => t('graph.summary', props.layout.nodes.length))
       </template>
     </div>
 
-    <p class="border-t border-default px-3 py-1.5 text-xs text-muted">
+    <p
+      v-show="open"
+      class="border-t border-default px-3 py-1.5 text-xs text-muted"
+    >
       {{ t('graph.legend') }}
     </p>
   </section>

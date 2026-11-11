@@ -1,6 +1,6 @@
 <script setup lang="ts">
-// The editor panel (opened by `edit <file>` or from the conflicted-files list): a plain monospace textarea, Save and Cancel.
-// Conflict markers are ordinary lines in the text; there is no merge UI.
+// The editor panel of the Terminal layout (opened by `edit <file>` or from the conflicted-files list): CodeMirror in a modal,
+// Save (Ctrl/Cmd+S or Ctrl+Enter) and Cancel. Conflict blocks get the same accept actions as the editor tabs.
 const props = defineProps<{ editor: { path: string, content: string } | null }>()
 
 const emit = defineEmits<{
@@ -28,6 +28,7 @@ function onCloseAutoFocus(event: Event) {
   emit('closed')
 }
 
+// Ctrl+Enter saved in the old textarea panel; keep it (captured before CodeMirror inserts a line)
 function onKeydown(event: KeyboardEvent) {
   if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
     event.preventDefault()
@@ -55,17 +56,18 @@ function onKeydown(event: KeyboardEvent) {
         :description="t('editor.markersHelp')"
         class="mb-3"
       />
-      <UTextarea
-        v-model="draft"
-        :rows="14"
-        autofocus
-        spellcheck="false"
-        autocomplete="off"
-        :aria-label="t('editor.label', { path: editor?.path ?? '' })"
-        class="w-full"
-        :ui="{ base: 'font-mono text-sm whitespace-pre' }"
-        @keydown="onKeydown"
-      />
+      <div
+        class="h-[min(26rem,60dvh)] overflow-hidden rounded-md border border-(--app-terminal-border) focus-within:ring-2 focus-within:ring-primary"
+        @keydown.capture="onKeydown"
+      >
+        <LazyCodeEditor
+          v-if="editor"
+          v-model="draft"
+          :path="editor.path"
+          autofocus
+          @save="emit('save', draft)"
+        />
+      </div>
     </template>
     <template #footer>
       <div class="flex w-full items-center justify-end gap-2">

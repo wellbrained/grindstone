@@ -83,6 +83,17 @@
   --branch-ink: #1b1f27;
 }
 
+/*
+ * conflict blocks in the editor (app/editor/codemirror.ts): current (ours) and incoming (theirs) as two tints of the
+ * success and info tokens, like an IDE's green/blue; resolved per theme because the tokens are.
+ */
+:root {
+  --app-conflict-current: color-mix(in oklab, var(--ui-success) 12%, transparent);
+  --app-conflict-current-strong: color-mix(in oklab, var(--ui-success) 24%, transparent);
+  --app-conflict-incoming: color-mix(in oklab, var(--ui-info) 12%, transparent);
+  --app-conflict-incoming-strong: color-mix(in oklab, var(--ui-info) 24%, transparent);
+}
+
 /* a class per palette slot (app/utils/branch-palette.ts picks the slot): sets `color`, so `currentColor` carries it into SVG */
 .branch-c-0 { color: var(--branch-0); }
 .branch-c-1 { color: var(--branch-1); }

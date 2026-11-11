@@ -1,6 +1,6 @@
 # UI
 
-The browser UI of the git track (Nuxt 4 SPA, Nuxt UI 4, Tailwind 4). Decisions: `docs/adr/0001-plan.md` (layout, terminal, graph) and `docs/adr/0003-look.md` (look). Pure logic is in `app/utils/` (unit tests in `test/unit/ui/`); the engine and the git model stay in `shared/` and know nothing about the UI.
+The browser UI of the git track (Nuxt 4 SPA, Nuxt UI 4, Tailwind 4). Decisions: `docs/adr/0001-plan.md` (layout, terminal, graph), `docs/adr/0003-look.md` (look) and `docs/adr/0004-editor-layouts.md` (the three layouts, CodeMirror). Pure logic is in `app/utils/` (unit tests in `test/unit/ui/`); the engine and the git model stay in `shared/` and know nothing about the UI.
 
 ## Pages
 
@@ -11,7 +11,11 @@ The browser UI of the git track (Nuxt 4 SPA, Nuxt UI 4, Tailwind 4). Decisions: 
 
 Hosting: the app is static; direct links such as `/git/01-first-commit` need the host to fall back to `200.html` (`nuxt generate` writes it) for unknown paths.
 
-## Play page layout
+## Play page layouts
+
+A segmented control above the play area (`LayoutSwitch`, a radio group: Tab reaches the chosen one, arrow keys move the choice) switches between three layouts. The choice is stored per viewer in localStorage (`grindstone:layout`, read through `parseLayout`, every access guarded; with storage blocked it lasts for the visit) and shared by all levels (`usePlayLayout`). Switching keeps the session, the terminal log and the open editor tabs.
+
+### Terminal (default)
 
 | Width | Layout |
 | --- | --- |
@@ -19,7 +23,37 @@ Hosting: the app is static; direct links such as `/git/01-first-commit` need the
 | md to lg | One column: level panel (story and goals), graph, terminal. |
 | < md | One column: level panel, terminal, graph, with a "best with a keyboard" note on top. The terminal does not autofocus on touch devices (`pointer: coarse`), so the keyboard does not pop up unasked. |
 
-No horizontal page scroll down to 360px: terminal text wraps (`whitespace-pre-wrap`), the graph scrolls inside its own box.
+No horizontal page scroll down to 360px: terminal text wraps (`whitespace-pre-wrap`), the graph scrolls inside its own box. `edit <file>` and the conflicted-files list open the editor panel (`FileEditor`, a modal).
+
+### IDE
+
+Like VS Code (`PlayWorkbench` with `variant="ide"`):
+
+| Width | Layout |
+| --- | --- |
+| >= lg | Viewport-high grid: explorer left (13rem, 15rem from xl, 16rem from 2xl), editor tabs centre with the terminal as a bottom panel (fixed split, the terminal about 38% of the height, at least 10rem), side panel right (18rem, 22rem from xl, 26rem from 2xl). |
+| md to lg | Explorer left of editor and terminal (fixed heights), the side panel below across both columns. |
+| < md | Tabs Files / Editor / Terminal / Level, one panel at a time (Terminal first). Every panel is rendered once and only hidden, so the terminal and the editor keep their state. Opening a file switches to Editor. |
+
+The side panel (`PlaySidePanel`) holds two collapsible sections: Level (`LevelPanel`: story, goals, hint, reset, conflicted files) and the commit graph (`CommitGraph` with `collapsible`, its header becomes the toggle).
+
+### Mix
+
+Editor and terminal side by side as equals (`variant="mix"`), no explorer: files open with **Open file** (`FilePicker`, a command palette over the working tree with status letters), `edit <file>` or the conflicted-files list. The side panel can fold into a slim strip that still shows the goal count (>= lg: a column on the right; md to lg: a bar below). Below md the same four tabs as IDE (Files shows the explorer).
+
+### File explorer (`FileExplorer`)
+
+The engine's working tree as a folder tree (`UTree`: arrow keys move, Enter opens; folders start expanded and remember being collapsed). `buildFileTree(workdir, statuses)` and `fileStatuses(state)` in `app/utils/file-tree.ts` (pure, tested):
+
+| Status | Letter | Colour | When |
+| --- | --- | --- | --- |
+| conflicted | C | error | unmerged path |
+| modified | M | warning | tracked, working tree or index differs from HEAD |
+| added | A | success | not in HEAD, staged |
+| untracked | U | success | not in the index |
+| deleted | D | error, struck through | in HEAD or the index but gone from the working tree; listed, cannot be opened |
+
+The letter sits next to the name and the status is also in the accessible name (`footer.ts (conflicted)`), never colour alone. A folder shows a dot in the colour of its most urgent status. Before `git init` there are no statuses. A legend under the tree explains the letters.
 
 ## Components (`app/components/`)
 
@@ -27,15 +61,37 @@ No horizontal page scroll down to 360px: terminal text wraps (`whitespace-pre-wr
 - `LevelPanel`: title, story (`InlineText` shows `backticks` as code chips), live goal checklist (each goal has an icon and a hidden "done"/"not done yet" text, never colour alone), files with conflicts (click opens the editor), Hint and Reset buttons, the solved card with Show debrief and Next level.
 - `TerminalPane`: the terminal. Output in a `role="log"` region (`aria-live="polite"`), one input line, history, Tab completion, Ctrl+L, Ctrl+C. `TerminalText` renders one output line (`err` in the error colour, `hint` dimmed, `tone` added/removed/meta, `refs` coloured from the branch palette), `TerminalPrompt` renders `you@grindstone ~/project (<branch>) $` with the branch in its palette colour (a merge or rebase in progress adds `|MERGING` / `|REBASING`, a detached HEAD shows `HEAD detached at <id>`).
 - `CommitGraph`: the SVG graph (see below). `SparkBurst`: the ember effect when a level is solved.
-- `FileEditor`: modal with a monospace textarea; Save (also Ctrl+Enter) calls `saveFile`, Cancel discards. A warning shows while conflict markers are still in the text.
+- `FileEditor`: the Terminal layout's editor panel, a modal with `CodeEditor`; Save (Ctrl/Cmd+S, also Ctrl+Enter) calls `saveFile`, Cancel discards. A warning shows while conflict markers are still in the text.
+- `CodeEditor`: CodeMirror for one file at a time; always used as `<LazyCodeEditor>`, so CodeMirror is its own chunk and loads only when an editor shows. Switching `path` keeps each file's undo history and cursor.
+- `EditorArea`: the editor of IDE and Mix: a strip of open tabs (name, `●` for unsaved edits, a warning icon when the file changed on disk, close button; closing a tab with unsaved edits asks first), Open file and Save buttons, the changed-on-disk notice, CodeMirror for the active tab.
+- `FileExplorer`, `FilePicker`, `PlaySidePanel`, `PlayWorkbench`, `LayoutSwitch`: see Play page layouts.
 - `DebriefDialog`: debrief title and paragraphs, stats (commands used / shortest solution, hints used), Stay here and Next level (Back to all levels after the last one).
 - `LevelList`: the track's levels with solved state (used on the home page inside `<ClientOnly>`, since progress only exists in the browser).
 
-Composables: `useLevelPlay(level)` (session, terminal log, editor, debrief, graph input), `useProgress()` (shared progress state). Utils: `branch-palette`, `graph-layout`, `completion`, `terminal` (prompt and completion names from a state), `progress-storage`, `level-route`.
+Composables: `useLevelPlay(level, { onEdit })` (session, terminal log, editor panel, editor tabs, file tree, debrief, graph input; `onEdit` decides where `edit <file>` opens a file), `useEditorTabs(workdir)` (open tabs that follow the working tree), `usePlayLayout()` (the layout choice), `useProgress()` (shared progress state). Utils: `branch-palette`, `graph-layout`, `completion`, `terminal` (prompt and completion names from a state), `progress-storage`, `level-route`, `conflicts`, `file-tree`, `editor-tabs`, `play-layout`. The CodeMirror setup is `app/editor/codemirror.ts` (outside `utils/`, so it is never auto-imported into the main bundle).
+
+## Editor
+
+- CodeMirror 6 (`@codemirror/state`, `view`, `commands`, `language`, `@lezer/highlight`): line numbers, undo history, bracket matching, active line, soft line wrapping (no sideways scrolling on phones). Tab is not bound, so keyboard users can leave the editor. Ctrl/Cmd+S saves.
+- Languages by file extension, each loaded as its own chunk the first time such a file opens: JavaScript (`js`, `mjs`, `cjs`, `jsx`), TypeScript (`ts`, `mts`, `cts`, `tsx`), JSON, Markdown; everything else is plain text.
+- Theme from the app's tokens (`EditorView.theme` with `var(--ui-*)` and `--app-terminal*`), so one theme serves dark and light; syntax colours are semantic tokens (keywords secondary, strings success, numbers warning, comments dimmed, functions info, headings primary).
+- **Conflicts** (`app/utils/conflicts.ts`, pure, tested): `parseConflicts(text)` finds complete `<<<<<<<` / optional `|||||||` / `=======` / `>>>>>>>` blocks (exactly seven marker characters at the start of a line; an unclosed block is ignored; a second `<<<<<<<` starts over). Current (ours) lines get the `--app-conflict-current` tint (success), incoming (theirs) `--app-conflict-incoming` (info), the marker lines a stronger tint and a "(current change)" / "(incoming change)" tag. Above each block a bar with **Accept current · Accept incoming · Accept both** (real buttons, accessible name "Conflict n: accept the current change", ...) rewrites the block in the editor buffer (`resolveConflict`; Accept both keeps ours then theirs; a diff3 base section is dropped; a block that ends the file without a line break leaves none). Nothing is saved until Save. Editing the markers by hand keeps working: the decorations follow the text.
+
+## Sync rules (editor tabs and the engine)
+
+The editor shows the engine's working tree (`session.state.workdir`); a tab never writes to it except through Save. Each tab keeps the disk content its draft is based on (`base`), the draft, and an optional "changed on disk" notice (`app/utils/editor-tabs.ts`, pure, tested; `useEditorTabs` applies it whenever the working tree changes):
+
+- A command (or `undo`, `reset`, a teammate event) that leaves the file as the tab's base: nothing happens; a notice that no longer applies (e.g. after `undo`) disappears.
+- The file changed and the tab has **no unsaved edits**: the tab reloads.
+- The file was deleted and the tab has no unsaved edits: the tab closes.
+- The file changed under **unsaved edits**: the draft stays, the tab gets a warning icon and the editor a notice with **Reload from disk** (take the disk version) and **Keep mine** (the draft stays and counts as an edit of the new disk version; saving overwrites it).
+- The file was deleted under unsaved edits: the tab is struck through and marked deleted; the notice offers **Close tab** and **Keep mine** (saving brings the file back).
+- `edit <file>` in IDE and Mix opens the file in a tab or focuses its tab (on phones it switches to the Editor tab, without popping up the keyboard); a file that does not exist yet opens as an empty tab and is created on Save. In the Terminal layout `edit <file>` opens the editor panel as before.
+- Save (Ctrl/Cmd+S or the Save button) writes the draft through `saveFile`, prints `Saved <path>.` in the terminal and counts as a command (undoable with `undo`). Saving a tab with a notice is the same as Keep mine plus Save.
 
 ## Terminal behaviour
 
-- Lines go to `submit(session, level, line)`; `{ kind: 'clear' }` empties the log, `{ kind: 'edit', path }` opens the editor, notices become an inline teammate line (icon plus text, e.g. "Anna pushed 2 commits to main.") inside the live log, so screen readers announce them. After a solve a "Level solved" line is added.
+- Lines go to `submit(session, level, line)`; `{ kind: 'clear' }` empties the log, `{ kind: 'edit', path }` opens the file (editor panel in the Terminal layout, a tab in IDE and Mix), notices become an inline teammate line (icon plus text, e.g. "Anna pushed 2 commits to main.") inside the live log, so screen readers announce them. After a solve a "Level solved" line is added.
 - Up/Down walk the history (kept for the whole visit, shared by all levels; the line being typed is restored at the bottom). Ctrl+L clears (like `clear`, not counted). Ctrl+C drops the current input.
 - Tab completes (`app/utils/completion.ts`): trainer commands, `git` and shell commands at the start; git subcommands after `git`; branch names (local, `origin/<name>`, names on origin) for `switch`, `checkout`, `merge`, `rebase`, `branch`, `log`, `push`, `pull`, `fetch`, `diff`; `origin` for `push`/`pull`/`fetch`; file names for `add`, `checkout`, `diff`, `commit` and for `cat`, `edit`, `rm`, `touch`, `ls`. One match completes with a trailing space, several extend to the common prefix, and when nothing can be added the choices are printed. Flags are not completed. Tab on an empty line is left to the browser, so keyboard users can leave the field with Tab (and Shift+Tab always works).
 - A click anywhere in the terminal focuses the input unless text is selected. After the editor or the debrief closes, the focus goes back to the terminal.
@@ -67,11 +123,13 @@ Composables: `useLevelPlay(level)` (session, terminal log, editor, debrief, grap
 
 ## Tests
 
-- Vitest (`pnpm test`): `test/unit/ui/` covers graph layout (linear, branch, merge, deleted branch, rebase orphans, origin toggle, detached HEAD), the branch palette, completion and the progress storage. The Nuxt-environment test `test/nuxt/AppLogo.spec.ts` still applies (the new logo renders the site name).
-- Playwright (`pnpm test:e2e`, `playwright.config.ts`, tests in `e2e/`, outside Vitest's globs): starts `nuxt dev --host localhost` on port 4003 (or reuses a running one) and plays level 1 through the terminal, including Tab completion, the debrief, the graph and the solved state on the home page. First run needs the browser: `pnpm exec playwright install chromium`. The explicit `--host` is a workaround: `@nuxt/cli` 4.0.1 fails at start without it.
+- Vitest (`pnpm test`): `test/unit/ui/` covers graph layout (linear, branch, merge, deleted branch, rebase orphans, origin toggle, detached HEAD), the branch palette, completion, the progress storage, conflict parsing and the three accept actions, file statuses and the file tree, the tab sync decisions, and the stored layout. The Nuxt-environment test `test/nuxt/AppLogo.spec.ts` still applies (the new logo renders the site name).
+- Playwright (`pnpm test:e2e`, `playwright.config.ts`, tests in `e2e/`, outside Vitest's globs): starts `nuxt dev --host localhost` on port 4003 (or reuses a running one). `level-1.spec.ts` plays level 1 through the terminal, including Tab completion, the debrief, the graph and the solved state on the home page; `level-4-ide.spec.ts` switches to the IDE layout, merges in the bottom terminal, opens the conflicted file from the explorer, uses Accept both, saves with Ctrl/Cmd+S, adds and commits, sees the debrief and checks that the layout survives a reload. First run needs the browser: `pnpm exec playwright install chromium`. The explicit `--host` is a workaround: `@nuxt/cli` 4.0.1 fails at start without it.
 
 ## Rough edges
 
 - Phones are usable but the terminal is the whole point: type on a hardware or software keyboard; there are no command buttons.
 - The graph scrolls inside its box when pills and messages are wider than the column; text width is estimated from the monospace advance (6.6px at 11px), so a fallback font can be off by a few pixels.
 - Undo and Reset are terminal commands (`undo`, `reset`); only Reset has a button.
+- The IDE's terminal panel has a fixed height (no drag handle yet). Tabs live as long as the play page: leaving the level and coming back keeps the session but starts with no open tabs.
+- No source control panel (staged/unstaged lists, commit button): the trainer teaches the commands (ADR 0004).

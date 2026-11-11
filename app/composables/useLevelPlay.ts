@@ -1,4 +1,4 @@
-// Everything one play page needs: the session of a level, the terminal log, the editor, the debrief and the graph.
+// Everything one play page needs: the session of a level, the terminal log, the editor (panel and tabs), the debrief and the graph.
 // The session lives in memory (useState): leaving the page and coming back keeps it, a browser reload starts the level again.
 import { gitCommandNames, shellCommandNames, unmergedPaths } from '#shared/git'
 import type { OutputLine } from '#shared/git'
@@ -24,7 +24,12 @@ interface PlayState {
 /** The spark effect runs about this long before the debrief opens. */
 const DEBRIEF_DELAY_MS = 900
 
-export function useLevelPlay(level: Level) {
+export interface LevelPlayOptions {
+  /** Where `edit <file>` and the conflicted-files list open a file; default: the editor panel. */
+  onEdit?: (path: string) => void
+}
+
+export function useLevelPlay(level: Level, options: LevelPlayOptions = {}) {
   const { t } = useI18n()
   const { record } = useProgress()
 
@@ -49,6 +54,9 @@ export function useLevelPlay(level: Level) {
     shellCommands: shellCommandNames
   }))
   const conflictedFiles = computed(() => unmergedPaths(session.value.state))
+  const workdir = computed(() => session.value.state.workdir)
+  const fileTree = computed(() => buildFileTree(workdir.value, fileStatuses(session.value.state)))
+  const tabs = useEditorTabs(() => workdir.value)
   const hasOrigin = computed(() => session.value.state.origin !== null)
   const next = nextLevel(level.id)
 
@@ -75,15 +83,18 @@ export function useLevelPlay(level: Level) {
     store.value.log.push({ id: store.value.nextId++, ...body })
   }
 
+  /** The editor panel (Terminal layout). */
   function openEditor(path: string) {
     editor.value = { path, content: session.value.state.workdir[path] ?? '' }
   }
+
+  const edit = (path: string) => (options.onEdit ?? openEditor)(path)
 
   function apply(result: SubmitResult) {
     store.value.session = result.session
     for (const line of result.output) {
       if (line.kind === 'clear') store.value.log = []
-      else if (line.kind === 'edit') openEditor(line.path)
+      else if (line.kind === 'edit') edit(line.path)
       else push({ type: 'line', line })
     }
     for (const notice of result.notices) push({ type: 'notice', author: notice.author, text: notice.text })
@@ -105,13 +116,27 @@ export function useLevelPlay(level: Level) {
     apply(submit(session.value, level, line))
   }
 
-  /** Save from the editor panel; counts like a command. */
+  /** Writes a file through the engine; counts like a command. */
+  function saveAs(path: string, content: string) {
+    push({ type: 'line', line: { kind: 'out', text: t('terminal.saved', { path }) } })
+    apply(saveFile(session.value, level, path, content))
+  }
+
+  /** Save from the editor panel. */
   function save(content: string) {
     if (!editor.value) return
     const { path } = editor.value
     editor.value = null
-    push({ type: 'line', line: { kind: 'out', text: t('terminal.saved', { path }) } })
-    apply(saveFile(session.value, level, path, content))
+    saveAs(path, content)
+  }
+
+  /** Save an editor tab (Ctrl/Cmd+S or its Save button). */
+  function saveTab(path: string) {
+    const tab = tabs.tabs.value.find(candidate => candidate.path === path)
+    if (!tab) return
+    const content = tab.draft
+    tabs.saved(path, content)
+    saveAs(path, content)
   }
 
   /** Tab completion with several matches: print them like a shell does. */
@@ -136,6 +161,9 @@ export function useLevelPlay(level: Level) {
     prompt,
     completion,
     conflictedFiles,
+    workdir,
+    fileTree,
+    tabs,
     hasOrigin,
     showOrigin,
     next,
@@ -147,10 +175,14 @@ export function useLevelPlay(level: Level) {
     sparkKey,
     run,
     save,
+    saveTab,
     openEditor,
+    edit,
     listCandidates,
     clearTerminal,
     reset,
     hint: () => run('hint')
   }
 }
+
+export type LevelPlay = ReturnType<typeof useLevelPlay>

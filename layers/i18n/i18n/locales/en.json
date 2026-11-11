@@ -23,7 +23,29 @@
     "reset": "Reset",
     "solved": "Level solved",
     "debrief": "Show debrief",
-    "keyboard": "Best with a keyboard: type the commands into the terminal below."
+    "keyboard": "Best with a keyboard: type the commands into the terminal below.",
+    "layout": {
+      "label": "Layout",
+      "terminal": "Terminal",
+      "ide": "IDE",
+      "mix": "Mix",
+      "terminalHelp": "Terminal layout: goals, terminal and graph; edit and a file name open an editor panel",
+      "ideHelp": "IDE layout: file explorer, editor tabs, a terminal panel below, goals and graph on the right",
+      "mixHelp": "Mix layout: editor and terminal side by side, goals and graph in a panel you can fold away"
+    },
+    "tabs": {
+      "label": "Panels",
+      "files": "Files",
+      "editor": "Editor",
+      "terminal": "Terminal",
+      "level": "Level"
+    },
+    "panel": {
+      "label": "Level and commit graph",
+      "level": "Level",
+      "collapse": "Fold away goals and graph",
+      "expand": "Show goals and graph"
+    }
   },
   "goals": {
     "title": "Goals",
@@ -54,12 +76,45 @@
     "legend": "Filled labels are your branches, outlined ones are origin/* (your copy of the remote). The ringed commit is HEAD."
   },
   "editor": {
-    "description": "Edit the file and save it. Saving counts as a command.",
+    "description": "Edit the file and save it (Ctrl+S). Saving counts as a command.",
     "markers": "This file still has conflict markers",
-    "markersHelp": "Keep the lines you want and delete the marker lines that start with seven less-than, equals or greater-than signs.",
+    "markersHelp": "Use Accept current, Accept incoming or Accept both above a block, or keep the lines you want and delete the marker lines (they start with seven less-than, equals or greater-than signs).",
     "label": "Contents of {path}",
     "cancel": "Cancel",
-    "save": "Save"
+    "save": "Save",
+    "areaLabel": "Editor",
+    "tabs": "Open files",
+    "close": "Close {path}",
+    "closeTab": "Close tab",
+    "unsaved": "unsaved changes",
+    "saveKeys": "Save (Ctrl+S or Cmd+S). Saving counts as a command.",
+    "openFile": "Open file",
+    "openFileHelp": "Pick a file of the working tree to open in a tab.",
+    "openFilePlaceholder": "Search files…",
+    "noMatch": "No file matches.",
+    "emptyIde": "No file open. Click one in the explorer, use Open file, or type edit and a file name in the terminal.",
+    "emptyMix": "No file open. Use Open file, or type edit and a file name in the terminal.",
+    "changedOnDisk": "changed on disk",
+    "deletedOnDisk": "deleted on disk",
+    "changedTitle": "{path} changed on disk",
+    "changedText": "A command changed this file while you had unsaved edits.",
+    "deletedTitle": "{path} was deleted",
+    "deletedText": "A command deleted this file while you had unsaved edits. Keep mine and save to bring it back.",
+    "reload": "Reload from disk",
+    "keepMine": "Keep mine",
+    "discardTitle": "Discard unsaved changes?",
+    "discardText": "{path} has unsaved changes. Closing the tab throws them away.",
+    "discard": "Discard",
+    "acceptCurrent": "Accept current",
+    "acceptIncoming": "Accept incoming",
+    "acceptBoth": "Accept both",
+    "currentChange": "(current change)",
+    "incomingChange": "(incoming change)",
+    "action": {
+      "current": "Conflict {block}: accept the current change",
+      "incoming": "Conflict {block}: accept the incoming change",
+      "both": "Conflict {block}: accept both changes"
+    }
   },
   "debrief": {
     "solved": "{title}: solved.",
@@ -70,5 +125,19 @@
     "stay": "Stay here",
     "next": "Next level",
     "all": "Back to all levels"
+  },
+  "explorer": {
+    "title": "Explorer",
+    "label": "Files in the working tree",
+    "empty": "The working tree is empty.",
+    "noRepo": "No repository yet: git statuses show after git init.",
+    "folderChanged": "contains changes",
+    "status": {
+      "modified": "modified",
+      "added": "added",
+      "untracked": "untracked",
+      "deleted": "deleted",
+      "conflicted": "conflicted"
+    }
   }
 }
