@@ -1,0 +1,14 @@
+grindstone.dkiessling.de {
+    bind 167.233.235.154 2a01:4f8:c013:d350::1
+    root * /srv/grindstone/current
+    encode zstd gzip
+    header X-Content-Type-Options nosniff
+    header Referrer-Policy strict-origin-when-cross-origin
+    # SPA: direct links like /git/06-teammate-sync load the app shell (nuxt generate writes 200.html)
+    try_files {path} {path}/index.html /200.html
+    @html path / *.html
+    header @html Cache-Control "no-cache"
+    @assets path /_nuxt/*
+    header @assets Cache-Control "public, max-age=31536000, immutable"
+    file_server
+}
