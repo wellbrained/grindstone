@@ -1,7 +1,13 @@
 {
   "layout": {
     "colorMode": "Switch between light and dark mode",
-    "footer": "{name}: practice real developer skills, in the browser."
+    "footer": "{name}: practice real developer skills, in the browser.",
+    "nav": {
+      "label": "Main",
+      "levels": "Levels",
+      "cheat": "Cheat sheet",
+      "about": "About"
+    }
   },
   "home": {
     "kicker": "Git track",
@@ -122,6 +128,58 @@
       "untracked": "untracked",
       "deleted": "deleted",
       "conflicted": "conflicted"
+    }
+  },
+  "cheat": {
+    "kicker": "Git track",
+    "title": "Git cheat sheet",
+    "intro": "The commands you need day to day, in one line each, with typical examples. Click an example to copy it, or jump to the level that practises it.",
+    "search": "Filter commands",
+    "sections": "Sections",
+    "none": "No command matches \"{query}\".",
+    "soon": "Coming to the trainer",
+    "copy": "Copy {line}",
+    "practise": "Practise it in:"
+  },
+  "about": {
+    "kicker": "About",
+    "title": "Practice the skills you use every day",
+    "intro": "Grindstone is a training ground for developers: short, game-like levels that run in your browser. The first track is git, because everyone uses it and almost everyone is a little afraid of rebase.",
+    "differentTitle": "What makes it different",
+    "different": {
+      "teammates": {
+        "title": "You are not alone in the repo",
+        "text": "Simulated teammates push to origin while you work. Keeping your branch in sync, rebasing onto a moved main and force-pushing safely only make sense when others change things too."
+      },
+      "real": {
+        "title": "It feels like the real thing",
+        "text": "Commands and messages follow real git, down to \"rejected, fetch first\". What you practise here carries over to your own terminal."
+      },
+      "graph": {
+        "title": "You see what git does",
+        "text": "Every command redraws a live commit graph, so branches, merges and rebases stop being invisible."
+      },
+      "ide": {
+        "title": "Work the way you work",
+        "text": "Use a plain terminal, or an IDE layout with files, an editor with conflict actions and a terminal below."
+      }
+    },
+    "howTitle": "How it works",
+    "how": "Everything runs in your browser: Grindstone has its own git simulation in TypeScript, so levels are predictable, undo is instant and nothing is sent anywhere. Your progress stays on your device. The code is open source.",
+    "laterTitle": "Coming later",
+    "later": {
+      "levels": "More git levels: cherry-pick, reset vs. revert, stash",
+      "disasters": "Disaster scenarios: a leaked API key, the wrong branch rebased, a hotfix in the middle of a feature",
+      "workflows": "Workflow tracks: GitFlow, trunk-based, release branches",
+      "tracks": "More tracks: working with AI, web fundamentals, debugging, framework deep dives",
+      "profile": "A skill profile that shows where you are strong and what to practise next"
+    },
+    "byTitle": "Who builds it",
+    "by": "Grindstone is built by Dominik Kiessling, a frontend and full-stack developer working with Vue, Nuxt and TypeScript.",
+    "links": {
+      "portfolio": "Portfolio",
+      "code": "Source code",
+      "profile": "GitHub profile"
     }
   }
 }

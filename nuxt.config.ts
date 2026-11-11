@@ -53,5 +53,13 @@ export default defineNuxtConfig({
       // the wordmark only (AppLogo, docs/adr/0005-logo.md)
       { name: 'Tektur', provider: 'google', weights: [500, 900] }
     ]
+  },
+
+  // static SPA: no server to fetch icons from, so every icon must be in the client bundle
+  icon: {
+    clientBundle: {
+      scan: true,
+      icons: ['simple-icons:github']
+    }
   }
 })

@@ -1,6 +1,12 @@
 <script setup lang="ts">
 const { site } = useAppConfig()
 const { t } = useI18n()
+
+const navigation = computed(() => [
+  { label: t('layout.nav.levels'), to: '/', exact: true },
+  { label: t('layout.nav.cheat'), to: '/git/cheat-sheet' },
+  { label: t('layout.nav.about'), to: '/about' }
+])
 </script>
 
 <template>
@@ -14,6 +20,12 @@ const { t } = useI18n()
       <template #title>
         <AppLogo class="shrink-0" />
       </template>
+
+      <UNavigationMenu
+        :items="navigation"
+        :aria-label="t('layout.nav.label')"
+        class="hidden sm:flex"
+      />
 
       <template #right>
         <UColorModeButton :aria-label="t('layout.colorMode')" />
@@ -29,6 +41,20 @@ const { t } = useI18n()
         <p class="text-sm text-muted">
           {{ t('layout.footer', { name: site.name }) }}
         </p>
+      </template>
+
+      <template #right>
+        <nav
+          class="flex gap-4 text-sm"
+          :aria-label="t('layout.nav.label')"
+        >
+          <NuxtLink
+            v-for="item in navigation"
+            :key="item.to"
+            :to="item.to"
+            class="text-muted hover:text-highlighted"
+          >{{ item.label }}</NuxtLink>
+        </nav>
       </template>
     </UFooter>
   </div>
