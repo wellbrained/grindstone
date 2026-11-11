@@ -1,0 +1,254 @@
+// fetch, pull and push against the simulated origin.
+import { parseArgs } from '../args'
+import { isAncestor, reachable } from '../objects/graph'
+import type { Commits } from '../objects/graph'
+import { shortId } from '../objects/hash'
+import { done, err, fail, hint, out, ref } from '../output'
+import { trackingRef } from '../refs'
+import { without } from '../state'
+import type { Command, CommandResult, GitState, OutputLine, Remote, Repo } from '../types'
+import { activeBranch, trackingLine } from './branch'
+import { unresolvedConflict } from './commit'
+import { fatal, notARepo, withRepo } from './common'
+import { mergeInto } from './merge'
+import { startRebase } from './rebase'
+
+const SUMMARY_WIDTH = 17
+const REF_WIDTH = 10
+
+const noRemote = (state: GitState, name = 'origin') => fail(state, [
+  err(`fatal: '${name}' does not appear to be a git repository`),
+  err('fatal: Could not read from remote repository.'),
+  err(''),
+  err('Please make sure you have the correct access rights'),
+  err('and the repository exists.')
+], 128)
+
+/** Copies every commit reachable from `tips` from one object store into another. */
+function copyCommits(from: Commits, to: Commits, tips: string[]): Commits {
+  const missing = [...reachable(from, tips)].filter(id => !to[id])
+  if (!missing.length) return to
+  const merged = { ...to }
+  for (const id of missing) merged[id] = from[id]!
+  return merged
+}
+
+const refLine = (flag: string, summary: string, from: string, to: string, width: number, suffix = '') =>
+  out(` ${flag} ${summary.padEnd(SUMMARY_WIDTH)} `, ref(from), `${' '.repeat(Math.max(0, width - from.length))} -> `, ref(to), suffix)
+
+/** Updates origin/* from origin. Returns the new state and git's "From <url>" report. */
+export function fetchOrigin(state: GitState, only?: string): { state: GitState, output: OutputLine[] } {
+  const repo = state.repo!
+  const origin = state.origin!
+  const names = Object.keys(origin.branches).filter(name => only === undefined || name === only).sort()
+  const remoteBranches = { ...repo.remoteBranches }
+  // the ref column is as wide as the longest name shown, at least REF_WIDTH
+  const shown = names.filter(name => only !== undefined || repo.remoteBranches[name] !== origin.branches[name])
+  const width = Math.max(REF_WIDTH, ...shown.map(name => name.length))
+  const output: OutputLine[] = []
+
+  for (const name of names) {
+    const tip = origin.branches[name]!
+    const old = repo.remoteBranches[name]
+    if (only !== undefined) output.push(refLine('*', 'branch', name, 'FETCH_HEAD', width))
+    if (old === tip) continue
+    remoteBranches[name] = tip
+    if (!old) output.push(refLine('*', '[new branch]', name, trackingRef(name), width))
+    else if (isAncestor(origin.commits, old, tip)) output.push(refLine(' ', `${shortId(old)}..${shortId(tip)}`, name, trackingRef(name), width))
+    else output.push(refLine('+', `${shortId(old)}...${shortId(tip)}`, name, trackingRef(name), width, '  (forced update)'))
+  }
+
+  const next: Repo = {
+    ...repo,
+    commits: copyCommits(origin.commits, repo.commits, names.map(name => origin.branches[name]!)),
+    remoteBranches
+  }
+  return { state: withRepo(state, next), output: output.length ? [out(`From ${origin.url}`), ...output] : [] }
+}
+
+export const fetch: Command = (state, argv) => {
+  if (!state.repo) return notARepo(state)
+  const parsed = parseArgs('fetch', argv, { flags: ['--all', '--prune'], alias: { '-p': '--prune' } })
+  if (!parsed.ok) return fail(state, [err(parsed.error)])
+  const [remote = 'origin', branch] = parsed.args.positionals
+  if (!state.origin || remote !== 'origin') return noRemote(state, remote)
+  if (branch !== undefined && !state.origin.branches[branch]) return fatal(state, `fatal: couldn't find remote ref ${branch}`)
+
+  const fetched = fetchOrigin(state, branch)
+  if (!parsed.args.flags.has('--prune')) return done(fetched.state, fetched.output)
+
+  const repo = fetched.state.repo!
+  const stale = Object.keys(repo.remoteBranches).filter(name => !state.origin!.branches[name]).sort()
+  if (!stale.length) return done(fetched.state, fetched.output)
+  const remoteBranches = stale.reduce(without, repo.remoteBranches)
+  const lines = stale.map(name => refLine('-', '[deleted]', '(none)', trackingRef(name), REF_WIDTH))
+  const output = fetched.output.length ? [...fetched.output, ...lines] : [out(`From ${state.origin.url}`), ...lines]
+  return done(withRepo(fetched.state, { ...repo, remoteBranches }), output)
+}
+
+const withoutGit = (url: string) => url.replace(/\.git$/, '')
+
+export const pull: Command = (state, argv) => {
+  const repo = state.repo
+  if (!repo) return notARepo(state)
+  const parsed = parseArgs('pull', argv, { flags: ['--rebase', '--no-rebase', '--ff-only', '--no-ff'], alias: { '-r': '--rebase' } })
+  if (!parsed.ok) return fail(state, [err(parsed.error)])
+  const { flags, positionals } = parsed.args
+  const [remote = 'origin', named] = positionals
+  if (!state.origin || remote !== 'origin') return noRemote(state, remote)
+  if (Object.keys(repo.unmerged).length) return unresolvedConflict(state, 'Pulling')
+  if (repo.operation?.type === 'merge') {
+    return fatal(state, 'fatal: You have not concluded your merge (MERGE_HEAD exists).\nPlease, commit your changes before merging.')
+  }
+  if (repo.operation?.type === 'rebase') return fatal(state, 'fatal: You are in the middle of a rebase; finish it with "git rebase --continue" or "git rebase --abort" first.')
+
+  const current = activeBranch(repo)
+  const branch = named ?? (current ? repo.upstream[current] : undefined)
+  if (!branch) {
+    return fail(state, [
+      out(current ? 'There is no tracking information for the current branch.' : 'You are not currently on a branch.'),
+      out('Please specify which branch you want to merge with.'),
+      out('See git-pull(1) for details.'),
+      out(''),
+      out('    git pull <remote> <branch>'),
+      ...(current
+        ? [
+            out(''),
+            out('If you wish to set tracking information for this branch you can do so with:'),
+            out(''),
+            out(`    git branch --set-upstream-to=origin/<branch> ${current}`)
+          ]
+        : [])
+    ])
+  }
+  if (!state.origin.branches[branch]) return fatal(state, `fatal: couldn't find remote ref ${branch}`, 1)
+
+  const fetched = fetchOrigin(state, named === undefined ? undefined : branch)
+  const theirs = fetched.state.repo!.remoteBranches[branch]!
+  const label = trackingRef(branch)
+  const into = current && current !== 'main' && current !== 'master' ? ` into ${current}` : ''
+  const result = flags.has('--rebase')
+    ? startRebase(fetched.state, theirs)
+    : mergeInto(fetched.state, theirs, label, {
+        message: `Merge branch '${branch}' of ${withoutGit(state.origin.url)}${into}`,
+        ffOnly: flags.has('--ff-only'),
+        noFf: flags.has('--no-ff')
+      })
+  // a failed merge or rebase still keeps what fetch brought in (result.state builds on fetched.state)
+  return { state: result.state, output: [...fetched.output, ...result.output], exitCode: result.exitCode }
+}
+
+function rejected(state: GitState, url: string, line: OutputLine, hints: string[]): CommandResult {
+  return fail(state, [out(`To ${url}`), line, err(`error: failed to push some refs to '${url}'`), ...hints.map(text => hint(text))])
+}
+
+const FETCH_FIRST = [
+  'hint: Updates were rejected because the remote contains work that you do not',
+  'hint: have locally. This is usually caused by another repository pushing to',
+  'hint: the same ref. If you want to integrate the remote changes, use',
+  'hint: \'git pull\' before pushing again.',
+  'hint: See the \'Note about fast-forwards\' in \'git push --help\' for details.'
+]
+
+const NON_FAST_FORWARD = [
+  'hint: Updates were rejected because the tip of your current branch is behind',
+  'hint: its remote counterpart. If you want to integrate the remote changes,',
+  'hint: use \'git pull\' before pushing again.',
+  'hint: See the \'Note about fast-forwards\' in \'git push --help\' for details.'
+]
+
+const pushLine = (flag: string, summary: string, src: string, dst: string, suffix = '') =>
+  out(` ${flag} ${summary.padEnd(SUMMARY_WIDTH)} `, ref(src), ' -> ', ref(dst), suffix)
+
+export const push: Command = (state, argv) => {
+  const repo = state.repo
+  if (!repo) return notARepo(state)
+  const parsed = parseArgs('push', argv, {
+    flags: ['-u', '--force', '--force-with-lease'],
+    alias: { '--set-upstream': '-u', '-f': '--force' }
+  })
+  if (!parsed.ok) return fail(state, [err(parsed.error)])
+  const { flags, positionals } = parsed.args
+  const origin = state.origin
+  if (!origin) {
+    return fail(state, [
+      err('fatal: No configured push destination.'),
+      err('Either specify the URL from the command-line or configure a remote repository using'),
+      err(''),
+      err('    git remote add <name> <url>'),
+      err(''),
+      err('and then push using the remote name'),
+      err(''),
+      err('    git push <name>')
+    ], 128)
+  }
+  const [remote = 'origin', refspec] = positionals
+  if (remote !== 'origin') return noRemote(state, remote)
+  if (positionals.length > 2) return fail(state, [err('git push: pushing several branches at once is not in this trainer yet')])
+  if (refspec?.includes(':')) return fail(state, [err('git push: <src>:<dst> refspecs are not in this trainer yet')])
+
+  const current = activeBranch(repo)
+  const src = refspec === undefined || refspec === 'HEAD' ? current : refspec
+  if (!src || (repo.head.type === 'detached' && refspec === undefined)) {
+    return fatal(state, [
+      'fatal: You are not currently on a branch.',
+      'To push the history leading to the current (detached HEAD)',
+      'state now, use',
+      '',
+      '    git push origin HEAD:<name-of-remote-branch>'
+    ].join('\n'))
+  }
+  const local = repo.branches[src]
+  if (!local) {
+    return fail(state, [err(`error: src refspec ${src} does not match any`), err(`error: failed to push some refs to '${origin.url}'`)])
+  }
+  const dst = refspec === undefined ? repo.upstream[src] : src
+  if (!dst) {
+    return fatal(state, [
+      `fatal: The current branch ${src} has no upstream branch.`,
+      'To push the current branch and set the remote as upstream, use',
+      '',
+      `    git push --set-upstream origin ${src}`,
+      '',
+      'To have this happen automatically for branches without a tracking',
+      'upstream, see \'push.autoSetupRemote\' in \'git help config\'.'
+    ].join('\n'))
+  }
+
+  const remoteTip = origin.branches[dst]
+  const setUpstream = flags.has('-u')
+  const upstreamLines = setUpstream ? [trackingLine(src, dst)] : []
+  const withUpstream = (next: Repo): Repo => setUpstream ? { ...next, upstream: { ...next.upstream, [src]: dst } } : next
+
+  if (remoteTip === local) {
+    return done(withRepo(state, withUpstream({ ...repo, remoteBranches: { ...repo.remoteBranches, [dst]: local } })), [out('Everything up-to-date'), ...upstreamLines])
+  }
+
+  if (remoteTip && flags.has('--force-with-lease') && !flags.has('--force') && repo.remoteBranches[dst] !== remoteTip) {
+    return rejected(state, origin.url, pushLine('!', '[rejected]', src, dst, ' (stale info)'), [])
+  }
+
+  let line: OutputLine
+  if (!remoteTip) {
+    line = pushLine('*', '[new branch]', src, dst)
+  } else if (isAncestor(repo.commits, remoteTip, local)) {
+    line = pushLine(' ', `${shortId(remoteTip)}..${shortId(local)}`, src, dst)
+  } else {
+    const forced = pushLine('+', `${shortId(remoteTip)}...${shortId(local)}`, src, dst, ' (forced update)')
+    if (flags.has('--force') || flags.has('--force-with-lease')) {
+      line = forced
+    } else if (!repo.commits[remoteTip]) {
+      return rejected(state, origin.url, pushLine('!', '[rejected]', src, dst, ' (fetch first)'), FETCH_FIRST)
+    } else {
+      return rejected(state, origin.url, pushLine('!', '[rejected]', src, dst, ' (non-fast-forward)'), NON_FAST_FORWARD)
+    }
+  }
+
+  const nextOrigin: Remote = {
+    ...origin,
+    commits: copyCommits(repo.commits, origin.commits, [local]),
+    branches: { ...origin.branches, [dst]: local }
+  }
+  const nextRepo = withUpstream({ ...repo, remoteBranches: { ...repo.remoteBranches, [dst]: local } })
+  return done({ ...withRepo(state, nextRepo), origin: nextOrigin }, [out(`To ${origin.url}`), line, ...upstreamLines])
+}

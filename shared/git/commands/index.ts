@@ -1,0 +1,81 @@
+import { done, err, fail, out } from '../output'
+import type { Command } from '../types'
+import { add } from './add'
+import { branch } from './branch'
+import { commit } from './commit'
+import { diff } from './diff'
+import { init } from './init'
+import { log } from './log'
+import { merge } from './merge'
+import { rebase } from './rebase'
+import { fetch, pull, push } from './remote'
+import { status } from './status'
+import { checkout, switchCommand } from './switch'
+
+export const GIT_COMMANDS: Record<string, { run: Command, summary: string }> = {
+  init: { run: init, summary: 'Create an empty Git repository' },
+  status: { run: status, summary: 'Show the working tree status' },
+  add: { run: add, summary: 'Add file contents to the index' },
+  commit: { run: commit, summary: 'Record changes to the repository' },
+  log: { run: log, summary: 'Show commit logs' },
+  diff: { run: diff, summary: 'Show changes between the index and the working tree' },
+  branch: { run: branch, summary: 'List, create, or delete branches' },
+  switch: { run: switchCommand, summary: 'Switch branches' },
+  checkout: { run: checkout, summary: 'Switch branches or restore working tree files' },
+  merge: { run: merge, summary: 'Join two development histories together' },
+  rebase: { run: rebase, summary: 'Reapply commits on top of another base tip' },
+  fetch: { run: fetch, summary: 'Download objects and refs from origin' },
+  pull: { run: pull, summary: 'Fetch from origin and integrate with a local branch' },
+  push: { run: push, summary: 'Update remote refs along with associated objects' }
+}
+
+/** Real git commands the trainer does not simulate (yet). */
+const KNOWN_ELSEWHERE = [
+  'am', 'apply', 'archive', 'bisect', 'blame', 'bundle', 'cat-file', 'cherry', 'cherry-pick', 'clean', 'clone',
+  'config', 'describe', 'format-patch', 'fsck', 'gc', 'grep', 'gui', 'ls-files', 'ls-remote', 'ls-tree',
+  'maintenance', 'mv', 'notes', 'prune', 'range-diff', 'reflog', 'remote', 'rerere', 'reset', 'restore',
+  'rev-list', 'rev-parse', 'revert', 'rm', 'shortlog', 'show', 'show-branch', 'sparse-checkout', 'stash',
+  'submodule', 'tag', 'whatchanged', 'worktree'
+]
+
+function distance(a: string, b: string): number {
+  const row = Array.from({ length: b.length + 1 }, (_, i) => i)
+  for (let i = 1; i <= a.length; i++) {
+    let previous = row[0]!
+    row[0] = i
+    for (let j = 1; j <= b.length; j++) {
+      const current = row[j]!
+      row[j] = Math.min(row[j]! + 1, row[j - 1]! + 1, previous + (a[i - 1] === b[j - 1] ? 0 : 1))
+      previous = current
+    }
+  }
+  return row[b.length]!
+}
+
+const usage = () => [
+  'usage: git <command> [<args>]',
+  '',
+  'Commands in this trainer:',
+  ...Object.entries(GIT_COMMANDS).map(([name, entry]) => `   ${name.padEnd(10)}${entry.summary}`)
+]
+
+/** Runs `git <argv...>`. */
+export const git: Command = (state, argv) => {
+  const [name, ...args] = argv
+  if (name === undefined || name === '--help' || name === '-h' || name === 'help') return done(state, usage().map(text => out(text)))
+  if (name === '--version') return done(state, [out('git version 2.47.0 (grindstone)')])
+
+  const command = GIT_COMMANDS[name]
+  if (command) return command.run(state, args)
+  if (KNOWN_ELSEWHERE.includes(name)) return fail(state, [err(`git: '${name}' is not in this trainer yet`)])
+
+  const candidates = [...Object.keys(GIT_COMMANDS), ...KNOWN_ELSEWHERE]
+  const best = Math.min(...candidates.map(candidate => distance(name, candidate)))
+  const similar = best <= 2 ? candidates.filter(candidate => distance(name, candidate) === best) : []
+  const output = [err(`git: '${name}' is not a git command. See 'git --help'.`)]
+  if (similar.length) {
+    output.push(err(''), err(similar.length === 1 ? 'The most similar command is' : 'The most similar commands are'))
+    output.push(...similar.map(candidate => err(`\t${candidate}`)))
+  }
+  return fail(state, output)
+}
