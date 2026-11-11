@@ -11,8 +11,8 @@ export default defineNuxtConfig({
     defaultLocale: 'en',
     // Translation files: layers/i18n/i18n/locales/<file>. Your app can add its own in i18n/locales/.
     locales: [
-      { code: 'en', language: 'en-US', name: 'English', file: 'en.json' },
-      { code: 'de', language: 'de-DE', name: 'Deutsch', file: 'de.json' }
+      // English only for now; add a locale here and its file in i18n/locales/
+      { code: 'en', language: 'en-US', name: 'English', file: 'en.json' }
     ],
     detectBrowserLanguage: {
       useCookie: true,

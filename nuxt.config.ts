@@ -7,6 +7,9 @@ export default defineNuxtConfig({
     '@vueuse/nuxt'
   ],
 
+  // static SPA: no server, everything runs in the browser (docs/adr/0001-plan.md)
+  ssr: false,
+
   devtools: {
     enabled: true
   },
@@ -22,17 +25,18 @@ export default defineNuxtConfig({
 
   // Values are overridden by env vars at runtime: NUXT_<KEY> / NUXT_PUBLIC_<KEY> (see .env.example)
   runtimeConfig: {
-    // Server-only (never sent to the browser)
-    exampleSecret: '',
     // Available on server and client
     public: {
-      siteUrl: 'http://localhost:3000'
+      siteUrl: 'http://localhost:4003'
     }
   },
 
   routeRules: {
     '/': { prerender: true }
   },
+
+  // ports come from CoreHub: dev 4003
+  devServer: { port: 4003 },
 
   compatibilityDate: '2026-06-30',
 
@@ -48,7 +52,8 @@ export default defineNuxtConfig({
   // @nuxt/fonts is registered by Nuxt UI. Fonts listed here are downloaded and self-hosted.
   fonts: {
     families: [
-      { name: 'Inter', provider: 'google', weights: [400, 500, 600, 700] }
+      { name: 'Inter', provider: 'google', weights: [400, 500, 600, 700] },
+      { name: 'JetBrains Mono', provider: 'google', weights: [400, 500, 700] }
     ]
   }
 })

@@ -1,11 +1,5 @@
 {
-  "language": "Language",
-  "example": {
-    "greeting": "Hello {name}!",
-    "intro": "This text comes from i18n/locales/en.json.",
-    "apples": "No apples | One apple | {count} apples",
-    "add": "Add apple",
-    "reset": "Reset",
-    "current": "Current locale"
+  "home": {
+    "comingSoon": "The git track is being built: levels in a terminal, a live commit graph and teammates who push while you work."
   }
 }
