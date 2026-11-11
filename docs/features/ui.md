@@ -121,3 +121,7 @@ The editor shows the engine's working tree (`session.state.workdir`); a tab neve
 - Undo and Reset are terminal commands (`undo`, `reset`); only Reset has a button.
 - The IDE's terminal panel has a fixed height (no drag handle yet). Tabs live as long as the play page: leaving the level and coming back keeps the session but starts with no open tabs.
 - No source control panel (staged/unstaged lists, commit button): the trainer teaches the commands (ADR 0004).
+
+## Page width (Nik, 2026-11-11)
+
+Every page uses the header's full width (`max-w-[110rem]`, padding `px-4 sm:px-6 lg:px-8`, so content lines up with the logo) and lays out its own content for its needs; running text keeps a readable measure (`max-w-2xl`/`max-w-3xl`). Home: pitch | levels | why Grindstone (three columns from 2xl, "why" below the other two on smaller screens). Cheat sheet: CSS columns of at least 20rem (`md:columns-[20rem]`: 2 on tablets, 3 at 1280 px, 4 on wide screens), one card per command. About: three columns from xl (what makes it different | how it works and coming later | who builds it). The play page already used this width.

@@ -34,7 +34,8 @@ async function copy(line: string) {
 </script>
 
 <template>
-  <div class="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
+  <div class="mx-auto w-full max-w-[110rem] px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+    <!-- full page width like the header; as many columns of at least 20rem as fit (1 on phones, 4 on wide screens) -->
     <p class="font-mono text-sm text-primary">
       {{ t('cheat.kicker') }}
     </p>
@@ -73,7 +74,7 @@ async function copy(line: string) {
       {{ t('cheat.none', { query }) }}
     </p>
 
-    <div class="mt-4 gap-x-8 lg:columns-2">
+    <div class="mt-4 gap-x-8 md:columns-[20rem]">
       <section
         v-for="group in groups"
         :id="group.id"
@@ -83,11 +84,11 @@ async function copy(line: string) {
         <h2 class="font-mono text-sm font-medium text-muted">
           {{ group.title }}
         </h2>
-        <ul class="mt-3 divide-y divide-default rounded-lg border border-default bg-elevated">
+        <ul class="mt-3 space-y-4">
           <li
             v-for="command in group.commands"
             :key="command.name"
-            class="@container p-4"
+            class="@container rounded-lg border border-default bg-elevated p-5"
           >
             <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
               <h3 class="font-mono text-base font-semibold text-highlighted">

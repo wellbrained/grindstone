@@ -8,7 +8,8 @@ const later = ['levels', 'disasters', 'workflows', 'tracks', 'profile'] as const
 </script>
 
 <template>
-  <div class="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
+  <div class="mx-auto w-full max-w-[110rem] px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
+    <!-- full page width like the header (docs/features/ui.md, "Page width") -->
     <p class="font-mono text-sm text-primary">
       {{ t('about.kicker') }}
     </p>
@@ -19,7 +20,7 @@ const later = ['levels', 'disasters', 'workflows', 'tracks', 'profile'] as const
       {{ t('about.intro') }}
     </p>
 
-    <div class="mt-12 grid gap-x-16 gap-y-12 lg:grid-cols-2">
+    <div class="mt-12 grid gap-x-16 gap-y-12 lg:grid-cols-2 xl:grid-cols-3">
       <section>
         <h2 class="font-mono text-sm font-medium text-muted">
           {{ t('about.differentTitle') }}
@@ -49,7 +50,7 @@ const later = ['levels', 'disasters', 'workflows', 'tracks', 'profile'] as const
           </p>
         </section>
 
-        <section class="mt-12">
+        <section>
           <h2 class="font-mono text-sm font-medium text-muted">
             {{ t('about.laterTitle') }}
           </h2>
@@ -63,38 +64,38 @@ const later = ['levels', 'disasters', 'workflows', 'tracks', 'profile'] as const
           </ul>
         </section>
       </div>
-    </div>
 
-    <section class="mt-12 rounded-lg border border-default bg-elevated p-5">
-      <h2 class="font-mono text-sm font-medium text-muted">
-        {{ t('about.byTitle') }}
-      </h2>
-      <p class="mt-3 text-toned">
-        {{ t('about.by') }}
-      </p>
-      <div class="mt-5 flex flex-wrap gap-3">
-        <UButton
-          :label="t('about.links.portfolio')"
-          to="https://dkiessling.de"
-          target="_blank"
-          trailing-icon="i-lucide-arrow-up-right"
-          color="primary"
-        />
-        <UButton
-          :label="t('about.links.code')"
-          to="https://github.com/wellbrained/grindstone"
-          target="_blank"
-          icon="i-simple-icons-github"
-          color="neutral"
-        />
-        <UButton
-          :label="t('about.links.profile')"
-          to="https://github.com/wellbrained"
-          target="_blank"
-          icon="i-simple-icons-github"
-          color="neutral"
-        />
-      </div>
-    </section>
+      <section class="self-start rounded-lg border border-default bg-elevated p-5 lg:col-span-2 xl:col-span-1">
+        <h2 class="font-mono text-sm font-medium text-muted">
+          {{ t('about.byTitle') }}
+        </h2>
+        <p class="mt-3 text-toned">
+          {{ t('about.by') }}
+        </p>
+        <div class="mt-5 flex flex-wrap gap-3">
+          <UButton
+            :label="t('about.links.portfolio')"
+            to="https://dkiessling.de"
+            target="_blank"
+            trailing-icon="i-lucide-arrow-up-right"
+            color="primary"
+          />
+          <UButton
+            :label="t('about.links.code')"
+            to="https://github.com/wellbrained/grindstone"
+            target="_blank"
+            icon="i-simple-icons-github"
+            color="neutral"
+          />
+          <UButton
+            :label="t('about.links.profile')"
+            to="https://github.com/wellbrained"
+            target="_blank"
+            icon="i-simple-icons-github"
+            color="neutral"
+          />
+        </div>
+      </section>
+    </div>
   </div>
 </template>
