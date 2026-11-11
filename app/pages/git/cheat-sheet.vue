@@ -34,14 +34,14 @@ async function copy(line: string) {
 </script>
 
 <template>
-  <div class="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6 sm:py-14">
+  <div class="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6 sm:py-14">
     <p class="font-mono text-sm text-primary">
       {{ t('cheat.kicker') }}
     </p>
     <h1 class="mt-3 text-3xl font-semibold tracking-tight text-highlighted sm:text-4xl">
       {{ t('cheat.title') }}
     </h1>
-    <p class="mt-4 text-toned">
+    <p class="mt-4 max-w-3xl text-toned">
       {{ t('cheat.intro') }}
     </p>
 
@@ -73,75 +73,81 @@ async function copy(line: string) {
       {{ t('cheat.none', { query }) }}
     </p>
 
-    <section
-      v-for="group in groups"
-      :id="group.id"
-      :key="group.id"
-      class="mt-10 scroll-mt-20"
-    >
-      <h2 class="font-mono text-sm font-medium text-muted">
-        {{ group.title }}
-      </h2>
-      <ul class="mt-3 divide-y divide-default rounded-lg border border-default bg-elevated">
-        <li
-          v-for="command in group.commands"
-          :key="command.name"
-          class="p-4"
-        >
-          <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <h3 class="font-mono text-base font-semibold text-highlighted">
-              git {{ command.name }}
-            </h3>
-            <UBadge
-              v-if="command.comingSoon"
-              :label="t('cheat.soon')"
-              color="neutral"
-              variant="soft"
-              size="sm"
-            />
-            <p class="basis-full text-sm text-toned sm:basis-auto">
+    <div class="mt-4 gap-x-8 lg:columns-2">
+      <section
+        v-for="group in groups"
+        :id="group.id"
+        :key="group.id"
+        class="break-inside-avoid pt-6 scroll-mt-20"
+      >
+        <h2 class="font-mono text-sm font-medium text-muted">
+          {{ group.title }}
+        </h2>
+        <ul class="mt-3 divide-y divide-default rounded-lg border border-default bg-elevated">
+          <li
+            v-for="command in group.commands"
+            :key="command.name"
+            class="@container p-4"
+          >
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <h3 class="font-mono text-base font-semibold text-highlighted">
+                git {{ command.name }}
+              </h3>
+              <UBadge
+                v-if="command.comingSoon"
+                :label="t('cheat.soon')"
+                color="neutral"
+                variant="soft"
+                size="sm"
+              />
+            </div>
+            <p class="mt-1 text-sm text-toned">
               {{ command.summary }}
             </p>
-          </div>
-          <ul class="mt-3 space-y-1.5">
-            <li
-              v-for="example in command.examples"
-              :key="example.line"
-              class="flex flex-wrap items-center gap-x-3 gap-y-0.5"
-            >
-              <button
-                type="button"
-                class="group inline-flex cursor-pointer items-center gap-2 rounded-md bg-muted px-2 py-1 font-mono text-sm text-highlighted hover:bg-accented focus-visible:outline-2 focus-visible:outline-primary"
-                :aria-label="t('cheat.copy', { line: example.line })"
-                @click="copy(example.line)"
+            <!-- command | what it does: two aligned columns when the card is wide enough (container query), stacked below -->
+            <dl class="mt-3 grid grid-cols-1 gap-y-2 @[38rem]:grid-cols-[auto_minmax(0,1fr)] @[38rem]:items-center @[38rem]:gap-x-4">
+              <template
+                v-for="example in command.examples"
+                :key="example.line"
               >
-                <span class="break-all">{{ example.line }}</span>
-                <UIcon
-                  :name="copied === example.line ? 'i-lucide-check' : 'i-lucide-copy'"
-                  class="size-3.5 shrink-0 text-dimmed group-hover:text-toned"
-                  :class="{ 'text-success group-hover:text-success': copied === example.line }"
-                />
-              </button>
-              <span class="text-sm text-muted">{{ example.note }}</span>
-            </li>
-          </ul>
-          <p
-            v-if="levelsUsing(command.name).length"
-            class="mt-3 text-xs text-muted"
-          >
-            {{ t('cheat.practise') }}
-            <template
-              v-for="(level, index) in levelsUsing(command.name)"
-              :key="level.id"
+                <dt class="min-w-0">
+                  <button
+                    type="button"
+                    class="group inline-flex max-w-full cursor-pointer items-center gap-2 rounded-md bg-default px-2 py-1 font-mono text-sm text-highlighted ring-1 ring-default ring-inset hover:bg-accented focus-visible:outline-2 focus-visible:outline-primary"
+                    :aria-label="t('cheat.copy', { line: example.line })"
+                    @click="copy(example.line)"
+                  >
+                    <span class="text-left wrap-break-word">{{ example.line }}</span>
+                    <UIcon
+                      :name="copied === example.line ? 'i-lucide-check' : 'i-lucide-copy'"
+                      class="size-3.5 shrink-0 text-dimmed group-hover:text-toned"
+                      :class="{ 'text-success group-hover:text-success': copied === example.line }"
+                    />
+                  </button>
+                </dt>
+                <dd class="-mt-1 mb-1 pl-2 text-sm text-muted @[38rem]:m-0 @[38rem]:pl-0">
+                  {{ example.note }}
+                </dd>
+              </template>
+            </dl>
+            <p
+              v-if="levelsUsing(command.name).length"
+              class="mt-3 text-xs text-muted"
             >
-              <NuxtLink
-                :to="levelPath(level)"
-                class="text-primary hover:underline"
-              >{{ level.title }}</NuxtLink><span v-if="index < levelsUsing(command.name).length - 1"> · </span>
-            </template>
-          </p>
-        </li>
-      </ul>
-    </section>
+              {{ t('cheat.practise') }}
+              <template
+                v-for="(level, index) in levelsUsing(command.name)"
+                :key="level.id"
+              >
+                <NuxtLink
+                  :to="levelPath(level)"
+                  class="text-primary hover:underline"
+                >{{ level.title }}</NuxtLink><span v-if="index < levelsUsing(command.name).length - 1"> · </span>
+              </template>
+            </p>
+          </li>
+        </ul>
+      </section>
+    </div>
   </div>
 </template>

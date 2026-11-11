@@ -12,8 +12,8 @@ const startLabel = computed(() => allSolved.value ? t('home.again') : started.va
 </script>
 
 <template>
-  <div class="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6 sm:py-16">
-    <section>
+  <div class="mx-auto grid w-full max-w-6xl gap-x-16 gap-y-12 px-4 py-10 sm:px-6 sm:py-16 lg:grid-cols-2 lg:items-start">
+    <section class="lg:sticky lg:top-24">
       <p class="font-mono text-sm text-primary">
         {{ t('home.kicker') }}
       </p>
@@ -53,10 +53,7 @@ const startLabel = computed(() => allSolved.value ? t('home.again') : started.va
       </div>
     </section>
 
-    <section
-      class="mt-12"
-      aria-labelledby="levels-heading"
-    >
+    <section aria-labelledby="levels-heading">
       <h2
         id="levels-heading"
         class="mb-3 font-mono text-sm font-medium text-muted"
