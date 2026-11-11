@@ -1,6 +1,6 @@
 # UI
 
-The browser UI of the git track (Nuxt 4 SPA, Nuxt UI 4, Tailwind 4). Decisions: `docs/adr/0001-plan.md` (layout, terminal, graph), `docs/adr/0003-look.md` (look) and `docs/adr/0004-editor-layouts.md` (the three layouts, CodeMirror). Pure logic is in `app/utils/` (unit tests in `test/unit/ui/`); the engine and the git model stay in `shared/` and know nothing about the UI.
+The browser UI of the git track (Nuxt 4 SPA, Nuxt UI 4, Tailwind 4). Decisions: `docs/adr/0001-plan.md` (layout, terminal, graph), `docs/adr/0003-look.md` (look) and `docs/adr/0004-editor-layouts.md` (the two layouts, CodeMirror). Pure logic is in `app/utils/` (unit tests in `test/unit/ui/`); the engine and the git model stay in `shared/` and know nothing about the UI.
 
 ## Pages
 
@@ -13,33 +13,19 @@ Hosting: the app is static; direct links such as `/git/01-first-commit` need the
 
 ## Play page layouts
 
-A segmented control above the play area (`LayoutSwitch`, a radio group: Tab reaches the chosen one, arrow keys move the choice) switches between three layouts. The choice is stored per viewer in localStorage (`grindstone:layout`, read through `parseLayout`, every access guarded; with storage blocked it lasts for the visit) and shared by all levels (`usePlayLayout`). Switching keeps the session, the terminal log and the open editor tabs.
+A segmented control above the play area (`LayoutSwitch`, a radio group: Tab reaches the chosen one, arrow keys move the choice) switches between two layouts, **Terminal** (default) and **IDE**. The choice is stored per viewer in localStorage (`grindstone:layout`, read through `parseLayout`, every access guarded; with storage blocked it lasts for the visit; a stored `mix` from the dropped Mix layout reads as `ide`) and shared by all levels (`usePlayLayout`).
 
-### Terminal (default)
+Both layouts are one skeleton (`PlayWorkbench`), so a switch feels like panels opening and closing in place, not a re-shuffle: the level panel, the terminal, the commit graph and the switch keep their place. IDE only adds two panels: **Files** (`FileExplorer`) below the level panel and the **editor** (`EditorArea`) above the terminal. Nothing is rebuilt on a switch: the terminal (log, input, scroll), the editor tabs and the explorer stay mounted; when the terminal gets shorter and its log was at the end, it stays at the end (a `ResizeObserver` in `TerminalPane`), so the prompt does not slide out of view. A closed panel is `inert` (no focus, hidden from screen readers) and takes no space. The switch sits right-aligned in its own row and never moves; the "best with a keyboard" note on its left shows on phones in both layouts and keeps its space (invisible) from md up.
 
-| Width | Layout |
-| --- | --- |
-| >= lg (1024px) | Three columns in a viewport-high grid: level panel (16rem, 18rem from xl, 20rem from 2xl), terminal (fills), commit graph (20rem, 24rem from xl, 30rem from 2xl). The panel and the graph scroll inside their column; the terminal output scrolls in the terminal. |
-| md to lg | One column: level panel (story and goals), graph, terminal. |
-| < md | One column: level panel, terminal, graph, with a "best with a keyboard" note on top. The terminal does not autofocus on touch devices (`pointer: coarse`), so the keyboard does not pop up unasked. |
+| Width | Terminal | IDE |
+| --- | --- | --- |
+| >= lg (1024px) | Three columns in a viewport-high grid: level panel (16rem, 18rem from xl, 20rem from 2xl), terminal (fills), commit graph (20rem, 24rem from xl, 30rem from 2xl). The panel and the graph scroll inside their column; the terminal output scrolls in the terminal. | Same columns. Files opens below the level panel (`min(14rem, 36%)` of the column; the level panel scrolls above it), the editor opens above the terminal (editor 1.6 : terminal 1, the terminal at least 10rem). The terminal keeps its bottom edge and only gets shorter. |
+| md to lg | One column: level panel, graph, terminal. | Level panel, Files (16rem), graph, editor (26rem), terminal. |
+| < md | One column: level panel, terminal, graph. The terminal does not autofocus on touch devices (`pointer: coarse`), so the keyboard does not pop up unasked. | Level panel, Files (14rem), editor (26rem), terminal, graph. Opening a file scrolls the editor into view (without the keyboard). |
 
-No horizontal page scroll down to 360px: terminal text wraps (`whitespace-pre-wrap`), the graph scrolls inside its own box. `edit <file>` and the conflicted-files list open the editor panel (`FileEditor`, a modal).
+Motion: a panel opens and closes in 220 ms (ease-out curve), as plain CSS (`.reveal` in `main.css`): stacked, its row grows from `0fr` to `1fr`; in the lg grid it is a flex item whose `flex-grow` (editor) or `flex-basis` (Files) grows from 0. Off under `prefers-reduced-motion: reduce`.
 
-### IDE
-
-Like VS Code (`PlayWorkbench` with `variant="ide"`):
-
-| Width | Layout |
-| --- | --- |
-| >= lg | Viewport-high grid: explorer left (13rem, 15rem from xl, 16rem from 2xl), editor tabs centre with the terminal as a bottom panel (fixed split, the terminal about 38% of the height, at least 10rem), side panel right (18rem, 22rem from xl, 26rem from 2xl). |
-| md to lg | Explorer left of editor and terminal (fixed heights), the side panel below across both columns. |
-| < md | Tabs Files / Editor / Terminal / Level, one panel at a time (Terminal first). Every panel is rendered once and only hidden, so the terminal and the editor keep their state. Opening a file switches to Editor. |
-
-The side panel (`PlaySidePanel`) holds two collapsible sections: Level (`LevelPanel`: story, goals, hint, reset, conflicted files) and the commit graph (`CommitGraph` with `collapsible`, its header becomes the toggle).
-
-### Mix
-
-Editor and terminal side by side as equals (`variant="mix"`), no explorer: files open with **Open file** (`FilePicker`, a command palette over the working tree with status letters), `edit <file>` or the conflicted-files list. The side panel can fold into a slim strip that still shows the goal count (>= lg: a column on the right; md to lg: a bar below). Below md the same four tabs as IDE (Files shows the explorer).
+No horizontal page scroll down to 360px: terminal text wraps (`whitespace-pre-wrap`), the graph scrolls inside its own box. In the Terminal layout `edit <file>` and the conflicted-files list open the editor panel (`FileEditor`, a modal); in the IDE they open a tab. **Open file** in the editor header (`FilePicker`, a command palette over the working tree with status letters) is the keyboard way to a file.
 
 ### File explorer (`FileExplorer`)
 
@@ -63,8 +49,8 @@ The letter sits next to the name and the status is also in the accessible name (
 - `CommitGraph`: the SVG graph (see below). `SparkBurst`: the ember effect when a level is solved.
 - `FileEditor`: the Terminal layout's editor panel, a modal with `CodeEditor`; Save (Ctrl/Cmd+S, also Ctrl+Enter) calls `saveFile`, Cancel discards. A warning shows while conflict markers are still in the text.
 - `CodeEditor`: CodeMirror for one file at a time; always used as `<LazyCodeEditor>`, so CodeMirror is its own chunk and loads only when an editor shows. Switching `path` keeps each file's undo history and cursor.
-- `EditorArea`: the editor of IDE and Mix: a strip of open tabs (name, `●` for unsaved edits, a warning icon when the file changed on disk, close button; closing a tab with unsaved edits asks first), Open file and Save buttons, the changed-on-disk notice, CodeMirror for the active tab.
-- `FileExplorer`, `FilePicker`, `PlaySidePanel`, `PlayWorkbench`, `LayoutSwitch`: see Play page layouts.
+- `EditorArea`: the editor of the IDE layout: a strip of open tabs (name, `●` for unsaved edits, a warning icon when the file changed on disk, close button; closing a tab with unsaved edits asks first), Open file and Save buttons, the changed-on-disk notice, CodeMirror for the active tab.
+- `FileExplorer`, `FilePicker`, `PlayWorkbench`, `LayoutSwitch`: see Play page layouts.
 - `DebriefDialog`: debrief title and paragraphs, stats (commands used / shortest solution, hints used), Stay here and Next level (Back to all levels after the last one).
 - `LevelList`: the track's levels with solved state (used on the home page inside `<ClientOnly>`, since progress only exists in the browser).
 
@@ -86,12 +72,12 @@ The editor shows the engine's working tree (`session.state.workdir`); a tab neve
 - The file was deleted and the tab has no unsaved edits: the tab closes.
 - The file changed under **unsaved edits**: the draft stays, the tab gets a warning icon and the editor a notice with **Reload from disk** (take the disk version) and **Keep mine** (the draft stays and counts as an edit of the new disk version; saving overwrites it).
 - The file was deleted under unsaved edits: the tab is struck through and marked deleted; the notice offers **Close tab** and **Keep mine** (saving brings the file back).
-- `edit <file>` in IDE and Mix opens the file in a tab or focuses its tab (on phones it switches to the Editor tab, without popping up the keyboard); a file that does not exist yet opens as an empty tab and is created on Save. In the Terminal layout `edit <file>` opens the editor panel as before.
+- `edit <file>` in the IDE opens the file in a tab or focuses its tab (on phones it scrolls the editor into view, without popping up the keyboard); a file that does not exist yet opens as an empty tab and is created on Save. In the Terminal layout `edit <file>` opens the editor panel as before.
 - Save (Ctrl/Cmd+S or the Save button) writes the draft through `saveFile`, prints `Saved <path>.` in the terminal and counts as a command (undoable with `undo`). Saving a tab with a notice is the same as Keep mine plus Save.
 
 ## Terminal behaviour
 
-- Lines go to `submit(session, level, line)`; `{ kind: 'clear' }` empties the log, `{ kind: 'edit', path }` opens the file (editor panel in the Terminal layout, a tab in IDE and Mix), notices become an inline teammate line (icon plus text, e.g. "Anna pushed 2 commits to main.") inside the live log, so screen readers announce them. After a solve a "Level solved" line is added.
+- Lines go to `submit(session, level, line)`; `{ kind: 'clear' }` empties the log, `{ kind: 'edit', path }` opens the file (editor panel in the Terminal layout, a tab in the IDE), notices become an inline teammate line (icon plus text, e.g. "Anna pushed 2 commits to main.") inside the live log, so screen readers announce them. After a solve a "Level solved" line is added.
 - Up/Down walk the history (kept for the whole visit, shared by all levels; the line being typed is restored at the bottom). Ctrl+L clears (like `clear`, not counted). Ctrl+C drops the current input.
 - Tab completes (`app/utils/completion.ts`): trainer commands, `git` and shell commands at the start; git subcommands after `git`; branch names (local, `origin/<name>`, names on origin) for `switch`, `checkout`, `merge`, `rebase`, `branch`, `log`, `push`, `pull`, `fetch`, `diff`; `origin` for `push`/`pull`/`fetch`; file names for `add`, `checkout`, `diff`, `commit` and for `cat`, `edit`, `rm`, `touch`, `ls`. One match completes with a trailing space, several extend to the common prefix, and when nothing can be added the choices are printed. Flags are not completed. Tab on an empty line is left to the browser, so keyboard users can leave the field with Tab (and Shift+Tab always works).
 - A click anywhere in the terminal focuses the input unless text is selected. After the editor or the debrief closes, the focus goes back to the terminal.

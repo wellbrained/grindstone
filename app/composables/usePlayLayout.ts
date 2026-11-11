@@ -1,4 +1,4 @@
-// The layout the viewer picked (Terminal / IDE / Mix), shared by every play page and kept in localStorage.
+// The layout the viewer picked (Terminal / IDE), shared by every play page and kept in localStorage.
 // Every storage access is guarded: with storage blocked the choice simply lasts for the visit.
 import { LAYOUT_STORAGE_KEY, parseLayout } from '~/utils/play-layout'
 import type { PlayLayout } from '~/utils/play-layout'

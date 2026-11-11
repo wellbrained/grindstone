@@ -1,16 +1,25 @@
 import { expect, test } from '@playwright/test'
 
-// Plays level 4 (merge conflict) in the IDE layout: merge in the bottom terminal, open the file from the explorer,
+// Plays level 4 (merge conflict) in the IDE layout (the panels open in place, nothing else moves): merge in the bottom terminal, open the file from the explorer,
 // resolve with "Accept both", save with Ctrl+S, then add and commit, and see the debrief.
 test('plays level 4 in the IDE layout with the conflict actions', async ({ page }) => {
   await page.goto('/git/04-merge-conflict')
   await expect(page.getByRole('heading', { level: 1, name: 'Merge conflict' })).toBeVisible()
 
-  // switch the layout; the choice is remembered
-  await page.getByRole('radio', { name: 'IDE' }).click()
-  await expect(page.getByRole('radio', { name: 'IDE' })).toHaveAttribute('aria-checked', 'true')
+  // switch the layout; the choice is remembered. Panels open in place: the switch, the level and the graph do not move.
+  const graph = page.getByRole('region', { name: 'Commit graph' })
+  const heading = page.getByRole('heading', { level: 1 })
+  const ideRadio = page.getByRole('radio', { name: 'IDE' })
+  const before = [await ideRadio.boundingBox(), await heading.boundingBox(), await graph.boundingBox()]
+  await ideRadio.click()
+  await expect(ideRadio).toHaveAttribute('aria-checked', 'true')
   const explorer = page.getByRole('region', { name: 'Files in the working tree' })
+  // a closed panel is clipped to 0px and inert, so check that it really opened
+  await expect(page.locator('.reveal-files')).toHaveAttribute('data-open', /.*/)
+  await expect(page.locator('.reveal-editor')).not.toHaveAttribute('inert')
+  await expect.poll(async () => (await page.locator('.reveal-files').boundingBox())?.height ?? 0).toBeGreaterThan(100)
   await expect(explorer).toBeVisible()
+  expect([await ideRadio.boundingBox(), await heading.boundingBox(), await graph.boundingBox()]).toEqual(before)
   expect(await page.evaluate(() => window.localStorage.getItem('grindstone:layout'))).toBe('ide')
 
   const input = page.getByRole('textbox', { name: /Terminal input/ })

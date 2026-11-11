@@ -171,3 +171,53 @@ body {
     display: none;
   }
 }
+
+/* a panel of the play page that opens in place (PlayWorkbench.vue, IDE layout).
+   Stacked (below lg): its row grows from 0fr to 1fr. In the lg grid it is a flex item of its column that grows from 0
+   to its share, so the neighbour (level panel, terminal) shrinks without moving its other edge.
+   The gap to the neighbour is a margin on the panel itself, one level inside, so a closed panel is 0px tall. */
+.reveal {
+  display: grid;
+  grid-template-rows: 0fr;
+  min-height: 0;
+  overflow: hidden;
+  transition-property: grid-template-rows, flex-grow, flex-basis;
+  transition-duration: 220ms;
+  transition-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.reveal[data-open] {
+  grid-template-rows: 1fr;
+}
+.reveal > * {
+  min-height: 0;
+}
+
+@media (min-width: 64rem) {
+  .reveal {
+    display: flex;
+    flex-direction: column;
+    flex: 0 1 0;
+  }
+  .reveal > * {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+  }
+  .reveal > * > * {
+    flex: 1 1 0;
+    min-height: 0;
+  }
+  /* Files keeps a compact size, so the goals above it stay in view on short screens */
+  .reveal-files[data-open] {
+    flex-basis: min(14rem, 36%);
+  }
+  .reveal-editor[data-open] {
+    flex-grow: 1.6;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal {
+    transition: none;
+  }
+}

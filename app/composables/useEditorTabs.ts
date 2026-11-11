@@ -1,4 +1,4 @@
-// The open editor tabs of a play page (IDE and Mix layouts). They follow the engine's working tree by the rules in
+// The open editor tabs of a play page (IDE layout). They follow the engine's working tree by the rules in
 // app/utils/editor-tabs.ts: clean tabs reload or close, dirty tabs get a notice (docs/features/ui.md, Sync rules).
 import type { Tree } from '#shared/git'
 import { keepMine, markSaved, openTab, reloadFromDisk, syncTabs } from '~/utils/editor-tabs'

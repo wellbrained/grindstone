@@ -3,14 +3,12 @@ import type { EditorTabs } from '~/composables/useEditorTabs'
 import { isDirty } from '~/utils/editor-tabs'
 import type { FileStatus } from '~/utils/file-tree'
 
-// The editor of the IDE and Mix layouts: a strip of open files, a notice when a file changed under unsaved edits,
+// The editor of the IDE layout: a strip of open files, a notice when a file changed under unsaved edits,
 // and CodeMirror for the active tab. Saving goes through the engine (the page's saveTab) and counts as a command.
 const props = defineProps<{
   tabs: EditorTabs
   files: string[]
   statuses: Record<string, FileStatus>
-  /** Which empty-state text fits: the IDE has an explorer, Mix only the picker. */
-  hasExplorer: boolean
 }>()
 
 const emit = defineEmits<{
@@ -183,7 +181,7 @@ defineExpose({ focus })
           class="size-8 text-dimmed"
         />
         <p class="max-w-xs">
-          {{ hasExplorer ? t('editor.emptyIde') : t('editor.emptyMix') }}
+          {{ t('editor.empty') }}
         </p>
         <UButton
           size="sm"

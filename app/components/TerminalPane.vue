@@ -88,7 +88,23 @@ function scrollToEnd() {
 
 watch(() => props.entries.length, scrollToEnd)
 
+// The IDE layout opens the editor above the terminal and the terminal gets shorter: if the log was scrolled to the end,
+// keep it there so the prompt stays in view (the browser would keep the old scrollTop and push the prompt out of sight).
+// "At the end" is judged against the height before this resize (scroll events during the animation would see the new one).
+let lastHeight = 0
+let resizeObserver: ResizeObserver | undefined
+
+onBeforeUnmount(() => resizeObserver?.disconnect())
+
 onMounted(() => {
+  resizeObserver = new ResizeObserver(() => {
+    const el = scroller.value
+    if (!el) return
+    const wasAtEnd = el.scrollHeight - el.scrollTop - lastHeight < 8
+    lastHeight = el.clientHeight
+    if (wasAtEnd) el.scrollTop = el.scrollHeight
+  })
+  if (scroller.value) resizeObserver.observe(scroller.value)
   scrollToEnd()
   // phones: do not open the keyboard unasked
   if (!window.matchMedia('(pointer: coarse)').matches) focus()

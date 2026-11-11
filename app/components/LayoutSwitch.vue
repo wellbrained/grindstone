@@ -2,15 +2,14 @@
 import { PLAY_LAYOUTS } from '~/utils/play-layout'
 import type { PlayLayout } from '~/utils/play-layout'
 
-// The segmented control above the play page: Terminal / IDE / Mix. A radio group: Tab reaches it, arrows move the choice.
+// The segmented control above the play page: Terminal / IDE. A radio group: Tab reaches it, arrows move the choice.
 const model = defineModel<PlayLayout>({ required: true })
 
 const { t } = useI18n()
 
 const icons: Record<PlayLayout, string> = {
   terminal: 'i-lucide-terminal',
-  ide: 'i-lucide-panels-top-left',
-  mix: 'i-lucide-columns-2'
+  ide: 'i-lucide-panels-top-left'
 }
 
 const buttons = useTemplateRef<HTMLButtonElement[]>('buttons')

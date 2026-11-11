@@ -1,45 +1,43 @@
 <script setup lang="ts">
 import type { LevelPlay } from '~/composables/useLevelPlay'
 import { fileStatuses } from '~/utils/file-tree'
+import type { PlayLayout } from '~/utils/play-layout'
 
-// The IDE and Mix layouts of the play page (docs/adr/0004-editor-layouts.md, docs/features/ui.md).
-// IDE: explorer | editor over a bottom terminal | level side panel. Mix: editor | terminal as equals | collapsible side panel.
-// Below md both become one panel at a time behind tabs (Files / Editor / Terminal / Level). Every panel is rendered once
-// and only hidden on phones, so the terminal and the editor keep their state when the tab changes.
+// The play area of both layouts (docs/adr/0004-editor-layouts.md, docs/features/ui.md). One skeleton for Terminal and IDE:
+// level panel left, terminal centre, commit graph right. IDE only opens two panels in place: Files below the level panel and
+// the editor above the terminal. Nothing is rebuilt on a switch, so the terminal, the editor tabs and the scroll positions stay.
+// Closed panels are `inert` (no focus, hidden from screen readers) and take no space; the opening motion is the `.reveal` CSS in main.css.
 const props = defineProps<{
   play: LevelPlay
-  variant: 'ide' | 'mix'
+  layout: PlayLayout
   number: number
   total: number
 }>()
 
-const { t } = useI18n()
+const {
+  level, session, log, prompt, completion, fileTree, workdir, tabs, goals, conflictedFiles, next, graph, hasOrigin, showOrigin,
+  debriefOpen, sparkKey, run, saveTab, listCandidates, clearTerminal, hint, reset, edit
+} = props.play
 
-const { session, log, prompt, completion, fileTree, workdir, tabs, sparkKey, run, saveTab, listCandidates, clearTerminal } = props.play
-
-type MobileTab = 'files' | 'editor' | 'terminal' | 'level'
-const mobileTab = ref<MobileTab>('terminal')
-const mobileTabs = computed(() => [
-  { value: 'files', label: t('play.tabs.files') },
-  { value: 'editor', label: t('play.tabs.editor') },
-  { value: 'terminal', label: t('play.tabs.terminal') },
-  { value: 'level', label: t('play.tabs.level') }
-])
-const hiddenOnPhone = (tab: MobileTab) => mobileTab.value !== tab && 'max-md:hidden'
+const ide = computed(() => props.layout === 'ide')
 
 const statuses = computed(() => fileStatuses(session.value.state))
 const files = computed(() => Object.keys(workdir.value).sort())
 
-const sideCollapsed = ref(false)
-
 const terminal = useTemplateRef<{ focus: () => void }>('terminal')
-const editorArea = useTemplateRef<{ focus: () => void }>('editorArea')
+const editorArea = useTemplateRef<{ focus: () => void, $el: HTMLElement }>('editorArea')
 
-/** A file was opened (explorer, `edit <file>`, the conflicted-files list): show the editor and put the cursor there. */
+/** A file was opened in the IDE (explorer, `edit <file>`, the conflicted-files list): bring the editor into view and focus it. */
 function showEditor() {
-  mobileTab.value = 'editor'
-  // phones: do not pop up the keyboard unasked
-  if (!window.matchMedia('(pointer: coarse)').matches) nextTick(() => editorArea.value?.focus())
+  nextTick(() => {
+    // stacked layouts (below lg): the editor may be out of view
+    if (!window.matchMedia('(min-width: 64rem)').matches) {
+      const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      editorArea.value?.$el?.scrollIntoView({ block: 'nearest', behavior: smooth ? 'smooth' : 'auto' })
+    }
+    // phones: do not pop up the keyboard unasked
+    if (!window.matchMedia('(pointer: coarse)').matches) editorArea.value?.focus()
+  })
 }
 
 function openFile(path: string) {
@@ -54,69 +52,83 @@ defineExpose({
 </script>
 
 <template>
-  <div class="flex flex-col gap-3">
-    <UTabs
-      v-model="mobileTab"
-      :items="mobileTabs"
-      :content="false"
-      size="sm"
-      color="neutral"
-      variant="link"
-      class="md:hidden"
-      :ui="{ list: 'w-full', trigger: 'flex-1 min-w-0', label: 'truncate' }"
-    />
-
-    <div
-      class="grid gap-3"
-      :class="variant === 'ide'
-        ? 'md:grid-cols-[12rem_minmax(0,1fr)] md:grid-rows-[30rem_18rem_auto] lg:h-[calc(100dvh-var(--ui-header-height)-9.5rem)] lg:min-h-[34rem] lg:grid-cols-[13rem_minmax(0,1fr)_18rem] lg:grid-rows-[minmax(0,1fr)_minmax(10rem,38%)] xl:grid-cols-[15rem_minmax(0,1fr)_22rem] 2xl:grid-cols-[16rem_minmax(0,1fr)_26rem]'
-        : ['md:grid-cols-2 md:grid-rows-[32rem_auto] lg:h-[calc(100dvh-var(--ui-header-height)-9.5rem)] lg:min-h-[34rem] lg:grid-rows-1',
-           sideCollapsed ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]' : 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_18rem] xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_22rem]']"
-    >
-      <FileExplorer
-        :class="[hiddenOnPhone('files'), variant === 'ide' ? 'md:row-span-2' : 'md:hidden']"
-        class="max-md:h-[calc(100dvh-14rem)] max-md:min-h-80"
-        :tree="fileTree"
-        :active-path="tabs.activePath.value"
-        :is-repo="session.state.repo !== null"
-        @open="openFile"
+  <div
+    class="grid gap-4 lg:h-[calc(100dvh-var(--ui-header-height)-9.5rem)] lg:min-h-[32rem] lg:grid-cols-[16rem_minmax(0,1fr)_20rem] lg:grid-rows-1 xl:grid-cols-[18rem_minmax(0,1fr)_24rem] 2xl:grid-cols-[20rem_minmax(0,1fr)_30rem]"
+    :data-layout="layout"
+  >
+    <!-- left: the level, Files below it in the IDE -->
+    <div class="order-1 flex min-w-0 flex-col lg:min-h-0">
+      <LevelPanel
+        class="min-w-0 lg:min-h-0 lg:flex-[1_1_0] lg:overflow-y-auto lg:pr-1"
+        :level="level"
+        :number="number"
+        :total="total"
+        :goals="goals"
+        :hints-used="session.hintsUsed"
+        :solved="session.solved"
+        :conflicted-files="conflictedFiles"
+        :next="next"
+        @hint="hint"
+        @reset="reset"
+        @edit="edit"
+        @debrief="debriefOpen = true"
       />
-
-      <EditorArea
-        ref="editorArea"
-        :class="hiddenOnPhone('editor')"
-        class="max-md:h-[calc(100dvh-14rem)] max-md:min-h-80"
-        :tabs="tabs"
-        :files="files"
-        :statuses="statuses"
-        :has-explorer="variant === 'ide'"
-        @save="saveTab"
-      />
-
       <div
-        class="relative min-w-0 max-md:h-[calc(100dvh-14rem)] max-md:min-h-80"
-        :class="hiddenOnPhone('terminal')"
+        class="reveal reveal-files"
+        :data-open="ide || undefined"
+        :inert="!ide || undefined"
       >
+        <div>
+          <FileExplorer
+            class="mt-4 max-lg:h-56 md:max-lg:h-64"
+            :tree="fileTree"
+            :active-path="tabs.activePath.value"
+            :is-repo="session.state.repo !== null"
+            @open="openFile"
+          />
+        </div>
+      </div>
+    </div>
+
+    <!-- centre: the editor above the terminal in the IDE -->
+    <div class="order-2 flex min-w-0 flex-col md:order-3 lg:order-2 lg:min-h-0">
+      <div
+        class="reveal reveal-editor"
+        :data-open="ide || undefined"
+        :inert="!ide || undefined"
+      >
+        <div>
+          <EditorArea
+            ref="editorArea"
+            class="mb-4 scroll-mt-4 max-lg:h-[26rem]"
+            :tabs="tabs"
+            :files="files"
+            :statuses="statuses"
+            @save="saveTab"
+          />
+        </div>
+      </div>
+      <div class="relative h-[28rem] min-w-0 lg:h-auto lg:min-h-40 lg:flex-[1_1_0]">
         <TerminalPane
           ref="terminal"
+          class="lg:min-h-0"
           :entries="log"
           :prompt="prompt"
           :completion="completion"
-          :class="variant === 'ide' && 'md:min-h-0'"
           @submit="run"
           @clear="clearTerminal"
           @candidates="listCandidates"
         />
         <SparkBurst :trigger="sparkKey" />
       </div>
+    </div>
 
-      <PlaySidePanel
-        v-model:collapsed="sideCollapsed"
-        :class="[hiddenOnPhone('level'), variant === 'ide' ? 'md:col-span-2 lg:col-span-1 lg:col-start-3 lg:row-span-2 lg:row-start-1' : 'md:col-span-2 lg:col-span-1']"
-        :play="play"
-        :number="number"
-        :total="total"
-        :collapsible="variant === 'mix'"
+    <!-- right: the commit graph, the same in both layouts -->
+    <div class="order-3 h-80 min-w-0 md:order-2 lg:order-3 lg:h-full">
+      <CommitGraph
+        v-model:show-origin="showOrigin"
+        :layout="graph"
+        :has-origin="hasOrigin"
       />
     </div>
   </div>

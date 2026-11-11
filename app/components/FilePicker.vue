@@ -3,7 +3,7 @@ import type { CommandPaletteItem } from '@nuxt/ui'
 import { STATUS_LETTER } from '~/utils/file-tree'
 import type { FileStatus } from '~/utils/file-tree'
 
-// "Open file": a quick picker over the working tree (the Mix layout has no explorer). Type to filter, Enter opens.
+// "Open file": a quick picker over the working tree (next to the explorer). Type to filter, Enter opens.
 const props = defineProps<{
   files: string[]
   statuses: Record<string, FileStatus>

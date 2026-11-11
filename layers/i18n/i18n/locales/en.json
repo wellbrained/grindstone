@@ -28,23 +28,8 @@
       "label": "Layout",
       "terminal": "Terminal",
       "ide": "IDE",
-      "mix": "Mix",
       "terminalHelp": "Terminal layout: goals, terminal and graph; edit and a file name open an editor panel",
-      "ideHelp": "IDE layout: file explorer, editor tabs, a terminal panel below, goals and graph on the right",
-      "mixHelp": "Mix layout: editor and terminal side by side, goals and graph in a panel you can fold away"
-    },
-    "tabs": {
-      "label": "Panels",
-      "files": "Files",
-      "editor": "Editor",
-      "terminal": "Terminal",
-      "level": "Level"
-    },
-    "panel": {
-      "label": "Level and commit graph",
-      "level": "Level",
-      "collapse": "Fold away goals and graph",
-      "expand": "Show goals and graph"
+      "ideHelp": "IDE layout: adds a file explorer under the goals and editor tabs above the terminal"
     }
   },
   "goals": {
@@ -92,8 +77,7 @@
     "openFileHelp": "Pick a file of the working tree to open in a tab.",
     "openFilePlaceholder": "Search files…",
     "noMatch": "No file matches.",
-    "emptyIde": "No file open. Click one in the explorer, use Open file, or type edit and a file name in the terminal.",
-    "emptyMix": "No file open. Use Open file, or type edit and a file name in the terminal.",
+    "empty": "No file open. Click one in the explorer, use Open file, or type edit and a file name in the terminal.",
     "changedOnDisk": "changed on disk",
     "deletedOnDisk": "deleted on disk",
     "changedTitle": "{path} changed on disk",
