@@ -39,7 +39,7 @@ Grindstone's own git simulation (`shared/git/`, decision in `docs/adr/0002-git-m
 | `pull` | merge by default, `--rebase`, `--ff-only`, `--no-ff` |
 | `push` | to the upstream, `[-u] origin <branch>`, `HEAD`, `--force`, `--force-with-lease` |
 
-Shell: `ls`, `cat`, `echo` (with `>` / `>>`; any command's output can be redirected), `rm` (`-r`, `-f`), `touch`, `pwd`. `edit`, `clear` and `undo` belong to the UI.
+Shell: `ls`, `cat`, `echo` (with `>` / `>>`; any command's output can be redirected), `rm` (`-r`, `-f`), `touch`, `pwd`. `undo`, `reset`, `hint`, `help`, `clear` and `edit` are trainer commands of the level engine (`docs/features/levels.md`).
 
 Anything else: real git commands answer `git: '<x>' is not in this trainer yet`, typos get git's "not a git command" with the most similar command, unsupported flags answer `git <cmd>: option '<flag>' is not in this trainer yet`, unknown programs answer `<cmd>: command not found`.
 
