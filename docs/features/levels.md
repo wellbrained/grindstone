@@ -145,7 +145,7 @@ Chapter 2, Branching (ADR 0006, batch 3; preview `.impeccable/mocks/previews/bra
 
 | | Entry | Kind | Difficulty | Time |
 | --- | --- | --- | --- | --- |
-| 2.1 | **Start a branch** (`git-02-branch`, v0.1's "Branch", renamed): commit a change on `feature/greeting`; main must not move | scenario | 1 | ~4 min |
+| 2.1 | **Start a branch** (`git-02-branch`, v0.1's "Branch", renamed): commit a change to `welcome.html` on `feature/welcome-line` (the bakery website); main must not move | scenario | 1 | ~4 min |
 | | List your branches: `git branch` (also `--list`, `-a`; `git branch -r` and `git status` do not count) | practice | 1 | ~30 s |
 | 2.2 | **Started on the wrong branch**: half a contact form in `contact.html`, uncommitted, on main; `git switch -c feature/contact-form` takes it along, commit there, main unchanged (the approved sample text; "main is unchanged" only counts once the branch exists) | scenario | 1 | ~4 min |
 | | Go back to the previous branch: `git switch -` (or `git checkout -`); typing the name does not count (the approved sample, plus a second goal for "without typing its name") | practice | 1 | ~30 s |
@@ -161,7 +161,7 @@ Chapter 3, Merging (ADR 0006, batch 4; preview `.impeccable/mocks/previews/mergi
 
 | | Entry | Kind | Difficulty | Time |
 | --- | --- | --- | --- | --- |
-| 3.1 | **Merge a finished branch** (`git-03-merge`, v0.1's "Merge", renamed): fast-forward `feature/about-page` into main, starting on the feature branch | scenario | 1 | ~4 min |
+| 3.1 | **Merge a finished branch** (`git-03-merge`, v0.1's "Merge", renamed): fast-forward `feature/about-page` (the bakery's about page) into main, starting on the feature branch | scenario | 1 | ~4 min |
 | | Merge with a merge commit anyway: `git merge --no-ff fix/croissant-price` (a fast-forward does not count) | practice | 1 | ~30 s |
 | 3.2 | **Both sides moved on**: Jonas and Maya committed to main while you finished `feature/weekly-specials`; `git switch main`, `git merge` makes a two-parent merge commit (no conflict), then `git log --graph` after the merge. Merging main into the branch, or rebasing first so main only fast-forwards, does not count | scenario | 1 | ~4 min |
 | | Merge only if it's a fast-forward: `git merge --ff-only feature/newsletter` (where it does fast-forward; a plain merge does not count) | practice | 1 | ~30 s |
@@ -219,7 +219,7 @@ Chapter 5, Teamwork & remotes (ADR 0006, batch 6; no preview, the owner delegate
 
 Teammate sync in detail:
 
-1. **Teammate sync** (5.5): `feature/login` has 2 unpushed commits. Right before your first `git push`, Anna pushes 2 commits to origin/main, one changing the same line of `src/login.ts`. The push of the new branch succeeds, then you fetch, rebase onto origin/main, resolve, and update the remote branch with `--force-with-lease` (a plain push is rejected). A merge, or any bare `--force` / `-f` in the history, does not count; `undo` takes a bare force back. The file header explains why this flow was chosen over "already pushed in the setup".
+1. **Teammate sync** (5.5): `feature/find-us` has 2 unpushed commits. Right before your first `git push`, Jonas pushes 2 commits to origin/main, one changing the same line of `visit.html`. The push of the new branch succeeds, then you fetch, rebase onto origin/main, resolve, and update the remote branch with `--force-with-lease` (a plain push is rejected). A merge, or any bare `--force` / `-f` in the history, does not count; `undo` takes a bare force back. The file header explains why this flow was chosen over "already pushed in the setup".
 
 Chapter 7, Disasters (ADR 0006, batch 7; no preview, the owner delegated the texts to the plan). The entries use the Corner Bakery website with Maya, Jonas and Ben and lean on the reflog and `git rm` (`docs/features/git-model.md`). The setups run the mistake through the builder (7.2's reset, 7.3's rebase, 7.5's `branch -D`), so the reflog the learner reads is the one git would have. Ids and reflog positions named in the texts (7.2's hint, 7.3's `HEAD@{4}`, 7.5's "Deleted branch ... (was <id>)" and its practice task) are checked against the simulation by the level tests:
 

@@ -584,16 +584,16 @@ describe('git-09-read-history', () => {
 describe('git-02-branch', () => {
   it('does not count a commit made on main', () => {
     const { session } = play(level('git-02-branch'), [
-      'echo "export const greeting = \'Hello, friend!\'" > src/greeting.ts',
-      'git commit -am "Make the greeting friendlier"',
-      'git switch -c feature/greeting'
+      'echo "<p>Welcome in, the ovens are warm!</p>" > welcome.html',
+      'git commit -am "Make the welcome line friendlier"',
+      'git switch -c feature/welcome-line'
     ])
     expect(session.goalsMet['main-unchanged']).toBe(false)
     expect(session.solved).toBe(false)
   })
 
   it('does not count an empty commit', () => {
-    const { session } = play(level('git-02-branch'), ['git switch -c feature/greeting', 'git commit --allow-empty -m "Nothing"'])
+    const { session } = play(level('git-02-branch'), ['git switch -c feature/welcome-line', 'git commit --allow-empty -m "Nothing"'])
     expect(session.goalsMet.committed).toBe(false)
   })
 })
@@ -634,36 +634,36 @@ describe('git-06-teammate-sync', () => {
   const item = level('git-06-teammate-sync')
   const resolve = item.solution.find(line => typeof line === 'string' && line.startsWith('echo')) as string
 
-  it('has Anna push right before your first push, which still succeeds', () => {
-    const { steps, session } = play(item, ['git push -u origin feature/login'])
-    expect(steps[0]!.notices.map(notice => notice.author)).toEqual(['Anna'])
-    expect(session.history).toEqual([{ line: 'git push -u origin feature/login', exitCode: 0 }])
+  it('has Jonas push right before your first push, which still succeeds', () => {
+    const { steps, session } = play(item, ['git push -u origin feature/find-us'])
+    expect(steps[0]!.notices.map(notice => notice.author)).toEqual(['Jonas'])
+    expect(session.history).toEqual([{ line: 'git push -u origin feature/find-us', exitCode: 0 }])
     expect(session.goalsMet).toEqual({ 'pushed': true, 'up-to-date': false, 'linear': true, 'resolved': true, 'lease': false })
   })
 
   it('is solved on the realistic path: a plain push after the rebase is rejected, then --force-with-lease', () => {
     const { session, text } = play(item, [
-      'git push -u origin feature/login',
+      'git push -u origin feature/find-us',
       'git fetch',
       'git rebase origin/main',
       resolve,
-      'git add src/login.ts',
+      'git add visit.html',
       'git rebase --continue',
       'git push',
       'git push --force-with-lease'
     ])
-    expect(text).toContain('CONFLICT (content): Merge conflict in src/login.ts')
+    expect(text).toContain('CONFLICT (content): Merge conflict in visit.html')
     expect(text).toContain('[rejected]')
     expect(session.solved).toBe(true)
   })
 
   it('does not count merging origin/main', () => {
     const { session } = play(item, [
-      'git push -u origin feature/login',
+      'git push -u origin feature/find-us',
       'git fetch',
       'git merge origin/main',
       resolve,
-      'git add src/login.ts',
+      'git add visit.html',
       'git commit --no-edit',
       'git push'
     ])
@@ -671,10 +671,10 @@ describe('git-06-teammate-sync', () => {
     expect(session.solved).toBe(false)
   })
 
-  const rebased = ['git push -u origin feature/login', 'git fetch', 'git rebase origin/main', resolve, 'git add src/login.ts', 'git rebase --continue']
+  const rebased = ['git push -u origin feature/find-us', 'git fetch', 'git rebase origin/main', resolve, 'git add visit.html', 'git rebase --continue']
 
   it('does not count a bare --force, not even followed by --force-with-lease', () => {
-    for (const force of ['git push --force', 'git push -f', 'git push -uf origin feature/login']) {
+    for (const force of ['git push --force', 'git push -f', 'git push -uf origin feature/find-us']) {
       const forced = play(item, [...rebased, force])
       expect(forced.session.goalsMet).toEqual({ 'pushed': true, 'up-to-date': true, 'linear': true, 'resolved': true, 'lease': false })
       expect(play(item, ['git push --force-with-lease'], forced.session).session.solved).toBe(false)
@@ -684,13 +684,13 @@ describe('git-06-teammate-sync', () => {
   })
 
   it('does not count committing the conflict markers', () => {
-    const { session } = play(item, [...rebased.slice(0, 3), 'git add src/login.ts', 'git rebase --continue', 'git push --force-with-lease'])
+    const { session } = play(item, [...rebased.slice(0, 3), 'git add visit.html', 'git rebase --continue', 'git push --force-with-lease'])
     expect(session.goalsMet.resolved).toBe(false)
     expect(session.solved).toBe(false)
   })
 
   it('does not count a rebase onto a stale origin/main', () => {
-    const { session } = play(item, ['git fetch', 'git rebase origin/main', 'git push -u origin feature/login'])
+    const { session } = play(item, ['git fetch', 'git rebase origin/main', 'git push -u origin feature/find-us'])
     expect(session.goalsMet['up-to-date']).toBe(false)
   })
 })
