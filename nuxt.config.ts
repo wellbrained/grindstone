@@ -23,7 +23,9 @@ export default defineNuxtConfig({
         'src': 'https://stats.dkiessling.de/script.js',
         'defer': true,
         'data-website-id': 'ce3b559e-bed9-4d11-826b-85aa0c5eae7d',
-        'data-domains': 'grindstone.dkiessling.de'
+        'data-domains': 'grindstone.dkiessling.de',
+        // a browser that sends Do Not Track is not counted
+        'data-do-not-track': 'true'
       }]
     }
   },
