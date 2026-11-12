@@ -28,10 +28,15 @@ import { catchUpWithMain } from './22-catch-up-with-main'
 import { conflictDuringRebase } from './23-conflict-during-a-rebase'
 import { pushRebasedBranch } from './24-push-a-rebased-branch'
 import { tidyUpBeforeReview } from './25-tidy-up-before-review'
+import { pushYourFirstBranch } from './26-push-your-first-branch'
+import { getYourTeammatesWork } from './27-get-your-teammates-work'
+import { yourPushWasRejected } from './28-your-push-was-rejected'
+import { aheadAndBehind } from './29-ahead-and-behind'
 import { commitAll, diffFile, diffStaged, ignoreLogs, logOneline, stageOneFile } from './practice/basics'
 import { branchFromCommit, deleteMergedBranch, listBranches, listRemoteBranches, renameBranch, switchBack } from './practice/branching'
 import { keepTheirVersion, listConflicts, mergeFfOnly, mergeMainIn, mergeNoFf } from './practice/merging'
 import { abortRebase, pushWithLease, rebaseOntoMain, rewordOldCommit } from './practice/rewriting'
+import { fetchOnly, pruneGoneBranches, pullRebase, pushWithUpstream, unpushedCommits } from './practice/teamwork'
 import { amendNoEdit, discardFile, resetHard, resetSoft, revertBeforeLast, stashUntracked, unstageFile } from './practice/undo'
 
 export const gitTrack = defineTrack({
@@ -121,7 +126,18 @@ export const gitTrack = defineTrack({
       title: 'Teamwork & remotes',
       description: 'Push, fetch and stay in sync while teammates push to origin.',
       colour: 4,
-      levels: [teammateSync]
+      levels: [
+        pushYourFirstBranch,
+        pushWithUpstream,
+        getYourTeammatesWork,
+        fetchOnly,
+        yourPushWasRejected,
+        pullRebase,
+        aheadAndBehind,
+        unpushedCommits,
+        teammateSync,
+        pruneGoneBranches
+      ]
     },
     {
       id: 'undo',

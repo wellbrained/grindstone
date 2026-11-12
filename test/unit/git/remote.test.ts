@@ -178,3 +178,71 @@ describe('fetch output', () => {
     expect(exec(state, 'git fetch').text.split('\n')[1]).toMatch(/ main {7}-> origin\/main$/)
   })
 })
+
+describe('git remote', () => {
+  it('names origin, with -v also its fetch and push URL', () => {
+    const state = published().build()
+    expect(exec(state, 'git remote').text).toBe('origin')
+    expect(exec(state, 'git remote -v').text).toBe(`origin\t${URL} (fetch)\norigin\t${URL} (push)`)
+    expect(exec(state, 'git remote --verbose').text).toBe(`origin\t${URL} (fetch)\norigin\t${URL} (push)`)
+  })
+
+  it('prints nothing without a remote, and needs a repository', () => {
+    const local = repo().file('a.txt', 'a').commit('one').build()
+    expect(exec(local, 'git remote -v')).toMatchObject({ text: '', last: { exitCode: 0 } })
+    expect(exec(repo().build(), 'git remote').last.exitCode).toBe(0)
+    expect(exec({ ...local, repo: null }, 'git remote').text).toBe('fatal: not a git repository (or any of the parent directories): .git')
+  })
+
+  it('leaves changing remotes to later, and knows no other subcommands', () => {
+    expect(exec(published().build(), 'git remote frob')).toMatchObject({ text: 'error: unknown subcommand: `frob\'', last: { exitCode: 129 } })
+    const state = published().build()
+    for (const sub of ['add upstream https://example.com/x.git', 'remove origin', 'rename origin up', 'show origin', 'set-url origin x']) {
+      const { last, text } = exec(state, `git remote ${sub}`)
+      expect(text).toBe(`git remote ${sub.split(' ')[0]} is not in this trainer yet`)
+      expect(last.exitCode).toBe(1)
+      expect(last.state).toBe(state)
+    }
+  })
+})
+
+describe('commits on one side only (a..b)', () => {
+  /** main has two commits of yours, origin/main one of Maya's (fetched). */
+  const diverged = () => ok(
+    published().teammate('Maya', 'Open at 6:30 on Saturdays', { 'hours.txt': 'sat 6:30\n' }).build(),
+    'git fetch', 'echo x > x.txt', 'git add .', 'git commit -m "Add x"', 'echo y > y.txt', 'git add .', 'git commit -m "Add y"'
+  )
+
+  it('lists what you have not pushed and what you have not pulled', () => {
+    const state = diverged()
+    const id = (rev: string) => short(rev === 'origin/main' ? state.repo!.remoteBranches.main : state.repo!.branches.main)
+    const parent = short(state.repo!.commits[state.repo!.branches.main!]!.parents[0])
+    expect(exec(state, 'git log --oneline origin/main..main').text).toBe(`${id('main')} (HEAD -> main) Add y\n${parent} Add x`)
+    expect(exec(state, 'git log --oneline origin/main..').text).toBe(exec(state, 'git log --oneline origin/main..HEAD').text)
+    expect(exec(state, 'git log --oneline main..origin/main').text).toBe(`${id('origin/main')} (origin/main) Open at 6:30 on Saturdays`)
+    expect(exec(state, 'git log --oneline ..origin/main').text).toBe(exec(state, 'git log --oneline main..origin/main').text)
+    expect(exec(state, 'git status').text).toContain('have 2 and 1 different commits each, respectively.')
+  })
+
+  it('is empty once both sides are in sync', () => {
+    const synced = ok(diverged(), 'git pull --rebase', 'git push')
+    expect(exec(synced, 'git log --oneline origin/main..main').text).toBe('')
+    expect(exec(synced, 'git log --oneline main..origin/main').text).toBe('')
+    expect(remoteBranchHead(synced, 'main')).toBe(synced.repo!.branches.main)
+  })
+})
+
+describe('branches gone on origin', () => {
+  it('keeps origin/<branch> after a plain fetch or pull; fetch --prune drops it and branch -d deletes the local one', () => {
+    const merged = published().switch('topic', { create: true }).file('t.txt', 't\n').commit('Add t').push('topic').switch('main')
+      .update(state => ({ ...state, origin: { ...state.origin!, branches: { main: state.origin!.branches.topic! } } }))
+      .run('git pull')
+      .build()
+    expect(merged.repo!.remoteBranches.topic).toBeDefined()
+    expect(exec(merged, 'git fetch').text).toBe('')
+    const { state: pruned, text } = exec(merged, 'git fetch --prune')
+    expect(text).toBe(`From ${URL}\n - [deleted]         (none)     -> origin/topic`)
+    expect(pruned.repo!.remoteBranches.topic).toBeUndefined()
+    expect(exec(pruned, 'git branch -d topic').text).toMatch(/^Deleted branch topic \(was [0-9a-f]{7}\)\.$/)
+  })
+})

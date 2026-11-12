@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { emptyProgress, gitLevels, trackById } from '../../../shared/levels'
+import { defineTrack, emptyProgress, gitLevels, trackById } from '../../../shared/levels'
 import { percent, storyLead, timeLabel, trackCardAction, trackView } from '../../../app/utils/track-view'
 import { bigTrack, practiceTrack, solvedProgress } from '../levels/fixtures'
 
@@ -11,7 +11,7 @@ const rowStates = (progress = emptyProgress()) => Object.fromEntries(trackView(g
 describe('track view', () => {
   it('marks the first level as next up when nothing is solved', () => {
     const view = trackView(git, emptyProgress())
-    expect(view.count).toEqual({ solved: 0, total: 53 })
+    expect(view.count).toEqual({ solved: 0, total: 62 })
     expect(view.liveChapters).toBe(6)
     expect(view.nextUp?.number).toBe('1.1')
     expect(view.chapters[0]!.rows.map(row => [row.place.number, row.state])).toEqual([
@@ -91,7 +91,8 @@ describe('chapter lanes', () => {
   })
 
   it('draws no lane through a chapter with one level', () => {
-    const [row] = trackView(git, emptyProgress()).chapters[4]!.rows
+    const single = defineTrack({ ...git, chapters: [{ id: 'one', title: 'One', description: 'One.', colour: 0, levels: [gitLevels[0]!] }] })
+    const [row] = trackView(single, emptyProgress()).chapters[0]!.rows
     expect(row!.lane).toEqual({ in: null, out: null, through: null, fork: null, sideIn: null, sideOut: null })
   })
 

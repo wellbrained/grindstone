@@ -8,7 +8,7 @@ import { init } from './init'
 import { log } from './log'
 import { merge } from './merge'
 import { rebase } from './rebase'
-import { fetch, pull, push } from './remote'
+import { fetch, pull, push, remote } from './remote'
 import { reset } from './reset'
 import { restore } from './restore'
 import { revert } from './revert'
@@ -34,14 +34,15 @@ export const GIT_COMMANDS: Record<string, { run: Command, summary: string }> = {
   rebase: { run: rebase, summary: 'Reapply commits on top of another base tip' },
   fetch: { run: fetch, summary: 'Download objects and refs from origin' },
   pull: { run: pull, summary: 'Fetch from origin and integrate with a local branch' },
-  push: { run: push, summary: 'Update remote refs along with associated objects' }
+  push: { run: push, summary: 'Update remote refs along with associated objects' },
+  remote: { run: remote, summary: 'Show the remote repository you track' }
 }
 
 /** Real git commands the trainer does not simulate (yet). */
 const KNOWN_ELSEWHERE = [
   'am', 'apply', 'archive', 'bisect', 'blame', 'bundle', 'cat-file', 'cherry', 'cherry-pick', 'clean', 'clone',
   'config', 'describe', 'format-patch', 'fsck', 'gc', 'grep', 'gui', 'ls-files', 'ls-remote', 'ls-tree',
-  'maintenance', 'mv', 'notes', 'prune', 'range-diff', 'reflog', 'remote', 'rerere',
+  'maintenance', 'mv', 'notes', 'prune', 'range-diff', 'reflog', 'rerere',
   'rev-list', 'rev-parse', 'rm', 'shortlog', 'show', 'show-branch', 'sparse-checkout',
   'submodule', 'tag', 'whatchanged', 'worktree'
 ]

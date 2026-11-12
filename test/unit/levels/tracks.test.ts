@@ -116,7 +116,18 @@ describe('track registry', () => {
         'git-25-tidy-up-before-review',
         'git-practice-reword-old-commit'
       ],
-      ['git-06-teammate-sync'],
+      [
+        'git-26-push-your-first-branch',
+        'git-practice-push-with-upstream',
+        'git-27-get-your-teammates-work',
+        'git-practice-fetch-only',
+        'git-28-your-push-was-rejected',
+        'git-practice-pull-rebase',
+        'git-29-ahead-and-behind',
+        'git-practice-unpushed-commits',
+        'git-06-teammate-sync',
+        'git-practice-prune-gone-branches'
+      ],
       [
         'git-11-fix-last-commit',
         'git-practice-amend-no-edit',
@@ -182,7 +193,9 @@ describe('level numbers and places', () => {
     expect(levelNumber('git-04-merge-conflict')).toBe('3.3')
     expect(levelNumber('git-21-back-out-of-a-merge')).toBe('3.4')
     expect(levelNumber('git-22-catch-up-with-main')).toBe('3.5')
-    expect(levelNumber('git-06-teammate-sync')).toBe('5.1')
+    expect(levelNumber('git-26-push-your-first-branch')).toBe('5.1')
+    expect(levelNumber('git-29-ahead-and-behind')).toBe('5.4')
+    expect(levelNumber('git-06-teammate-sync')).toBe('5.5')
     expect(levelNumber('nope')).toBeNull()
   })
 
@@ -238,8 +251,9 @@ describe('next level', () => {
     expect(nextLevel('git-03-merge')?.id).toBe('git-practice-merge-no-ff')
     expect(nextLevel('git-practice-merge-ff-only')?.id).toBe('git-04-merge-conflict')
     expect(nextLevel('git-practice-merge-main-in')?.id).toBe('git-05-rebase')
-    expect(nextLevel('git-practice-reword-old-commit')?.id).toBe('git-06-teammate-sync')
-    expect(nextLevel('git-06-teammate-sync')?.id).toBe('git-11-fix-last-commit')
+    expect(nextLevel('git-practice-reword-old-commit')?.id).toBe('git-26-push-your-first-branch')
+    expect(nextLevel('git-06-teammate-sync')?.id).toBe('git-practice-prune-gone-branches')
+    expect(nextLevel('git-practice-prune-gone-branches')?.id).toBe('git-11-fix-last-commit')
     expect(nextLevel('git-practice-stash-untracked')).toBeNull()
     expect(nextLevel('nope')).toBeNull()
     const track = bigTrack()
@@ -295,13 +309,13 @@ describe('next up and continue', () => {
 describe('progress counts', () => {
   it('counts solved entries per track and chapter, both kinds, ignoring unknown ids and unsolved entries', () => {
     const progress = solvedProgress(['git-03-merge', 'git-04-merge-conflict', 'git-01-first-commit', 'git-practice-stage-one-file', 'elsewhere'], { levelId: 'git-02-branch', at: 3 })
-    expect(trackProgress(git, progress)).toEqual({ solved: 4, total: 53 })
+    expect(trackProgress(git, progress)).toEqual({ solved: 4, total: 62 })
     expect(git.chapters.map(chapter => chapterProgress(chapter, progress))).toEqual([
       { solved: 2, total: 11 },
       { solved: 0, total: 11 },
       { solved: 2, total: 10 },
       { solved: 0, total: 8 },
-      { solved: 0, total: 1 },
+      { solved: 0, total: 10 },
       { solved: 0, total: 12 },
       { solved: 0, total: 0 },
       { solved: 0, total: 0 }

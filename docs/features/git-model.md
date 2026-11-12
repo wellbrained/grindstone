@@ -30,7 +30,7 @@ Grindstone's own git simulation (`shared/git/`, decision in `docs/adr/0002-git-m
 | `status` | `-s` / `--short`; long format with tracking info, merge and rebase state, unmerged paths |
 | `add` | paths, directories, `.`, `-A`, simple `*` globs, `-f` / `--force`; stages deletions; marks conflicts resolved; skips and refuses ignored files (see "Ignored files") |
 | `commit` | `-m` (repeatable), `-a`, `-am`, `--amend` (with `-m` or reusing the message), `--no-edit`, `--allow-empty`; plain `commit` concludes a merge with the prepared message |
-| `log` | `--oneline`, `--graph`, `--all`, `-n N` / `-N`, revisions, `a..b`, `^a` |
+| `log` | `--oneline`, `--graph`, `--all`, `-n N` / `-N`, revisions, `a..b` (an empty side is HEAD: `origin/main..`), `^a` |
 | `diff` | working tree vs index, `--staged` / `--cached`, paths |
 | `branch` | list, `-a`, `-r`, create (with start point), `-d`, `-D`, `-m` / `--move` and `-M` (`[<old>] <new>`, see "Renaming and going back"), `-u` / `--set-upstream-to` |
 | `switch` | `<branch>`, `-c <new> [start]`, `--detach <rev>`, `-` (the previous branch); creates a tracking branch from `origin/<name>` |
@@ -44,6 +44,7 @@ Grindstone's own git simulation (`shared/git/`, decision in `docs/adr/0002-git-m
 | `fetch` | `[origin [branch]]`, `--prune` |
 | `pull` | merge by default, `--rebase`, `--ff-only`, `--no-ff` |
 | `push` | to the upstream, `[-u] origin <branch>`, `HEAD`, `--force`, `--force-with-lease` |
+| `remote` | list (`origin`), `-v` / `--verbose` (its URL for fetch and push); other subcommands answer "not in this trainer yet" |
 
 Shell: `ls`, `cat`, `echo` (with `>` / `>>`; any command's output can be redirected), `rm` (`-r`, `-f`), `touch`, `pwd`. `undo`, `reset`, `hint`, `help`, `clear` and `edit` are trainer commands of the level engine (`docs/features/levels.md`).
 
@@ -79,7 +80,8 @@ Anything else: real git commands answer `git: '<x>' is not in this trainer yet`,
 
 ## Simplifications versus real git
 
-- One remote (`origin`), no `git remote`, `clone` or `config`; `.origin()` in the setup builder stands in for a clone.
+- One remote (`origin`): `git remote` only lists it (no `add`, `remove`, `rename`, `set-url`, `show`), no `clone` or `config`; `.origin()` in the setup builder stands in for a clone. No `@{u}` / `@{upstream}` revisions: ranges name the branch (`origin/main..main`). No `branch -v` / `-vv`, so a gone upstream shows in `git status` ("the upstream is gone"), not as `[origin/x: gone]`.
+- `fetch` and `pull` never prune on their own (git's default without `fetch.prune`): a branch deleted on origin keeps its `origin/<name>` until `git fetch --prune`. `git branch -d` checks HEAD and the upstream, like git; a branch whose upstream is gone counts as merged only when HEAD contains it.
 - No file modes, binary files, renames, symlinks or empty directories; one working directory (no `cd`).
 - One timestamp per commit (no separate committer date); amend and rebase give a new timestamp, which is what changes the id.
 - `merge --abort` and `rebase --abort` restore the snapshot taken when the operation started (files created in between are lost; git would keep untracked ones).

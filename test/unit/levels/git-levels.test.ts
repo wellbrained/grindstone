@@ -65,7 +65,16 @@ const initialGoals: Record<string, Record<string, boolean>> = {
   'git-practice-push-with-lease': { pushed: false, lease: false },
   'git-25-tidy-up-before-review': { 'one-commit': false, 'message': false, 'changes': false },
   'git-practice-reword-old-commit': { fixed: false },
+  'git-26-push-your-first-branch': { pushed: false, upstream: false, checked: false },
+  'git-practice-push-with-upstream': { pushed: false, upstream: false },
+  'git-27-get-your-teammates-work': { fetched: false, looked: false, pulled: false },
+  'git-practice-fetch-only': { fetched: false },
+  'git-28-your-push-was-rejected': { 'pushed': false, 'ben': false, 'on-top': false },
+  'git-practice-pull-rebase': { 'on-top': false },
+  'git-29-ahead-and-behind': { yours: false, theirs: false, synced: false },
+  'git-practice-unpushed-commits': { listed: false },
   'git-06-teammate-sync': { 'pushed': false, 'up-to-date': true, 'linear': true, 'resolved': true, 'lease': false },
+  'git-practice-prune-gone-branches': { pruned: false, deleted: false },
   'git-11-fix-last-commit': { 'message': false, 'files': false, 'one-commit': true, 'clean': false },
   'git-practice-amend-no-edit': { amended: false, clean: false },
   'git-12-throw-away-change': { menu: false, prices: false, hours: true },
@@ -87,7 +96,8 @@ describe('level list', () => {
     expect(nextLevel('git-01-first-commit')?.id).toBe('git-practice-stage-one-file')
     expect(nextLevel('git-practice-commit-all')?.id).toBe('git-07-stage-together')
     expect(nextLevel('git-practice-ignore-logs')?.id).toBe('git-02-branch')
-    expect(nextLevel('git-06-teammate-sync')?.id).toBe('git-11-fix-last-commit')
+    expect(nextLevel('git-06-teammate-sync')?.id).toBe('git-practice-prune-gone-branches')
+    expect(nextLevel('git-practice-prune-gone-branches')?.id).toBe('git-11-fix-last-commit')
     expect(nextLevel('git-practice-stash-untracked')).toBeNull()
     expect(levelById('nope')).toBeNull()
   })
@@ -280,6 +290,24 @@ const wrongPaths: [id: string, why: string, lines: SolutionStep[], failing: stri
   ['git-25-tidy-up-before-review', 'melds the commits but never writes the new message', ['git rebase -i main', { save: `pick ${GIFT[0]}\nfixup ${GIFT[1]}\nfixup ${GIFT[2]}\n` }], ['message']],
   ['git-25-tidy-up-before-review', 'drops the two small commits and their changes', ['git rebase -i main', { save: `reword ${GIFT[0]}\n` }, { save: 'Add gift cards to the shop' }], ['changes']],
   ['git-practice-reword-old-commit', 'amends the newest commit instead', ['git commit --amend -m "Add newsletter form"'], ['fixed']],
+  ['git-26-push-your-first-branch', 'pushes without -u and never sets the upstream', ['git push origin feature/stollen-orders', 'git status'], ['upstream', 'checked']],
+  ['git-26-push-your-first-branch', 'never checks with git status', ['git push -u origin feature/stollen-orders'], ['checked']],
+  ['git-26-push-your-first-branch', 'looks at git status before the upstream is set', ['git push origin feature/stollen-orders', 'git status', 'git branch -u origin/feature/stollen-orders'], ['checked']],
+  ['git-practice-push-with-upstream', 'pushes without -u', ['git push origin fix/allergen-note'], ['upstream']],
+  ['git-27-get-your-teammates-work', 'pulls without looking first', ['git pull', 'git status'], ['looked']],
+  ['git-27-get-your-teammates-work', 'looks with a plain git log, which only shows main', ['git fetch', 'git log --oneline'], ['looked', 'pulled']],
+  ['git-27-get-your-teammates-work', 'looks before fetching, when origin/main is still old', ['git status', 'git pull'], ['looked']],
+  ['git-practice-fetch-only', 'pulls, which merges her commit into main', ['git pull'], ['fetched']],
+  ['git-28-your-push-was-rejected', 'pulls with a merge commit', ['git push', 'git pull', 'git push'], ['on-top']],
+  ['git-28-your-push-was-rejected', 'overwrites the commit of Ben with a bare --force', ['git push', 'git push --force'], ['ben', 'on-top']],
+  ['git-28-your-push-was-rejected', 'rebases but never pushes', ['git push', 'git pull --rebase'], ['pushed', 'ben']],
+  ['git-practice-pull-rebase', 'pulls with a merge commit', ['git pull'], ['on-top']],
+  ['git-29-ahead-and-behind', 'syncs without looking first', ['git pull --rebase', 'git push', 'git log --oneline origin/main..main', 'git log --oneline main..origin/main'], ['yours', 'theirs']],
+  ['git-29-ahead-and-behind', 'looks at everything at once', ['git log --oneline --graph --all', 'git pull --rebase', 'git push'], ['yours', 'theirs']],
+  ['git-29-ahead-and-behind', 'overwrites the commit of Maya with a bare --force', ['git log --oneline origin/main..main', 'git log --oneline main..origin/main', 'git push --force'], ['synced']],
+  ['git-practice-unpushed-commits', 'shows the whole history', ['git log --oneline'], ['listed']],
+  ['git-practice-unpushed-commits', 'asks git status, which only counts them', ['git status'], ['listed']],
+  ['git-practice-prune-gone-branches', 'deletes the local branch but keeps the stale origin/ copy', ['git fetch', 'git branch -d feature/allergy-labels'], ['pruned']],
   ['git-11-fix-last-commit', 'adds the file in a second commit', ['git add src/streak.css', 'git commit -m "Add streak counter"'], ['one-commit']],
   ['git-11-fix-last-commit', 'fixes the message but forgets the file', ['git commit --amend -m "Add streak counter"'], ['files', 'clean']],
   ['git-practice-amend-no-edit', 'makes a new commit', ['git add src/reminders.css', 'git commit -m "Add reminder styles"'], ['amended']],
@@ -662,5 +690,84 @@ describe('git-25-tidy-up-before-review', () => {
     const { session } = play(item, ['git rebase -i main', 'git log', 'git rebase --abort'])
     expect(session.history.map(record => record.exitCode)).toEqual([0, 1, 0])
     expect(session.state).toEqual(startLevel(item).state)
+  })
+})
+
+describe('git-26-push-your-first-branch', () => {
+  const item = level('git-26-push-your-first-branch')
+
+  it('refuses a plain push with git\'s upstream message, then tracks after -u', () => {
+    const { steps } = play(item, item.solution)
+    const texts = steps.map(step => step.output.map(line => 'text' in line ? line.text : '').join('\n'))
+    expect(texts[0]).toContain('fatal: The current branch feature/stollen-orders has no upstream branch.')
+    expect(texts[0]).toContain('    git push --set-upstream origin feature/stollen-orders')
+    expect(texts[1]).toContain('branch \'feature/stollen-orders\' set up to track \'origin/feature/stollen-orders\'.')
+    expect(texts[2]).toContain('Your branch is up to date with \'origin/feature/stollen-orders\'.')
+  })
+
+  it('also counts pushing first and setting the upstream afterwards', () => {
+    const { session } = play(item, ['git push origin feature/stollen-orders', 'git branch -u origin/feature/stollen-orders', 'git status'])
+    expect(session.solved).toBe(true)
+  })
+})
+
+describe('git-27-get-your-teammates-work', () => {
+  const item = level('git-27-get-your-teammates-work')
+
+  it('says behind by 2 after the fetch, and fast-forwards on pull', () => {
+    const { steps } = play(item, item.solution)
+    const texts = steps.map(step => step.output.map(line => 'text' in line ? line.text : '').join('\n'))
+    expect(texts[1]).toContain('Your branch is behind \'origin/main\' by 2 commits, and can be fast-forwarded.')
+    expect(texts[2].split('\n')).toHaveLength(2)
+    expect(texts[2]).toMatch(/^[0-9a-f]{7} \(origin\/main\) Add the Sunday brunch rolls to the menu\n[0-9a-f]{7} Show the opening hours in the footer$/)
+    expect(texts[3]).toContain('Fast-forward')
+  })
+
+  it('also counts a git log of origin/main as the look', () => {
+    expect(play(item, ['git fetch', 'git log --oneline origin/main', 'git pull']).session.solved).toBe(true)
+  })
+})
+
+describe('git-28-your-push-was-rejected', () => {
+  const item = level('git-28-your-push-was-rejected')
+
+  it('rejects the first push with "fetch first", right after Ben pushed', () => {
+    const { steps } = play(item, ['git push'])
+    const text = steps[0]!.output.map(line => 'text' in line ? line.text : '').join('\n')
+    expect(steps[0]!.notices.map(notice => notice.author)).toEqual(['Ben'])
+    // nothing ticks the moment Ben pushes
+    expect(steps[0]!.session.goalsMet).toEqual({ 'pushed': false, 'ben': false, 'on-top': false })
+    expect(text).toContain(' ! [rejected]        main -> main (fetch first)')
+    expect(text).toContain('hint: \'git pull\' before pushing again.')
+  })
+
+  it('also counts fetch and rebase onto origin/main, and Ben pushes even when you pull first', () => {
+    expect(play(item, ['git push', 'git fetch', 'git rebase origin/main', 'git push']).session.solved).toBe(true)
+    const early = play(item, ['git pull --rebase', 'git push'])
+    expect(early.session.solved).toBe(false)
+    expect(play(item, ['git pull --rebase', 'git push'], early.session).session.solved).toBe(true)
+  })
+})
+
+describe('git-29-ahead-and-behind', () => {
+  const item = level('git-29-ahead-and-behind')
+
+  it('starts diverged, 2 and 1', () => {
+    const { text } = play(item, ['git status'])
+    expect(text).toContain('Your branch and \'origin/main\' have diverged,\nand have 2 and 1 different commits each, respectively.')
+  })
+
+  it('counts other spellings of the same ranges, and a merge as the sync', () => {
+    const { session } = play(item, ['git log ^origin/main HEAD', 'git log --oneline ..origin/main', 'git pull', 'git push'])
+    expect(session.solved).toBe(true)
+  })
+})
+
+describe('git-practice-prune-gone-branches', () => {
+  it('lists the stale origin/ branch until you prune it', () => {
+    const item = level('git-practice-prune-gone-branches')
+    expect(play(item, ['git branch -a']).text).toContain('remotes/origin/feature/allergy-labels')
+    const { steps } = play(item, item.solution)
+    expect(steps[0]!.output.map(line => 'text' in line ? line.text : '').join('\n')).toContain(' - [deleted]         (none)     -> origin/feature/allergy-labels')
   })
 })

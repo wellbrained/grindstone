@@ -90,3 +90,36 @@ export function ranAfter(history: CommandRecord[], command: string, after: strin
   const last = calls.map(call => call.args[0]).lastIndexOf(after)
   return last !== -1 && calls.slice(last + 1).some(call => call.args[0] === command && matches(call.args))
 }
+
+/** A successful git command that matches, before the first successful `git <before...>` (or with none of them yet). */
+export function ranBefore(history: CommandRecord[], before: string[], matches: (args: string[]) => boolean): boolean {
+  const calls = gitInvocations(history).filter(call => call.exitCode === 0)
+  const stop = calls.findIndex(call => before.includes(call.args[0]!))
+  return calls.slice(0, stop === -1 ? undefined : stop).some(call => matches(call.args))
+}
+
+/** The revisions a `git log ...` lists (`include`) and leaves out (`exclude`), as typed: `a..b`, `^a`; an empty side is HEAD. */
+export function logRevisions(args: string[]): { include: string[], exclude: string[] } {
+  const include: string[] = []
+  const exclude: string[] = []
+  const rest = args.slice(1)
+  for (let i = 0; i < rest.length; i++) {
+    const arg = rest[i]!
+    if (arg === '-n' || arg === '--max-count') i++
+    else if (arg.startsWith('-')) continue
+    else if (arg.includes('..')) {
+      const [from, to] = arg.split('..')
+      exclude.push(from || 'HEAD')
+      include.push(to || 'HEAD')
+    } else if (arg.startsWith('^')) exclude.push(arg.slice(1))
+    else include.push(arg)
+  }
+  return { include, exclude }
+}
+
+/** A `git log` that lists the commits on one of `on` but not on `notOn` (`git log origin/main..main`, `^origin/main HEAD`). */
+export function logsOnlyOn(args: string[], on: string[], notOn: string[]): boolean {
+  if (args[0] !== 'log') return false
+  const { include, exclude } = logRevisions(args)
+  return include.length > 0 && include.every(rev => on.includes(rev)) && exclude.length > 0 && exclude.every(rev => notOn.includes(rev))
+}

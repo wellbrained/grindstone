@@ -52,7 +52,8 @@ export const cheatGroups: CheatGroup[] = [
     id: 'remotes',
     title: 'Remotes and teammates',
     commands: [
-      { name: 'fetch', summary: 'Download what others pushed, without touching your branches.', examples: [{ line: 'git fetch', note: 'Update origin/*' }] },
+      { name: 'remote', summary: 'Show the remote repository you push to and fetch from.', examples: [{ line: 'git remote -v', note: 'Where is origin?' }] },
+      { name: 'fetch', summary: 'Download what others pushed, without touching your branches.', examples: [{ line: 'git fetch', note: 'Update origin/*' }, { line: 'git fetch --prune', note: 'Also drop origin/* branches that are gone on origin' }] },
       { name: 'pull', summary: 'Fetch and bring the changes into your branch.', examples: [{ line: 'git pull', note: 'Fetch and merge' }, { line: 'git pull --rebase', note: 'Fetch and rebase your work on top' }] },
       { name: 'push', summary: 'Upload your commits to origin.', examples: [{ line: 'git push -u origin feature/login', note: 'First push of a new branch, remember the upstream' }, { line: 'git push --force-with-lease', note: 'Update a rewritten branch, but only if nobody pushed in between' }] }
     ]
@@ -61,7 +62,7 @@ export const cheatGroups: CheatGroup[] = [
     id: 'inspect',
     title: 'Look around',
     commands: [
-      { name: 'log', summary: 'Show the history.', examples: [{ line: 'git log --oneline', note: 'One line per commit' }, { line: 'git log --oneline --graph --all', note: 'All branches as a graph' }] },
+      { name: 'log', summary: 'Show the history.', examples: [{ line: 'git log --oneline', note: 'One line per commit' }, { line: 'git log --oneline --graph --all', note: 'All branches as a graph' }, { line: 'git log origin/main..main', note: 'Commits you have not pushed yet' }, { line: 'git log main..origin/main', note: 'Commits you have not pulled yet (after git fetch)' }] },
       { name: 'diff', summary: 'Show what changed, line by line.', examples: [{ line: 'git diff', note: 'Changes not staged yet' }, { line: 'git diff --staged', note: 'What the next commit will contain' }] }
     ]
   },

@@ -252,3 +252,21 @@ export const push: Command = (state, argv) => {
   const nextRepo = withUpstream({ ...repo, remoteBranches: { ...repo.remoteBranches, [dst]: local } })
   return done({ ...withRepo(state, nextRepo), origin: nextOrigin }, [out(`To ${origin.url}`), line, ...upstreamLines])
 }
+
+const REMOTE_SUBCOMMANDS = ['add', 'rename', 'remove', 'rm', 'set-head', 'set-branches', 'get-url', 'set-url', 'show', 'prune', 'update']
+
+/** `git remote` and `git remote -v`: the one remote there is, if any. */
+export const remote: Command = (state, argv) => {
+  if (!state.repo) return notARepo(state)
+  const parsed = parseArgs('remote', argv, { flags: ['-v'], alias: { '--verbose': '-v' } })
+  if (!parsed.ok) return fail(state, [err(parsed.error)])
+  const [sub] = parsed.args.positionals
+  if (sub !== undefined) {
+    if (REMOTE_SUBCOMMANDS.includes(sub)) return fail(state, [err(`git remote ${sub} is not in this trainer yet`)])
+    return fail(state, [err(`error: unknown subcommand: \`${sub}'`)], 129)
+  }
+  const origin = state.origin
+  if (!origin) return done(state, [])
+  if (!parsed.args.flags.has('-v')) return done(state, [out(origin.name)])
+  return done(state, [out(`${origin.name}\t${origin.url} (fetch)`), out(`${origin.name}\t${origin.url} (push)`)])
+}
