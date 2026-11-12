@@ -13,7 +13,7 @@
 // moves, you catch up. Every path to the goals therefore needs exactly one force push of a rewritten branch.
 import { hasMergeCommits, isAncestor, remoteBranchHead, repo, resolve, teammateCommit } from '../../git'
 import type { GitState } from '../../git'
-import type { Level } from '../types'
+import type { Scenario } from '../types'
 import { conflictFullyResolved, gitInvocations, isBareForcePush, isLeasePush } from './checks'
 
 const BRANCH = 'feature/login'
@@ -28,9 +28,12 @@ const latestMain = (state: GitState) => {
   return tip && resolve(state, tip) ? tip : null
 }
 
-export const teammateSync: Level = {
+export const teammateSync: Scenario = {
   id: 'git-06-teammate-sync',
   track: 'git',
+  kind: 'scenario',
+  difficulty: 3,
+  minutes: 8,
   title: 'Teammate sync',
   story: [
     'You finished the login check on feature/login: two commits, not pushed yet. Push the branch to origin so Anna can review it.',

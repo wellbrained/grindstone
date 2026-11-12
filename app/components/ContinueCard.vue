@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { continueTarget, hasProgress, trackLevels } from '#shared/levels'
+import { continueTarget, hasProgress, levelIntro, trackLevels } from '#shared/levels'
 import type { Track } from '#shared/levels'
 import { relativeTime } from '~/utils/relative-time'
 import { storyLead } from '~/utils/track-view'
 
-// One button back into practice. Opens the level you last played while it is unsolved, else next up (the first
-// unsolved level); with nothing played yet it is "Start here". With every level solved it says so and points at the
-// cheat sheet (and, on the home page, the track page). The level is the heading; where it sits and when you last played
-// it is a quiet line below.
+// One button back into practice. Opens the entry you last played while it is unsolved, else next up (the first
+// unsolved entry); with nothing played yet it is "Start here"; with nothing unsolved left, an entry you flagged
+// "practise again". With every level solved and nothing flagged it says so and points at the cheat sheet (and, on the
+// home page, the track page). The entry is the heading; where it sits and when you last played it is a quiet line below.
 const props = defineProps<{
   track: Track
   /** home: the meta line names the track too, and the solved state links to the track page. */
@@ -21,9 +21,15 @@ const target = computed(() => continueTarget(props.track, progress.value))
 const started = computed(() => hasProgress(progress.value))
 const total = computed(() => trackLevels(props.track).length)
 
-const kind = computed(() => target.value?.resume ? 'resume' : started.value ? 'next' : 'start')
+const kind = computed(() => {
+  const reason = target.value?.reason
+  if (reason === 'resume' || reason === 'practise') return reason
+  return started.value ? 'next' : 'start'
+})
 const where = computed(() => {
-  const chapter = target.value?.place.chapter.title ?? ''
+  const place = target.value?.place
+  // a practice task is placed by its scenario: "Basics › 1.1 First commit"
+  const chapter = place?.scenario ? `${place.chapter.title} › ${place.scenario.number} ${place.scenario.level.title}` : place?.chapter.title ?? ''
   return props.context === 'home' ? `${props.track.title} › ${chapter}` : chapter
 })
 const played = computed(() => target.value?.at ? relativeTime(target.value.at, Date.now()) : null)
@@ -52,7 +58,10 @@ const played = computed(() => target.value?.at ? relativeTime(target.value.at, D
           id="continue-heading"
           class="text-lg font-semibold text-balance text-highlighted"
         >
-          <span class="mr-1.5 font-mono text-base font-normal text-muted tabular-nums">{{ target.place.number }}</span>{{ target.place.level.title }}
+          <span
+            v-if="target.place.number"
+            class="mr-1.5 font-mono text-base font-normal text-muted tabular-nums"
+          >{{ target.place.number }}</span>{{ target.place.level.title }}
         </h2>
         <p
           id="continue-meta"
@@ -63,7 +72,7 @@ const played = computed(() => target.value?.at ? relativeTime(target.value.at, D
           </template>
         </p>
         <p class="mt-2 line-clamp-2 max-w-3xl text-sm text-toned">
-          <InlineText :text="storyLead(target.place.level.story)" />
+          <InlineText :text="storyLead(levelIntro(target.place.level))" />
         </p>
       </div>
       <UButton

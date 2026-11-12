@@ -31,13 +31,10 @@ export interface LevelPlayOptions {
 
 export function useLevelPlay(level: Level, options: LevelPlayOptions = {}) {
   const { t } = useI18n()
-  const { record, markPlayed } = useProgress()
+  const { record, markPlayed, levelProgress } = useProgress()
 
-  const store = useState<PlayState>(`play:${level.id}`, () => ({
-    session: startLevel(level),
-    log: [{ id: 0, type: 'intro' }],
-    nextId: 1
-  }))
+  const fresh = (): PlayState => ({ session: startLevel(level), log: [{ id: 0, type: 'intro' }], nextId: 1 })
+  const store = useState<PlayState>(`play:${level.id}`, fresh)
   const editor = ref<{ path: string, content: string } | null>(null)
   const debriefOpen = ref(false)
   const sparkKey = ref(0)
@@ -64,7 +61,9 @@ export function useLevelPlay(level: Level, options: LevelPlayOptions = {}) {
   const stats = computed(() => ({
     commands: session.value.commandCount,
     solution: level.solution.length,
-    hints: session.value.hintsUsed
+    hints: session.value.hintsUsed,
+    // the best run so far (this one included, once it is recorded)
+    best: levelProgress(level.id)?.best ?? null
   }))
 
   const graph = computed(() => {
@@ -102,6 +101,8 @@ export function useLevelPlay(level: Level, options: LevelPlayOptions = {}) {
       push({ type: 'solved' })
       record(level.id, result.session)
       sparkKey.value++
+      // a practice task has no debrief: its panel shows why it works, with Next and Again
+      if (level.kind === 'practice') return
       // let the spark play before the dialog covers it
       clearTimeout(debriefTimer)
       debriefTimer = setTimeout(() => {
@@ -156,6 +157,17 @@ export function useLevelPlay(level: Level, options: LevelPlayOptions = {}) {
     run('reset')
   }
 
+  /** Again / Play again: the same entry from its start, as a new attempt (hints and commands from zero). */
+  function again() {
+    clearTimeout(debriefTimer)
+    debriefOpen.value = false
+    editor.value = null
+    store.value = fresh()
+  }
+
+  // a reset or a loaded backup restarts this page in place (useProgress)
+  onScopeDispose(registerPlay(level.id, again))
+
   return {
     level,
     session,
@@ -183,6 +195,7 @@ export function useLevelPlay(level: Level, options: LevelPlayOptions = {}) {
     listCandidates,
     clearTerminal,
     reset,
+    again,
     hint: () => run('hint')
   }
 }

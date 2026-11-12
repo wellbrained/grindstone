@@ -77,7 +77,7 @@ export const cheatGroups: CheatGroup[] = [
   }
 ]
 
-/** The levels whose solution uses this git subcommand, in level order. */
+/** The scenarios whose solution uses this git subcommand, in level order (practice tasks have no number to link by). */
 export function levelsUsing(name: string, levels: readonly Level[] = gitLevels): Level[] {
-  return levels.filter(level => level.solution.some(line => gitSubcommands(line).includes(name)))
+  return levels.filter(level => level.kind === 'scenario' && level.solution.some(line => gitSubcommands(line).includes(name)))
 }

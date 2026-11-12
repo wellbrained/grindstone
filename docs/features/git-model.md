@@ -17,6 +17,7 @@ Grindstone's own git simulation (`shared/git/`, decision in `docs/adr/0002-git-m
 - `createState(options?)`, `writeFile(state, path, content)` (for the editor panel).
 - Setup: `repo()` / `folder()` return a `SetupBuilder` with `file`, `remove`, `stage`, `commit(message, { author })`, `branch`, `switch(name, { create })`, `merge`, `origin()`, `push(branch?)`, `fetch`, `teammate(author, message, files, { branch })`, `run(line)`, `update(fn)`, `build()`. A failing step throws (levels are author code). `commit` stages everything first; `file` adds a trailing newline.
 - Teammates: `teammateCommit(state, { author, message, files, branch? })` commits onto an origin branch (`null` deletes a file); the local repo sees it only after `fetch`/`pull`.
+- `ignoreMatcher(workdir)`: a `(path) => boolean` check over the .gitignore files of a tree (goals use it on a committed tree); `isIgnored(state, path)` for one path of the state (a tracked path never is).
 - Queries for goals: `currentBranch`, `headCommit`, `resolve`, `branchExists`, `commitsOf(rev | 'a..b')`, `isAncestor`, `hasMergeCommits(rev | 'a..b')`, `aheadBehind`, `remoteBranchHead` (on origin), `remoteCommitsOf`, `trackingBranchHead` (local `origin/x`), `upstreamOf`, `unmergedPaths`, `conflictsInProgress`, `operationInProgress`, `isWorkingTreeClean`, `fileContent`, `hasConflictMarkers`.
 - Also: `tokenize`, `blobId`, `shortId`, `formatDate`, `gitCommandNames` and `shellCommandNames` (Tab completion), all types.
 
@@ -26,7 +27,7 @@ Grindstone's own git simulation (`shared/git/`, decision in `docs/adr/0002-git-m
 | --- | --- |
 | `init` | |
 | `status` | `-s` / `--short`; long format with tracking info, merge and rebase state, unmerged paths |
-| `add` | paths, directories, `.`, `-A`, simple `*` globs; stages deletions; marks conflicts resolved |
+| `add` | paths, directories, `.`, `-A`, simple `*` globs, `-f` / `--force`; stages deletions; marks conflicts resolved; skips and refuses ignored files (see "Ignored files") |
 | `commit` | `-m` (repeatable), `-a`, `-am`, `--amend` (with `-m` or reusing the message), `--no-edit`, `--allow-empty`; plain `commit` concludes a merge with the prepared message |
 | `log` | `--oneline`, `--graph`, `--all`, `-n N` / `-N`, revisions, `a..b`, `^a` |
 | `diff` | working tree vs index, `--staged` / `--cached`, paths |
@@ -43,6 +44,23 @@ Shell: `ls`, `cat`, `echo` (with `>` / `>>`; any command's output can be redirec
 
 Anything else: real git commands answer `git: '<x>' is not in this trainer yet`, typos get git's "not a git command" with the most similar command, unsupported flags answer `git <cmd>: option '<flag>' is not in this trainer yet`, unknown programs answer `<cmd>: command not found`.
 
+## Ignored files (`.gitignore`)
+
+`shared/git/ignore.ts`, tests in `test/unit/git/ignore.test.ts`.
+
+- **Where the patterns come from**: every `.gitignore` in the working tree (like git, not the committed copy: an uncommitted .gitignore already works, a deleted one no longer does). A file in a subfolder applies to paths under that folder and wins over the ones above it (the last matching line counts).
+- **Patterns**: blank lines and `#` comments are skipped, trailing spaces trimmed; exact names (`.env`, at any depth); `*` and `?` (never across a slash); `**` (`**/temp`, `logs/**`, `a/**/b`); `[abc]` classes; `dir/` (directories only, with everything inside); `/root-only` and a slash in the middle (anchored to the .gitignore's folder); `!negation` (the last match wins; like git, a file inside an ignored directory cannot be re-included, but `dist/*` plus `!dist/keep.txt` works); `\#` and `\!` for names that start with those characters.
+- **Only untracked paths are ignored**: a tracked file (in the index) stays tracked and shows its changes even when a pattern matches it.
+- **status** (long and `-s`) leaves ignored files out of "Untracked files"; a folder that holds only ignored files is not listed. `isWorkingTreeClean` follows status, so ignored files do not make a tree dirty.
+- **add**: `git add .`, `-A` and a folder quietly skip ignored files. A pathspec that names only ignored files (`git add .env`, `git add dist`, `git add dist/app.js`) is refused like real git, with exit code 1, while the other paths of the same command are still added. The listed name is the topmost ignored part (`dist` for `dist/app.js`). `-f` / `--force` adds them anyway; from then on they are tracked.
+
+  ```
+  The following paths are ignored by one of your .gitignore files:
+  dist
+  hint: Use -f if you really want to add them.
+  ```
+- The IDE explorer marks ignored files with a dimmed `I`; they do not colour their folder.
+
 ## Simplifications versus real git
 
 - One remote (`origin`), no `git remote`, `clone` or `config`; `.origin()` in the setup builder stands in for a clone.
@@ -56,3 +74,4 @@ Anything else: real git commands answer `git: '<x>' is not in this trainer yet`,
 - `log --graph` draws basic lanes (`*`, `|`, `|\`, `|/`), not every case git's renderer handles.
 - Conflict markers are written but there is no `diff --cc`; `git diff` during a conflict compares against our side.
 - No editor: `commit` without `-m` asks for `-m` (except when concluding a merge or with `--amend`).
+- `.gitignore` files only: no `.git/info/exclude`, no global excludes file, no `status --ignored`, no `git check-ignore`. The ignored-file message leaves out git's last hint (`git config set advice.addIgnoredFile false`), since there is no `git config`. Switching branches treats ignored files like untracked ones (git would overwrite them).

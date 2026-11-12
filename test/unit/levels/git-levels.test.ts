@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { commitsOf } from '../../../shared/git'
 import { gitLevels, levelById, levels, nextLevel, startLevel, submit } from '../../../shared/levels'
 import type { Level, Session, SubmitResult } from '../../../shared/levels'
 import { deepFreeze } from '../git/helpers'
@@ -22,9 +23,19 @@ const level = (id: string) => {
   return found
 }
 
-/** Goals at the very start: false unless trivially true before you do anything (listed explicitly). */
+/** Goals at the very start: false unless trivially true before you do anything (listed explicitly). In play order. */
 const initialGoals: Record<string, Record<string, boolean>> = {
   'git-01-first-commit': { initialised: false, committed: false, clean: false },
+  'git-practice-stage-one-file': { staged: false },
+  'git-practice-commit-all': { 'committed': false, 'one-go': false },
+  'git-07-stage-together': { 'typo-commit': false, 'prices-commit': false, 'clean': false },
+  'git-practice-diff-staged': { shown: false },
+  'git-08-what-changed': { 'hours': false, 'no-theme': true, 'looked': false },
+  'git-practice-diff-file': { shown: false },
+  'git-09-read-history': { read: false, branch: false },
+  'git-practice-log-oneline': { shown: false },
+  'git-10-ignore-build-files': { 'gitignore': false, 'kept': true, 'not-committed': true, 'clean': false },
+  'git-practice-ignore-logs': { ignored: false, kept: true, clean: false },
   'git-02-branch': { 'on-branch': false, 'committed': false, 'main-unchanged': true },
   'git-03-merge': { 'on-main': false, 'merged': false },
   'git-04-merge-conflict': { 'merged': false, 'resolved': false, 'merge-commit': false },
@@ -33,10 +44,12 @@ const initialGoals: Record<string, Record<string, boolean>> = {
 }
 
 describe('level list', () => {
-  it('has the six v0.1 git levels in order', () => {
+  it('has the git levels in play order: each scenario, then its practice tasks', () => {
     expect(gitLevels.map(item => item.id)).toEqual(Object.keys(initialGoals))
     expect(levels).toEqual(gitLevels)
-    expect(nextLevel('git-01-first-commit')?.id).toBe('git-02-branch')
+    expect(nextLevel('git-01-first-commit')?.id).toBe('git-practice-stage-one-file')
+    expect(nextLevel('git-practice-commit-all')?.id).toBe('git-07-stage-together')
+    expect(nextLevel('git-practice-ignore-logs')?.id).toBe('git-02-branch')
     expect(nextLevel('git-06-teammate-sync')).toBeNull()
     expect(levelById('nope')).toBeNull()
   })
@@ -46,18 +59,35 @@ describe.each(gitLevels.map(item => [item.id, item] as const))('%s', (_id, item)
   it('is well-formed', () => {
     expect(item.track).toBe('git')
     expect(item.title).not.toBe('')
-    const paragraphs = item.story.split('\n\n')
-    expect(paragraphs.length).toBeGreaterThanOrEqual(1)
-    expect(paragraphs.length).toBeLessThanOrEqual(3)
-    expect(item.hints).toHaveLength(3)
+    expect([1, 2, 3]).toContain(item.difficulty)
+    expect(item.minutes).toBeGreaterThan(0)
     for (const hint of item.hints) expect(hint.trim()).not.toBe('')
-    expect(item.hints[2]).toMatch(/`git /)
-    expect(item.debrief.paragraphs.length).toBeGreaterThanOrEqual(2)
-    expect(item.debrief.paragraphs.length).toBeLessThanOrEqual(4)
     const goalIds = item.goals.map(goal => goal.id)
     expect(new Set(goalIds).size).toBe(goalIds.length)
     const eventIds = (item.teammates ?? []).map(event => event.id)
     expect(new Set(eventIds).size).toBe(eventIds.length)
+    if (item.kind === 'scenario') {
+      expect(item.id).toMatch(/^git-\d\d-[a-z-]+$/)
+      const paragraphs = item.story.split('\n\n')
+      expect(paragraphs.length).toBeGreaterThanOrEqual(1)
+      expect(paragraphs.length).toBeLessThanOrEqual(3)
+      expect(item.hints).toHaveLength(3)
+      expect(item.hints[2]).toMatch(/`git /)
+      expect(item.debrief.paragraphs.length).toBeGreaterThanOrEqual(2)
+      expect(item.debrief.paragraphs.length).toBeLessThanOrEqual(4)
+    } else {
+      // one short task: 1-3 commands, one hint, about half a minute, a one-line why
+      expect(item.id).toMatch(/^git-practice-[a-z-]+$/)
+      expect(item.task).not.toBe('')
+      expect(item.task).not.toContain('\n')
+      expect(item.hints).toHaveLength(1)
+      expect(item.why).not.toBe('')
+      expect(item.why).not.toContain('\n')
+      expect(item.solution.length).toBeLessThanOrEqual(3)
+      expect(item.goals.length).toBeLessThanOrEqual(3)
+      expect(item.minutes).toBeLessThanOrEqual(1)
+      expect(levelById(item.practises)?.kind).toBe('scenario')
+    }
   })
 
   it('builds the same setup every time', () => {
@@ -75,6 +105,52 @@ describe.each(gitLevels.map(item => [item.id, item] as const))('%s', (_id, item)
     expect(session.solved).toBe(true)
     expect(Object.values(session.goalsMet).every(Boolean)).toBe(true)
     expect(steps.map(step => step.solvedNow)).toEqual(item.solution.map((_, i) => i === item.solution.length - 1))
+  })
+})
+
+/** Wrong paths that must not solve an entry: at least one per scenario, and the obvious one per practice task. */
+const wrongPaths: [id: string, why: string, lines: string[], failing: string[]][] = [
+  ['git-01-first-commit', 'commits only one of the two files', ['git init', 'git add README.md', 'git commit -m "First commit"'], ['committed', 'clean']],
+  ['git-practice-stage-one-file', 'stages both files', ['git add .'], ['staged']],
+  ['git-practice-commit-all', 'stages with git add first', ['git add .', 'git commit -m "Update"'], ['one-go']],
+  ['git-07-stage-together', 'commits both changes at once', ['git add .', 'git commit -m "Fix typo and add prices"'], ['typo-commit']],
+  ['git-07-stage-together', 'commits the price list first', ['git add prices.md', 'git commit -m "Add price list"', 'git add README.md', 'git commit -m "Fix typo in README"'], ['typo-commit', 'prices-commit']],
+  ['git-practice-diff-staged', 'shows only the unstaged side', ['git diff'], ['shown']],
+  ['git-08-what-changed', 'commits everything, dark theme included', ['git diff', 'git diff --staged', 'git add .', 'git commit -m "Update the site"'], ['no-theme']],
+  ['git-08-what-changed', 'commits only what was staged', ['git diff', 'git diff --staged', 'git commit -m "New hours"'], ['hours']],
+  ['git-08-what-changed', 'commits the right files without looking', ['git add contact.html', 'git commit -m "New hours"'], ['looked']],
+  ['git-practice-diff-file', 'shows every file', ['git diff'], ['shown']],
+  ['git-09-read-history', 'puts the branch on the change itself', ['git log --oneline', 'git branch before-shipping-change HEAD~2'], ['branch']],
+  ['git-09-read-history', 'puts the branch on the newest commit', ['git log', 'git branch before-shipping-change'], ['branch']],
+  ['git-practice-log-oneline', 'shows the whole history', ['git log --oneline'], ['shown']],
+  ['git-10-ignore-build-files', 'commits the build output and .env', ['git add .', 'git commit -m "Build"'], ['gitignore', 'not-committed']],
+  ['git-10-ignore-build-files', 'deletes the files instead of ignoring them', ['rm -r dist .env'], ['gitignore', 'kept']],
+  ['git-10-ignore-build-files', 'writes the .gitignore but does not commit it', ['echo "dist/" > .gitignore', 'echo ".env" >> .gitignore'], ['gitignore', 'clean']],
+  ['git-practice-ignore-logs', 'replaces the .gitignore with >', ['echo "*.log" > .gitignore', 'git commit -am "Ignore log files"'], ['kept']]
+]
+
+describe.each(wrongPaths)('%s: %s', (id, _why, lines, failing) => {
+  it('is not solved', () => {
+    const { session } = play(level(id), lines)
+    expect(session.solved).toBe(false)
+    expect(Object.entries(session.goalsMet).filter(([, met]) => !met).map(([goal]) => goal).sort()).toEqual([...failing].sort())
+  })
+})
+
+describe('git-10-ignore-build-files', () => {
+  it('refuses git add .env once it is ignored, like real git', () => {
+    const { text } = play(level('git-10-ignore-build-files'), ['echo ".env" > .gitignore', 'git add .env'])
+    expect(text).toContain('The following paths are ignored by one of your .gitignore files:')
+  })
+})
+
+describe('git-09-read-history', () => {
+  it('accepts git log in any form and the full id of the commit', () => {
+    const item = level('git-09-read-history')
+    const { state } = startLevel(item)
+    const before = commitsOf(state, 'main').find(commit => commit.message === 'Add free shipping from 50 euros')!.id
+    expect(play(item, ['git log', `git branch before-shipping-change ${before}`]).session.solved).toBe(true)
+    expect(play(item, ['git log -n 4', 'git branch before-shipping-change HEAD~3']).session.solved).toBe(true)
   })
 })
 

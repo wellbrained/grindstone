@@ -1,10 +1,13 @@
 // Level 1: turn a plain folder into a repository and make the first commit.
 import { folder, headCommit, isWorkingTreeClean } from '../../git'
-import type { Level } from '../types'
+import type { Scenario } from '../types'
 
-export const firstCommit: Level = {
+export const firstCommit: Scenario = {
   id: 'git-01-first-commit',
   track: 'git',
+  kind: 'scenario',
+  difficulty: 1,
+  minutes: 3,
   title: 'First commit',
   story: [
     'You started a small habit tracker over the weekend: a README.md and an app.js, sitting in a plain folder. Nothing is saved in git yet, so one bad edit and the working version is gone.',

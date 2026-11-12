@@ -23,7 +23,8 @@ const STATUS_CLASS: Record<FileStatus, string> = {
   added: 'text-success',
   untracked: 'text-success',
   deleted: 'text-error',
-  conflicted: 'text-error'
+  conflicted: 'text-error',
+  ignored: 'text-dimmed'
 }
 
 function iconOf(node: TreeNode) {
@@ -163,6 +164,7 @@ const statusText = (status: FileStatus) => t(`explorer.status.${status}`)
       <span><span class="font-semibold text-success">A</span> {{ statusText('added') }}</span>
       <span><span class="font-semibold text-error">C</span> {{ statusText('conflicted') }}</span>
       <span><span class="font-semibold text-error">D</span> {{ statusText('deleted') }}</span>
+      <span><span class="font-semibold text-dimmed">I</span> {{ statusText('ignored') }}</span>
     </p>
   </section>
 </template>

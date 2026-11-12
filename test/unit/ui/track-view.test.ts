@@ -1,33 +1,53 @@
 import { describe, expect, it } from 'vitest'
 import { emptyProgress, gitLevels, trackById } from '../../../shared/levels'
-import { percent, storyLead, trackCardAction, trackView } from '../../../app/utils/track-view'
-import { bigTrack, solvedProgress } from '../levels/fixtures'
+import { percent, storyLead, timeLabel, trackCardAction, trackView } from '../../../app/utils/track-view'
+import { bigTrack, practiceTrack, solvedProgress } from '../levels/fixtures'
 
 const git = trackById('git')!
+
+const rowStates = (progress = emptyProgress()) => Object.fromEntries(trackView(git, progress).chapters
+  .flatMap(chapter => chapter.rows.map(row => [row.place.level.id, row.state])))
 
 describe('track view', () => {
   it('marks the first level as next up when nothing is solved', () => {
     const view = trackView(git, emptyProgress())
-    expect(view.count).toEqual({ solved: 0, total: 6 })
+    expect(view.count).toEqual({ solved: 0, total: 16 })
     expect(view.liveChapters).toBe(5)
     expect(view.nextUp?.number).toBe('1.1')
-    expect(view.chapters.flatMap(chapter => chapter.rows.map(row => [row.place.number, row.state]))).toEqual([
+    expect(view.chapters[0]!.rows.map(row => [row.place.number, row.state])).toEqual([
       ['1.1', 'next'],
-      ['2.1', 'open'],
-      ['3.1', 'open'],
-      ['3.2', 'open'],
-      ['4.1', 'open'],
-      ['5.1', 'open']
+      [null, 'open'],
+      [null, 'open'],
+      ['1.2', 'open'],
+      [null, 'open'],
+      ['1.3', 'open'],
+      [null, 'open'],
+      ['1.4', 'open'],
+      [null, 'open'],
+      ['1.5', 'open'],
+      [null, 'open']
     ])
   })
 
-  it('shows solved levels, one next up, and the chapters without levels as coming', () => {
-    const view = trackView(git, solvedProgress(['git-01-first-commit', 'git-03-merge']))
-    const states = Object.fromEntries(view.chapters.flatMap(chapter => chapter.rows.map(row => [row.place.number, row.state])))
-    expect(states).toEqual({ 1.1: 'solved', 2.1: 'next', 3.1: 'solved', 3.2: 'open', 4.1: 'open', 5.1: 'open' })
+  it('shows solved levels, one next up (a practice task counts), and the chapters without levels as coming', () => {
+    const progress = solvedProgress(['git-01-first-commit', 'git-03-merge'])
+    expect(rowStates(progress)).toMatchObject({
+      'git-01-first-commit': 'solved',
+      'git-practice-stage-one-file': 'next',
+      'git-practice-commit-all': 'open',
+      'git-03-merge': 'solved',
+      'git-04-merge-conflict': 'open'
+    })
+    const view = trackView(git, progress)
     expect(view.chapters.map(chapter => chapter.coming)).toEqual([false, false, false, false, false, true, true, true])
     expect(view.chapters[2]!.count).toEqual({ solved: 1, total: 2 })
-    expect(view.chapters.map(chapter => chapter.state)).toEqual(['solved', 'next', 'open', 'open', 'open', 'coming', 'coming', 'coming'])
+    expect(view.chapters.map(chapter => chapter.state)).toEqual(['next', 'open', 'open', 'open', 'open', 'coming', 'coming', 'coming'])
+  })
+
+  it('carries the stored progress of each row (best run, practise again)', () => {
+    const view = trackView(git, solvedProgress(['git-01-first-commit'], null, ['git-01-first-commit']))
+    expect(view.chapters[0]!.rows[0]!.progress).toMatchObject({ best: { commands: 3, hints: 0 }, practiseAgain: true })
+    expect(view.chapters[0]!.rows[1]!.progress).toBeNull()
   })
 
   it('has no next up when every level is solved', () => {
@@ -39,6 +59,7 @@ describe('track view', () => {
   it('lists the commands each level practises', () => {
     const rows = trackView(git, emptyProgress()).chapters.flatMap(chapter => chapter.rows)
     expect(rows[0]!.commands).toEqual(['init', 'add', 'commit'])
+    expect(rows[1]!.commands).toEqual(['add'])
   })
 
   it('holds a 58-level track: rows per chapter, one next up across chapters', () => {
@@ -66,11 +87,26 @@ describe('chapter lanes', () => {
       ['2.6', 'dim', 'dim'],
       ['2.7', 'dim', null]
     ])
+    expect(rows.every(row => row.lane.fork === null && row.lane.through === null)).toBe(true)
   })
 
   it('draws no lane through a chapter with one level', () => {
-    const [row] = trackView(git, emptyProgress()).chapters[0]!.rows
-    expect(row!.lane).toEqual({ in: null, out: null })
+    const [row] = trackView(git, emptyProgress()).chapters[1]!.rows
+    expect(row!.lane).toEqual({ in: null, out: null, through: null, fork: null, sideIn: null, sideOut: null })
+  })
+
+  it('forks practice tasks onto a side branch off their scenario; the main line passes them by', () => {
+    // a: s1 (p1a, p1b), s2, s3 (p3a)
+    const rows = trackView(practiceTrack(), solvedProgress(['s1', 'p1a', 's2', 's3'])).chapters[0]!.rows
+    expect(rows.map(row => [row.place.level.id, row.lane])).toEqual([
+      ['s1', { in: null, out: 'solid', through: null, fork: 'solid', sideIn: null, sideOut: null }],
+      ['p1a', { in: null, out: null, through: 'solid', fork: null, sideIn: 'solid', sideOut: 'dim' }],
+      ['p1b', { in: null, out: null, through: 'solid', fork: null, sideIn: 'dim', sideOut: null }],
+      ['s2', { in: 'solid', out: 'solid', through: null, fork: null, sideIn: null, sideOut: null }],
+      // the last scenario: no main line below it, only its side branch
+      ['s3', { in: 'solid', out: null, through: null, fork: 'dim', sideIn: null, sideOut: null }],
+      ['p3a', { in: null, out: null, through: null, fork: null, sideIn: 'dim', sideOut: null }]
+    ])
   })
 })
 
@@ -84,7 +120,7 @@ describe('track card action', () => {
   })
 
   it('continues a track with progress that the Continue card does not show', () => {
-    expect(trackCardAction(git, solvedProgress(['git-01-first-commit']), 'web')).toMatchObject({ kind: 'continue', place: { number: '2.1' } })
+    expect(trackCardAction(git, solvedProgress(['git-01-first-commit']), 'web')).toMatchObject({ kind: 'continue', place: { level: { id: 'git-practice-stage-one-file' } } })
   })
 
   it('opens a track with every level solved', () => {
@@ -102,5 +138,11 @@ describe('track view helpers', () => {
   it('takes the first paragraph of a story', () => {
     expect(storyLead('One.\n\nTwo.')).toBe('One.')
     expect(storyLead('Only one.')).toBe('Only one.')
+  })
+
+  it('writes the time estimate in seconds below a minute', () => {
+    expect(timeLabel(0.5)).toEqual({ value: 30, unit: 's' })
+    expect(timeLabel(5)).toEqual({ value: 5, unit: 'min' })
+    expect(timeLabel(1)).toEqual({ value: 1, unit: 'min' })
   })
 })

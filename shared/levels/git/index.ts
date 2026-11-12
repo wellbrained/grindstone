@@ -1,5 +1,6 @@
 // The git track: its chapters and their levels, in play order. Adding a level: one entry in its chapter's `levels`
 // (plus the import); its number ("3.2") and its place in the play order follow from that (docs/features/levels.md).
+// A practice task goes right after the scenario it trains (`practises`); defineTrack checks the placement.
 import { defineTrack, trackLevels } from '../track'
 import type { Level } from '../types'
 import { firstCommit } from './01-first-commit'
@@ -8,6 +9,11 @@ import { merge } from './03-merge'
 import { mergeConflict } from './04-merge-conflict'
 import { rebase } from './05-rebase'
 import { teammateSync } from './06-teammate-sync'
+import { stageTogether } from './07-stage-together'
+import { whatChanged } from './08-what-changed'
+import { readHistory } from './09-read-history'
+import { ignoreBuildFiles } from './10-ignore-build-files'
+import { commitAll, diffFile, diffStaged, ignoreLogs, logOneline, stageOneFile } from './practice/basics'
 
 export const gitTrack = defineTrack({
   id: 'git',
@@ -23,7 +29,20 @@ export const gitTrack = defineTrack({
       title: 'Basics',
       description: 'Repositories, staging and commits: everything that happens on your own machine.',
       colour: 0,
-      levels: [firstCommit]
+      // each scenario, then the practice tasks that train it
+      levels: [
+        firstCommit,
+        stageOneFile,
+        commitAll,
+        stageTogether,
+        diffStaged,
+        whatChanged,
+        diffFile,
+        readHistory,
+        logOneline,
+        ignoreBuildFiles,
+        ignoreLogs
+      ]
     },
     {
       id: 'branching',

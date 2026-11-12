@@ -16,7 +16,7 @@ const props = defineProps<{
 
 const {
   level, session, log, prompt, completion, fileTree, workdir, tabs, goals, conflictedFiles, next, graph, hasOrigin, showOrigin,
-  debriefOpen, sparkKey, run, saveTab, listCandidates, clearTerminal, hint, reset, edit
+  debriefOpen, sparkKey, run, saveTab, listCandidates, clearTerminal, hint, reset, again, edit
 } = props.play
 
 const ide = computed(() => props.layout === 'ide')
@@ -45,6 +45,12 @@ function openFile(path: string) {
   showEditor()
 }
 
+/** Again: the same entry from the start, and back to typing. */
+function onAgain() {
+  again()
+  nextTick(() => terminal.value?.focus())
+}
+
 defineExpose({
   showEditor,
   focusTerminal: () => terminal.value?.focus()
@@ -69,6 +75,7 @@ defineExpose({
         :next="next"
         @hint="hint"
         @reset="reset"
+        @again="onAgain"
         @edit="edit"
         @debrief="debriefOpen = true"
       />

@@ -48,6 +48,14 @@ describe('fileStatuses', () => {
     })
   })
 
+  it('marks untracked files a .gitignore names as ignored, and keeps them out of their folder\'s status', () => {
+    const state = repo().file('.gitignore', 'dist/\n*.log').commit('start').file('dist/app.js', 'x').file('debug.log', 'x').file('new.txt', 'x').build()
+    expect(fileStatuses(state)).toEqual({ 'dist/app.js': 'ignored', 'debug.log': 'ignored', 'new.txt': 'untracked' })
+    const dist = buildFileTree(state.workdir, fileStatuses(state)).find(node => node.name === 'dist') as FolderNode
+    expect(dist.status).toBeNull()
+    expect(dist.children[0]).toMatchObject({ name: 'app.js', status: 'ignored' })
+  })
+
   it('marks unmerged files as conflicted', () => {
     const base = repo()
       .file('f.txt', 'base')

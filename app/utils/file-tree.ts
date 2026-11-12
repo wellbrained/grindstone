@@ -1,13 +1,14 @@
 // The IDE's file explorer: per-file git status from the state, and a folder tree from the flat working tree.
 // Pure: no Vue, no DOM.
+import { ignoreMatcher } from '../../shared/git'
 import type { GitState, Tree } from '#shared/git'
 
 /**
  * A file's status, like an IDE's source-control colours:
  * modified (tracked, changed), added (new and staged), untracked (new, not staged), deleted (gone from the working tree
- * but still in HEAD or the index), conflicted (unmerged).
+ * but still in HEAD or the index), conflicted (unmerged), ignored (untracked and named by a .gitignore).
  */
-export type FileStatus = 'modified' | 'added' | 'untracked' | 'deleted' | 'conflicted'
+export type FileStatus = 'modified' | 'added' | 'untracked' | 'deleted' | 'conflicted' | 'ignored'
 
 /** The letter next to a file, never the colour alone (VS Code's letters; C for conflicted). */
 export const STATUS_LETTER: Record<FileStatus, string> = {
@@ -15,10 +16,11 @@ export const STATUS_LETTER: Record<FileStatus, string> = {
   added: 'A',
   untracked: 'U',
   deleted: 'D',
-  conflicted: 'C'
+  conflicted: 'C',
+  ignored: 'I'
 }
 
-/** Which status a folder shows when its files differ: the most urgent one. */
+/** Which status a folder shows when its files differ: the most urgent one. Ignored files are not a change. */
 const PRIORITY: FileStatus[] = ['conflicted', 'modified', 'added', 'untracked', 'deleted']
 
 const headTree = (state: GitState): Tree => {
@@ -36,12 +38,13 @@ export function fileStatuses(state: GitState): Record<string, FileStatus> {
   const { index } = repo
   const workdir = state.workdir
   const statuses: Record<string, FileStatus> = {}
+  const ignored = ignoreMatcher(workdir)
   const paths = new Set([...Object.keys(workdir), ...Object.keys(index), ...Object.keys(head), ...Object.keys(repo.unmerged)])
   for (const path of paths) {
     const inWorkdir = workdir[path] !== undefined
     if (repo.unmerged[path] !== undefined) statuses[path] = 'conflicted'
     else if (!inWorkdir) statuses[path] = 'deleted'
-    else if (index[path] === undefined) statuses[path] = 'untracked'
+    else if (index[path] === undefined) statuses[path] = ignored(path) ? 'ignored' : 'untracked'
     else if (head[path] === undefined) statuses[path] = 'added'
     else if (workdir[path] !== head[path] || index[path] !== head[path]) statuses[path] = 'modified'
   }
@@ -69,6 +72,7 @@ export interface FolderNode {
 export type TreeNode = FileNode | FolderNode
 
 const urgent = (a: FileStatus | null, b: FileStatus | null) => {
+  if (b === 'ignored') return a
   if (!a) return b
   if (!b) return a
   return PRIORITY.indexOf(a) <= PRIORITY.indexOf(b) ? a : b

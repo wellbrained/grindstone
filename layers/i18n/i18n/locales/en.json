@@ -19,8 +19,8 @@
     },
     "about": "What makes Grindstone different",
     "card": {
-      "start": "Start: {number} {title}",
-      "continue": "Continue: {number} {title}",
+      "start": "Start: {name}",
+      "continue": "Continue: {name}",
       "open": "Open {track} track",
       "chapters": "See all chapters"
     }
@@ -46,7 +46,8 @@
     "done": "(done)",
     "open": "(not done yet)",
     "conflicts": "Files with conflicts",
-    "openFile": "Open {path} in the editor"
+    "openFile": "Open {path} in the editor",
+    "one": "Goal"
   },
   "terminal": {
     "label": "Terminal",
@@ -116,7 +117,9 @@
     "verdictMore": "{n} command more than the shortest solution. | {n} commands more than the shortest solution.",
     "stay": "Stay here",
     "next": "Next level",
-    "all": "Back to the track"
+    "all": "Back to the track",
+    "best": "Your best run",
+    "bestHints": "· no hints | · {n} hint | · {n} hints"
   },
   "explorer": {
     "title": "Explorer",
@@ -129,7 +132,8 @@
       "added": "added",
       "untracked": "untracked",
       "deleted": "deleted",
-      "conflicted": "conflicted"
+      "conflicted": "conflicted",
+      "ignored": "ignored"
     }
   },
   "cheat": {
@@ -194,12 +198,27 @@
     "chapterNumber": "Chapter {n}: ",
     "coming": "Coming",
     "cheat": "{track} cheat sheet",
-    "rowLabel": "{number} {title}, {status}. Practises {commands}.",
     "status": {
       "solved": "Solved",
       "next": "Next up",
       "open": "Not solved"
-    }
+    },
+    "time": {
+      "s": "~{n} s",
+      "min": "~{n} min"
+    },
+    "timeLong": {
+      "s": "about {n} seconds",
+      "min": "about {n} minutes"
+    },
+    "best": "best {n} cmd | best {n} cmds",
+    "statusBest": "{status}, best run {n} commands",
+    "flagged": "Practise again",
+    "practiceName": "Practice for {scenario}: {title}",
+    "aboutTime": "Takes {time}",
+    "difficultyTime": "Difficulty {n} of 3, takes {time}",
+    "difficulty": "Difficulty {n} of 3",
+    "practises": "Practises {commands}"
   },
   "continue": {
     "resume": "Where you left off in {where}",
@@ -209,13 +228,90 @@
     "button": {
       "resume": "Continue",
       "next": "Start level",
-      "start": "Start"
+      "start": "Start",
+      "practise": "Practise again"
     },
     "done": {
       "title": "Every {track} level solved",
       "text": "You solved all {n} levels. New chapters are on the way; until then, replay any level or keep the cheat sheet close.",
       "track": "See the {track} track",
       "cheat": "Open the cheat sheet"
+    },
+    "practise": "Practise again in {where}"
+  },
+  "practice": {
+    "meta": "Practice · {time}",
+    "hint": "Hint: ",
+    "showHint": "Show hint",
+    "solved": "Solved",
+    "next": "Next",
+    "again": "Again"
+  },
+  "confirm": {
+    "cancel": "Cancel"
+  },
+  "reset": {
+    "solved": "{n} solved level | {n} solved levels",
+    "entry": {
+      "title": "Mark “{name}” as not solved?",
+      "text": "“{name}” goes back to not solved: its best run, latest run, “practise again” flag and where you left off are cleared. This cannot be undone.",
+      "confirm": "Mark as not solved"
+    },
+    "chapter": {
+      "title": "Reset chapter {chapter}?",
+      "text": "{solved}, their best runs, “practise again” flags and where you left off in {chapter} are cleared. This cannot be undone.",
+      "confirm": "Reset chapter"
+    },
+    "track": {
+      "title": "Reset all {track} progress?",
+      "text": "{solved}, their best runs, “practise again” flags and where you left off in the {track} track are cleared. This cannot be undone.",
+      "confirm": "Reset track"
+    },
+    "all": {
+      "title": "Reset everything?",
+      "text": "All progress in this browser is cleared: {solved}, their best runs, “practise again” flags and where you left off. This cannot be undone.",
+      "confirm": "Reset everything"
+    }
+  },
+  "menu": {
+    "entry": {
+      "label": "More for {name}",
+      "playAgain": "Play again",
+      "practiseAgain": "Mark “practise again”",
+      "notSolved": "Mark as not solved"
+    },
+    "chapter": {
+      "label": "More for chapter {chapter}",
+      "practise": "Practise again: {chapter}",
+      "reset": "Reset chapter {chapter}…"
+    },
+    "track": {
+      "label": "More for the {track} track",
+      "reset": "Reset all {track} progress…"
+    }
+  },
+  "backup": {
+    "title": "Your progress",
+    "intro": "Stored only in this browser. Download it to keep a backup or to move to another browser, and load it back there.",
+    "nothing": "Nothing saved yet.",
+    "summary": "{solved}, {flagged}",
+    "solved": "{n} solved",
+    "flagged": "{n} to practise again",
+    "download": "Download progress",
+    "load": "Load progress",
+    "resetAll": "Reset everything…",
+    "downloaded": "Saved {file}.",
+    "loaded": "Loaded {file}: {what}.",
+    "error": {
+      "json": "{file} is not a progress file (it is not valid JSON). Nothing was changed.",
+      "shape": "{file} is not a Grindstone progress file. Nothing was changed.",
+      "version": "{file} comes from a newer or unknown version of Grindstone. Nothing was changed.",
+      "read": "Could not read {file}. Nothing was changed."
+    },
+    "replace": {
+      "title": "Replace your progress?",
+      "text": "Loading {file} ({what}) replaces the progress in this browser ({current}). This cannot be undone; download your current progress first if you want to keep it.",
+      "confirm": "Replace progress"
     }
   }
 }

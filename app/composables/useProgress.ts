@@ -1,6 +1,29 @@
-// Progress per level, shared by the home page, the track page and the play page. Persisted in localStorage through the guarded adapter.
-import { recordPlay, recordSolve } from '#shared/levels'
+// Progress per entry, shared by the home page, the track page, the play page and the About page. Persisted in
+// localStorage through the guarded adapter. Resets also drop the in-memory play sessions of the entries they clear, so
+// a level you open afterwards starts fresh (a level page that is open restarts itself, see useLevelPlay).
+import { recordPlay, recordSolve, resetEntries, setPractiseAgain } from '#shared/levels'
 import type { LevelProgress, Progress, Session } from '#shared/levels'
+
+/** Restart callbacks of the play pages that are open now, by level id (registered by useLevelPlay). */
+const openPlays = new Map<string, () => void>()
+
+export function registerPlay(levelId: string, restart: () => void) {
+  openPlays.set(levelId, restart)
+  return () => {
+    if (openPlays.get(levelId) === restart) openPlays.delete(levelId)
+  }
+}
+
+/** Starts these entries over: an open play page restarts, any other stored session is dropped. */
+export function restartPlays(levelIds: readonly string[]) {
+  const dropped: string[] = []
+  for (const id of levelIds) {
+    const restart = openPlays.get(id)
+    if (restart) restart()
+    else dropped.push(`play:${id}`)
+  }
+  if (dropped.length) clearNuxtState(dropped)
+}
 
 export function useProgress() {
   // The app is a client-side SPA (ssr: false), so the initial value is read in the browser.
@@ -12,11 +35,15 @@ export function useProgress() {
   // a level solved for the first time in this visit, until the track page has drawn its lane in once
   const justSolved = useState<string | null>('just-solved', () => null)
 
+  function commit(next: Progress) {
+    progress.value = next
+    saveProgress(next)
+  }
+
   /** Records a solved session and stores it; an unsolved one changes nothing. */
   function record(levelId: string, session: Session) {
     const first = session.solved && !isSolved(levelId)
-    progress.value = recordSolve(progress.value, levelId, session)
-    saveProgress(progress.value)
+    commit(recordSolve(progress.value, levelId, session))
     if (first) justSolved.value = levelId
   }
 
@@ -29,9 +56,26 @@ export function useProgress() {
 
   /** Marks the level as the one you last played (for Continue) and stores it. */
   function markPlayed(levelId: string, at = Date.now()) {
-    progress.value = recordPlay(progress.value, levelId, at)
-    saveProgress(progress.value)
+    commit(recordPlay(progress.value, levelId, at))
   }
 
-  return { progress, levelProgress, isSolved, record, markPlayed, takeJustSolved }
+  /** Sets or clears "practise again" on a solved entry. */
+  function setFlag(levelId: string, flag: boolean) {
+    commit(setPractiseAgain(progress.value, levelId, flag))
+  }
+
+  /** Clears solved, runs, flag and last played of these entries, and starts their sessions over. */
+  function reset(levelIds: readonly string[]) {
+    commit(resetEntries(progress.value, levelIds))
+    restartPlays(levelIds)
+  }
+
+  /** Replaces all progress (a loaded backup); every session starts over. */
+  function replace(next: Progress) {
+    const ids = [...new Set([...Object.keys(progress.value.levels), ...Object.keys(next.levels)])]
+    commit(next)
+    restartPlays(ids)
+  }
+
+  return { progress, levelProgress, isSolved, record, markPlayed, takeJustSolved, setFlag, reset, replace }
 }

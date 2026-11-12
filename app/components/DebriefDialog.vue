@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import type { Level } from '#shared/levels'
+import type { Level, Run, Scenario } from '#shared/levels'
 
 // Shown when a level is solved: why the solution works, how you did, and where to go next.
 const props = defineProps<{
-  level: Level
+  level: Scenario
   next: Level | null
   /** Where "Back to the track" goes after the last available level. */
   trackTo: string
-  stats: { commands: number, solution: number, hints: number }
+  /** This run (commands, hints), the shortest known solution, and the best run you ever had (this one included). */
+  stats: { commands: number, solution: number, hints: number, best: Run | null }
 }>()
 
 const open = defineModel<boolean>('open', { default: false })
@@ -45,7 +46,10 @@ const verdict = computed(() => {
         </p>
       </div>
 
-      <dl class="mt-5 grid grid-cols-2 gap-3 rounded-lg border border-default bg-muted p-3 text-sm">
+      <dl
+        class="mt-5 grid grid-cols-2 gap-3 rounded-lg border border-default bg-muted p-3 text-sm sm:grid-cols-3"
+        data-testid="debrief-stats"
+      >
         <div>
           <dt class="text-muted">
             {{ t('debrief.commands') }}
@@ -63,7 +67,16 @@ const verdict = computed(() => {
             {{ stats.hints }}
           </dd>
         </div>
-        <p class="col-span-2 text-muted">
+        <div v-if="stats.best">
+          <dt class="text-muted">
+            {{ t('debrief.best') }}
+          </dt>
+          <dd class="font-mono text-lg font-semibold text-highlighted">
+            {{ stats.best.commands }}
+            <span class="text-sm font-normal text-muted">{{ t('debrief.bestHints', stats.best.hints) }}</span>
+          </dd>
+        </div>
+        <p class="col-span-2 text-muted sm:col-span-3">
           {{ verdict }}
         </p>
       </dl>

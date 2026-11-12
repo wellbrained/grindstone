@@ -1,10 +1,13 @@
 // Level 3: merge a finished feature branch into main (a fast-forward).
 import { currentBranch, isAncestor, repo } from '../../git'
-import type { Level } from '../types'
+import type { Scenario } from '../types'
 
-export const merge: Level = {
+export const merge: Scenario = {
   id: 'git-03-merge',
   track: 'git',
+  kind: 'scenario',
+  difficulty: 1,
+  minutes: 4,
   title: 'Merge',
   story: [
     'Your about page for the community garden site is done: two commits on feature/about-page, reviewed and approved. Nobody has touched main since you branched off.',

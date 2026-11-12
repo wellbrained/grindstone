@@ -50,6 +50,8 @@ const later = ['levels', 'disasters', 'workflows', 'tracks', 'profile'] as const
           </p>
         </section>
 
+        <ProgressBackup />
+
         <section>
           <h2 class="font-mono text-sm font-medium text-muted">
             {{ t('about.laterTitle') }}

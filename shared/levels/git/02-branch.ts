@@ -1,6 +1,6 @@
 // Level 2: work on a feature branch and leave main alone.
 import { currentBranch, repo, resolve } from '../../git'
-import type { Level } from '../types'
+import type { Scenario } from '../types'
 import { treeOf } from './checks'
 
 const setup = () => repo()
@@ -13,9 +13,12 @@ const setup = () => repo()
 let startMain: string | undefined
 const mainAtStart = () => startMain ??= setup().repo!.branches.main!
 
-export const branch: Level = {
+export const branch: Scenario = {
   id: 'git-02-branch',
   track: 'git',
+  kind: 'scenario',
+  difficulty: 1,
+  minutes: 4,
   title: 'Branch',
   story: [
     'The welcome app greets visitors with a plain "Hello". You want to try a friendlier greeting, but main is what the team ships, so experiments do not go there.',

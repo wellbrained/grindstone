@@ -14,6 +14,7 @@ export { SetupBuilder, folder, repo } from './setup'
 export { teammateCommit } from './teammate'
 export { blobId, shortId } from './objects/hash'
 export { formatDate } from './commands/log'
+export { ignoreMatcher } from './ignore'
 export {
   aheadBehind,
   branchExists,
@@ -25,6 +26,7 @@ export {
   hasMergeCommits,
   headCommit,
   isAncestor,
+  isIgnored,
   isWorkingTreeClean,
   operationInProgress,
   remoteBranchHead,

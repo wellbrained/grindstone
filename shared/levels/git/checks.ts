@@ -50,3 +50,22 @@ export const isBareForcePush = (args: string[]) =>
   args[0] === 'push' && args.slice(1).some(arg => arg === '--force' || /^-[a-zA-Z]*f[a-zA-Z]*$/.test(arg))
 
 export const isLeasePush = (args: string[]) => args[0] === 'push' && args.includes('--force-with-lease')
+
+/** The paths a commit changed against its first parent (everything, for a root commit); null when `rev` does not resolve. */
+export function changedIn(state: GitState, rev: string): string[] | null {
+  const id = resolve(state, rev)
+  if (!id) return null
+  const commit = state.repo!.commits[id]!
+  const parent = commit.parents[0] ? state.repo!.commits[commit.parents[0]]!.tree : {}
+  return [...new Set([...Object.keys(parent), ...Object.keys(commit.tree)])].filter(path => parent[path] !== commit.tree[path]).sort()
+}
+
+/** Whether a git command line in the args has this flag, also bundled (`-am` has `-a`) or spelled long. */
+export function hasFlag(args: string[], short: string, long?: string): boolean {
+  return args.slice(1).some(arg => arg === long || arg === `-${short}` || (/^-[a-zA-Z]+$/.test(arg) && arg.includes(short)))
+}
+
+/** Whether a successful `git <command> ...` in the history matches. */
+export function ran(history: CommandRecord[], command: string, matches: (args: string[]) => boolean = () => true): boolean {
+  return gitInvocations(history).some(({ args, exitCode }) => exitCode === 0 && args[0] === command && matches(args))
+}

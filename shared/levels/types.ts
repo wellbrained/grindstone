@@ -44,22 +44,56 @@ export interface Debrief {
   paragraphs: string[]
 }
 
-export interface Level {
-  /** '<track>-<nn>-<slug>', e.g. 'git-01-first-commit'. */
+/** How hard an entry is: 1 easy, 2 medium, 3 hard (shown as filled dots). */
+export type Difficulty = 1 | 2 | 3
+
+/** What every entry of a track has, scenario or practice task. */
+interface LevelBase {
+  /** '<track>-<nn>-<slug>' for scenarios, '<track>-practice-<slug>' for practice tasks; never changes (it is the URL). */
   id: string
   track: TrackId
   title: string
-  /** The situation in second person, one to three short paragraphs. */
-  story: string
+  difficulty: Difficulty
+  /** Estimated time in minutes (a practice task: about 0.5). */
+  minutes: number
   setup: () => GitState
   goals: Goal[]
   teammates?: TeammateEvent[]
-  /** Nudge, concept, exact commands. */
-  hints: [string, string, string]
-  debrief: Debrief
   /** Command lines that solve the level; the tests replay them. */
   solution: string[]
 }
+
+/** A scenario: a short story, goals, three hints, a debrief. Numbered chapter.position (1.2). */
+export interface Scenario extends LevelBase {
+  kind: 'scenario'
+  /** The situation in second person, one to three short paragraphs. */
+  story: string
+  /** Nudge, concept, exact commands. */
+  hints: [string, string, string]
+  debrief: Debrief
+}
+
+/**
+ * A practice task: one short task of one to three commands for the scenario it belongs to, ~30 s. No number: it sits
+ * right after its scenario in the chapter (on the track page: a side branch forking off the scenario's dot).
+ */
+export interface PracticeTask extends LevelBase {
+  kind: 'practice'
+  /** Id of the scenario it trains; the chapter lists it right after that scenario (defineTrack checks). */
+  practises: string
+  /** The task in one or two short sentences. */
+  task: string
+  /** One hint. */
+  hints: [string]
+  /** One line, shown once it is solved: why it works. */
+  why: string
+}
+
+/** One entry of a track: a scenario or a practice task. */
+export type Level = Scenario | PracticeTask
+
+/** The text that introduces an entry (Continue card, previews): a scenario's story, a practice task's task. */
+export const levelIntro = (level: Level): string => level.kind === 'scenario' ? level.story : level.task
 
 /** What `undo` restores. */
 export interface SessionSnapshot {

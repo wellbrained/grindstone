@@ -1,7 +1,7 @@
 // Level 4: a merge where both sides changed the same line; resolve it and conclude with a merge commit.
 import { currentBranch, isAncestor, repo, resolve } from '../../git'
 import type { GitState } from '../../git'
-import type { Level } from '../types'
+import type { Scenario } from '../types'
 import { conflictFullyResolved } from './checks'
 
 const mergeCommitOnMain = (state: GitState) => {
@@ -11,9 +11,12 @@ const mergeCommitOnMain = (state: GitState) => {
   return parents.length === 2 && !!feature && parents.includes(feature)
 }
 
-export const mergeConflict: Level = {
+export const mergeConflict: Scenario = {
   id: 'git-04-merge-conflict',
   track: 'git',
+  kind: 'scenario',
+  difficulty: 2,
+  minutes: 6,
   title: 'Merge conflict',
   story: [
     'The bakery website shows a footer line. While you added the contact email on feature/footer, Ben added the opening hours to the same line, straight on main.',

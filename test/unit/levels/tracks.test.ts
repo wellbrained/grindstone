@@ -9,19 +9,24 @@ import {
   gitTrack,
   gitSubcommands,
   hasProgress,
+  levelById,
   levelCommands,
   levelNumber,
   levelPlace,
   levels,
   nextLevel,
   nextUp,
+  placeName,
+  practiseAgainIn,
   trackById,
   trackLevels,
+  trackPlaces,
   trackProgress,
   trackToContinue,
   tracks
 } from '../../../shared/levels'
-import { BIG_CHAPTER_SIZES, bigTrack, solvedProgress } from './fixtures'
+import type { Level } from '../../../shared/levels'
+import { BIG_CHAPTER_SIZES, bigTrack, fakePractice, practiceTrack, solvedProgress } from './fixtures'
 
 const git = trackById('git')!
 
@@ -61,9 +66,21 @@ describe('track registry', () => {
     }
   })
 
-  it('maps the six levels to their chapters and leaves chapters 6 to 8 empty', () => {
+  it('maps the levels to their chapters and leaves chapters 6 to 8 empty', () => {
     expect(git.chapters.map(chapter => chapter.levels.map(level => level.id))).toEqual([
-      ['git-01-first-commit'],
+      [
+        'git-01-first-commit',
+        'git-practice-stage-one-file',
+        'git-practice-commit-all',
+        'git-07-stage-together',
+        'git-practice-diff-staged',
+        'git-08-what-changed',
+        'git-practice-diff-file',
+        'git-09-read-history',
+        'git-practice-log-oneline',
+        'git-10-ignore-build-files',
+        'git-practice-ignore-logs'
+      ],
       ['git-02-branch'],
       ['git-03-merge', 'git-04-merge-conflict'],
       ['git-05-rebase'],
@@ -93,11 +110,26 @@ describe('track registry', () => {
     expect(gitTrack.cheatSheet).toBe('/git/cheat-sheet')
     expect(gitTrack.tagline).not.toBe('')
   })
+
+  it('refuses a practice task that does not follow its scenario', () => {
+    const [s1, s2] = [gitLevels[0]!, levelById('git-07-stage-together')!]
+    const chapter = (levels: Level[]) => ({ ...base, id: 'git' as const, status: 'live' as const, chapters: [{ id: 'c', title: 'C', description: 'C.', colour: 0 as const, levels }] })
+    const base = { title: 'T', scope: 'S', description: 'D.' }
+    const practice = fakePractice('p', s1.id)
+    expect(() => defineTrack(chapter([practice, s1]))).toThrow(/starts chapter c/)
+    expect(() => defineTrack(chapter([s1, s2, practice]))).toThrow(/practises git-01-first-commit but is listed after git-07-stage-together/)
+    expect(() => defineTrack(chapter([s1, fakePractice('q', s1.id), practice, s2]))).not.toThrow()
+  })
 })
 
 describe('level numbers and places', () => {
-  it('numbers levels chapter.position', () => {
+  it('numbers scenarios chapter.position, counting scenarios only; practice tasks have no number', () => {
     expect(levelNumber('git-01-first-commit')).toBe('1.1')
+    expect(levelNumber('git-07-stage-together')).toBe('1.2')
+    expect(levelNumber('git-08-what-changed')).toBe('1.3')
+    expect(levelNumber('git-09-read-history')).toBe('1.4')
+    expect(levelNumber('git-10-ignore-build-files')).toBe('1.5')
+    expect(levelNumber('git-practice-stage-one-file')).toBeNull()
     expect(levelNumber('git-03-merge')).toBe('3.1')
     expect(levelNumber('git-04-merge-conflict')).toBe('3.2')
     expect(levelNumber('git-06-teammate-sync')).toBe('5.1')
@@ -109,10 +141,29 @@ describe('level numbers and places', () => {
     expect(place.track.id).toBe('git')
     expect(place.chapter.title).toBe('Merging')
     expect(place.position).toBe(2)
-    expect(place.index).toBe(3)
+    expect(place.index).toBe(13)
     expect(place.level.title).toBe('Merge conflict')
+    expect(place.scenario).toBeNull()
+    expect(placeName(place)).toBe('3.2 Merge conflict')
     expect(chapterOf('git-05-rebase')?.title).toBe('Rewriting history')
     expect(chapterOf('nope')).toBeNull()
+  })
+
+  it('gives a practice task its scenario, and names it by its title alone', () => {
+    const place = levelPlace('git-practice-commit-all')!
+    expect(place).toMatchObject({ number: null, position: 3, index: 2, scenario: { number: '1.1', level: { id: 'git-01-first-commit' } } })
+    expect(placeName(place)).toBe('Commit tracked changes in one go')
+    const track = practiceTrack()
+    expect(trackPlaces(track).map(item => [item.level.id, item.number, item.scenario?.number ?? null])).toEqual([
+      ['s1', '1.1', null],
+      ['p1a', null, '1.1'],
+      ['p1b', null, '1.1'],
+      ['s2', '1.2', null],
+      ['s3', '1.3', null],
+      ['p3a', null, '1.3'],
+      ['t1', '2.1', null],
+      ['q1a', null, '2.1']
+    ])
   })
 
   it('numbers a 58-level track without gaps', () => {
@@ -129,8 +180,11 @@ describe('level numbers and places', () => {
 })
 
 describe('next level', () => {
-  it('follows the track order across chapter boundaries', () => {
-    expect(nextLevel('git-01-first-commit')?.id).toBe('git-02-branch')
+  it('goes scenario, its practice tasks, next scenario, across chapter boundaries', () => {
+    expect(nextLevel('git-01-first-commit')?.id).toBe('git-practice-stage-one-file')
+    expect(nextLevel('git-practice-stage-one-file')?.id).toBe('git-practice-commit-all')
+    expect(nextLevel('git-practice-commit-all')?.id).toBe('git-07-stage-together')
+    expect(nextLevel('git-practice-ignore-logs')?.id).toBe('git-02-branch')
     expect(nextLevel('git-03-merge')?.id).toBe('git-04-merge-conflict')
     expect(nextLevel('git-04-merge-conflict')?.id).toBe('git-05-rebase')
     expect(nextLevel('git-06-teammate-sync')).toBeNull()
@@ -143,41 +197,54 @@ describe('next level', () => {
 })
 
 describe('next up and continue', () => {
-  it('next up is the first unsolved level in play order', () => {
+  it('next up is the first unsolved entry in play order, scenario or practice task', () => {
     expect(nextUp(git, emptyProgress())?.level.id).toBe('git-01-first-commit')
-    expect(nextUp(git, solvedProgress(['git-01-first-commit', 'git-03-merge']))?.level.id).toBe('git-02-branch')
+    expect(nextUp(git, solvedProgress(['git-01-first-commit', 'git-03-merge']))?.level.id).toBe('git-practice-stage-one-file')
     expect(nextUp(git, solvedProgress(gitLevels.map(level => level.id)))).toBeNull()
     const track = bigTrack()
     const firstEight = Array.from({ length: 8 }, (_, i) => `big-1-${i + 1}`)
     expect(nextUp(track, solvedProgress(firstEight))?.number).toBe('2.1')
   })
 
-  it('continues the last played level while it is unsolved', () => {
+  it('continues the last played entry while it is unsolved', () => {
     const progress = solvedProgress(['git-01-first-commit'], { levelId: 'git-04-merge-conflict', at: 1000 })
-    expect(continueTarget(git, progress)).toMatchObject({ resume: true, at: 1000, place: { number: '3.2' } })
+    expect(continueTarget(git, progress)).toMatchObject({ reason: 'resume', at: 1000, place: { number: '3.2' } })
+    const practice = solvedProgress(['git-01-first-commit'], { levelId: 'git-practice-commit-all', at: 5 })
+    expect(continueTarget(git, practice)).toMatchObject({ reason: 'resume', place: { level: { id: 'git-practice-commit-all' } } })
   })
 
-  it('falls back to next up when the last played level is solved, unknown or in another track', () => {
+  it('falls back to next up when the last played entry is solved, unknown or in another track', () => {
     const solvedLast = solvedProgress(['git-01-first-commit'], { levelId: 'git-01-first-commit', at: 5 })
-    expect(continueTarget(git, solvedLast)).toMatchObject({ resume: false, place: { number: '2.1' } })
+    expect(continueTarget(git, solvedLast)).toMatchObject({ reason: 'next', place: { level: { id: 'git-practice-stage-one-file' } } })
     const unknown = solvedProgress([], { levelId: 'git-99-gone', at: 5 })
-    expect(continueTarget(git, unknown)).toMatchObject({ resume: false, place: { number: '1.1' } })
-    expect(continueTarget(git, emptyProgress())).toMatchObject({ resume: false, at: null, place: { number: '1.1' } })
+    expect(continueTarget(git, unknown)).toMatchObject({ reason: 'next', place: { number: '1.1' } })
+    expect(continueTarget(git, emptyProgress())).toMatchObject({ reason: 'next', at: null, place: { number: '1.1' } })
   })
 
-  it('has nothing to continue when every level is solved', () => {
-    const all = solvedProgress(gitLevels.map(level => level.id), { levelId: 'git-06-teammate-sync', at: 5 })
-    expect(continueTarget(git, all)).toBeNull()
+  it('offers a "practise again" entry once nothing is unsolved, else nothing', () => {
+    const all = gitLevels.map(level => level.id)
+    expect(continueTarget(git, solvedProgress(all, { levelId: 'git-06-teammate-sync', at: 5 }))).toBeNull()
+    const flagged = solvedProgress(all, null, ['git-05-rebase', 'git-07-stage-together'])
+    expect(continueTarget(git, flagged)).toMatchObject({ reason: 'practise', at: null, place: { number: '1.2' } })
+    // new entries come first
+    const someLeft = solvedProgress(all.filter(id => id !== 'git-03-merge'), null, ['git-07-stage-together'])
+    expect(continueTarget(git, someLeft)).toMatchObject({ reason: 'next', place: { number: '3.1' } })
+  })
+
+  it('finds the first flagged entry of a chapter', () => {
+    const [basics, branching] = git.chapters
+    const progress = solvedProgress(['git-01-first-commit', 'git-practice-commit-all', 'git-08-what-changed'], null, ['git-practice-commit-all', 'git-08-what-changed'])
+    expect(practiseAgainIn(basics!, progress)?.id).toBe('git-practice-commit-all')
+    expect(practiseAgainIn(branching!, progress)).toBeNull()
   })
 })
 
 describe('progress counts', () => {
-  it('counts solved levels per track and chapter, ignoring unknown ids and unsolved entries', () => {
-    const progress = solvedProgress(['git-03-merge', 'git-04-merge-conflict', 'git-01-first-commit', 'elsewhere'])
-    progress.levels['git-02-branch'] = { solved: false, hintsUsed: 0, commands: 0, bestCommands: 0 }
-    expect(trackProgress(git, progress)).toEqual({ solved: 3, total: 6 })
+  it('counts solved entries per track and chapter, both kinds, ignoring unknown ids and unsolved entries', () => {
+    const progress = solvedProgress(['git-03-merge', 'git-04-merge-conflict', 'git-01-first-commit', 'git-practice-stage-one-file', 'elsewhere'], { levelId: 'git-02-branch', at: 3 })
+    expect(trackProgress(git, progress)).toEqual({ solved: 4, total: 16 })
     expect(git.chapters.map(chapter => chapterProgress(chapter, progress))).toEqual([
-      { solved: 1, total: 1 },
+      { solved: 2, total: 11 },
       { solved: 0, total: 1 },
       { solved: 2, total: 2 },
       { solved: 0, total: 1 },
@@ -209,7 +276,7 @@ describe('progress on the home page', () => {
   it('has progress once a level is solved or played', () => {
     expect(hasProgress(emptyProgress())).toBe(false)
     const unsolved = emptyProgress()
-    unsolved.levels['git-01-first-commit'] = { solved: false, hintsUsed: 0, commands: 0, bestCommands: 0 }
+    unsolved.levels['git-01-first-commit'] = { solved: false, best: null, latest: null, practiseAgain: false, lastPlayed: null }
     expect(hasProgress(unsolved)).toBe(false)
     expect(hasProgress(solvedProgress(['git-01-first-commit']))).toBe(true)
     expect(hasProgress(solvedProgress([], { levelId: 'git-01-first-commit', at: 1 }))).toBe(true)

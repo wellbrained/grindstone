@@ -45,5 +45,6 @@ test('plays level 1 and sees the debrief', async ({ page }) => {
   // progress is stored: the track page shows the level as solved and the next one as next up
   await page.goto('/git')
   await expect(page.locator('[data-level="git-01-first-commit"]')).toContainText('Solved')
-  await expect(page.locator('[data-level="git-02-branch"]')).toHaveAttribute('data-state', 'next')
+  // next up is its first practice task, on the side branch
+  await expect(page.locator('[data-level="git-practice-stage-one-file"]')).toHaveAttribute('data-state', 'next')
 })

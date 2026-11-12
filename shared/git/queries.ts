@@ -1,4 +1,5 @@
 // Read-only questions over the state, for level goals and the UI.
+import { ignoreMatcher } from './ignore'
 import { isAncestor as reachableFrom, range } from './objects/graph'
 import { resolveRev } from './refs'
 import { headId } from './state'
@@ -87,6 +88,12 @@ export function isWorkingTreeClean(state: GitState): boolean {
   if (!state.repo) return Object.keys(state.workdir).length === 0
   const status = computeStatus(state.repo, state.workdir)
   return !status.staged.length && !status.unstaged.length && !status.unmerged.length && !status.untracked.length
+}
+
+/** Whether a .gitignore in the working tree hides this path from status and add; a tracked path never is. */
+export function isIgnored(state: GitState, path: string): boolean {
+  if (state.repo?.index[path] !== undefined || state.repo?.unmerged[path] !== undefined) return false
+  return ignoreMatcher(state.workdir)(path)
 }
 
 export function fileContent(state: GitState, path: string): string | undefined {

@@ -9,6 +9,7 @@ const props = defineProps<{ track: Track }>()
 
 const { t } = useI18n()
 const { progress, takeJustSolved } = useProgress()
+const { trackItems } = useProgressActions()
 // back from a level solved for the first time: its lane draws in once (LevelRow.vue)
 const justSolved = takeJustSolved()
 const motion = usePreferredReducedMotion()
@@ -54,9 +55,15 @@ watch(active, (id) => {
   <div class="mx-auto w-full max-w-[110rem] px-4 pb-16 sm:px-6 lg:grid lg:grid-cols-[17rem_minmax(0,1fr)] lg:gap-x-12 lg:px-8 lg:pb-24 xl:grid-cols-[18.75rem_minmax(0,1fr)] xl:gap-x-14">
     <aside class="pt-8 sm:pt-10 lg:sticky lg:top-(--ui-header-height) lg:max-h-[calc(100dvh-var(--ui-header-height))] lg:self-start lg:overflow-y-auto lg:pr-1 lg:pb-8">
       <header>
-        <h1 class="text-3xl font-semibold tracking-tight text-highlighted lg:text-[2.125rem] lg:leading-tight">
-          {{ track.title }}
-        </h1>
+        <div class="flex items-center justify-between gap-3">
+          <h1 class="text-3xl font-semibold tracking-tight text-highlighted lg:text-[2.125rem] lg:leading-tight">
+            {{ track.title }}
+          </h1>
+          <MoreMenu
+            :items="trackItems(track)"
+            :label="t('menu.track.label', { track: track.title })"
+          />
+        </div>
         <p class="mt-1 max-w-xl text-sm text-muted">
           {{ size }} <span aria-hidden="true">·</span> {{ track.scope }}
         </p>

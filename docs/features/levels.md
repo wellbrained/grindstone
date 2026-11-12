@@ -7,10 +7,10 @@ The scenario engine (`shared/levels/`) and the git track's levels (`shared/level
 - `startLevel(level): Session`: a fresh session on the level's setup.
 - `submit(session, level, line): SubmitResult`: runs one terminal line. Returns `{ session, output, notices, solvedNow }`.
 - `saveFile(session, level, path, content): SubmitResult`: the editor panel's save; counts like a command (`edit <path>` in the history) and can be undone.
-- Tracks and chapters (see below): `tracks`, `gitTrack`, `trackById(id)`, `defineTrack(definition)`, `trackLevels(track)`, `trackPlaces(track)`, `placeIn(track, id)`, `levelPlace(id)`, `levelNumber(id)`, `chapterOf(id)`, `chapterProgress(chapter, progress)`, `trackProgress(track, progress)`, `nextUp(track, progress)`, `continueTarget(track, progress)`, `hasProgress(progress)`, `trackToContinue(progress)`. The lookups take the registry as an optional last argument, so tests run them on a 58-level fixture (`test/unit/levels/fixtures.ts`).
-- `levels` (every level of every track, in play order), `gitLevels`, `levelById(id)`, `nextLevel(id)` (the next level of the same track, across chapter boundaries; null after the last).
+- Tracks and chapters (see below): `tracks`, `gitTrack`, `trackById(id)`, `defineTrack(definition)`, `trackLevels(track)`, `trackPlaces(track)`, `placeIn(track, id)`, `placeName(place)`, `levelPlace(id)`, `levelNumber(id)`, `chapterOf(id)`, `chapterProgress(chapter, progress)`, `trackProgress(track, progress)`, `nextUp(track, progress)`, `continueTarget(track, progress)`, `practiseAgainIn(chapter, progress)`, `hasProgress(progress)`, `trackToContinue(progress)`. The lookups take the registry as an optional last argument, so tests run them on a 58-level fixture and a small track with practice tasks (`test/unit/levels/fixtures.ts`).
+- `levels` (every level of every track, in play order), `gitLevels`, `levelById(id)`, `nextLevel(id)` (the next level of the same track: a scenario, then its practice tasks, then the next scenario, across chapter boundaries; null after the last), `levelIntro(level)` (a scenario's story or a practice task's task).
 - `gitSubcommands(line)`, `levelCommands(level)`: the git commands a level practises, from its solution (level rows, cheat sheet).
-- Progress: `emptyProgress()`, `recordSolve(progress, levelId, session)`, `recordPlay(progress, levelId, at)`, `serializeProgress(progress)`, `parseProgress(text)`, `PROGRESS_VERSION`.
+- Progress (see below): `emptyProgress()`, `recordSolve`, `recordPlay`, `setPractiseAgain`, `resetEntries`, `lastPlayed`, `summarizeProgress`, `isBetterRun`, `serializeProgress`, `readProgress(text)` (strict, for the backup upload), `parseProgress(text)` (never fails, for storage), `PROGRESS_VERSION`.
 - `MAX_SNAPSHOTS` (undo depth, 200), `TRAINER_COMMANDS`, all types (`Level`, `Goal`, `GoalContext`, `TeammateEvent`, `Session`, `TerminalLine`, `Notice`, ...).
 
 ## Engine rules
@@ -20,7 +20,7 @@ The scenario engine (`shared/levels/`) and the git track's levels (`shared/level
 - **Trainer commands** are handled before git and are not counted, recorded or undoable. Matched on the trimmed line, any case:
   - `undo`: restores the previous snapshot (git state, history, fired events). Prints `Undid: <line>`, or `Nothing to undo.`
   - `reset`: back to the setup as a new attempt (history, undo stack, events, `solved` and `commandCount` cleared). Revealed hints stay revealed and counted.
-  - `hint`: reveals the next hint (`Hint n/3: ...`, kind `hint`) and counts it; after the third it repeats the last one.
+  - `hint`: reveals the next hint (`Hint n/3: ...`, `Hint 1/1: ...` for a practice task, kind `hint`) and counts it; after the last it repeats it.
   - `help`: lists trainer, git and shell commands.
   - `clear`: returns the clear marker. `edit <file>`: returns the edit marker (`usage: edit <file>` otherwise).
 - **Empty line**: no-op.
@@ -36,54 +36,111 @@ The scenario engine (`shared/levels/`) and the git track's levels (`shared/level
 
 ## Tracks and chapters
 
-`shared/levels/track.ts` (types and helpers) and `shared/levels/tracks.ts` (the registry). Play order, chapter numbers and level numbers are derived from the chapter lists, never written by hand.
+`shared/levels/track.ts` (types and helpers) and `shared/levels/tracks.ts` (the registry). Play order, chapter numbers and scenario numbers are derived from the chapter lists, never written by hand.
 
-- **Track**: `{ id, title, scope (one line), tagline (one line for its home card, may be empty), description (the home card's pitch), status: 'live' | 'coming', cheatSheet (its path, or null), chapters }`. Everything the home page, the nav and the track page show about a track comes from here, so a new live track needs data only. `tracks` lists them in home page order: Git (live), then Working with AI, Web fundamentals, Debugging, Framework deep dives (coming: no chapters, no levels, not playable). `defineTrack` numbers the chapters and throws for a level of another track, a level listed twice, or a coming track with levels.
-- **Chapter**: `{ id (unique in its track, also the section anchor: /git#merging), trackId, number, title, description (one line), colour (a slot of the branch palette, 0-7), levels }`. A chapter without levels is *coming*: shown with its description only.
-- **Git chapters**: 1 Basics (First commit), 2 Branching (Branch), 3 Merging (Merge, Merge conflict), 4 Rewriting history (Rebase), 5 Teamwork & remotes (Teammate sync), 6 Undo & recovery, 7 Disasters, 8 Workflows (6-8 coming). Colours: slot = chapter number - 1; slot 7 exists only for chapters, so branch colours in the graph did not move.
-- **Level number**: `chapter.position`, e.g. `3.2` for Merge conflict (`levelNumber`, `LevelPlace.number`). The ids and URLs (`git-04-merge-conflict`, `/git/04-merge-conflict`) do not change when a level moves.
-- **Next up**: the first unsolved level in play order (`nextUp`). **Continue** (`continueTarget`): the level you last played while it is unsolved (`resume: true`, with the time), else next up; null when every level of the track is solved. `trackToContinue` picks the track for the home page: the live track of the last played level, else the first live track with a solve.
+- **Track**: `{ id, title, scope (one line), tagline (one line for its home card, may be empty), description (the home card's pitch), status: 'live' | 'coming', cheatSheet (its path, or null), chapters }`. Everything the home page, the nav and the track page show about a track comes from here, so a new live track needs data only. `tracks` lists them in home page order: Git (live), then Working with AI, Web fundamentals, Debugging, Framework deep dives (coming: no chapters, no levels, not playable). `defineTrack` numbers the chapters and throws for a level of another track, a level listed twice, a coming track with levels, or a practice task that does not follow its scenario.
+- **Chapter**: `{ id (unique in its track, also the section anchor: /git#merging), trackId, number, title, description (one line), colour (a slot of the branch palette, 0-7), levels }`. `levels` is the play order: each scenario followed by its practice tasks. A chapter without levels is *coming*: shown with its description only.
+- **Git chapters**: 1 Basics (5 scenarios, 6 practice tasks), 2 Branching (Branch), 3 Merging (Merge, Merge conflict), 4 Rewriting history (Rebase), 5 Teamwork & remotes (Teammate sync), 6 Undo & recovery, 7 Disasters, 8 Workflows (6-8 coming). Colours: slot = chapter number - 1; slot 7 exists only for chapters, so branch colours in the graph did not move.
+- **Numbers**: a scenario is `chapter.position` counting scenarios only, e.g. `1.2` for Stage only what belongs together, `3.2` for Merge conflict (`levelNumber`, `LevelPlace.number`). A practice task has no number (`number: null`); `LevelPlace.scenario` names its scenario and that scenario's number. `placeName(place)` is the text form: "3.2 Merge conflict", or the title alone for a practice task. The ids and URLs (`git-04-merge-conflict`, `/git/04-merge-conflict`, `/git/practice-stage-one-file`) never change when a level moves or gets renumbered.
+- **Counting both kinds**: "n of N solved" for a chapter and a track, **next up** and **Continue** count scenarios and practice tasks alike: a practice task is a level you solve like any other, so leaving one out would make the counts lie.
+- **Next up**: the first unsolved entry in play order (`nextUp`), a scenario or a practice task. **Continue** (`continueTarget`, `{ place, reason, at }`): the entry you last played while it is unsolved (`reason: 'resume'`, with the time), else next up (`'next'`); once nothing in the track is unsolved, the first entry flagged "practise again" in play order (`'practise'`); null when everything is solved and nothing is flagged. `practiseAgainIn(chapter, progress)` is the chapter menu's "Practise again". `trackToContinue` picks the track for the home page: the live track of the last played entry, else the first live track with a solve.
+
+## Two kinds: scenarios and practice tasks
+
+ADR 0006 (`docs/adr/0006-git-v1-practice-and-progress.md`). `Level = Scenario | PracticeTask`, told apart by `kind`.
+
+- **Scenario** (`kind: 'scenario'`): a story, goals, three hints, a debrief. Numbered.
+- **Practice task** (`kind: 'practice'`, "Practice" in the UI, never "drill"): one short task of 1-3 commands, about 30 seconds, one goal (or a few), one hint, a one-line `why` shown once solved, "Next" and "Again" instead of a debrief. No number.
+- **Where a practice task belongs**: it names its scenario in `practises` *and* is listed in the chapter right after that scenario (after the scenario's other practice tasks). The level file says what it trains; the chapter list stays the one place for the order; `defineTrack` checks that both agree, so a moved line fails at start-up instead of drawing a practice task under the wrong scenario. `nextLevel` therefore goes scenario, its practice tasks, next scenario.
+- **Difficulty** (`1 | 2 | 3`, drawn as filled dots) and **minutes** (an estimate; a practice task about `0.5`, shown as "~30 s") on every entry.
+
+## Writing levels
+
+The rules are in ADR 0006, "Writing levels"; in short:
+
+- Precise and clear: compact, but never leave out what the learner needs (a file name, a branch name, how many commits). If a goal checks it, the story or task says it.
+- File contents and code comments read like a real project other people work on: a bakery shop, a garden club planner, comments that say why ("Agreed with the shop team: orders from 50 euros ship for free"), teammates by name.
+- Friendly and personal: we are their friends who help and teach. Second person, no blame, the debrief explains *why*.
+- Fictional people and teams only (Anna, Ben, Chris, Maya; a bakery, a garden club), never real companies; fake keys only (`test-key-not-real-0000`).
 
 ## Progress
 
-`Progress = { version: 2, levels: { [id]: { solved, hintsUsed, commands, bestCommands } }, lastPlayed: { levelId, at } | null }`. `recordSolve` takes hints and commands from the latest solve and keeps the fewest commands in `bestCommands`; an unsolved session leaves progress unchanged. `recordPlay` sets `lastPlayed` (the play page calls it for every line typed and every editor save). `parseProgress` returns empty progress for missing, broken or unknown-version data and drops malformed entries; version 1 data (no `lastPlayed`) is migrated on read: its levels are kept, `lastPlayed` is null. A malformed `lastPlayed` is dropped on its own. Storage (localStorage) is the UI's adapter.
+`shared/levels/progress.ts`, tests in `test/unit/levels/progress.test.ts`.
+
+```ts
+Progress = { version: 3, levels: { [id]: LevelProgress } }
+LevelProgress = {
+  solved: boolean,            // stays true once solved; only a reset clears it
+  best: Run | null,           // fewest commands, ties broken by fewest hints
+  latest: Run | null,         // the most recent solve
+  practiseAgain: boolean,     // "solved, but I don't own it yet"; only a solved entry can carry it
+  lastPlayed: number | null   // ms since epoch, when you last typed a command in it
+}
+Run = { commands: number, hints: number }
+```
+
+- `recordSolve` stores the run as `latest` and, when it is better (`isBetterRun`), as `best`; replaying never removes `solved` or the flag. An unsolved session changes nothing. `recordPlay` sets the entry's `lastPlayed` (the play page calls it for every line typed and every editor save); `lastPlayed(progress)` is the newest one, for Continue.
+- `setPractiseAgain(progress, id, flag)`; `resetEntries(progress, ids)` drops entries completely (solved, runs, flag, last played): an entry, a chapter, a track or everything.
+- `readProgress(text)` is strict: broken JSON (`json`), not an object with `levels` (`shape`) or an unknown version (`version`) is an error, so the backup upload can say why and change nothing. Inside valid data a malformed entry (no boolean `solved`) is dropped and a broken field falls back to its blank value (a broken run to null, a non-boolean flag to false, a flag on an unsolved entry to false); an unsolved entry is kept only while it has a `lastPlayed`. `parseProgress(text)` wraps it for storage: anything unreadable is empty progress.
+- **Migration on read**: version 1 and 2 entries `{ solved, hintsUsed, commands, bestCommands }` become `latest: { commands, hints: hintsUsed }` and `best: { commands: bestCommands, hints: hintsUsed }` (the hints of the old best run were never stored, so it takes the latest run's hints); unsolved old entries are dropped; version 2's `lastPlayed: { levelId, at }` moves onto that entry (creating an unsolved one if needed).
+- Storage is the UI's adapter (`grindstone:progress` in localStorage); the backup file is the same JSON (`serializeProgress`).
 
 ## Level file format
 
-One file per level in `shared/levels/<track>/NN-slug.ts`, exporting a `Level`:
+Scenarios: one file per scenario in `shared/levels/<track>/NN-slug.ts`, exporting a `Scenario`. Practice tasks: grouped per chapter in `shared/levels/<track>/practice/<chapter>.ts`, each exporting a `PracticeTask`.
 
 | Field | Content |
 | --- | --- |
-| `id` | `<track>-NN-slug`, e.g. `git-04-merge-conflict` |
-| `track`, `title` | `'git'`, a short title |
-| `story` | 1-3 short paragraphs (joined with a blank line), second person, the situation and what to do |
+| `id` | a scenario `<track>-NN-slug` (`git-04-merge-conflict`), a practice task `<track>-practice-slug` (`git-practice-stage-one-file`); the URL is the id without the track |
+| `track`, `kind`, `title` | `'git'`, `'scenario'` or `'practice'`, a short title |
+| `difficulty`, `minutes` | 1-3; the time estimate (a practice task about 0.5) |
+| `story` | scenario: 1-3 short paragraphs (joined with a blank line), second person, the situation and what to do |
+| `task`, `practises`, `why` | practice task: the task in one or two sentences (one line); the id of its scenario; one line on why it works, shown once solved |
 | `setup` | `() => GitState`, built with `repo()` / `folder()` from the git model; must be deterministic |
-| `goals` | `{ id, label, check({ state, history }) }`; `label` is one checklist line |
+| `goals` | `{ id, label, check({ state, history }) }`; `label` is one checklist line (`backticks` become code) |
 | `teammates` | optional `{ id, author, trigger, apply, notice }`; `trigger` is `{ afterCommands: n }` or `{ beforeCommand: 'git push' }`; `apply` usually calls `teammateCommit` on origin |
-| `hints` | exactly three: nudge, concept, exact commands (in backticks) |
-| `debrief` | `{ title, paragraphs }`, 2-4 short paragraphs on why it works |
-| `solution` | the command lines that solve it; the tests replay them through `submit` |
+| `hints` | a scenario: exactly three (nudge, concept, exact commands in backticks); a practice task: one |
+| `debrief` | scenario: `{ title, paragraphs }`, 2-4 short paragraphs on why it works |
+| `solution` | the command lines that solve it (a practice task: 1-3); the tests replay them through `submit` |
 
-Goal helpers for git levels live in `shared/levels/git/checks.ts`: `conflictFullyResolved(state, rev)`, `treeOf`, `treeHasConflictMarkers`, `gitInvocations(history)` (every `git ...` command, also inside chains), `isBareForcePush`, `isLeasePush`.
+Goal helpers for git levels live in `shared/levels/git/checks.ts`: `conflictFullyResolved(state, rev)`, `treeOf`, `treeHasConflictMarkers`, `changedIn(state, rev)` (paths a commit changed against its first parent), `gitInvocations(history)` (every `git ...` command, also inside chains), `ran(history, command, matches?)` (a successful `git <command>` in the history), `hasFlag(args, short, long?)` (also bundled: `-am` has `-a`), `isBareForcePush`, `isLeasePush`. `ignoreMatcher` from the git model checks a committed `.gitignore`.
 
 Conventions:
 
-- Goals check outcomes in the state, not the commands typed. Use `history` only when the *how* is the lesson (level 6: `--force-with-lease`, never a bare `--force`).
-- A goal that is trivially true at the start is fine when it guards against a wrong path (e.g. "no merge commits"), but it must be listed in the test's `initialGoals` table.
+- Goals check outcomes in the state, not the commands typed. Use `history` only when the *how* is the lesson (level 6: `--force-with-lease`, never a bare `--force`) or when the command changes nothing (`diff`, `log`: "You looked at both sides").
+- A goal that is trivially true at the start is fine when it guards against a wrong path (e.g. "no merge commits", "dist/ and .env are still on your disk"), but it must be listed in the test's `initialGoals` table.
+- Every scenario has at least one wrong path in the test's `wrongPaths` table (the obvious shortcut that must not solve it), and every practice task its obvious one.
 - Conflict files are written in the solution with `echo ... >` and `echo ... >>` (chained with `&&`), since the editor panel is UI-only.
-- Fictional people and teams only (Anna, Ben, Chris; a bakery, a garden club), never real companies.
+- A solution that needs a commit id computes it from the deterministic setup (1.4 Read the history).
 
 ## Adding a level
 
-1. Add a row for it to `initialGoals` in `test/unit/levels/git-levels.test.ts` (goal ids and their value at the start) and any wrong-path tests: red.
-2. Write `shared/levels/<track>/NN-slug.ts` and add it, in one line, to its chapter's `levels` in that track's `index.ts` (plus the import). Its number (`3.3`), its place in the play order, its row on the track page and its commands follow from that.
-3. `pnpm test`: the shared tests check shape, a deterministic setup, the start state, and that replaying `solution` solves the level exactly on its last line. `test/unit/levels/tracks.test.ts` pins the chapter of every level; add the new id there.
+1. Add a row for it to `initialGoals` in `test/unit/levels/git-levels.test.ts` (goal ids and their value at the start, in play order) and its wrong paths to `wrongPaths`: red.
+2. Write the file (a scenario in `shared/levels/<track>/NN-slug.ts`, a practice task in `practice/<chapter>.ts` with `practises` set) and add it, in one line, to its chapter's `levels` in that track's `index.ts` (plus the import): a practice task right after its scenario. Its number (`3.3`, or none), its place in the play order, its row and lane on the track page and its commands follow from that.
+3. `pnpm test`: the shared tests check shape (per kind), a deterministic setup, the start state, and that replaying `solution` solves the level exactly on its last line. `test/unit/levels/tracks.test.ts` pins the chapter of every level; add the new id there.
 
-## The v0.1 git levels
+## The git levels
 
-1. **First commit**: a folder with README.md and app.js; `init`, `add`, `commit`.
-2. **Branch**: commit a change on `feature/greeting`; main must not move.
-3. **Merge**: fast-forward `feature/about-page` into main, starting on the feature branch.
-4. **Merge conflict**: main (Ben) and `feature/footer` changed the same line; resolve and conclude with a two-parent merge commit. Committing the markers does not count.
-5. **Rebase**: `feature/search` is behind main (Chris); `git rebase main`. Merging main in does not count.
-6. **Teammate sync**: `feature/login` has 2 unpushed commits. Right before your first `git push`, Anna pushes 2 commits to origin/main, one changing the same line of `src/login.ts`. The push of the new branch succeeds, then you fetch, rebase onto origin/main, resolve, and update the remote branch with `--force-with-lease` (a plain push is rejected). A merge, or any bare `--force` / `-f` in the history, does not count; `undo` takes a bare force back. The file header explains why this flow was chosen over "already pushed in the setup".
+Chapter 1, Basics (ADR 0006, batch 1; difficulty and minutes):
+
+| | Entry | Kind | Difficulty | Time |
+| --- | --- | --- | --- | --- |
+| 1.1 | **First commit**: a folder with README.md and app.js; `init`, `add`, `commit` | scenario | 1 | ~3 min |
+| | Stage only app.js: `git add <file>`, leave style.css unstaged | practice | 1 | ~30 s |
+| | Commit tracked changes in one go: `git commit -am`, no `git add` | practice | 1 | ~30 s |
+| 1.2 | **Stage only what belongs together**: a README typo fix and a half-finished prices.md become two commits, the typo first (the approved sample text) | scenario | 1 | ~5 min |
+| | Show what will be committed: `git diff --staged` (plain `git diff` does not count) | practice | 1 | ~30 s |
+| 1.3 | **What changed?**: back from lunch, opening hours (staged in src/hours.js, unstaged in contact.html) and a half-done dark theme (index.html, style.css); commit every hours change and nothing of the theme, after looking with `git diff` and `git diff --staged` | scenario | 1 | ~4 min |
+| | Show the changes in one file: `git diff src/cart.js` | practice | 1 | ~30 s |
+| 1.4 | **Read the history**: free shipping dropped from 50 to 30 euros; find the commit in `git log` and put `before-shipping-change` on the commit right before it | scenario | 2 | ~5 min |
+| | Last three commits, one line each: `git log --oneline -3` | practice | 1 | ~30 s |
+| 1.5 | **Ignore build files**: dist/ and a .env with a fake key appear; write and commit a .gitignore, keep the files, clean tree | scenario | 2 | ~6 min |
+| | Ignore every log file: append `*.log` with `>>` (a `>` that drops `dist/` does not count) and commit | practice | 1 | ~30 s |
+
+Chapters 2-5 (v0.1):
+
+1. **Branch** (2.1): commit a change on `feature/greeting`; main must not move.
+2. **Merge** (3.1): fast-forward `feature/about-page` into main, starting on the feature branch.
+3. **Merge conflict** (3.2): main (Ben) and `feature/footer` changed the same line; resolve and conclude with a two-parent merge commit. Committing the markers does not count.
+4. **Rebase** (4.1): `feature/search` is behind main (Chris); `git rebase main`. Merging main in does not count.
+5. **Teammate sync** (5.1): `feature/login` has 2 unpushed commits. Right before your first `git push`, Anna pushes 2 commits to origin/main, one changing the same line of `src/login.ts`. The push of the new branch succeeds, then you fetch, rebase onto origin/main, resolve, and update the remote branch with `--force-with-lease` (a plain push is rejected). A merge, or any bare `--force` / `-f` in the history, does not count; `undo` takes a bare force back. The file header explains why this flow was chosen over "already pushed in the setup".

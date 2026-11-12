@@ -66,6 +66,7 @@ const focusTerminal = () => workbench.value?.focusTerminal()
       @closed="focusTerminal"
     />
     <DebriefDialog
+      v-if="level.kind === 'scenario'"
       v-model:open="debriefOpen"
       :level="level"
       :next="next"

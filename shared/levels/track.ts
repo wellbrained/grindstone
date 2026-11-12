@@ -1,7 +1,10 @@
 // Tracks and chapters (docs/features/levels.md, "Tracks and chapters"): pure data and helpers over it.
-// Play order, chapter numbers and level numbers ("3.2") are derived from the chapter lists, never written by hand.
+// Play order, chapter numbers and scenario numbers ("3.2") are derived from the chapter lists, never written by hand.
+// A practice task is listed right after the scenario it trains (after that scenario's other practice tasks) and has no
+// number of its own.
+import { lastPlayed } from './progress'
 import type { Progress } from './progress'
-import type { Level, TrackId } from './types'
+import type { Level, Scenario, TrackId } from './types'
 
 export type TrackStatus = 'live' | 'coming'
 
@@ -18,7 +21,7 @@ export interface Chapter {
   /** One line: what the chapter covers. */
   description: string
   colour: ChapterColour
-  /** In play order. Empty: the chapter is coming. */
+  /** In play order: each scenario followed by its practice tasks. Empty: the chapter is coming. */
   levels: readonly Level[]
 }
 
@@ -57,7 +60,20 @@ export interface TrackDefinition {
   chapters?: readonly ChapterDefinition[]
 }
 
-/** Builds a track from its definition: numbers the chapters and checks that every level belongs here exactly once. */
+/** Throws unless every practice task sits right after its scenario (or after that scenario's other practice tasks). */
+function checkPracticePlacement(chapter: ChapterDefinition) {
+  let scenario: Scenario | null = null
+  for (const level of chapter.levels) {
+    if (level.kind === 'scenario') scenario = level
+    else if (!scenario) throw new Error(`${level.id} starts chapter ${chapter.id}: list it right after ${level.practises}`)
+    else if (scenario.id !== level.practises) throw new Error(`${level.id} practises ${level.practises} but is listed after ${scenario.id}`)
+  }
+}
+
+/**
+ * Builds a track from its definition: numbers the chapters and checks that every level belongs here exactly once and
+ * that every practice task follows its scenario.
+ */
 export function defineTrack(definition: TrackDefinition): Track {
   const seen = new Set<string>()
   const chapters = (definition.chapters ?? []).map((chapter, index): Chapter => {
@@ -66,6 +82,7 @@ export function defineTrack(definition: TrackDefinition): Track {
       if (seen.has(level.id)) throw new Error(`${level.id} is listed twice in ${definition.id}`)
       seen.add(level.id)
     }
+    checkPracticePlacement(chapter)
     return { ...chapter, trackId: definition.id, number: index + 1 }
   })
   if (definition.status === 'coming' && seen.size > 0) throw new Error(`${definition.id} is coming but has levels`)
@@ -86,12 +103,14 @@ export interface LevelPlace {
   track: Track
   chapter: Chapter
   level: Level
-  /** 1-based position in the chapter. */
+  /** 1-based position in the chapter, both kinds counted. */
   position: number
   /** 0-based index in the track's play order. */
   index: number
-  /** chapter.position, e.g. '3.2'. */
-  number: string
+  /** A scenario's chapter.position, counting scenarios only, e.g. '3.2'; null for a practice task. */
+  number: string | null
+  /** A practice task's scenario with its number; null for a scenario. */
+  scenario: { level: Scenario, number: string } | null
 }
 
 export interface Count {
@@ -107,15 +126,21 @@ export function trackLevels(track: Track): Level[] {
 /** Every level of the track with its place, in play order. */
 export function trackPlaces(track: Track): LevelPlace[] {
   let index = 0
-  return track.chapters.flatMap(chapter => chapter.levels.map((level, i) => ({
-    track,
-    chapter,
-    level,
-    position: i + 1,
-    index: index++,
-    number: `${chapter.number}.${i + 1}`
-  })))
+  return track.chapters.flatMap((chapter) => {
+    let scenarios = 0
+    let scenario: LevelPlace['scenario'] = null
+    return chapter.levels.map((level, i): LevelPlace => {
+      const base = { track, chapter, level, position: i + 1, index: index++ }
+      if (level.kind === 'practice') return { ...base, number: null, scenario }
+      const number = `${chapter.number}.${++scenarios}`
+      scenario = { level, number }
+      return { ...base, number, scenario: null }
+    })
+  })
 }
+
+/** How a place is named in text: "3.2 Merge conflict" for a scenario, the title alone for a practice task. */
+export const placeName = (place: Pick<LevelPlace, 'number' | 'level'>) => place.number ? `${place.number} ${place.level.title}` : place.level.title
 
 export function placeIn(track: Track, levelId: string): LevelPlace | null {
   return trackPlaces(track).find(place => place.level.id === levelId) ?? null
@@ -127,37 +152,48 @@ function count(levels: readonly Level[], progress: Progress): Count {
   return { solved: levels.filter(level => isSolvedIn(progress, level.id)).length, total: levels.length }
 }
 
+/** Solved entries of a chapter, scenarios and practice tasks alike. */
 export function chapterProgress(chapter: Chapter, progress: Progress): Count {
   return count(chapter.levels, progress)
 }
 
+/** Solved entries of a track, scenarios and practice tasks alike. */
 export function trackProgress(track: Track, progress: Progress): Count {
   return count(trackLevels(track), progress)
 }
 
-/** The first unsolved level in play order; null when every level is solved (or the track has none). */
+/** The first unsolved entry in play order (a scenario or a practice task); null when everything is solved. */
 export function nextUp(track: Track, progress: Progress): LevelPlace | null {
   return trackPlaces(track).find(place => !isSolvedIn(progress, place.level.id)) ?? null
 }
 
+/** The first entry of the chapter flagged "practise again", in play order; null when none is. */
+export function practiseAgainIn(chapter: Chapter, progress: Progress): Level | null {
+  return chapter.levels.find(level => progress.levels[level.id]?.practiseAgain === true) ?? null
+}
+
+/** resume: the entry you last played, still unsolved; next: next up; practise: nothing unsolved left, a flagged entry. */
+export type ContinueReason = 'resume' | 'next' | 'practise'
+
 export interface ContinueTarget {
   place: LevelPlace
-  /** True: the last level you played, still unsolved. False: next up. */
-  resume: boolean
-  /** When you last played it (ms since epoch), only when `resume`. */
+  reason: ContinueReason
+  /** When you last played it (ms since epoch), only when resuming. */
   at: number | null
 }
 
 /**
- * What "Continue" opens: the last level you played while it is unsolved, else next up.
- * Null when every level of the track is solved.
+ * What "Continue" opens: the entry you last played while it is unsolved, else next up; with nothing unsolved left in
+ * the track, the first entry flagged "practise again". Null when everything is solved and nothing is flagged.
  */
 export function continueTarget(track: Track, progress: Progress): ContinueTarget | null {
-  const last = progress.lastPlayed
+  const last = lastPlayed(progress)
   if (last && !isSolvedIn(progress, last.levelId)) {
     const place = placeIn(track, last.levelId)
-    if (place) return { place, resume: true, at: last.at }
+    if (place) return { place, reason: 'resume', at: last.at }
   }
   const next = nextUp(track, progress)
-  return next ? { place: next, resume: false, at: null } : null
+  if (next) return { place: next, reason: 'next', at: null }
+  const flagged = trackPlaces(track).find(place => progress.levels[place.level.id]?.practiseAgain === true)
+  return flagged ? { place: flagged, reason: 'practise', at: null } : null
 }

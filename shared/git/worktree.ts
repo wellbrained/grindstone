@@ -1,4 +1,5 @@
 // Working tree and index bookkeeping shared by checkout, merge, rebase and status.
+import { ignoreMatcher } from './ignore'
 import { err, out } from './output'
 import { headTree, withEntry } from './state'
 import type { OutputLine, Repo, Tree } from './types'
@@ -85,6 +86,7 @@ export interface Status {
   staged: StatusEntry[]
   unstaged: StatusEntry[]
   unmerged: StatusEntry[]
+  /** Untracked paths that no .gitignore pattern matches; a folder with nothing tracked inside collapses to "dir/". */
   untracked: string[]
 }
 
@@ -104,8 +106,9 @@ export function computeStatus(repo: Repo, workdir: Tree): Status {
   // untracked directories collapse to "dir/" when nothing inside is tracked
   const tracked = [...Object.keys(repo.index), ...Object.keys(repo.unmerged)]
   const untracked = new Set<string>()
+  const ignored = ignoreMatcher(workdir)
   for (const path of Object.keys(workdir)) {
-    if (repo.index[path] !== undefined || conflicted(path)) continue
+    if (repo.index[path] !== undefined || conflicted(path) || ignored(path)) continue
     const parts = path.split('/')
     let shown = path
     for (let depth = 1; depth < parts.length; depth++) {

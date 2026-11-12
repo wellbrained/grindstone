@@ -2,13 +2,19 @@
 
 - **Track**: one skill area of the app, with its own page (`/git`) and its levels in chapters. *Live* tracks are playable (Git); *coming* tracks (Working with AI, Web fundamentals, Debugging, Framework deep dives) are listed on the home page but have no levels yet.
 - **Chapter**: an ordered group of levels inside a track, with a number, a one-line description and a colour from the branch palette (Git: Basics, Branching, Merging, Rewriting history, Teamwork & remotes, Undo & recovery, Disasters, Workflows). All chapters are open, nothing is locked. A chapter without levels is *coming*.
-- **Level**: one scenario in a track. Written as one TypeScript file: setup, goals, teammate events, hints, debrief, solution. Its **number** is `chapter.position` (`3.2`), derived from where it is listed.
-- **Next up**: the first unsolved level of a track, in play order (chapter by chapter).
-- **Continue**: the one button back into practice: the level you last played while it is unsolved, else next up. With every level solved there is nothing to continue.
+- **Level** (also *entry*): one thing to solve in a track, of one of two kinds: a scenario or a practice task. Counts ("n of N solved"), next up and Continue include both kinds.
+- **Scenario**: a level with a short story, goals, three hints and a debrief, written as one TypeScript file (setup, goals, teammate events, hints, debrief, solution). Its **number** is `chapter.position` counting scenarios only (`1.2`, `3.2`), derived from where it is listed.
+- **Practice task** ("Practice" in the UI, never "drill"): a short level of one to three commands (~30 s) that trains one scenario: one task line, one goal, one hint, a one-line why, then Next and Again; no story, no debrief, no number. It is listed right after its scenario and drawn on a side branch forking off the scenario's dot.
+- **Difficulty**: 1 to 3, shown as filled dots; every level also has an estimated **time**.
+- **Next up**: the first unsolved level of a track, in play order (chapter by chapter; a scenario, then its practice tasks).
+- **Continue**: the one button back into practice: the level you last played while it is unsolved, else next up; with nothing unsolved left, a level marked "practise again". Otherwise there is nothing to continue.
+- **Best run**: the fewest commands you solved a level in (ties broken by fewest hints), kept next to your **latest run**; replaying never costs anything.
+- **Practise again**: a flag you set on a solved level ("solved, but I don't own it yet"); Continue and the chapter menu offer flagged levels once nothing new is left.
+- **Reset**: clears solved, best and latest run, the "practise again" flag and last played for one level ("Mark as not solved"), a chapter, a track or everything, always after a confirmation.
 - **Setup**: the starting state of a level (local repo, `origin`, files, current branch), built with the setup builder.
 - **Goal**: a named check over the state, shown as one line of the live checklist. A level is solved when every goal passes.
-- **Hint**: up to three per level, from a nudge to the exact command.
-- **Debrief**: the short text shown when a level is solved, explaining *why* the solution works.
+- **Hint**: three per scenario (from a nudge to the exact command), one per practice task.
+- **Debrief**: the short text shown when a scenario is solved, explaining *why* the solution works (a practice task shows a one-line why instead).
 - **Solution**: the command list that solves a level; tests replay it.
 - **Git model**: Grindstone's own simulation of git (objects, refs, HEAD, index, working tree), not real git.
 - **Origin**: the simulated remote repository. Your repo sees it only through `fetch`, `pull` and `push`; teammates write only to it.
@@ -16,4 +22,5 @@
 - **Teammate event**: one thing a teammate does (push commits, force-push, leave a review comment), fired by a **trigger**: after N of your commands, or right before a given command.
 - **Shell**: the small fake shell around git (`ls`, `cat`, `echo >`, `echo >>`, `rm`, `touch`, `edit`).
 - **Graph**: the SVG commit graph that redraws after every command; local branches solid, `origin/*` outlined.
-- **Progress**: per level: solved, hints used, commands used versus the solution; plus the level you last played (for Continue). Stored in localStorage.
+- **Progress**: per level: solved, best run, latest run, "practise again", when you last played it (for Continue). Stored in localStorage; the About page downloads it as a backup file and loads it back.
+- **Ignored file**: an untracked file a `.gitignore` names; `status` and `git add .` leave it out.

@@ -1,4 +1,5 @@
 import { parseArgs } from '../args'
+import { ignoreRules, ignoredAs } from '../ignore'
 import { done, err, fail, hint } from '../output'
 import { normalizePath, withEntry, without } from '../state'
 import type { Command, Repo, Tree } from '../types'
@@ -29,20 +30,38 @@ export function stage(repo: Repo, workdir: Tree, paths: string[]): Repo {
 export const add: Command = (state, argv) => {
   const repo = state.repo
   if (!repo) return notARepo(state)
-  const parsed = parseArgs('add', argv, { flags: ['-A'], alias: { '--all': '-A' } })
+  const parsed = parseArgs('add', argv, { flags: ['-A', '-f'], alias: { '--all': '-A', '--force': '-f' } })
   if (!parsed.ok) return fail(state, [err(parsed.error)])
   const specs = parsed.args.flags.has('-A') ? ['.', ...parsed.args.positionals] : parsed.args.positionals
+  const force = parsed.args.flags.has('-f')
 
   if (!specs.length) {
     return done(state, [err('Nothing specified, nothing added.'), hint('hint: Maybe you wanted to say \'git add .\'?')])
   }
 
   const known = [...new Set([...Object.keys(state.workdir), ...Object.keys(repo.index), ...Object.keys(repo.unmerged)])].sort()
+  // untracked paths a .gitignore names: skipped, and refused when you name them yourself (unless -f)
+  const rules = force ? [] : ignoreRules(state.workdir)
+  const ignoredAt = (path: string) => repo.index[path] !== undefined || repo.unmerged[path] !== undefined ? null : ignoredAs(rules, path)
   const paths = new Set<string>()
+  const refused = new Set<string>()
   for (const spec of specs) {
     const matched = matchPathspec(spec, known)
     if (!matched.length && normalizePath(spec) !== '') return fatal(state, `fatal: pathspec '${spec}' did not match any files`)
-    for (const path of matched) paths.add(path)
+    const kept = matched.filter(path => ignoredAt(path) === null)
+    // like git: a folder or '.' quietly skips what is ignored inside; a pathspec that only names ignored files is refused
+    if (!kept.length && normalizePath(spec) !== '') for (const path of matched) refused.add(ignoredAt(path)!)
+    for (const path of kept) paths.add(path)
   }
-  return done(withRepo(state, stage(repo, state.workdir, [...paths])))
+  const staged = withRepo(state, stage(repo, state.workdir, [...paths]))
+  if (!refused.size) return done(staged)
+  return {
+    state: staged,
+    output: [
+      err('The following paths are ignored by one of your .gitignore files:'),
+      ...[...refused].sort().map(path => err(path)),
+      hint('hint: Use -f if you really want to add them.')
+    ],
+    exitCode: 1
+  }
 }

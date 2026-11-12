@@ -1,0 +1,14 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "inter",
+        "createdAt": "2026-11-12T09:37:58.509Z",
+        "reason": "Documented brand UI font: docs/adr/0003-look.md and DESIGN.md"
+      }
+    ]
+  }
+}

@@ -1,6 +1,7 @@
 // The track registry: every track, live and coming, in the order the home page lists them.
 // The lookups take the registry as a parameter (default: the real one), so tests can run them on a 58-level fixture.
 import { gitTrack } from './git'
+import { lastPlayed } from './progress'
 import { defineTrack, placeIn, trackLevels, trackProgress } from './track'
 import type { Chapter, LevelPlace, Track } from './track'
 import type { Progress } from './progress'
@@ -58,6 +59,7 @@ export function levelPlace(id: string, all: readonly Track[] = tracks): LevelPla
   return null
 }
 
+/** A scenario's number ("3.2"); null for a practice task or an unknown id. */
 export function levelNumber(id: string, all: readonly Track[] = tracks): string | null {
   return levelPlace(id, all)?.number ?? null
 }
@@ -66,7 +68,10 @@ export function chapterOf(id: string, all: readonly Track[] = tracks): Chapter |
   return levelPlace(id, all)?.chapter ?? null
 }
 
-/** The level after `id` in its track's play order, across chapter boundaries; null after the last one (or an unknown id). */
+/**
+ * The level after `id` in its track's play order, across chapter boundaries: a scenario, then its practice tasks, then
+ * the next scenario. Null after the last one (or an unknown id).
+ */
 export function nextLevel(id: string, all: readonly Track[] = tracks): Level | null {
   const place = levelPlace(id, all)
   return place ? trackLevels(place.track)[place.index + 1] ?? null : null
@@ -74,7 +79,7 @@ export function nextLevel(id: string, all: readonly Track[] = tracks): Level | n
 
 /** True once you solved a level or typed a command in one. */
 export function hasProgress(progress: Progress): boolean {
-  return progress.lastPlayed !== null || Object.values(progress.levels).some(entry => entry.solved)
+  return Object.values(progress.levels).some(entry => entry.solved || entry.lastPlayed !== null)
 }
 
 /**
@@ -83,7 +88,7 @@ export function hasProgress(progress: Progress): boolean {
  */
 export function trackToContinue(progress: Progress, all: readonly Track[] = tracks): Track | null {
   const live = all.filter(track => track.status === 'live')
-  const last = progress.lastPlayed
+  const last = lastPlayed(progress)
   const played = last ? live.find(track => placeIn(track, last.levelId)) : undefined
   return played ?? live.find(track => trackProgress(track, progress).solved > 0) ?? null
 }

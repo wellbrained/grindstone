@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { placeName } from '#shared/levels'
 import type { Track } from '#shared/levels'
 import { trackCardAction, trackView } from '~/utils/track-view'
 
@@ -25,8 +26,8 @@ const size = computed(() => t('track.size', {
 const primary = computed(() => {
   const current = action.value
   if (current.kind === 'open') return { to: trackPath(props.track.id), label: t('home.card.open', { track: props.track.title }) }
-  const { number, level } = current.place
-  return { to: levelPath(level), label: t(`home.card.${current.kind}`, { number, title: level.title }) }
+  const { level } = current.place
+  return { to: levelPath(level), label: t(`home.card.${current.kind}`, { name: placeName(current.place) }) }
 })
 </script>
 

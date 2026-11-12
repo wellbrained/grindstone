@@ -1,12 +1,15 @@
 // Level 5: replay a feature branch on top of main with rebase, keeping history linear.
 import { commitsOf, currentBranch, hasMergeCommits, isAncestor, operationInProgress, repo } from '../../git'
-import type { Level } from '../types'
+import type { Scenario } from '../types'
 
 const YOUR_COMMITS = ['Highlight matches', 'Add a search box']
 
-export const rebase: Level = {
+export const rebase: Scenario = {
   id: 'git-05-rebase',
   track: 'git',
+  kind: 'scenario',
+  difficulty: 2,
+  minutes: 5,
   title: 'Rebase',
   story: [
     'You are building search for the recipe app on feature/search. Meanwhile Chris landed two commits on main, a new layout and an updated README.',
