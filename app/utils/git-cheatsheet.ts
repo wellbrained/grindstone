@@ -37,14 +37,14 @@ export const cheatGroups: CheatGroup[] = [
     commands: [
       { name: 'branch', summary: 'List, create and delete branches.', examples: [{ line: 'git branch', note: 'List local branches' }, { line: 'git branch -a', note: 'Include origin/* branches' }, { line: 'git branch -d feature/login', note: 'Delete a merged branch' }, { line: 'git branch -m feature/gallery', note: 'Rename the branch you are on' }] },
       { name: 'switch', summary: 'Move to another branch (the modern way).', examples: [{ line: 'git switch main', note: 'Go to main' }, { line: 'git switch -c feature/login', note: 'Create a branch and switch to it' }, { line: 'git switch -', note: 'Back to the branch you were on before' }, { line: 'git switch --detach a1b2c3d', note: 'Look at an old commit without moving a branch' }] },
-      { name: 'checkout', summary: 'The older all-rounder: switch branches, or restore a file.', examples: [{ line: 'git checkout -b feature/login', note: 'Create a branch and switch to it' }, { line: 'git checkout -- app.js', note: 'Throw away unstaged changes to a file' }] }
+      { name: 'checkout', summary: 'The older all-rounder: switch branches, or restore a file.', examples: [{ line: 'git checkout -b feature/login', note: 'Create a branch and switch to it' }, { line: 'git checkout -- app.js', note: 'Throw away unstaged changes to a file' }, { line: 'git checkout --theirs prices.json', note: 'In a conflict, take the version of the branch you merge in' }] }
     ]
   },
   {
     id: 'combine',
     title: 'Combine work',
     commands: [
-      { name: 'merge', summary: 'Bring another branch into the current one: fast-forward, or a merge commit.', examples: [{ line: 'git merge feature/login', note: 'Merge into the branch you are on' }, { line: 'git merge --abort', note: 'Give up a merge with conflicts' }] },
+      { name: 'merge', summary: 'Bring another branch into the current one: fast-forward, or a merge commit.', examples: [{ line: 'git merge feature/login', note: 'Merge into the branch you are on' }, { line: 'git merge --no-ff feature/login', note: 'Always make a merge commit, even for a fast-forward' }, { line: 'git merge --ff-only feature/login', note: 'Only move forward, never make a merge commit' }, { line: 'git merge --abort', note: 'Give up a merge with conflicts' }] },
       { name: 'rebase', summary: 'Replay your commits on top of another branch, for a straight history.', examples: [{ line: 'git rebase main', note: 'Put your branch on top of main' }, { line: 'git rebase --continue', note: 'After fixing a conflict and git add' }, { line: 'git rebase --abort', note: 'Go back to how it was before' }] }
     ]
   },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createState, run } from '../../../shared/git'
+import { createState, repo, run } from '../../../shared/git'
 import { exec, ok, textOf } from './helpers'
 
 const base = () => ok(createState(), 'git init', 'echo "line 1" > app.txt', 'echo "line 2" >> app.txt', 'echo "line 3" >> app.txt', 'git add .', 'git commit -m one')
@@ -112,5 +112,26 @@ describe('git merge', () => {
     const state = ok(base(), 'git switch -c feature', 'echo f > app.txt', 'git commit -am f', 'git switch main', 'echo local > app.txt')
     expect(textOf(run(state, 'git merge feature'))).toContain('error: Your local changes to the following files would be overwritten by merge:\n\tapp.txt')
     expect(exec(base(), 'git merge nope').text).toBe('merge: nope - not something we can merge')
+  })
+})
+
+describe('setup builder merge', () => {
+  const diverged = () => repo()
+    .file('app.txt', 'base')
+    .commit('one')
+    .switch('feature', { create: true })
+    .file('app.txt', 'feature')
+    .commit('f')
+    .switch('main')
+
+  it('can start a level inside a conflicted merge', () => {
+    const state = diverged().file('app.txt', 'main').commit('m').merge('feature', { conflicts: true }).build()
+    expect(state.repo!.operation?.type).toBe('merge')
+    expect(state.repo!.unmerged).toEqual({ 'app.txt': 'both modified' })
+  })
+
+  it('throws when the merge was expected to conflict but did not, and when a plain merge conflicts', () => {
+    expect(() => diverged().merge('feature', { conflicts: true })).toThrow('was expected to stop with conflicts')
+    expect(() => diverged().file('app.txt', 'main').commit('m').merge('feature')).toThrow('setup step "git merge feature" failed')
   })
 })

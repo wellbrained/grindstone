@@ -69,3 +69,17 @@ export function hasFlag(args: string[], short: string, long?: string): boolean {
 export function ran(history: CommandRecord[], command: string, matches: (args: string[]) => boolean = () => true): boolean {
   return gitInvocations(history).some(({ args, exitCode }) => exitCode === 0 && args[0] === command && matches(args))
 }
+
+/** `rev` is a merge commit with exactly these two parents (commit ids), first parent first. */
+export function isMergeOf(state: GitState, rev: string, first: string, second: string): boolean {
+  const id = resolve(state, rev)
+  const parents = id ? state.repo!.commits[id]!.parents : []
+  return parents.length === 2 && parents[0] === first && parents[1] === second
+}
+
+/** A successful `git <command>` comes after the last successful `git <after>` (e.g. a `git log` after the merge). */
+export function ranAfter(history: CommandRecord[], command: string, after: string, matches: (args: string[]) => boolean = () => true): boolean {
+  const calls = gitInvocations(history).filter(call => call.exitCode === 0)
+  const last = calls.map(call => call.args[0]).lastIndexOf(after)
+  return last !== -1 && calls.slice(last + 1).some(call => call.args[0] === command && matches(call.args))
+}

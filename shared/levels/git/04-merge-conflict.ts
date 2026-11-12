@@ -23,14 +23,14 @@ export const mergeConflict: Scenario = {
     'Merge feature/footer into main. Git cannot pick between two edits of one line, so it will stop and ask you. Keep both pieces of information, then finish the merge.'
   ].join('\n\n'),
   setup: () => repo()
-    .file('README.md', '# Juniper Bakery website')
-    .file('src/footer.ts', 'export const footer = \'Juniper Bakery\'')
+    .file('README.md', '# Corner Bakery website')
+    .file('src/footer.ts', 'export const footer = \'Corner Bakery\'')
     .commit('Add the footer')
     .switch('feature/footer', { create: true })
-    .file('src/footer.ts', 'export const footer = \'Juniper Bakery - hello@juniper.example\'')
+    .file('src/footer.ts', 'export const footer = \'Corner Bakery - hello@cornerbakery.example\'')
     .commit('Add the contact email to the footer')
     .switch('main')
-    .file('src/footer.ts', 'export const footer = \'Juniper Bakery - open daily 7 to 18\'')
+    .file('src/footer.ts', 'export const footer = \'Corner Bakery - open daily 7 to 18\'')
     .commit('Add opening hours to the footer', { author: 'Ben' })
     .build(),
   goals: [
@@ -45,7 +45,7 @@ export const mergeConflict: Scenario = {
   hints: [
     'Start the merge from main and read what git prints. `git status` tells you which file needs you.',
     'Git wrote both versions into the file between <<<<<<<, ======= and >>>>>>> markers. Replace that whole block with the line you want, mark the file resolved with `git add`, then commit to conclude the merge.',
-    'Run `git merge feature/footer`, then `echo "export const footer = \'Juniper Bakery - open daily 7 to 18 - hello@juniper.example\'" > src/footer.ts` (or `edit src/footer.ts`), then `git add src/footer.ts` and `git commit --no-edit`.'
+    'Run `git merge feature/footer`, then `echo "export const footer = \'Corner Bakery - open daily 7 to 18 - hello@cornerbakery.example\'" > src/footer.ts` (or `edit src/footer.ts`), then `git add src/footer.ts` and `git commit --no-edit`.'
   ],
   debrief: {
     title: 'You decided, git recorded it',
@@ -57,7 +57,7 @@ export const mergeConflict: Scenario = {
   },
   solution: [
     'git merge feature/footer',
-    'echo "export const footer = \'Juniper Bakery - open daily 7 to 18 - hello@juniper.example\'" > src/footer.ts',
+    'echo "export const footer = \'Corner Bakery - open daily 7 to 18 - hello@cornerbakery.example\'" > src/footer.ts',
     'git add src/footer.ts',
     'git commit --no-edit'
   ]

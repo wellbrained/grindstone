@@ -4,12 +4,14 @@ import { range } from '../objects/graph'
 import { shortId } from '../objects/hash'
 import { done, err, fail, hint, out, plural, ref } from '../output'
 import { isValidBranchName, resolveRev } from '../refs'
-import { headId, headTree, normalizePath } from '../state'
+import { headId, headTree, normalizePath, withEntry } from '../state'
 import { moveTrees } from '../worktree'
 import type { Command, CommandResult, GitState, Head, OutputLine, Repo } from '../types'
 import { matchPathspec } from './add'
 import { branchExistsError, invalidNameError, trackedBy, trackingLine } from './branch'
 import { fatal, notARepo, trackingInfo, withRepo } from './common'
+import { conflictSide, sideOf } from './restore'
+import type { ConflictSide } from './restore'
 
 type Target
   = | { kind: 'branch', name: string }
@@ -168,31 +170,58 @@ export const switchCommand: Command = (state, argv) => {
   return fatal(state, `fatal: invalid reference: ${name}`)
 }
 
-function restorePaths(state: GitState, repo: Repo, specs: string[]): CommandResult {
-  const known = Object.keys(repo.index).sort()
+/**
+ * `git checkout [--ours|--theirs] [--] <paths>`: files from the index; with a side, unmerged files from that side
+ * (they stay unmerged until `git add`).
+ */
+function restorePaths(state: GitState, repo: Repo, specs: string[], side: ConflictSide | null): CommandResult {
+  const known = [...new Set([...Object.keys(repo.index), ...Object.keys(repo.unmerged)])].sort()
   const paths = new Set<string>()
   for (const spec of specs) {
     const matched = matchPathspec(spec, known)
     if (!matched.length) return fail(state, [err(`error: pathspec '${normalizePath(spec) || spec}' did not match any file(s) known to git`)])
     for (const path of matched) paths.add(path)
   }
-  const workdir = { ...state.workdir }
-  for (const path of paths) workdir[path] = repo.index[path]!
-  return done({ ...state, workdir }, [out(`Updated ${plural(paths.size, 'path')} from the index`)])
+  const unmerged = [...paths].filter(path => repo.unmerged[path] !== undefined)
+  const errors = side
+    ? unmerged.filter(path => conflictSide(repo, path, side) === undefined).map(path => err(`error: path '${path}' does not have ${side === 'ours' ? 'our' : 'their'} version`))
+    : unmerged.map(path => err(`error: path '${path}' is unmerged`))
+  if (errors.length) return fail(state, errors)
+
+  let workdir = state.workdir
+  let updated = 0
+  for (const path of paths) {
+    const content = side && repo.unmerged[path] ? conflictSide(repo, path, side) : repo.index[path]
+    // git always writes (and counts) a side of an unmerged file; other files only when they differ
+    if (!(side && repo.unmerged[path]) && workdir[path] === content) continue
+    workdir = withEntry(workdir, path, content)
+    updated++
+  }
+  return done({ ...state, workdir }, [out(`Updated ${plural(updated, 'path')} from the index`)])
 }
 
 export const checkout: Command = (state, argv) => {
   const repo = state.repo
   if (!repo) return notARepo(state)
-  const parsed = parseArgs('checkout', argv, { flags: ['--detach'], values: ['-b'] })
+  const parsed = parseArgs('checkout', argv, { flags: ['--detach', '--ours', '--theirs'], values: ['-b'] })
   if (!parsed.ok) return fail(state, [err(parsed.error)])
   const { flags, values, positionals, separator } = parsed.args
+  const side = sideOf(argv)
 
+  if (side && !separator) {
+    // without `--`, a name that is a branch or commit means switching, which a side cannot do
+    const name = positionals[0]
+    if (values['-b'] || (name && (name === '-' || existingOrRemote(repo, name) || resolveRev(repo, name)))) {
+      return fatal(state, 'fatal: \'--ours/--theirs\' cannot be used with switching branches')
+    }
+    if (!name) return fatal(state, 'fatal: \'--ours/--theirs\' needs the paths to check out')
+    return restorePaths(state, repo, positionals, side)
+  }
   if (values['-b']) {
     const target = newBranch(state, repo, values['-b'][0]!, positionals[0])
     return 'kind' in target ? switchTo(state, target) : target
   }
-  if (separator) return restorePaths(state, repo, positionals)
+  if (separator) return restorePaths(state, repo, positionals, side)
   const name = positionals[0]
   if (!name) return fatal(state, 'fatal: you must specify a branch to checkout')
   if (name === '-') {
@@ -205,5 +234,5 @@ export const checkout: Command = (state, argv) => {
   if (target) return switchTo(state, target)
   const commit = resolveRev(repo, name)
   if (commit) return switchTo(state, { kind: 'detach', commit, label: name })
-  return restorePaths(state, repo, positionals)
+  return restorePaths(state, repo, positionals, null)
 }

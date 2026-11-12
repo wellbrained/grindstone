@@ -48,7 +48,15 @@ const initialGoals: Record<string, Record<string, boolean>> = {
   'git-19-look-at-old-version': { 'looked': false, 'branch': false, 'main-unchanged': false },
   'git-practice-branch-from-commit': { branch: false },
   'git-03-merge': { 'on-main': false, 'merged': false },
+  'git-practice-merge-no-ff': { 'merge-commit': false },
+  'git-20-both-sides-moved-on': { 'merged': false, 'merge-commit': false, 'looked': false },
+  'git-practice-merge-ff-only': { 'merged': false, 'ff-only': false },
   'git-04-merge-conflict': { 'merged': false, 'resolved': false, 'merge-commit': false },
+  'git-practice-keep-their-version': { theirs: false },
+  'git-21-back-out-of-a-merge': { 'no-merge': false, 'branch': false, 'clean': false },
+  'git-practice-list-conflicts': { listed: false },
+  'git-22-catch-up-with-main': { 'merged': false, 'resolved': false, 'both': false, 'main-unchanged': false },
+  'git-practice-merge-main-in': { 'merged': false, 'main-unchanged': false },
   'git-05-rebase': { 'contains-main': false, 'linear': true, 'on-branch': true },
   'git-06-teammate-sync': { 'pushed': false, 'up-to-date': true, 'linear': true, 'resolved': true, 'lease': false },
   'git-11-fix-last-commit': { 'message': false, 'files': false, 'one-commit': true, 'clean': false },
@@ -201,6 +209,43 @@ const wrongPaths: [id: string, why: string, lines: string[], failing: string[]][
   ['git-19-look-at-old-version', 'moves main back instead', ['git log --oneline', 'git reset --hard HEAD~2', 'git switch -c old-menu'], ['looked', 'main-unchanged']],
   ['git-19-look-at-old-version', 'looks but keeps no branch', ['git switch --detach HEAD~2', 'cat menu.html'], ['branch', 'main-unchanged']],
   ['git-practice-branch-from-commit', 'starts the branch at the newest commit', ['git switch -c fix/prices'], ['branch']],
+  ['git-03-merge', 'merges main into the feature branch', ['git merge main'], ['on-main', 'merged']],
+  ['git-practice-merge-no-ff', 'fast-forwards', ['git merge fix/croissant-price'], ['merge-commit']],
+  ['git-20-both-sides-moved-on', 'merges main into the feature branch instead', ['git merge main', 'git log --graph --oneline'], ['merged', 'merge-commit', 'looked']],
+  ['git-20-both-sides-moved-on', 'rebases first, so main only fast-forwards', [
+    'git rebase main',
+    'git switch main',
+    'git merge feature/weekly-specials',
+    'git log --graph --oneline'
+  ], ['merged', 'merge-commit', 'looked']],
+  ['git-20-both-sides-moved-on', 'looks at the history before merging only', ['git log --graph --oneline --all', 'git switch main', 'git merge feature/weekly-specials'], ['looked']],
+  ['git-practice-merge-ff-only', 'merges without --ff-only', ['git merge feature/newsletter'], ['ff-only']],
+  ['git-04-merge-conflict', 'commits the conflict markers', ['git merge feature/footer', 'git add .', 'git commit --no-edit'], ['resolved']],
+  ['git-practice-keep-their-version', 'keeps our version instead', ['git checkout --ours prices.json', 'git add prices.json', 'git commit'], ['theirs']],
+  ['git-practice-keep-their-version', 'commits the conflict markers', ['git add prices.json', 'git commit'], ['theirs']],
+  ['git-21-back-out-of-a-merge', 'commits the conflict markers', ['git add .', 'git commit --no-edit'], ['branch', 'clean']],
+  ['git-21-back-out-of-a-merge', 'resolves the conflict instead of aborting', [
+    'git checkout --ours src/menu.js',
+    'git add src/menu.js',
+    'git commit --no-edit'
+  ], ['branch']],
+  ['git-practice-list-conflicts', 'lists every file instead', ['ls'], ['listed']],
+  ['git-22-catch-up-with-main', 'merges the feature into main instead', [
+    'git switch main',
+    'git merge feature/order-pickup',
+    'git checkout --ours index.html',
+    'git add index.html',
+    'git commit --no-edit'
+  ], ['merged', 'resolved', 'both', 'main-unchanged']],
+  ['git-22-catch-up-with-main', 'commits the conflict markers', ['git merge main', 'git add .', 'git commit --no-edit'], ['resolved', 'both']],
+  ['git-22-catch-up-with-main', 'takes main\'s line and drops the order link', [
+    'git merge main',
+    'git checkout --theirs index.html',
+    'git add index.html',
+    'git commit --no-edit'
+  ], ['both']],
+  ['git-practice-merge-main-in', 'merges the branch into main instead', ['git switch main', 'git merge feature/gift-boxes'], ['merged', 'main-unchanged']],
+  ['git-practice-merge-main-in', 'rebases instead of merging', ['git rebase main'], ['merged']],
   ['git-11-fix-last-commit', 'adds the file in a second commit', ['git add src/streak.css', 'git commit -m "Add streak counter"'], ['one-commit']],
   ['git-11-fix-last-commit', 'fixes the message but forgets the file', ['git commit --amend -m "Add streak counter"'], ['files', 'clean']],
   ['git-practice-amend-no-edit', 'makes a new commit', ['git add src/reminders.css', 'git commit -m "Add reminder styles"'], ['amended']],
@@ -454,5 +499,66 @@ describe('git-06-teammate-sync', () => {
   it('does not count a rebase onto a stale origin/main', () => {
     const { session } = play(item, ['git fetch', 'git rebase origin/main', 'git push -u origin feature/login'])
     expect(session.goalsMet['up-to-date']).toBe(false)
+  })
+})
+
+describe('git-20-both-sides-moved-on', () => {
+  it('makes a merge commit and draws both lines of work in git log --graph', () => {
+    const { steps } = play(level('git-20-both-sides-moved-on'), level('git-20-both-sides-moved-on').solution)
+    const text = (i: number) => steps[i]!.output.map(line => 'text' in line ? line.text : '').join('\n')
+    expect(text(1)).toContain('Merge made by the \'ort\' strategy.')
+    expect(text(2)).toMatch(/^\* {3}[0-9a-f]{7} \(HEAD -> main\) Merge branch 'feature\/weekly-specials'\n\|\\\n/)
+    expect(text(2)).toContain('\n|/\n')
+  })
+})
+
+describe('git-21-back-out-of-a-merge', () => {
+  const item = level('git-21-back-out-of-a-merge')
+
+  it('starts inside the conflicted merge, with the conflict block of the story', () => {
+    const { text } = play(item, ['git status', 'cat src/menu.js'])
+    expect(text).toContain('You have unmerged paths.\n  (fix conflicts and run "git commit")\n  (use "git merge --abort" to abort the merge)')
+    expect(text).toContain('\tboth modified:   src/menu.js')
+    expect(text).toContain([
+      'export function visibleItems(items, filter) {',
+      '<<<<<<< HEAD',
+      '  // Allergens are shown next to each item, never filtered out.',
+      '  return items.map(item => ({ ...item, label: withAllergens(item) }))',
+      '=======',
+      '  // Filter by category; \'all\' shows everything. (Jonas)',
+      '  return filter === \'all\' ? items : items.filter(item => item.category === filter)',
+      '>>>>>>> feature/menu-filter',
+      '}'
+    ].join('\n'))
+  })
+
+  it('puts your files back as they were, also the cleanly merged menu.html', () => {
+    const { session } = play(item, ['git merge --abort'])
+    expect(session.state.workdir['src/menu.js']).not.toContain('filter ===')
+    expect(session.state.workdir['menu.html']).not.toContain('categories')
+    expect(session.state.workdir['src/allergens.js']).toContain('withAllergens')
+  })
+})
+
+describe('git-practice-keep-their-version', () => {
+  it('also counts git restore --theirs', () => {
+    expect(play(level('git-practice-keep-their-version'), ['git restore --theirs prices.json', 'git add prices.json', 'git commit']).session.solved).toBe(true)
+  })
+})
+
+describe('git-practice-list-conflicts', () => {
+  it('also counts git status -s', () => {
+    const { session, text } = play(level('git-practice-list-conflicts'), ['git status -s'])
+    expect(text).toContain('UU menu.html\nUU style.css')
+    expect(session.solved).toBe(true)
+  })
+})
+
+describe('git-22-catch-up-with-main', () => {
+  it('conflicts on the opening hours line, on your branch', () => {
+    const { text, session } = play(level('git-22-catch-up-with-main'), ['git merge main', 'git status'])
+    expect(text).toContain('CONFLICT (content): Merge conflict in index.html')
+    expect(text).toContain('On branch feature/order-pickup')
+    expect(session.goalsMet).toEqual({ 'merged': false, 'resolved': false, 'both': false, 'main-unchanged': false })
   })
 })

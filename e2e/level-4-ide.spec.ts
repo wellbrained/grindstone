@@ -40,7 +40,7 @@ test('plays level 4 in the IDE layout with the conflict actions', async ({ page 
   await page.getByRole('button', { name: 'Conflict 1: accept both changes' }).click()
   await expect(editor).not.toContainText('<<<<<<<')
   await expect(editor).toContainText('open daily 7 to 18')
-  await expect(editor).toContainText('hello@juniper.example')
+  await expect(editor).toContainText('hello@cornerbakery.example')
   await expect(tab).toContainText('unsaved changes')
 
   await editor.press('ControlOrMeta+s')

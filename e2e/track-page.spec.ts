@@ -27,7 +27,7 @@ test('goes from home to a level through the track page and back', async ({ page 
   await expect(crumbs).toContainText('Git')
   await expect(crumbs).toContainText('Merging')
   await expect(crumbs).not.toContainText('Merge conflict')
-  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/3\.2\s*Merge conflict/)
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/3\.3\s*Merge conflict/)
 
   // typing a command makes this the level Continue opens
   const input = page.getByRole('textbox', { name: /Terminal input/ })
@@ -41,7 +41,7 @@ test('goes from home to a level through the track page and back', async ({ page 
   await expect(page.getByTestId('continue-card')).toContainText('Merge conflict')
 
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Tracks' }).click()
-  await expect(page.getByTestId('continue-card')).toContainText('3.2')
+  await expect(page.getByTestId('continue-card')).toContainText('3.3')
   // one Continue on the page: the git card now opens the track instead
   await expect(page.getByTestId('track-git-primary')).toHaveAttribute('data-action', 'open')
   await expect(page.getByTestId('track-git-primary')).toHaveAttribute('href', '/git')

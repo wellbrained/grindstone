@@ -59,8 +59,15 @@ export class SetupBuilder {
     return options.create ? this.git('switch', '-c', name) : this.git('switch', name)
   }
 
-  merge(rev: string) {
-    return this.git('merge', rev)
+  /** `git merge <rev>`; with `conflicts: true` it must stop with conflicts (for a level that starts inside the merge). */
+  merge(rev: string, options: { conflicts?: boolean } = {}) {
+    if (!options.conflicts) return this.git('merge', rev)
+    const result = runArgv(this.state, ['git', 'merge', rev])
+    if (result.state.repo?.operation?.type !== 'merge' || !Object.keys(result.state.repo.unmerged).length) {
+      throw new Error(`setup step "git merge ${rev}" was expected to stop with conflicts:\n${result.output.map(line => line.text).join('\n')}`)
+    }
+    this.state = result.state
+    return this
   }
 
   /** Publishes every local branch to a new origin and tracks it (as if the repo had been cloned). */

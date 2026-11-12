@@ -22,8 +22,12 @@ import { startedOnWrongBranch } from './16-started-on-wrong-branch'
 import { pickUpTeammateBranch } from './17-pick-up-teammate-branch'
 import { cleanUpBranches } from './18-clean-up-branches'
 import { lookAtOldVersion } from './19-look-at-old-version'
+import { bothSidesMovedOn } from './20-both-sides-moved-on'
+import { backOutOfAMerge } from './21-back-out-of-a-merge'
+import { catchUpWithMain } from './22-catch-up-with-main'
 import { commitAll, diffFile, diffStaged, ignoreLogs, logOneline, stageOneFile } from './practice/basics'
 import { branchFromCommit, deleteMergedBranch, listBranches, listRemoteBranches, renameBranch, switchBack } from './practice/branching'
+import { keepTheirVersion, listConflicts, mergeFfOnly, mergeMainIn, mergeNoFf } from './practice/merging'
 import { amendNoEdit, discardFile, resetHard, resetSoft, revertBeforeLast, stashUntracked, unstageFile } from './practice/undo'
 
 export const gitTrack = defineTrack({
@@ -79,7 +83,18 @@ export const gitTrack = defineTrack({
       title: 'Merging',
       description: 'Bring branches together, and settle it when two edits collide.',
       colour: 2,
-      levels: [merge, mergeConflict]
+      levels: [
+        merge,
+        mergeNoFf,
+        bothSidesMovedOn,
+        mergeFfOnly,
+        mergeConflict,
+        keepTheirVersion,
+        backOutOfAMerge,
+        listConflicts,
+        catchUpWithMain,
+        mergeMainIn
+      ]
     },
     {
       id: 'rewriting-history',
