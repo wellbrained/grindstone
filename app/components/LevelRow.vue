@@ -47,6 +47,7 @@ function drawOf(part: keyof RowLanes) {
   if (step === undefined || props.row.lane[part] !== 'solid') return null
   return { class: 'lane-draw', style: { '--lane-step': String(step) } }
 }
+const titleColumn = computed(() => practice.value ? 'col-span-2 col-start-2 md:col-span-1 md:col-start-3' : 'col-start-3')
 const laneClass = (part: keyof RowLanes) => [{ 'opacity-35': props.row.lane[part] === 'dim' }, drawOf(part)?.class]
 </script>
 
@@ -135,9 +136,16 @@ const laneClass = (part: keyof RowLanes) => [{ 'opacity-35': props.row.lane[part
         :colour="row.place.chapter.colour"
         :state="row.state"
       />
-      <span class="self-start pt-0.5 font-mono text-xs leading-5 text-muted tabular-nums">{{ row.place.number }}</span>
+      <!-- a practice task has no number: below md its title takes that column, from md the titles line up -->
+      <span
+        class="self-start pt-0.5 font-mono text-xs leading-5 text-muted tabular-nums"
+        :class="{ 'hidden md:block': practice }"
+      >{{ row.place.number }}</span>
 
-      <span class="col-start-3 row-start-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+      <span
+        class="row-start-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1"
+        :class="titleColumn"
+      >
         <span
           class="min-w-0"
           :class="practice ? 'text-toned' : 'font-medium text-highlighted'"
@@ -150,7 +158,10 @@ const laneClass = (part: keyof RowLanes) => [{ 'opacity-35': props.row.lane[part
       </span>
 
       <!-- below md one line under the title (status first); from md two columns of their own -->
-      <span class="col-start-3 row-start-2 flex flex-wrap items-center gap-x-3 gap-y-1 md:contents">
+      <span
+        class="row-start-2 flex flex-wrap items-center gap-x-3 gap-y-1 md:contents"
+        :class="titleColumn"
+      >
         <span
           class="flex flex-wrap items-center gap-x-1.5 text-sm md:col-start-5 md:row-start-1 md:justify-end md:text-right"
           data-testid="row-status"

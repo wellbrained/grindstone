@@ -29,7 +29,7 @@ Status: accepted, 2026-11-12 (Nik, grilling + previews).
 ## Redo, "practise again", reset, backup
 
 - Replaying a solved entry never costs anything: it stays solved; the row and debrief show the **best run** (fewest commands, fewest hints) next to the latest.
-- **Practise again**: a flag on a solved entry ("solved, but I don't own it yet"); Continue offers flagged entries once nothing new is left.
+- **Practise again**: a flag on a solved entry ("solved, but I don't own it yet"); Continue offers flagged entries once nothing new is left. Solving a flagged entry again clears the flag (decided after batch 1).
 - **Reset**: per entry ("Mark as not solved", in its ⋯ menu), per chapter and per track (⋯ menus on the track page), everything (About page, "Your progress"). Every reset asks for confirmation and clears solved, best run, practise-again flag and last played for its scope.
 - **Backup**: "Download progress" / "Load progress" (JSON) on the About page.
 

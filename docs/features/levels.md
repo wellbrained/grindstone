@@ -73,7 +73,7 @@ LevelProgress = {
   solved: boolean,            // stays true once solved; only a reset clears it
   best: Run | null,           // fewest commands, ties broken by fewest hints
   latest: Run | null,         // the most recent solve
-  practiseAgain: boolean,     // "solved, but I don't own it yet"; only a solved entry can carry it
+  practiseAgain: boolean,     // "solved, but I don't own it yet"; only a solved entry can carry it; a new solve clears it
   lastPlayed: number | null   // ms since epoch, when you last typed a command in it
 }
 Run = { commands: number, hints: number }

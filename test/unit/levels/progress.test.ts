@@ -75,13 +75,13 @@ describe('progress v3', () => {
     expect(lastPlayed(emptyProgress())).toBeNull()
   })
 
-  it('flags a solved entry to practise again, and only a solved one; replaying keeps the flag', () => {
+  it('flags a solved entry to practise again, and only a solved one; solving it again clears the flag', () => {
     const progress = recordSolve(recordPlay(emptyProgress(), 'b', 1), 'a', solve(3, 0))
     const flagged = setPractiseAgain(progress, 'a', true)
     expect(flagged.levels.a!.practiseAgain).toBe(true)
     expect(setPractiseAgain(progress, 'b', true)).toBe(progress)
     expect(setPractiseAgain(progress, 'nope', true)).toBe(progress)
-    expect(recordSolve(flagged, 'a', solve(2, 0)).levels.a).toMatchObject({ practiseAgain: true, best: { commands: 2, hints: 0 } })
+    expect(recordSolve(flagged, 'a', solve(2, 0)).levels.a).toMatchObject({ practiseAgain: false, best: { commands: 2, hints: 0 } })
     expect(setPractiseAgain(flagged, 'a', false).levels.a!.practiseAgain).toBe(false)
   })
 

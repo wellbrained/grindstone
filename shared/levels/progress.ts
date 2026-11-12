@@ -57,13 +57,15 @@ export function recordPlay(progress: Progress, levelId: string, at: number): Pro
   return withEntry(progress, levelId, entry => ({ ...entry, lastPlayed: at }))
 }
 
-/** Records a solved session as the latest run (and the best, when it is); an unsolved one leaves the progress as it is. */
+/** Records a solved session as the latest run (and the best, when it is) and clears "practise again" (you just did);
+ * an unsolved one leaves the progress as it is. */
 export function recordSolve(progress: Progress, levelId: string, session: Session): Progress {
   if (!session.solved) return progress
   const run: Run = { commands: session.commandCount, hints: session.hintsUsed }
   return withEntry(progress, levelId, entry => ({
     ...entry,
     solved: true,
+    practiseAgain: false,
     latest: run,
     best: isBetterRun(run, entry.best) ? run : entry.best
   }))

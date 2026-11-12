@@ -29,7 +29,7 @@ test('solves a practice task, then plays it again', async ({ page }) => {
   const crumbs = page.getByRole('navigation', { name: 'Breadcrumb' })
   await expect(crumbs).toContainText('Basics')
   await expect(crumbs).toContainText('1.1 First commit')
-  await expect(crumbs).toContainText('Stage only app.js')
+  await expect(crumbs).not.toContainText('Stage only app.js')
   await expect(page.getByRole('heading', { level: 1, name: 'Stage only app.js' })).toBeVisible()
   await expect(page.getByText('Practice · ~30 s')).toBeVisible()
 

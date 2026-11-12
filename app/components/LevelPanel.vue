@@ -79,7 +79,11 @@ const menu = computed(() => entryItems(props.place, { onPlayAgain: () => emit('a
               class="rounded-sm hover:text-highlighted hover:underline focus-visible:outline-2 focus-visible:outline-primary"
             ><span class="font-mono tabular-nums">{{ place.scenario.number }}</span> {{ place.scenario.level.title }}</NuxtLink>
           </li>
-          <li class="flex items-center gap-x-1">
+          <!-- a practice task's trail ends at its scenario (the heading names the task, and it stays on one line) -->
+          <li
+            v-if="!place.scenario"
+            class="flex items-center gap-x-1"
+          >
             <UIcon
               name="i-lucide-chevron-right"
               class="size-3 shrink-0 text-dimmed"
