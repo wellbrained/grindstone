@@ -91,7 +91,7 @@ async function copy(line: string) {
             :key="command.name"
             class="rounded-lg border border-default bg-elevated p-5"
           >
-            <!-- the heading is itself a prompt: "$ git rebase" (owner's pick, option B6, 2026-11-12) -->
+            <!-- the heading is itself a prompt: "$ git rebase" (owner's pick, option B6, 2026-11-12); its $ is the card's only ember mark -->
             <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
               <h3 class="font-mono text-xl leading-tight font-bold tracking-tight text-highlighted">
                 <span
@@ -111,7 +111,7 @@ async function copy(line: string) {
               {{ command.summary }}
             </p>
             <!-- a small terminal: each example as a "# what it does" comment above its command; click a pair to copy the command -->
-            <ul class="mt-3 space-y-1 rounded-r-lg border-l-2 border-primary bg-(--app-terminal) py-2 font-mono text-sm">
+            <ul class="mt-3 space-y-1 rounded-r-lg border-l-2 border-accented bg-(--app-terminal) py-2 font-mono text-sm">
               <li
                 v-for="example in command.examples"
                 :key="example.line"
@@ -125,7 +125,7 @@ async function copy(line: string) {
                   <span class="min-w-0 flex-1">
                     <span class="block text-xs text-muted"># {{ example.note }}</span>
                     <span class="block text-highlighted wrap-break-word"><span
-                      class="mr-2 text-primary"
+                      class="mr-2 text-dimmed"
                       aria-hidden="true"
                     >$</span>{{ example.line }}</span>
                   </span>
@@ -148,7 +148,7 @@ async function copy(line: string) {
               >
                 <NuxtLink
                   :to="levelPath(level)"
-                  class="text-primary hover:underline"
+                  class="text-highlighted underline decoration-(--ui-border-accented) underline-offset-2 hover:text-primary hover:decoration-primary"
                 >{{ levelNumber(level.id) }} {{ level.title }}</NuxtLink><span v-if="index < levelsUsing(command.name).length - 1"> · </span>
               </template>
             </p>
