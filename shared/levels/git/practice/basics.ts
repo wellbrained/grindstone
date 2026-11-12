@@ -3,6 +3,7 @@
 import { headCommit, ignoreMatcher, isWorkingTreeClean, repo, resolve } from '../../../git'
 import type { GitState } from '../../../git'
 import type { PracticeTask } from '../../types'
+import { INDEX, MENU, STYLE, bakerySite } from '../bakery'
 import { changedIn, hasFlag, ran } from '../checks'
 
 const headFile = (state: GitState, path: string) => headCommit(state)?.tree[path]
@@ -138,17 +139,15 @@ export const logOneline: PracticeTask = {
   minutes: 0.5,
   title: 'Last three commits, one line each',
   task: 'Show only the three newest commits, one line each.',
-  setup: () => repo()
-    .file('README.md', '# Garden club planner')
-    .commit('Start the planner')
-    .file('src/beds.js', '// Raised beds, numbered from the gate.\nexport const beds = 6')
-    .commit('Add the raised beds', { author: 'Anna' })
-    .file('src/watering.js', '// Who waters when, Monday to Sunday.\nexport const rota = []')
-    .commit('Add a watering rota', { author: 'Ben' })
-    .file('src/seeds.js', '// Seed swap list for the spring meeting.\nexport const seeds = [\'beans\', \'kale\']')
-    .commit('Add the seed swap list', { author: 'Chris' })
-    .file('src/beds.js', '// Raised beds, numbered from the gate.\nexport const beds = 8')
-    .commit('Two more raised beds', { author: 'Anna' })
+  setup: () => bakerySite()
+    .file('index.html', `${INDEX}<footer>Open Tuesday to Saturday 7:00-18:00</footer>\n`)
+    .commit('Show the opening hours in the footer', { author: 'Jonas' })
+    .file('menu.html', MENU.replace('4.80', '5.00'))
+    .commit('Raise the sourdough price', { author: 'Maya' })
+    .file('menu.html', MENU.replace('4.80', '5.00').replace('</ul>', '  <li>Sunday brunch rolls, 0.80</li>\n</ul>'))
+    .commit('Add the Sunday brunch rolls', { author: 'Ben' })
+    .file('style.css', `${STYLE}ul {\n  padding-left: 1rem;\n}\n`)
+    .commit('Tidy the menu list on phones', { author: 'Jonas' })
     .build(),
   goals: [{
     id: 'shown',

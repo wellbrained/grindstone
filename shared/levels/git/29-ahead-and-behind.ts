@@ -44,19 +44,19 @@ export const aheadAndBehind: Scenario = {
   minutes: 5,
   title: 'Ahead and behind',
   story: [
-    'You fetched a minute ago, and `git status` says: "Your branch and \'origin/main\' have diverged, and have 2 and 1 different commits each, respectively." So main has two commits origin/main doesn\'t, and origin/main has one that main doesn\'t.',
+    'You fetched a minute ago, and git tells you: "Your branch and \'origin/main\' have diverged, and have 2 and 1 different commits each, respectively." So main has two commits origin/main doesn\'t, and origin/main has one that main doesn\'t.',
     'Before you sync, find out which is which: list the commits that are only on your main (yours, not pushed yet), then the one that is only on origin/main (new from the team). Then sync: get that commit into your main and push yours, so origin\'s main has all three.'
   ].join('\n\n'),
   setup,
   goals: [
     {
       id: 'yours',
-      label: 'Before syncing, you listed only your unpushed commits: `git log origin/main..main`',
+      label: 'Before syncing, you listed only your unpushed commits',
       check: ({ history }) => ranBefore(history, SYNC, args => logsOnlyOn(args, MAIN, ['origin/main']))
     },
     {
       id: 'theirs',
-      label: 'Before syncing, you listed only the new commit from origin: `git log main..origin/main`',
+      label: 'Before syncing, you listed only the new commit from origin',
       check: ({ history }) => ranBefore(history, SYNC, args => logsOnlyOn(args, ['origin/main'], MAIN))
     },
     { id: 'synced', label: 'origin\'s main matches yours, with Maya\'s commit and both of yours', check: ({ state }) => synced(state) }

@@ -39,14 +39,14 @@ export const getYourTeammatesWork: Scenario = {
   title: 'Get your teammates\' work',
   story: [
     'Good morning! Last night Jonas and Maya each pushed a commit to main. Your main is where you left it yesterday, and your repository doesn\'t know their commits yet.',
-    'Look before you take: download their work with `git fetch`, which leaves your main alone, and see what came in. `git status` tells you how far behind you are; `git log --oneline main..origin/main` lists exactly the commits you don\'t have. Then bring them into your main with `git pull`.'
+    'Get their work into your main, but look before you take: first download it without touching your main, check what came in and how far behind you are, and only then bring it into your main.'
   ].join('\n\n'),
   setup,
   goals: [
     { id: 'fetched', label: 'origin/main has Jonas\'s and Maya\'s commits', check: ({ state }) => trackingBranchHead(state, 'main') === THEIRS },
     {
       id: 'looked',
-      label: 'After fetching, you looked at what came in (`git status` or `git log main..origin/main`) before pulling',
+      label: 'After downloading their work, you checked what came in before bringing it into main',
       check: ({ history }) => lookedFirst(history)
     },
     { id: 'pulled', label: 'Your main has both of their commits', check: ({ state }) => resolve(state, 'main') === THEIRS }

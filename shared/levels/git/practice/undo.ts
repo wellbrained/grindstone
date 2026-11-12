@@ -3,6 +3,7 @@
 import { commitsOf, headCommit, isWorkingTreeClean, repo, resolve, stashEntries } from '../../../git'
 import type { GitState } from '../../../git'
 import type { PracticeTask } from '../../types'
+import { INDEX, MENU, STYLE as SITE_STYLE, bakerySite } from '../bakery'
 
 const text = (...lines: string[]) => `${lines.join('\n')}\n`
 const headFile = (state: GitState, path: string) => headCommit(state)?.tree[path]
@@ -85,10 +86,8 @@ export const unstageFile: PracticeTask = {
   solution: ['git restore --staged style.css']
 }
 
-const BEDS = '// Raised beds, numbered from the gate.\nexport const beds = 6'
-const BEDS_BROKEN = text('// Raised beds, numbered from the gate.', 'export const beds = 6', 'export const bedNames = beds.map(n => `Bed ${n}`) // beds is a number, this throws')
-const ROTA = '// Who waters when, Monday to Sunday.\nexport const rota = [\'Anna\', \'Ben\']'
-const ROTA_NEW = text('// Who waters when, Monday to Sunday. Chris joins in May.', 'export const rota = [\'Anna\', \'Ben\', \'Chris\']')
+const MENU_BROKEN = MENU.replace('</ul>', '  <li>Rye loaf, 4.20 (Thursdays only)\n')
+const SITE_STYLE_NEW = `${SITE_STYLE}/* Trying wider spacing for the headings, not sure yet. */\nh2 {\n  letter-spacing: 0.02em;\n}\n`
 
 export const discardFile: PracticeTask = {
   id: 'git-practice-discard-file',
@@ -98,21 +97,18 @@ export const discardFile: PracticeTask = {
   difficulty: 1,
   minutes: 0.5,
   title: 'Discard your changes in one file',
-  task: 'Your edit to `src/beds.js` broke the garden club planner. Throw it away and get the committed version back; keep your changes to `src/watering.js`.',
-  setup: () => repo()
-    .file('src/beds.js', BEDS)
-    .file('src/watering.js', ROTA)
-    .commit('Start the planner', { author: 'Anna' })
-    .file('src/beds.js', BEDS_BROKEN)
-    .file('src/watering.js', ROTA_NEW)
+  task: 'Your edit to `menu.html` broke the menu page of the bakery website. Throw it away and get the committed version back; keep your changes to `style.css`.',
+  setup: () => bakerySite()
+    .file('menu.html', MENU_BROKEN)
+    .file('style.css', SITE_STYLE_NEW)
     .build(),
   goals: [
-    { id: 'discarded', label: 'src/beds.js is back to the committed version', check: ({ state }) => state.workdir['src/beds.js'] === headFile(state, 'src/beds.js') },
-    { id: 'kept', label: 'Your changes to src/watering.js are still there', check: ({ state }) => state.workdir['src/watering.js'] === ROTA_NEW }
+    { id: 'discarded', label: 'menu.html is back to the committed version', check: ({ state }) => state.workdir['menu.html'] === headFile(state, 'menu.html') },
+    { id: 'kept', label: 'Your changes to style.css are still there', check: ({ state }) => state.workdir['style.css'] === SITE_STYLE_NEW }
   ],
   hints: ['`git restore <file>`'],
   why: '`git restore` copies the last saved version over your file. Changes that were never committed are gone for good, so look at `git diff` first.',
-  solution: ['git restore src/beds.js']
+  solution: ['git restore menu.html']
 }
 
 // 6.3 Undo a local commit
@@ -155,21 +151,19 @@ export const resetHard: PracticeTask = {
   difficulty: 1,
   minutes: 0.5,
   title: 'Drop the last two commits completely',
-  task: 'The two newest commits on main, a map of the raised beds, were a dead end and are not pushed. Remove them and their changes completely; `git status` is clean, so no uncommitted work gets lost.',
-  setup: () => repo()
-    .file('README.md', '# Garden club planner')
-    .commit('Start the planner', { author: 'Anna' })
-    .file('src/beds.js', BEDS)
-    .commit('Add the raised beds', { author: 'Anna' })
-    .file('src/map.js', '// A map of the beds, drawn as a grid of characters.\nexport const map = [\'[1][2][3]\', \'[4][5][6]\']')
-    .commit('Try a map of the beds')
-    .file('src/map.js', '// A map of the beds, drawn as a grid of characters, coloured by season.\nexport const map = [\'[1][2][3]\', \'[4][5][6]\']\nexport const season = \'spring\'')
-    .file('style.css', '/* map colours per season */\n.spring { color: #5a8f29; }')
-    .commit('Colour the map by season')
+  task: 'The two newest commits on main, a seasonal banner for the home page, were a dead end and are not pushed. Remove them and their changes completely; `git status` is clean, so no uncommitted work gets lost.',
+  setup: () => bakerySite()
+    .file('index.html', `${INDEX}<footer>Open Tuesday to Saturday 7:00-18:00</footer>\n`)
+    .commit('Show the opening hours in the footer', { author: 'Jonas' })
+    .file('banner.html', text('<!-- Seasonal banner for the home page; Maya wants it to change with the seasons. -->', '<aside class="banner">Fresh strawberry tarts</aside>'))
+    .commit('Try a seasonal banner')
+    .file('banner.html', text('<!-- Seasonal banner for the home page; Maya wants it to change with the seasons. -->', '<aside class="banner spring">Fresh strawberry tarts</aside>'))
+    .file('style.css', `${SITE_STYLE}.spring {\n  color: #5a8f29;\n}\n`)
+    .commit('Colour the banner by season')
     .build(),
   goals: [
-    { id: 'dropped', label: 'main is back on "Add the raised beds"', check: ({ state }) => subjectAt(state, 'main') === 'Add the raised beds' && commitsOf(state, 'main').length === 2 },
-    { id: 'files', label: 'Your files match that commit: no map left over', check: ({ state }) => isWorkingTreeClean(state) && state.workdir['src/map.js'] === undefined }
+    { id: 'dropped', label: 'main is back on "Show the opening hours in the footer"', check: ({ state }) => subjectAt(state, 'main') === 'Show the opening hours in the footer' && commitsOf(state, 'main').length === 2 },
+    { id: 'files', label: 'Your files match that commit: no banner left over', check: ({ state }) => isWorkingTreeClean(state) && state.workdir['banner.html'] === undefined }
   ],
   hints: ['`git reset --hard HEAD~2`. Careful: `--hard` also throws away uncommitted changes, for good.'],
   why: '`--hard` makes the branch, the staging area and your files match `HEAD~2`. Only run it on a clean `git status`: uncommitted work is gone for good.',

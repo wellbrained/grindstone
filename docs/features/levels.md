@@ -61,9 +61,9 @@ ADR 0006 (`docs/adr/0006-git-v1-practice-and-progress.md`). `Level = Scenario | 
 The rules are in ADR 0006, "Writing levels"; in short:
 
 - Precise and clear: compact, but never leave out what the learner needs (a file name, a branch name, how many commits). If a goal checks it, the story or task says it.
-- File contents and code comments read like a real project other people work on: a bakery shop, a garden club planner, comments that say why ("Agreed with the shop team: orders from 50 euros ship for free"), teammates by name.
+- File contents and code comments read like a real project other people work on: the Corner Bakery website (the habit tracker only in Basics 1.1's practice tasks), comments that say why ("Agreed with the shop team: orders from 50 euros ship for free"), teammates by name.
 - Friendly and personal: we are their friends who help and teach. Second person, no blame, the debrief explains *why*.
-- Fictional people and teams only (Anna, Ben, Chris, Maya; a bakery, a garden club), never real companies; fake keys only (`test-key-not-real-0000`).
+- Fictional people and teams only (Maya, Jonas, Ben; a bakery), never real companies; fake keys only (`test-key-not-real-0000`).
 
 ## Progress
 
@@ -180,7 +180,7 @@ Chapter 6, Undo & recovery (ADR 0006, batch 2; preview `.impeccable/mocks/previe
 | | Add a forgotten file to the last commit: `git commit --amend --no-edit` | practice | 1 | ~30 s |
 | 6.2 | **Throw away a change**: `git restore menu.html` (a broken grid experiment), `git restore --staged prices.js` (a draft staged by `git add .`), hours.html stays staged | scenario | 1 | ~4 min |
 | | Unstage one file: `git restore --staged style.css` | practice | 1 | ~30 s |
-| | Discard your changes in one file: `git restore src/beds.js` | practice | 1 | ~30 s |
+| | Discard your changes in one file: `git restore menu.html` | practice | 1 | ~30 s |
 | 6.3 | **Undo a local commit**: two unpushed commits; `git reset --hard HEAD~1` drops the blink commit, `git reset HEAD~1` takes back the gift wrap commit and keeps its changes; story, hint and debrief warn that `--hard` throws away uncommitted work for good | scenario | 2 | ~6 min |
 | | Undo the last commit, keep its changes staged: `git reset --soft HEAD~1` | practice | 1 | ~30 s |
 | | Drop the last two commits completely: `git reset --hard HEAD~2` (on a clean tree) | practice | 1 | ~30 s |
@@ -208,11 +208,11 @@ Chapter 5, Teamwork & remotes (ADR 0006, batch 6; no preview, the owner delegate
 | --- | --- | --- | --- | --- |
 | 5.1 | **Push your first branch**: `feature/stollen-orders` exists only locally; a plain `git push` answers "has no upstream branch", `git push -u origin feature/stollen-orders`, then `git status` (up to date with origin). Pushing without `-u` and `git branch -u` afterwards counts; a status before the upstream is set does not | scenario | 1 | ~4 min |
 | | Push a new branch and set its upstream: `git push -u origin fix/allergen-note` (without `-u` does not count) | practice | 1 | ~30 s |
-| 5.2 | **Get your teammates' work**: Jonas and Maya pushed to main after your last fetch; `git fetch`, look (`git status` "behind by 2", or `git log main..origin/main` / `origin/main` / `--all`), `git pull` (fast-forward). Pulling without looking, a plain `git log` or a look before the fetch does not count | scenario | 1 | ~5 min |
+| 5.2 | **Get your teammates' work**: Jonas and Maya pushed to main after your last fetch; the story names no commands (the hints do): `git fetch`, look (`git status` "behind by 2", or `git log main..origin/main` / `origin/main` / `--all`), `git pull` (fast-forward). Pulling without looking, a plain `git log` or a look before the fetch does not count | scenario | 1 | ~5 min |
 | | Fetch without touching your branch: `git fetch` while you have an unpushed commit on main (`git pull` does not count) | practice | 1 | ~30 s |
 | 5.3 | **Your push was rejected**: your commit on main; right before your first push Ben pushes (`beforeCommand`), so it is rejected "fetch first"; `git pull --rebase`, `git push`. A plain `git pull` (merge commit) and a `--force` that deletes Ben's commit do not count. Ben's commit is found by message (its id depends on when he pushes), and his goal only counts once your commit is on origin too, so nothing ticks the moment he pushes | scenario | 2 | ~5 min |
 | | Pull with rebase: `git pull --rebase`, your commit on top of Jonas's (a plain pull does not count) | practice | 1 | ~30 s |
-| 5.4 | **Ahead and behind**: after a fetch main and origin/main have diverged (2 and 1); before syncing `git log origin/main..main` (yours) and `git log main..origin/main` (Maya's), then sync (rebase or merge) and push. Syncing first, `log --all` or a force push that drops Maya's commit do not count | scenario | 2 | ~5 min |
+| 5.4 | **Ahead and behind**: after a fetch main and origin/main have diverged (2 and 1); the story names no commands (the hints do); before syncing `git log origin/main..main` (yours) and `git log main..origin/main` (Maya's), then sync (rebase or merge) and push. Syncing first, `log --all` or a force push that drops Maya's commit do not count | scenario | 2 | ~5 min |
 | | See what you haven't pushed yet: `git log origin/main..main` (plain `git log` and `git status` do not count) | practice | 1 | ~30 s |
 | 5.5 | **Teammate sync** (v0.1, see below) | scenario | 3 | ~8 min |
 | | Clean up branches that are gone on origin: Jonas merged and deleted `feature/allergy-labels` on origin, you pulled main; `git fetch --prune`, `git branch -d feature/allergy-labels` (a plain fetch does not count) | practice | 1 | ~30 s |
