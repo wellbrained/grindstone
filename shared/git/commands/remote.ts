@@ -5,7 +5,7 @@ import type { Commits } from '../objects/graph'
 import { shortId } from '../objects/hash'
 import { done, err, fail, hint, out, ref } from '../output'
 import { tagNames, trackingRef } from '../refs'
-import { without } from '../state'
+import { own, without } from '../state'
 import type { Command, CommandResult, GitState, OutputLine, Remote, Repo } from '../types'
 import { activeBranch, trackingLine } from './branch'
 import { unresolvedConflict } from './commit'
@@ -43,15 +43,15 @@ export function fetchOrigin(state: GitState, only?: string): { state: GitState, 
   const names = Object.keys(origin.branches).filter(name => only === undefined || name === only).sort()
   const remoteBranches = { ...repo.remoteBranches }
   // tags come along (git's auto-following); a tag you already have, even a different one, stays as it is
-  const newTags = tagNames(origin.tags).filter(name => !repo.tags?.[name])
+  const newTags = tagNames(origin.tags).filter(name => !own(repo.tags, name))
   // the ref column is as wide as the longest name shown, at least REF_WIDTH
-  const shown = [...names.filter(name => only !== undefined || repo.remoteBranches[name] !== origin.branches[name]), ...newTags]
+  const shown = [...names.filter(name => only !== undefined || own(repo.remoteBranches, name) !== own(origin.branches, name)), ...newTags]
   const width = Math.max(REF_WIDTH, ...shown.map(name => name.length))
   const output: OutputLine[] = []
 
   for (const name of names) {
     const tip = origin.branches[name]!
-    const old = repo.remoteBranches[name]
+    const old = own(repo.remoteBranches, name)
     if (only !== undefined) output.push(refLine('*', 'branch', name, 'FETCH_HEAD', width))
     if (old === tip) continue
     remoteBranches[name] = tip
@@ -84,13 +84,13 @@ export const fetch: Command = (state, argv) => {
   // without any remote configured and none named, there is simply nothing to fetch
   if (!state.origin && parsed.args.positionals.length === 0) return done(state)
   if (!state.origin || remote !== 'origin') return noRemote(state, remote)
-  if (branch !== undefined && !state.origin.branches[branch]) return fatal(state, `fatal: couldn't find remote ref ${branch}`)
+  if (branch !== undefined && !own(state.origin.branches, branch)) return fatal(state, `fatal: couldn't find remote ref ${branch}`)
 
   const fetched = fetchOrigin(state, branch)
   if (!parsed.args.flags.has('--prune')) return done(fetched.state, fetched.output)
 
   const repo = fetched.state.repo!
-  const stale = Object.keys(repo.remoteBranches).filter(name => !state.origin!.branches[name]).sort()
+  const stale = Object.keys(repo.remoteBranches).filter(name => !own(state.origin!.branches, name)).sort()
   if (!stale.length) return done(fetched.state, fetched.output)
   const remoteBranches = stale.reduce(without, repo.remoteBranches)
   const lines = stale.map(name => refLine('-', '[deleted]', '(none)', trackingRef(name), REF_WIDTH))
@@ -135,7 +135,7 @@ export const pull: Command = (state, argv) => {
   if (repo.operation?.type === 'cherry-pick') return fatal(state, CHERRY_PICKING.replace('before you merge', 'before merging'))
 
   const current = activeBranch(repo)
-  const branch = named ?? (current ? repo.upstream[current] : undefined)
+  const branch = named ?? (current ? own(repo.upstream, current) : undefined)
   if (!branch) {
     return fail(state, [
       out(current ? 'There is no tracking information for the current branch.' : 'You are not currently on a branch.'),
@@ -154,10 +154,10 @@ export const pull: Command = (state, argv) => {
         : [])
     ])
   }
-  if (!state.origin.branches[branch]) return fatal(state, `fatal: couldn't find remote ref ${branch}`, 1)
+  if (!own(state.origin.branches, branch)) return fatal(state, `fatal: couldn't find remote ref ${branch}`, 1)
 
   const fetched = fetchOrigin(state, named === undefined ? undefined : branch)
-  const theirs = fetched.state.repo!.remoteBranches[branch]!
+  const theirs = own(fetched.state.repo!.remoteBranches, branch)!
   const label = trackingRef(branch)
   const into = current && current !== 'main' && current !== 'master' ? ` into ${current}` : ''
   // git names the reflog entries after the whole command line: `pull: Fast-forward`, `pull --rebase (finish): ...`
@@ -207,7 +207,7 @@ function pushTags(state: GitState, names: string[], force: boolean): CommandResu
   const rejected: string[] = []
   for (const name of names) {
     const local = repo.tags![name]!
-    const there = tags[name]
+    const there = own(tags, name)
     const target = (tag: typeof local) => tag.annotation?.id ?? tag.commit
     if (there && target(there) === target(local)) continue
     if (there && !force) {
@@ -274,7 +274,7 @@ export const push: Command = (state, argv) => {
     if (refspec !== undefined) return fail(state, [err('git push: pushing --tags together with a branch is not in this trainer yet')])
     return pushTags(state, tagNames(repo.tags), force)
   }
-  if (refspec !== undefined && !repo.branches[refspec] && repo.tags?.[refspec.replace(/^refs\/tags\//, '')]) {
+  if (refspec !== undefined && !own(repo.branches, refspec) && own(repo.tags, refspec.replace(/^refs\/tags\//, ''))) {
     return pushTags(state, [refspec.replace(/^refs\/tags\//, '')], force)
   }
 
@@ -289,11 +289,11 @@ export const push: Command = (state, argv) => {
       '    git push origin HEAD:<name-of-remote-branch>'
     ].join('\n'))
   }
-  const local = repo.branches[src]
+  const local = own(repo.branches, src)
   if (!local) {
     return fail(state, [err(`error: src refspec ${src} does not match any`), err(`error: failed to push some refs to '${origin.url}'`)])
   }
-  const dst = refspec === undefined ? repo.upstream[src] : src
+  const dst = refspec === undefined ? own(repo.upstream, src) : src
   if (!dst) {
     return fatal(state, [
       `fatal: The current branch ${src} has no upstream branch.`,
@@ -306,7 +306,7 @@ export const push: Command = (state, argv) => {
     ].join('\n'))
   }
 
-  const remoteTip = origin.branches[dst]
+  const remoteTip = own(origin.branches, dst)
   const setUpstream = flags.has('-u')
   const upstreamLines = setUpstream ? [trackingLine(src, dst)] : []
   const withUpstream = (next: Repo): Repo => setUpstream ? { ...next, upstream: { ...next.upstream, [src]: dst } } : next
@@ -315,7 +315,7 @@ export const push: Command = (state, argv) => {
     return done(withRepo(state, withUpstream({ ...repo, remoteBranches: { ...repo.remoteBranches, [dst]: local } })), [out('Everything up-to-date'), ...upstreamLines])
   }
 
-  if (remoteTip && flags.has('--force-with-lease') && !flags.has('--force') && repo.remoteBranches[dst] !== remoteTip) {
+  if (remoteTip && flags.has('--force-with-lease') && !flags.has('--force') && own(repo.remoteBranches, dst) !== remoteTip) {
     return rejected(state, origin.url, pushLine('!', '[rejected]', src, dst, ' (stale info)'), [])
   }
 

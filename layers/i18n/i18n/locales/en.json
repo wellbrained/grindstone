@@ -314,7 +314,9 @@
       "json": "{file} is not a progress file (it is not valid JSON). Nothing was changed.",
       "shape": "{file} is not a Grindstone progress file. Nothing was changed.",
       "version": "{file} comes from a newer or unknown version of Grindstone. Nothing was changed.",
-      "read": "Could not read {file}. Nothing was changed."
+      "read": "Could not read {file}. Nothing was changed.",
+      "size": "{file} is too big to be a progress file (over {max}). Nothing was changed.",
+      "save": "Loaded {file}, but this browser would not store it (storage is blocked or full). It is gone when you close this page; download it again to keep a copy."
     },
     "replace": {
       "title": "Replace your progress?",

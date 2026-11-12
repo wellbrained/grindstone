@@ -5,7 +5,7 @@ import { shortId } from '../objects/hash'
 import { done, err, fail, hint, out, plural, ref } from '../output'
 import { logBranch, logHead } from '../reflog'
 import { isValidBranchName, resolveRev } from '../refs'
-import { headId, headTree, normalizePath, withEntry } from '../state'
+import { headId, headTree, normalizePath, own, withEntry } from '../state'
 import { moveTrees } from '../worktree'
 import type { Command, CommandResult, GitState, Head, OutputLine, Repo } from '../types'
 import { matchPathspec } from './add'
@@ -130,8 +130,8 @@ function newBranch(state: GitState, repo: Repo, name: string, start: string | un
 
 /** `git switch <branch>` also creates a tracking branch when only origin/<branch> exists. */
 function existingOrRemote(repo: Repo, name: string): Target | null {
-  if (repo.branches[name]) return { kind: 'branch', name }
-  if (repo.remoteBranches[name]) return { kind: 'new', name, start: `origin/${name}`, upstream: name }
+  if (own(repo.branches, name)) return { kind: 'branch', name }
+  if (own(repo.remoteBranches, name)) return { kind: 'new', name, start: `origin/${name}`, upstream: name }
   return null
 }
 
@@ -153,7 +153,7 @@ function previousTarget(repo: Repo, detach: boolean): Target | { kind: 'commit',
     return detach ? { kind: 'detach', commit: previous.commit, label: previous.commit, advice: false } : { kind: 'commit', commit: previous.commit }
   }
   if (detach) {
-    const commit = repo.branches[previous.name]
+    const commit = own(repo.branches, previous.name)
     return commit ? { kind: 'detach', commit, label: previous.name, advice: false } : null
   }
   return existingOrRemote(repo, previous.name)

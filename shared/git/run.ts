@@ -3,6 +3,7 @@ import { git } from './commands'
 import { waitingRefusal } from './commands/rebase'
 import { done, err, fail } from './output'
 import { SHELL_COMMANDS, SHELL_ELSEWHERE, redirect } from './shell'
+import { own } from './state'
 import { tokenize } from './tokenize'
 import type { Operator, Token } from './tokenize'
 import type { CommandResult, GitState, OutputLine } from './types'
@@ -14,7 +15,7 @@ export function runArgv(state: GitState, argv: string[]): CommandResult {
   const waiting = waitingRefusal(state, argv)
   if (waiting) return waiting
   if (program === 'git') return git(state, args)
-  const shell = SHELL_COMMANDS[program]
+  const shell = own(SHELL_COMMANDS, program)
   if (shell) return shell(state, args)
   if (SHELL_ELSEWHERE.includes(program)) return fail(state, [err(`${program}: not in this trainer yet`)])
   return fail(state, [err(`${program}: command not found`)], 127)

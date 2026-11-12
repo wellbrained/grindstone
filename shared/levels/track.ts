@@ -2,7 +2,7 @@
 // Play order, chapter numbers and scenario numbers ("3.2") are derived from the chapter lists, never written by hand.
 // A practice task is listed right after the scenario it trains (after that scenario's other practice tasks) and has no
 // number of its own.
-import { lastPlayed } from './progress'
+import { entryOf, lastPlayed } from './progress'
 import type { Progress } from './progress'
 import type { Level, Scenario, TrackId } from './types'
 
@@ -146,7 +146,7 @@ export function placeIn(track: Track, levelId: string): LevelPlace | null {
   return trackPlaces(track).find(place => place.level.id === levelId) ?? null
 }
 
-const isSolvedIn = (progress: Progress, levelId: string) => progress.levels[levelId]?.solved === true
+const isSolvedIn = (progress: Progress, levelId: string) => entryOf(progress, levelId)?.solved === true
 
 function count(levels: readonly Level[], progress: Progress): Count {
   return { solved: levels.filter(level => isSolvedIn(progress, level.id)).length, total: levels.length }
@@ -169,7 +169,7 @@ export function nextUp(track: Track, progress: Progress): LevelPlace | null {
 
 /** The first entry of the chapter flagged "practise again", in play order; null when none is. */
 export function practiseAgainIn(chapter: Chapter, progress: Progress): Level | null {
-  return chapter.levels.find(level => progress.levels[level.id]?.practiseAgain === true) ?? null
+  return chapter.levels.find(level => entryOf(progress, level.id)?.practiseAgain === true) ?? null
 }
 
 /** resume: the entry you last played, still unsolved; next: next up; practise: nothing unsolved left, a flagged entry. */
@@ -187,13 +187,13 @@ export interface ContinueTarget {
  * the track, the first entry flagged "practise again". Null when everything is solved and nothing is flagged.
  */
 export function continueTarget(track: Track, progress: Progress): ContinueTarget | null {
-  const last = lastPlayed(progress)
+  const last = lastPlayed(progress, id => placeIn(track, id) !== null)
   if (last && !isSolvedIn(progress, last.levelId)) {
     const place = placeIn(track, last.levelId)
     if (place) return { place, reason: 'resume', at: last.at }
   }
   const next = nextUp(track, progress)
   if (next) return { place: next, reason: 'next', at: null }
-  const flagged = trackPlaces(track).find(place => progress.levels[place.level.id]?.practiseAgain === true)
+  const flagged = trackPlaces(track).find(place => entryOf(progress, place.level.id)?.practiseAgain === true)
   return flagged ? { place: flagged, reason: 'practise', at: null } : null
 }

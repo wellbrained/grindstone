@@ -124,3 +124,22 @@ test('downloads the progress and loads it back', async ({ page }) => {
   await page.goto('/git')
   await expect(page.locator('[data-level="git-practice-stage-one-file"]')).toHaveAttribute('data-state', 'solved')
 })
+
+test('a backup that is too big or cannot be stored shows an error, not "Loaded"', async ({ page }) => {
+  await page.goto('/about')
+  const message = page.getByTestId('backup-message')
+  const picker = page.getByTestId('load-progress-file')
+
+  await picker.setInputFiles({ name: 'huge.json', mimeType: 'application/json', buffer: Buffer.alloc(1024 * 1024 + 1, ' ') })
+  await expect(message).toContainText('huge.json is too big to be a progress file')
+
+  const valid = JSON.stringify({ version: 3, levels: { 'git-01-first-commit': { solved: true, best: null, latest: null, practiseAgain: false, lastPlayed: null } } })
+  await page.evaluate(() => {
+    Storage.prototype.setItem = () => {
+      throw new Error('QuotaExceededError')
+    }
+  })
+  await picker.setInputFiles({ name: 'ok.json', mimeType: 'application/json', buffer: Buffer.from(valid) })
+  await expect(message).toContainText('this browser would not store it')
+  await expect(message).not.toContainText('Loaded ok.json:')
+})

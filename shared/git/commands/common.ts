@@ -3,9 +3,9 @@ import { countChanges } from '../diff'
 import { range } from '../objects/graph'
 import { err, fail, hint, out, plural, ref } from '../output'
 import { trackingRef } from '../refs'
-import { headId } from '../state'
+import { headId, headTree, own, withEntry } from '../state'
 import { changedPaths } from '../worktree'
-import type { Commit, CommandResult, GitState, OutputLine, Repo, Tree } from '../types'
+import type { Commit, CommandResult, GitState, OutputLine, Repo, Snapshot, Tree } from '../types'
 
 export const notARepo = (state: GitState) =>
   fail(state, [err('fatal: not a git repository (or any of the parent directories): .git')], 128)
@@ -15,6 +15,18 @@ export const fatal = (state: GitState, message: string, code = 128) =>
 
 /** What merge (and, worded for itself, pull and rebase) say while a cherry-pick is in progress. */
 export const CHERRY_PICKING = 'fatal: You have not concluded your cherry-pick (CHERRY_PICK_HEAD exists).\nPlease, commit your changes before you merge.'
+
+/**
+ * The working tree after an aborted operation, like git's `reset --merge`: every file the operation could have touched
+ * (tracked now, tracked before, or in HEAD) goes back to how `before` had it, and untracked files that were not part of
+ * it stay.
+ */
+export function restoreTracked(repo: Repo, workdir: Tree, before: Snapshot): Tree {
+  const paths = new Set([...Object.keys(repo.index), ...Object.keys(repo.unmerged), ...Object.keys(headTree(repo)), ...Object.keys(before.index)])
+  let restored = workdir
+  for (const path of paths) restored = withEntry(restored, path, own(before.workdir, path))
+  return restored
+}
 
 export const withRepo = (state: GitState, repo: Repo): GitState => ({ ...state, repo })
 
@@ -77,11 +89,11 @@ export function aheadBehind(repo: Repo, local: string, upstream: string) {
 
 /** "Your branch is ahead of 'origin/main' by 1 commit." and friends, for status and switch. */
 export function trackingInfo(repo: Repo, branch: string): OutputLine[] {
-  const upstream = repo.upstream[branch]
-  const local = repo.branches[branch]
+  const upstream = own(repo.upstream, branch)
+  const local = own(repo.branches, branch)
   if (!upstream || !local) return []
   const name = trackingRef(upstream)
-  const remote = repo.remoteBranches[upstream]
+  const remote = own(repo.remoteBranches, upstream)
   if (!remote) {
     return [
       out('Your branch is based on \'', ref(name), '\', but the upstream is gone.'),

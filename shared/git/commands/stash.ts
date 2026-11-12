@@ -23,6 +23,17 @@ function untrackedFiles(repo: Repo, workdir: Tree): Tree {
   return Object.fromEntries(Object.entries(workdir).filter(([path]) => repo.index[path] === undefined && !ignored(path)))
 }
 
+/**
+ * What is left of a stopped operation once the hard reset is through: a merge, or a single stopped cherry-pick, is over
+ * (no MERGE_HEAD, no CHERRY_PICK_HEAD); a cherry-pick with more picks waiting keeps its sequence for `--continue`/`--abort`.
+ * A rebase keeps its own state.
+ */
+function afterReset(operation: Repo['operation']): Repo['operation'] {
+  if (operation?.type === 'merge') return null
+  if (operation?.type === 'cherry-pick') return operation.todo.length ? { ...operation, current: null } : null
+  return operation
+}
+
 const push = (state: GitState, repo: Repo, argv: string[]): CommandResult => {
   const parsed = parseArgs('stash', argv, { flags: ['-u'], values: ['-m'], alias: { '--include-untracked': '-u', '--message': '-m' } })
   if (!parsed.ok) return fail(state, [err(parsed.error)])
@@ -54,7 +65,8 @@ const push = (state: GitState, repo: Repo, argv: string[]): CommandResult => {
   for (const path of union(repo.index, headCommit.tree)) workdir = withEntry(workdir, path, headCommit.tree[path])
   for (const path of Object.keys(untracked)) workdir = without(workdir, path)
   // git resets the working tree to HEAD for this, and the reflog says so
-  const next: Repo = logHead({ ...repo, index: headCommit.tree, stash: [entry, ...repo.stash] }, 'reset: moving to HEAD')
+  const reset: Repo = { ...repo, index: headCommit.tree, unmerged: {}, operation: afterReset(repo.operation), stash: [entry, ...repo.stash] }
+  const next: Repo = logHead(reset, 'reset: moving to HEAD')
   return done({ ...withRepo(created.state, next), workdir }, [out(`Saved working directory and index state ${message}`)])
 }
 

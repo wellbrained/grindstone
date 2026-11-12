@@ -41,11 +41,15 @@ export function emptyProgress(): Progress {
   return { version: PROGRESS_VERSION, levels: {} }
 }
 
+/** The entry of a level id, or undefined. Own entries only: `levels['constructor']` must not find Object.prototype's. */
+export const entryOf = (progress: Progress, levelId: string): LevelProgress | undefined =>
+  Object.hasOwn(progress.levels, levelId) ? progress.levels[levelId] : undefined
+
 const blankEntry = (): LevelProgress => ({ solved: false, best: null, latest: null, practiseAgain: false, lastPlayed: null })
 
 const withEntry = (progress: Progress, levelId: string, change: (entry: LevelProgress) => LevelProgress): Progress => ({
   ...progress,
-  levels: { ...progress.levels, [levelId]: change(progress.levels[levelId] ?? blankEntry()) }
+  levels: { ...progress.levels, [levelId]: change(entryOf(progress, levelId) ?? blankEntry()) }
 })
 
 /** Fewer commands wins; on a tie, fewer hints. */
@@ -73,7 +77,7 @@ export function recordSolve(progress: Progress, levelId: string, session: Sessio
 
 /** Sets or clears the "practise again" flag; only a solved entry can carry it. */
 export function setPractiseAgain(progress: Progress, levelId: string, flag: boolean): Progress {
-  const entry = progress.levels[levelId]
+  const entry = entryOf(progress, levelId)
   if (!entry?.solved || entry.practiseAgain === flag) return progress
   return withEntry(progress, levelId, current => ({ ...current, practiseAgain: flag }))
 }
@@ -84,10 +88,14 @@ export function resetEntries(progress: Progress, levelIds: readonly string[]): P
   return { ...progress, levels: Object.fromEntries(Object.entries(progress.levels).filter(([id]) => !drop.has(id))) }
 }
 
-/** The entry you typed in most recently; null when you have not played anything. */
-export function lastPlayed(progress: Progress): LastPlayed | null {
+/**
+ * The entry you typed in most recently; null when you have not played anything. A backup can hold ids this version does
+ * not know (kept for forward compatibility): pass `isKnown` so they never win Continue.
+ */
+export function lastPlayed(progress: Progress, isKnown: (levelId: string) => boolean = () => true): LastPlayed | null {
   let latest: LastPlayed | null = null
   for (const [levelId, entry] of Object.entries(progress.levels)) {
+    if (!isKnown(levelId)) continue
     if (entry.lastPlayed !== null && (!latest || entry.lastPlayed > latest.at)) latest = { levelId, at: entry.lastPlayed }
   }
   return latest
@@ -101,13 +109,16 @@ export interface ProgressSummary {
 /** How much a progress holds, for the backup messages ("7 solved, 1 to practise again"). */
 export function summarizeProgress(progress: Progress, levelIds?: readonly string[]): ProgressSummary {
   const ids = levelIds ?? Object.keys(progress.levels)
-  const entries = ids.map(id => progress.levels[id]).filter(entry => entry !== undefined)
+  const entries = ids.map(id => entryOf(progress, id)).filter(entry => entry !== undefined)
   return { solved: entries.filter(entry => entry.solved).length, practiseAgain: entries.filter(entry => entry.practiseAgain).length }
 }
 
 export function serializeProgress(progress: Progress): string {
   return JSON.stringify(progress)
 }
+
+/** A backup's `lastPlayed` may be at most this far ahead of now (clock skew between devices); further out is made up. */
+export const MAX_FUTURE_MS = 24 * 60 * 60 * 1000
 
 const isCount = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 0
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -116,14 +127,14 @@ const asRun = (value: unknown): Run | null => isObject(value) && isCount(value.c
   : null
 
 /** A version 3 entry; a broken field falls back to its blank value, an entry without `solved` is dropped. */
-function readEntry(value: unknown): LevelProgress | null {
+function readEntry(value: unknown, now: number): LevelProgress | null {
   if (!isObject(value) || typeof value.solved !== 'boolean') return null
   const entry: LevelProgress = {
     solved: value.solved,
     best: asRun(value.best),
     latest: asRun(value.latest),
     practiseAgain: value.solved && value.practiseAgain === true,
-    lastPlayed: isCount(value.lastPlayed) ? value.lastPlayed : null
+    lastPlayed: isCount(value.lastPlayed) && value.lastPlayed <= now + MAX_FUTURE_MS ? value.lastPlayed : null
   }
   return entry.solved || entry.lastPlayed !== null ? entry : null
 }
@@ -152,7 +163,7 @@ export type ReadResult
  * Reads progress text strictly: broken JSON, a foreign shape or an unknown version is an error (the backup upload
  * shows it and changes nothing). Inside valid data, malformed entries are dropped and broken fields fall back to blank.
  */
-export function readProgress(text: string): ReadResult {
+export function readProgress(text: string, now = Date.now()): ReadResult {
   let data: unknown
   try {
     data = JSON.parse(text)
@@ -162,17 +173,18 @@ export function readProgress(text: string): ReadResult {
   if (!isObject(data) || !isObject(data.levels)) return { ok: false, error: 'shape' }
   if (data.version !== 1 && data.version !== 2 && data.version !== PROGRESS_VERSION) return { ok: false, error: 'version' }
 
-  const levels: Record<string, LevelProgress> = {}
-  const read = data.version === PROGRESS_VERSION ? readEntry : migrateEntry
+  // no prototype, and `__proto__` is never an id: a key from a file must not reach Object.prototype
+  const levels: Record<string, LevelProgress> = Object.create(null)
+  const read = data.version === PROGRESS_VERSION ? (value: unknown) => readEntry(value, now) : migrateEntry
   for (const [id, value] of Object.entries(data.levels)) {
-    if (id === '') continue
+    if (id === '' || id === '__proto__') continue
     const entry = read(value)
     if (entry) levels[id] = entry
   }
   // version 2 kept the last played level beside the entries
   const last = data.lastPlayed
-  if (data.version === 2 && isObject(last) && typeof last.levelId === 'string' && last.levelId !== '' && isCount(last.at)) {
-    levels[last.levelId] = { ...(levels[last.levelId] ?? blankEntry()), lastPlayed: last.at }
+  if (data.version === 2 && isObject(last) && typeof last.levelId === 'string' && last.levelId !== '' && last.levelId !== '__proto__' && isCount(last.at) && last.at <= now + MAX_FUTURE_MS) {
+    levels[last.levelId] = { ...(Object.hasOwn(levels, last.levelId) ? levels[last.levelId]! : blankEntry()), lastPlayed: last.at }
   }
   return { ok: true, progress: { version: PROGRESS_VERSION, levels } }
 }

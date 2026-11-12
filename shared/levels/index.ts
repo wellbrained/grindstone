@@ -6,8 +6,10 @@ export type { Chapter, ChapterColour, ChapterDefinition, ContinueReason, Continu
 export { MAX_SNAPSHOTS, TRAINER_COMMANDS, playStep, saveEditor, saveFile, startLevel, submit } from './engine'
 export { levelIntro } from './types'
 export {
+  MAX_FUTURE_MS,
   PROGRESS_VERSION,
   emptyProgress,
+  entryOf,
   isBetterRun,
   lastPlayed,
   parseProgress,

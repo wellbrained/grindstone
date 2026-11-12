@@ -1,6 +1,6 @@
 // The small fake shell around git: ls, cat, echo, rm, touch, pwd.
 import { done, err, fail, out } from './output'
-import { normalizePath, without } from './state'
+import { normalizePath, own, without } from './state'
 import type { Command, GitState, OutputLine, Tree } from './types'
 
 const isDir = (tree: Tree, path: string) => path === '' || Object.keys(tree).some(file => file.startsWith(`${path}/`))
@@ -38,7 +38,7 @@ const ls: Command = (state, argv) => {
   let exitCode = 0
   targets.forEach((target, i) => {
     const path = normalizePath(target)
-    if (state.workdir[path] !== undefined) {
+    if (own(state.workdir, path) !== undefined) {
       output.push(out(target))
     } else if (isDir(state.workdir, path)) {
       if (targets.length > 1) output.push(...(i ? [out('')] : []), out(`${target}:`))
@@ -57,7 +57,7 @@ const cat: Command = (state, argv) => {
   let exitCode = 0
   for (const target of argv) {
     const path = normalizePath(target)
-    const content = state.workdir[path]
+    const content = own(state.workdir, path)
     if (content !== undefined) {
       if (content !== '') output.push(...content.replace(/\n$/, '').split('\n').map(text => out(text)))
     } else if (isDir(state.workdir, path) && path !== '') {
@@ -82,7 +82,7 @@ const rm: Command = (state, argv) => {
   const output: OutputLine[] = []
   for (const target of parsed.paths) {
     const path = normalizePath(target)
-    if (workdir[path] !== undefined) {
+    if (own(workdir, path) !== undefined) {
       workdir = without(workdir, path)
     } else if (path && isDir(workdir, path)) {
       if (!recursive) {
@@ -99,11 +99,11 @@ const rm: Command = (state, argv) => {
 
 const touch: Command = (state, argv) => {
   if (!argv.length) return fail(state, [err('touch: missing file operand')])
-  const workdir = { ...state.workdir }
+  let workdir = state.workdir
   for (const target of argv) {
     const path = normalizePath(target)
     if (!path || isDir(workdir, path)) continue
-    if (workdir[path] === undefined) workdir[path] = ''
+    if (own(workdir, path) === undefined) workdir = { ...workdir, [path]: '' }
   }
   return done({ ...state, workdir })
 }
@@ -119,6 +119,6 @@ export const SHELL_ELSEWHERE = ['cd', 'mkdir', 'mv', 'cp']
 export function redirect(state: GitState, target: string, text: string, append: boolean): { state: GitState, error?: OutputLine } {
   const path = normalizePath(target)
   if (!path || isDir(state.workdir, path)) return { state, error: err(`bash: ${target}: Is a directory`) }
-  const content = append ? (state.workdir[path] ?? '') + text : text
+  const content = append ? (own(state.workdir, path) ?? '') + text : text
   return { state: { ...state, workdir: { ...state.workdir, [path]: content } } }
 }

@@ -4,7 +4,7 @@ import { shortId } from '../objects/hash'
 import { done, err, fail, hint, out, ref } from '../output'
 import { dropLog, logBranch, logHead, renameLog } from '../reflog'
 import { isValidBranchName, resolveRev, trackingRef } from '../refs'
-import { headId, withEntry, without } from '../state'
+import { headId, own, withEntry, without } from '../state'
 import type { Command, CommandResult, GitState, OutputLine, Repo } from '../types'
 import { fatal, notARepo, withRepo } from './common'
 
@@ -16,7 +16,7 @@ export const invalidNameError = (state: GitState, name: string) => fatal(state, 
  * folder (`a` next to `a/b`), which git's ref store cannot hold.
  */
 export function creationError(state: GitState, repo: Repo, name: string): CommandResult | null {
-  if (repo.branches[name]) return branchExistsError(state, name)
+  if (own(repo.branches, name)) return branchExistsError(state, name)
   const clash = Object.keys(repo.branches).find(other => other.startsWith(`${name}/`) || name.startsWith(`${other}/`))
   if (!clash) return null
   return fatal(state, `fatal: cannot lock ref 'refs/heads/${name}': 'refs/heads/${clash}' exists; cannot create 'refs/heads/${name}'`)
@@ -25,9 +25,9 @@ export function creationError(state: GitState, repo: Repo, name: string): Comman
 /** If `start` names a remote-tracking ref, the branch on origin it tracks. */
 export function trackedBy(repo: Repo, start: string): string | null {
   const name = start.replace(/^remotes\//, '')
-  if (!name.startsWith('origin/') || repo.branches[name]) return null
+  if (!name.startsWith('origin/') || own(repo.branches, name)) return null
   const branch = name.slice('origin/'.length)
-  return repo.remoteBranches[branch] ? branch : null
+  return own(repo.remoteBranches, branch) ? branch : null
 }
 
 export const trackingLine = (branch: string, upstream: string) =>
@@ -70,22 +70,22 @@ function rename(state: GitState, repo: Repo, names: string[], force: boolean): C
   }
   const [from, to] = names.length === 2 ? names as [string, string] : [current!, names[0]!]
   // the branch you are on may still be unborn (no commit yet): then only HEAD changes
-  if (!repo.branches[from] && from !== current) return fatal(state, `fatal: no branch named '${from}'`)
+  if (!own(repo.branches, from) && from !== current) return fatal(state, `fatal: no branch named '${from}'`)
   if (repo.operation?.type === 'rebase' && repo.operation.branch === from) return fatal(state, `fatal: branch ${from} is being rebased at ${state.cwd}`)
   if (!isValidBranchName(to)) return invalidNameError(state, to)
-  if (from !== to && repo.branches[to]) {
+  if (from !== to && own(repo.branches, to)) {
     if (!force) return branchExistsError(state, to)
     if (to === current) return fatal(state, `fatal: cannot force update the branch '${to}' used by worktree at '${state.cwd}'`)
   }
   if (from === to) return done(state)
 
-  const tip = repo.branches[from]
+  const tip = own(repo.branches, from)
   const branches = without(repo.branches, from)
   const upstream = without(repo.upstream, from)
   let next: Repo = renameLog({
     ...repo,
     branches: tip ? { ...branches, [to]: tip } : branches,
-    upstream: withEntry(upstream, to, repo.upstream[from]),
+    upstream: withEntry(upstream, to, own(repo.upstream, from)),
     head: from === current ? { type: 'branch', name: to } : repo.head
   }, from, to)
   // git notes the rename in the branch's log, and in HEAD's when it is the branch you are on
@@ -112,13 +112,13 @@ export const branch: Command = (state, argv) => {
     let next = repo
     const output: OutputLine[] = []
     for (const name of positionals) {
-      const tip = next.branches[name]
+      const tip = own(next.branches, name)
       if (!tip) return fail(withRepo(state, next), [...output, err(`error: branch '${name}' not found`)])
       if (activeBranch(next) === name) {
         return fail(withRepo(state, next), [...output, err(`error: cannot delete branch '${name}' used by worktree at '${state.cwd}'`)])
       }
-      const upstream = next.upstream[name]
-      const upstreamTip = upstream ? next.remoteBranches[upstream] : undefined
+      const upstream = own(next.upstream, name)
+      const upstreamTip = upstream ? own(next.remoteBranches, upstream) : undefined
       const head = headId(next)
       const merged = (head && isAncestor(next.commits, tip, head)) || (upstreamTip && isAncestor(next.commits, tip, upstreamTip))
       if (!flags.has('-D') && !merged) {
@@ -140,7 +140,7 @@ export const branch: Command = (state, argv) => {
   if (values['-u']) {
     const target = values['-u'][0]!
     const name = positionals[0] ?? activeBranch(repo)
-    if (!name || !repo.branches[name]) return fatal(state, `fatal: branch '${name ?? 'HEAD'}' does not exist`)
+    if (!name || !own(repo.branches, name)) return fatal(state, `fatal: branch '${name ?? 'HEAD'}' does not exist`)
     const upstream = trackedBy(repo, target)
     if (!upstream) return fatal(state, `fatal: the requested upstream branch '${target}' does not exist`)
     return done(withRepo(state, { ...repo, upstream: { ...repo.upstream, [name]: upstream } }), [trackingLine(name, upstream)])

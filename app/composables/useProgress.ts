@@ -1,7 +1,7 @@
 // Progress per entry, shared by the home page, the track page, the play page and the About page. Persisted in
 // localStorage through the guarded adapter. Resets also drop the in-memory play sessions of the entries they clear, so
 // a level you open afterwards starts fresh (a level page that is open restarts itself, see useLevelPlay).
-import { recordPlay, recordSolve, resetEntries, setPractiseAgain } from '#shared/levels'
+import { entryOf, recordPlay, recordSolve, resetEntries, setPractiseAgain } from '#shared/levels'
 import type { LevelProgress, Progress, Session } from '#shared/levels'
 
 /** Restart callbacks of the play pages that are open now, by level id (registered by useLevelPlay). */
@@ -29,15 +29,16 @@ export function useProgress() {
   // The app is a client-side SPA (ssr: false), so the initial value is read in the browser.
   const progress = useState<Progress>('progress', () => loadProgress())
 
-  const levelProgress = (levelId: string): LevelProgress | null => progress.value.levels[levelId] ?? null
+  const levelProgress = (levelId: string): LevelProgress | null => entryOf(progress.value, levelId) ?? null
   const isSolved = (levelId: string) => levelProgress(levelId)?.solved === true
 
   // a level solved for the first time in this visit, until the track page has drawn its lane in once
   const justSolved = useState<string | null>('just-solved', () => null)
 
-  function commit(next: Progress) {
+  /** Shows the progress and stores it; false when the browser would not store it (the page still works with it). */
+  function commit(next: Progress): boolean {
     progress.value = next
-    saveProgress(next)
+    return saveProgress(next)
   }
 
   /** Records a solved session and stores it; an unsolved one changes nothing. */
@@ -70,11 +71,12 @@ export function useProgress() {
     restartPlays(levelIds)
   }
 
-  /** Replaces all progress (a loaded backup); every session starts over. */
-  function replace(next: Progress) {
+  /** Replaces all progress (a loaded backup); every session starts over. False when it could not be stored. */
+  function replace(next: Progress): boolean {
     const ids = [...new Set([...Object.keys(progress.value.levels), ...Object.keys(next.levels)])]
-    commit(next)
+    const stored = commit(next)
     restartPlays(ids)
+    return stored
   }
 
   return { progress, levelProgress, isSolved, record, markPlayed, takeJustSolved, setFlag, reset, replace }

@@ -8,12 +8,12 @@ import { mergeTrees } from '../merge3'
 import { logBranch, logHead } from '../reflog'
 import { rebaseProgress } from '../rebase-progress'
 import { resolveRev } from '../refs'
-import { headId, headTree, withEntry } from '../state'
+import { headId, headTree, own, withEntry } from '../state'
 import { localChanges, moveTrees, treesEqual } from '../worktree'
 import type { ChainMessage, Command, CommandResult, Commit, EditorWait, GitState, OutputLine, RebaseAction, RebaseOperation, RebaseStep, Repo } from '../types'
 import { activeBranch } from './branch'
 import { commitIndex } from './commit'
-import { CHERRY_PICKING, fatal, notARepo, withRepo } from './common'
+import { CHERRY_PICKING, fatal, notARepo, restoreTracked, withRepo } from './common'
 import { applyMerge, conflictReport } from './merge'
 
 /** Where git writes the todo list and the commit message it opens in the editor. */
@@ -132,9 +132,9 @@ function parseTodo(repo: Repo, text: string): ParsedTodo {
     if (!line || line.startsWith('#')) continue
     const invalid = `error: invalid line ${i + 1}: ${line}`
     const [word = '', target] = line.split(/\s+/)
-    const action = TODO_ACTIONS[word]
+    const action = own(TODO_ACTIONS, word)
     if (!action) {
-      const elsewhere = TODO_ELSEWHERE[word]
+      const elsewhere = own(TODO_ELSEWHERE, word)
       return { ok: false, errors: [elsewhere ? `error: '${elsewhere}' in the todo list is not in this trainer yet` : invalid] }
     }
     commands++
@@ -408,7 +408,7 @@ export const rebase: Command = (state, argv) => {
     const moved = repo.head.type !== head.type || headId(repo) !== operation.origHead
     const target = operation.branch ? `refs/heads/${operation.branch}` : operation.origHead
     const next = moved ? logHead(restored, reflogLine(operation, 'abort', `returning to ${target}`), { branch: false }) : restored
-    return done({ ...withRepo(state, next), workdir: operation.before.workdir })
+    return done({ ...withRepo(state, next), workdir: restoreTracked(repo, state.workdir, operation.before) })
   }
 
   if (flags.has('--skip')) {
@@ -436,6 +436,11 @@ export const rebase: Command = (state, argv) => {
       output.push(...committed.output)
       const paused = pauseFor(current, step)
       if (paused) return done(paused, [...output, hint(WAITING)])
+    } else if (step && isMeld(step.action)) {
+      // a squash or fixup resolved to what HEAD already has adds nothing (git leaves its message out), but if it ends
+      // the chain git still opens the combined message of the commits melded so far
+      const paused = pauseFor(current, step)
+      if (paused) return done(paused, [...output, hint(WAITING)])
     }
     return replay(current, output)
   }
@@ -454,7 +459,7 @@ export const rebase: Command = (state, argv) => {
   let upstream = positionals[0]
   if (!upstream) {
     const current = activeBranch(repo)
-    const tracked = current ? repo.upstream[current] : undefined
+    const tracked = current ? own(repo.upstream, current) : undefined
     if (!tracked) {
       return fail(state, [
         out('There is no tracking information for the current branch.'),

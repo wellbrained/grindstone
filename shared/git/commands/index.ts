@@ -18,6 +18,7 @@ import { rm } from './rm'
 import { stash } from './stash'
 import { status } from './status'
 import { tag } from './tag'
+import { own } from '../state'
 import { checkout, switchCommand } from './switch'
 
 export const GIT_COMMANDS: Record<string, { run: Command, summary: string }> = {
@@ -82,7 +83,7 @@ export const git: Command = (state, argv) => {
   if (name === undefined || name === '--help' || name === '-h' || name === 'help') return done(state, usage().map(text => out(text)))
   if (name === '--version') return done(state, [out('git version 2.47.0 (grindstone)')])
 
-  const command = GIT_COMMANDS[name]
+  const command = own(GIT_COMMANDS, name)
   if (command) return command.run(state, args)
   if (KNOWN_ELSEWHERE.includes(name)) return fail(state, [err(`git: '${name}' is not in this trainer yet`)])
 

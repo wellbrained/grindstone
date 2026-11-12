@@ -46,7 +46,7 @@ export function tick(state: GitState): { state: GitState, timestamp: number } {
 }
 
 export function headId(repo: Repo): string | null {
-  return repo.head.type === 'branch' ? repo.branches[repo.head.name] ?? null : repo.head.commit
+  return repo.head.type === 'branch' ? own(repo.branches, repo.head.name) ?? null : repo.head.commit
 }
 
 export function headTree(repo: Repo): Tree {
@@ -70,6 +70,14 @@ export function normalizePath(path: string): string {
 /** Pure helper for the editor panel: writes one working tree file. */
 export function writeFile(state: GitState, path: string, content: string): GitState {
   return { ...state, workdir: { ...state.workdir, [normalizePath(path)]: content } }
+}
+
+/**
+ * An own entry of a record keyed by a user-supplied name (branch, tag, file, command). `record[name]` would also find
+ * what every object inherits (`toString`, `constructor`, `__proto__`), so names go through this.
+ */
+export function own<T>(record: Record<string, T> | undefined, key: string): T | undefined {
+  return record !== undefined && Object.hasOwn(record, key) ? record[key] : undefined
 }
 
 export function without<T>(record: Record<string, T>, key: string): Record<string, T> {

@@ -88,7 +88,7 @@ export function hasProgress(progress: Progress): boolean {
  */
 export function trackToContinue(progress: Progress, all: readonly Track[] = tracks): Track | null {
   const live = all.filter(track => track.status === 'live')
-  const last = lastPlayed(progress)
+  const last = lastPlayed(progress, id => live.some(track => placeIn(track, id)))
   const played = last ? live.find(track => placeIn(track, last.levelId)) : undefined
   return played ?? live.find(track => trackProgress(track, progress).solved > 0) ?? null
 }

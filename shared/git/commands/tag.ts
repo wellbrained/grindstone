@@ -4,7 +4,7 @@ import { subject } from '../objects/commit'
 import { shortId, tagId } from '../objects/hash'
 import { done, err, fail, hint, out } from '../output'
 import { isValidBranchName, resolveRev, tagNames } from '../refs'
-import { BASE_TIME, without } from '../state'
+import { BASE_TIME, own, without } from '../state'
 import type { Command, GitState, Repo, Tag } from '../types'
 import { fatal, notARepo, withRepo } from './common'
 
@@ -36,7 +36,7 @@ function remove(state: GitState, repo: Repo, names: string[]) {
   const output = []
   let exitCode = 0
   for (const name of names) {
-    const tag = tags[name]
+    const tag = own(tags, name)
     if (!tag) {
       output.push(err(`error: tag '${name}' not found.`))
       exitCode = 1
@@ -70,7 +70,7 @@ export const tag: Command = (state, argv) => {
   if (!isValidBranchName(name)) return fatal(state, `fatal: '${name}' is not a valid tag name.`)
   const commit = resolveRev(repo, rev)
   if (!commit) return fatal(state, `fatal: Failed to resolve '${rev}' as a valid ref.`)
-  const existing = repo.tags?.[name]
+  const existing = own(repo.tags, name)
   if (existing && !flags.has('-f')) return fatal(state, `fatal: tag '${name}' already exists`)
   if (annotated && message === undefined) {
     return fail(state, [

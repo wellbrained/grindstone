@@ -2,7 +2,7 @@
 // per chapter and per track (track page), and Reset everything (About page). Every reset asks first (useConfirm) and
 // says exactly what it clears.
 import type { DropdownMenuItem } from '@nuxt/ui'
-import { placeName, practiseAgainIn, summarizeProgress, trackLevels } from '#shared/levels'
+import { entryOf, placeName, practiseAgainIn, summarizeProgress, trackLevels } from '#shared/levels'
 import type { Chapter, Level, LevelPlace, Track } from '#shared/levels'
 
 export function useProgressActions() {
@@ -11,7 +11,7 @@ export function useProgressActions() {
   const { ask } = useConfirm()
 
   const solvedIn = (ids: readonly string[]) => summarizeProgress(progress.value, ids).solved
-  const touched = (ids: readonly string[]) => ids.some(id => progress.value.levels[id] !== undefined)
+  const touched = (ids: readonly string[]) => ids.some(id => entryOf(progress.value, id) !== undefined)
 
   /** Opens the level with a fresh session (an open play page restarts in place). */
   async function playAgain(level: Level) {

@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { readProgress, serializeProgress, summarizeProgress } from '#shared/levels'
-import type { Progress, ReadResult } from '#shared/levels'
+import { serializeProgress, summarizeProgress } from '#shared/levels'
+import type { Progress } from '#shared/levels'
+import { MAX_BACKUP_BYTES } from '~/utils/progress-backup'
+import type { BackupError } from '~/utils/progress-backup'
 
 // "Your progress" on the About page (ADR 0006, "Backup"): progress lives only in this browser, so you can download it
 // as a JSON file, load such a file back (checked with the same parser as the stored progress: a bad file changes
 // nothing and says why) and reset everything. Loading over existing progress asks first.
 const { t } = useI18n()
+const { site } = useAppConfig()
 const { progress, replace } = useProgress()
 const { askResetAll } = useProgressActions()
 const { ask } = useConfirm()
@@ -19,32 +22,33 @@ const describe = (value: Progress) => {
   return t('backup.summary', { solved: t('backup.solved', solved), flagged: t('backup.flagged', practiseAgain) })
 }
 
-/** grindstone-progress-YYYY-MM-DD.json, in the viewer's own date. */
-function fileName(now = new Date()) {
-  const two = (value: number) => String(value).padStart(2, '0')
-  return `grindstone-progress-${now.getFullYear()}-${two(now.getMonth() + 1)}-${two(now.getDate())}.json`
-}
-
 function download() {
   const blob = new Blob([serializeProgress(progress.value)], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = fileName()
+  link.download = backupFileName(site.name)
+  // in the document while it is clicked (some browsers ignore a detached link), and the URL lives on until the download started
+  document.body.append(link)
   link.click()
-  URL.revokeObjectURL(url)
+  link.remove()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
   message.value = { tone: 'success', text: t('backup.downloaded', { file: link.download }) }
 }
 
-const ERRORS: Record<Extract<ReadResult, { ok: false }>['error'], string> = {
+const ERRORS: Record<BackupError, string> = {
   json: 'backup.error.json',
   shape: 'backup.error.shape',
-  version: 'backup.error.version'
+  version: 'backup.error.version',
+  size: 'backup.error.size',
+  read: 'backup.error.read'
 }
 
 function load(next: Progress, file: string) {
-  replace(next)
-  message.value = { tone: 'success', text: t('backup.loaded', { file, what: describe(next) }) }
+  const stored = replace(next)
+  message.value = stored
+    ? { tone: 'success', text: t('backup.loaded', { file, what: describe(next) }) }
+    : { tone: 'error', text: t('backup.error.save', { file }) }
 }
 
 async function onFile(event: Event) {
@@ -53,16 +57,9 @@ async function onFile(event: Event) {
   // the same file can be picked again later
   target.value = ''
   if (!file) return
-  let text: string
-  try {
-    text = await file.text()
-  } catch {
-    message.value = { tone: 'error', text: t('backup.error.read', { file: file.name }) }
-    return
-  }
-  const result = readProgress(text)
+  const result = await readBackupFile(file)
   if (!result.ok) {
-    message.value = { tone: 'error', text: t(ERRORS[result.error], { file: file.name }) }
+    message.value = { tone: 'error', text: t(ERRORS[result.error], { file: file.name, max: `${MAX_BACKUP_BYTES / 1024 / 1024} MB` }) }
     return
   }
   if (!hasAny.value) {

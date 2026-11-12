@@ -2,7 +2,7 @@
 import { ref } from './output'
 import type { Part } from './output'
 import { resolveSelector } from './reflog'
-import { headId } from './state'
+import { headId, own } from './state'
 import type { Repo } from './types'
 
 /** A simplified `git check-ref-format --branch`. */
@@ -22,11 +22,12 @@ function resolveBase(repo: Repo, name: string): string | null {
   if (name === 'HEAD' || name === '@') return headId(repo)
   if (name === 'ORIG_HEAD') return repo.origHead ?? null
   if (name.includes('@{')) return resolveSelector(repo, name)
-  const local = repo.branches[name.replace(/^refs\/heads\//, '')]
+  const local = own(repo.branches, name.replace(/^refs\/heads\//, ''))
   if (local) return local
   const remote = name.replace(/^refs\/remotes\//, '').replace(/^remotes\//, '')
-  if (remote.startsWith('origin/') && repo.remoteBranches[remote.slice(7)]) return repo.remoteBranches[remote.slice(7)]!
-  const tag = repo.tags?.[name.replace(/^refs\/tags\//, '')]
+  const tracking = remote.startsWith('origin/') ? own(repo.remoteBranches, remote.slice(7)) : undefined
+  if (tracking) return tracking
+  const tag = own(repo.tags, name.replace(/^refs\/tags\//, ''))
   if (tag) return tag.commit
   if (/^[0-9a-f]{4,40}$/.test(name)) {
     const matches = Object.keys(repo.commits).filter(id => id.startsWith(name))

@@ -4,6 +4,7 @@ import { shortId } from '../objects/hash'
 import { done, err, fail, line } from '../output'
 import { HEAD_LOG, reflogOf } from '../reflog'
 import { decorations } from '../refs'
+import { own } from '../state'
 import type { Command, GitState } from '../types'
 import { fatal, notARepo, requireCommit } from './common'
 
@@ -34,7 +35,7 @@ export const reflog: Command = (state, argv) => {
   // HEAD by default; a branch by name (a deleted branch has no log any more, like in git)
   const asked = positionals[0] ?? 'HEAD'
   const name = asked === '@' ? HEAD_LOG : asked.replace(/^refs\/heads\//, '')
-  if (name !== HEAD_LOG && repo.branches[name] === undefined) return unknownRevision(state, asked)
+  if (name !== HEAD_LOG && own(repo.branches, name) === undefined) return unknownRevision(state, asked)
   let entries = reflogOf(repo, name)
 
   const limit = values['-n']?.[0]

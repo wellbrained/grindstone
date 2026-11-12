@@ -13,7 +13,7 @@ import { headId, headTree, withEntry } from '../state'
 import { treesEqual } from '../worktree'
 import type { CherryPickOperation, Command, CommandResult, Commit, GitState, OutputLine, Repo, Snapshot } from '../types'
 import { commitIndex, unresolvedConflict } from './commit'
-import { fatal, moveHead, notARepo, requireCommit, withRepo } from './common'
+import { fatal, moveHead, notARepo, requireCommit, restoreTracked, withRepo } from './common'
 import { applyMerge, conflictReport } from './merge'
 import { statusLines } from './status'
 
@@ -154,9 +154,11 @@ function replay(start: GitState, todo: string[], run: Run, output: OutputLine[])
 }
 
 /** The commits a list of revisions and `a..b` ranges stands for, in the order to pick them. Null: an unknown revision. */
-function commitsToPick(repo: Repo, revs: string[]): { ids: string[] } | { bad: string } {
+function commitsToPick(repo: Repo, revs: string[]): { ids: string[] } | { bad: string } | { unsupported: string } {
   const ids: string[] = []
   for (const rev of revs) {
+    // a...b is the symmetric difference in git; only a..b is handled here
+    if (rev.includes('...')) return { unsupported: rev }
     if (rev.includes('..')) {
       const [from, to] = rev.split('..')
       const exclude = resolveRev(repo, from || 'HEAD')
@@ -177,7 +179,7 @@ function abort(state: GitState, repo: Repo, operation: CherryPickOperation): Com
   const restored: Repo = { ...moveHead(repo, operation.head), index: operation.before.index, unmerged: {}, operation: null }
   // git goes back with `reset --merge <id>`, which writes a reset entry (also when HEAD stays where it is)
   const next = logHead(restored, `reset: moving to ${operation.head}`)
-  return done({ ...withRepo(state, next), workdir: operation.before.workdir })
+  return done({ ...withRepo(state, next), workdir: restoreTracked(repo, state.workdir, operation.before) })
 }
 
 function skip(state: GitState, repo: Repo, operation: CherryPickOperation): CommandResult {
@@ -237,6 +239,7 @@ export const cherryPick: Command = (state, argv) => {
   const head = requireCommit(state, repo)
   if (typeof head !== 'string') return head
   const picks = commitsToPick(repo, positionals)
+  if ('unsupported' in picks) return fail(state, [err(`git cherry-pick: ${picks.unsupported}: three-dot ranges are not in this trainer yet (use a..b)`)])
   if ('bad' in picks) return fatal(state, `fatal: bad revision '${picks.bad}'`)
   const merge = picks.ids.find(id => repo.commits[id]!.parents.length > 1)
   if (merge) return fail(state, [err(`error: commit ${merge} is a merge but no -m option was given.`), err(FAILED)], 128)

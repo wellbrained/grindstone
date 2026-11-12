@@ -2,7 +2,7 @@
 import { ignoreMatcher } from './ignore'
 import { isAncestor as reachableFrom, range } from './objects/graph'
 import { resolveRev } from './refs'
-import { headId } from './state'
+import { headId, own } from './state'
 import { computeStatus } from './worktree'
 import type { Commit, EditorWait, GitState, Operation, StashEntry, Tag } from './types'
 
@@ -21,7 +21,7 @@ export function resolve(state: GitState, rev: string): string | null {
 }
 
 export function branchExists(state: GitState, name: string): boolean {
-  return state.repo?.branches[name] !== undefined
+  return own(state.repo?.branches, name) !== undefined
 }
 
 /** Commits of a revision (`feature`) or range (`main..feature`), newest first. Empty if it does not resolve. */
@@ -51,7 +51,7 @@ export function aheadBehind(state: GitState, branch: string, other: string) {
 
 /** Where `branch` points on the remote itself (not our possibly stale origin/<branch>). */
 export function remoteBranchHead(state: GitState, branch: string): string | null {
-  return state.origin?.branches[branch] ?? null
+  return own(state.origin?.branches, branch) ?? null
 }
 
 /** Commits of a branch on the remote, newest first. */
@@ -62,12 +62,12 @@ export function remoteCommitsOf(state: GitState, branch: string): Commit[] {
 
 /** Our remote-tracking ref origin/<branch>, as of the last fetch, pull or push. */
 export function trackingBranchHead(state: GitState, branch: string): string | null {
-  return state.repo?.remoteBranches[branch] ?? null
+  return own(state.repo?.remoteBranches, branch) ?? null
 }
 
 /** The upstream of a local branch as 'origin/<name>', or null. */
 export function upstreamOf(state: GitState, branch: string): string | null {
-  const upstream = state.repo?.upstream[branch]
+  const upstream = own(state.repo?.upstream, branch)
   return upstream ? `origin/${upstream}` : null
 }
 
@@ -116,10 +116,10 @@ export function stashEntries(state: GitState): StashEntry[] {
 
 /** A local tag, or null. */
 export function tagOf(state: GitState, name: string): Tag | null {
-  return state.repo?.tags?.[name] ?? null
+  return own(state.repo?.tags, name) ?? null
 }
 
 /** A tag on origin, or null. */
 export function remoteTagOf(state: GitState, name: string): Tag | null {
-  return state.origin?.tags?.[name] ?? null
+  return own(state.origin?.tags, name) ?? null
 }

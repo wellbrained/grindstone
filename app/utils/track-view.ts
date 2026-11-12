@@ -1,6 +1,6 @@
 // What the track page and the home page draw for a track, from the track and the progress: pure, so it is tested on the
 // real track and on the 58-level fixture (test/unit/ui/track-view.test.ts). The components only render it.
-import { chapterProgress, levelCommands, nextUp, trackPlaces, trackProgress } from '../../shared/levels'
+import { chapterProgress, entryOf, levelCommands, nextUp, trackPlaces, trackProgress } from '../../shared/levels'
 import type { Chapter, Count, LevelPlace, LevelProgress, Progress, Track } from '../../shared/levels'
 
 /** solved: filled commit dot; next: the first unsolved level (ember ring); open: hollow. */
@@ -64,7 +64,7 @@ export function trackView(track: Track, progress: Progress): TrackView {
   const next = nextUp(track, progress)
   const places = trackPlaces(track)
   const stateOf = (place: LevelPlace): LevelState => {
-    if (progress.levels[place.level.id]?.solved === true) return 'solved'
+    if (entryOf(progress, place.level.id)?.solved === true) return 'solved'
     return place.level.id === next?.level.id ? 'next' : 'open'
   }
   const chapters = track.chapters.map((chapter): ChapterView => {
@@ -83,7 +83,7 @@ export function trackView(track: Track, progress: Progress): TrackView {
         .map(place => ({
           place,
           state: stateOf(place),
-          progress: progress.levels[place.level.id] ?? null,
+          progress: entryOf(progress, place.level.id) ?? null,
           commands: levelCommands(place.level)
         })))
     }

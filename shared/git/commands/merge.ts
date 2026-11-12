@@ -7,12 +7,12 @@ import { mergeTrees } from '../merge3'
 import type { TreeMergeResult } from '../merge3'
 import { logHead } from '../reflog'
 import { resolveRev } from '../refs'
-import { headId, headTree, withEntry } from '../state'
+import { headId, headTree, own, withEntry } from '../state'
 import { moveTrees } from '../worktree'
 import type { Command, CommandResult, GitState, OutputLine, Repo, Tree, UnmergedKind } from '../types'
 import { activeBranch } from './branch'
 import { commit as commitCommand, unresolvedConflict } from './commit'
-import { CHERRY_PICKING, diffstat, fatal, moveHead, notARepo, storeCommit, withRepo } from './common'
+import { CHERRY_PICKING, diffstat, fatal, moveHead, notARepo, restoreTracked, storeCommit, withRepo } from './common'
 
 /** Applies a tree merge to index and working tree; conflicted paths keep their marker content. */
 export function applyMerge(repo: Repo, workdir: Tree, from: Tree, merged: TreeMergeResult, verb: 'merge' | 'checkout' = 'merge') {
@@ -39,7 +39,7 @@ export function conflictReport(merged: TreeMergeResult): OutputLine[] {
 export function defaultMergeMessage(repo: Repo, label: string): string {
   const current = activeBranch(repo)
   const into = current && current !== 'main' && current !== 'master' ? ` into ${current}` : ''
-  if (repo.branches[label]) return `Merge branch '${label}'${into}`
+  if (own(repo.branches, label)) return `Merge branch '${label}'${into}`
   if (label.startsWith('origin/')) return `Merge remote-tracking branch '${label}'${into}`
   return `Merge commit '${label}'${into}`
 }
@@ -130,7 +130,7 @@ export const merge: Command = (state, argv) => {
   if (flags.has('--abort')) {
     if (operation?.type !== 'merge') return fatal(state, 'fatal: There is no merge to abort (MERGE_HEAD missing).')
     const next: Repo = { ...repo, index: operation.before.index, unmerged: {}, operation: null }
-    return done({ ...withRepo(state, next), workdir: operation.before.workdir })
+    return done({ ...withRepo(state, next), workdir: restoreTracked(repo, state.workdir, operation.before) })
   }
   if (flags.has('--continue')) {
     if (operation?.type !== 'merge') return fatal(state, 'fatal: There is no merge in progress (MERGE_HEAD missing).')
@@ -146,7 +146,7 @@ export const merge: Command = (state, argv) => {
   let name = positionals[0]
   if (!name) {
     const current = activeBranch(repo)
-    const upstream = current ? repo.upstream[current] : undefined
+    const upstream = current ? own(repo.upstream, current) : undefined
     if (!upstream) return fatal(state, 'fatal: No remote for the current branch.')
     name = `origin/${upstream}`
   }
