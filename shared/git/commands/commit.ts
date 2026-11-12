@@ -2,6 +2,7 @@ import { parseArgs } from '../args'
 import { createCommit, subject } from '../objects/commit'
 import { shortId } from '../objects/hash'
 import { err, fail, hint, out } from '../output'
+import { logHead } from '../reflog'
 import { headId, headTree } from '../state'
 import { treesEqual } from '../worktree'
 import type { Author, Command, CommandResult, GitState, OutputLine } from '../types'
@@ -21,6 +22,13 @@ export interface CommitOptions {
   author?: Author
   /** Replace HEAD instead of adding a child (`--amend`). */
   amend?: boolean
+  /** The reflog message; git's `commit: <subject>` (or `commit (amend)`, `(initial)`, `(merge)`) by default. */
+  reflog?: string
+}
+
+function commitReflog(subjectLine: string, kind: { amend: boolean, initial: boolean, merge: boolean }): string {
+  const variant = kind.amend ? ' (amend)' : kind.initial ? ' (initial)' : kind.merge ? ' (merge)' : ''
+  return `commit${variant}: ${subjectLine}`
 }
 
 /** Commits the index; used by `git commit`, `rebase --continue` and the setup builder. */
@@ -37,6 +45,8 @@ export function commitIndex(state: GitState, options: CommitOptions): { state: G
   const commit = created.commit
   let next = moveHead(storeCommit(repo, commit), commit.id)
   if (merging) next = { ...next, operation: null, unmerged: {} }
+  const amend = !!options.amend && !!previous
+  next = logHead(next, options.reflog ?? commitReflog(subject(commit), { amend, initial: parents.length === 0, merge: !!merging }))
 
   const root = parents.length === 0 ? ' (root-commit)' : ''
   const output = [out('[', headLabel(repo), `${root} ${shortId(commit.id)}] ${subject(commit)}`)]

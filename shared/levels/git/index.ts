@@ -32,8 +32,14 @@ import { pushYourFirstBranch } from './26-push-your-first-branch'
 import { getYourTeammatesWork } from './27-get-your-teammates-work'
 import { yourPushWasRejected } from './28-your-push-was-rejected'
 import { aheadAndBehind } from './29-ahead-and-behind'
+import { committedOnMain } from './30-committed-on-main'
+import { lostCommitsAfterReset } from './31-lost-commits-after-reset'
+import { rebasedTheWrongBranch } from './32-rebased-the-wrong-branch'
+import { committedASecret } from './33-committed-a-secret'
+import { deletedABranch } from './34-deleted-a-branch'
 import { commitAll, diffFile, diffStaged, ignoreLogs, logOneline, stageOneFile } from './practice/basics'
 import { branchFromCommit, deleteMergedBranch, listBranches, listRemoteBranches, renameBranch, switchBack } from './practice/branching'
+import { findLostCommit, moveCommitToBranch, removeFile, restoreBranch, undoRebase, untrackFile } from './practice/disasters'
 import { keepTheirVersion, listConflicts, mergeFfOnly, mergeMainIn, mergeNoFf } from './practice/merging'
 import { abortRebase, pushWithLease, rebaseOntoMain, rewordOldCommit } from './practice/rewriting'
 import { fetchOnly, pruneGoneBranches, pullRebase, pushWithUpstream, unpushedCommits } from './practice/teamwork'
@@ -162,9 +168,21 @@ export const gitTrack = defineTrack({
     {
       id: 'disasters',
       title: 'Disasters',
-      description: 'Real-world messes: a leaked secret, the wrong branch rebased, a hotfix in the middle of a feature.',
+      description: 'Get out of real messes: work on the wrong branch, lost commits, a committed secret, a deleted branch.',
       colour: 6,
-      levels: []
+      levels: [
+        committedOnMain,
+        moveCommitToBranch,
+        lostCommitsAfterReset,
+        findLostCommit,
+        rebasedTheWrongBranch,
+        undoRebase,
+        committedASecret,
+        untrackFile,
+        removeFile,
+        deletedABranch,
+        restoreBranch
+      ]
     },
     {
       id: 'workflows',

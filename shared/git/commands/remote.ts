@@ -127,9 +127,12 @@ export const pull: Command = (state, argv) => {
   const theirs = fetched.state.repo!.remoteBranches[branch]!
   const label = trackingRef(branch)
   const into = current && current !== 'main' && current !== 'master' ? ` into ${current}` : ''
+  // git names the reflog entries after the whole command line: `pull: Fast-forward`, `pull --rebase (finish): ...`
+  const action = ['pull', ...argv].join(' ')
   const result = flags.has('--rebase')
-    ? startRebase(fetched.state, theirs)
+    ? startRebase(fetched.state, theirs, { action, upstream: theirs })
     : mergeInto(fetched.state, theirs, label, {
+        reflog: action,
         message: `Merge branch '${branch}' of ${withoutGit(state.origin.url)}${into}`,
         ffOnly: flags.has('--ff-only'),
         noFf: flags.has('--no-ff')

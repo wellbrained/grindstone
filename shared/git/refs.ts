@@ -1,6 +1,7 @@
 // Ref names, revision parsing and log decorations.
 import { ref } from './output'
 import type { Part } from './output'
+import { resolveSelector } from './reflog'
 import { headId } from './state'
 import type { Repo } from './types'
 
@@ -19,6 +20,8 @@ export const trackingRef = (branch: string) => `origin/${branch}`
 
 function resolveBase(repo: Repo, name: string): string | null {
   if (name === 'HEAD' || name === '@') return headId(repo)
+  if (name === 'ORIG_HEAD') return repo.origHead ?? null
+  if (name.includes('@{')) return resolveSelector(repo, name)
   const local = repo.branches[name.replace(/^refs\/heads\//, '')]
   if (local) return local
   const remote = name.replace(/^refs\/remotes\//, '').replace(/^remotes\//, '')
@@ -30,7 +33,7 @@ function resolveBase(repo: Repo, name: string): string | null {
   return null
 }
 
-/** Resolves HEAD, branches, origin/<branch>, (short) ids and ~n / ^n suffixes to a commit id. */
+/** Resolves HEAD, ORIG_HEAD, branches, origin/<branch>, (short) ids, reflog entries (`HEAD@{2}`, `main@{1}`) and ~n / ^n suffixes to a commit id. */
 export function resolveRev(repo: Repo, rev: string): string | null {
   const match = /^(.+?)((?:[~^]\d*)*)$/.exec(rev)
   if (!match) return null

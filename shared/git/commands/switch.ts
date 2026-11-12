@@ -3,6 +3,7 @@ import { subject } from '../objects/commit'
 import { range } from '../objects/graph'
 import { shortId } from '../objects/hash'
 import { done, err, fail, hint, out, plural, ref } from '../output'
+import { logBranch, logHead } from '../reflog'
 import { isValidBranchName, resolveRev } from '../refs'
 import { headId, headTree, normalizePath, withEntry } from '../state'
 import { moveTrees } from '../worktree'
@@ -69,12 +70,15 @@ function switchTo(state: GitState, target: Target): CommandResult {
   let next: Repo = { ...repo, head, index: moved.index, previous: repo.head }
   const output: OutputLine[] = []
   if (target.kind === 'new') {
-    next = { ...next, branches: { ...next.branches, [target.name]: commit } }
+    next = logBranch({ ...next, branches: { ...next.branches, [target.name]: commit } }, target.name, `branch: Created from ${target.start ?? 'HEAD'}`)
     if (target.upstream) {
       next = { ...next, upstream: { ...next.upstream, [target.name]: target.upstream } }
       output.push(trackingLine(target.name, target.upstream))
     }
   }
+  // git names where HEAD came from by branch, or by full id when it was detached
+  const from = repo.head.type === 'branch' ? repo.head.name : repo.head.commit
+  next = logHead(next, `checkout: moving from ${from} to ${target.kind === 'detach' ? target.label : target.name}`, { branch: false })
   output.unshift(...leftBehind(repo, next))
   output.push(...moved.carried)
 

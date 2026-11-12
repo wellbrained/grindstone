@@ -68,6 +68,6 @@ export const revert: Command = (state, argv) => {
   const moved = moveTrees(repo, state.workdir, ours, merged.index, 'merge')
   if (!moved.ok) return fail(state, [...moved.output, err('fatal: revert failed')], 128)
   const working = { ...withRepo(state, { ...repo, index: moved.index }), workdir: moved.workdir }
-  const result = commitIndex(working, { message: `Revert "${subject(commit)}"\n\nThis reverts commit ${id}.` })
+  const result = commitIndex(working, { message: `Revert "${subject(commit)}"\n\nThis reverts commit ${id}.`, reflog: `revert: Revert "${subject(commit)}"` })
   return done(result.state, result.output)
 }

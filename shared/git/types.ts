@@ -79,6 +79,10 @@ export interface RebaseOperation {
   chain?: ChainMessage[]
   /** Git waits for the editor to close this file; until then only `git rebase --abort` runs. */
   editor?: EditorWait | null
+  /** The reflog's name for this rebase (`rebase`, or `pull --rebase` for a pull). Optional; `rebase` when missing. */
+  action?: string
+  /** The upstream as typed (`main`, `origin/main`), for the `rebase (start): checkout <upstream>` entry. */
+  upstream?: string
 }
 
 export type Operation = MergeOperation | RebaseOperation
@@ -97,6 +101,13 @@ export interface StashEntry {
   workdir: Tree
   /** Untracked files taken along with `-u` (empty otherwise). */
   untracked: Tree
+}
+
+/** One reflog entry: where the ref pointed after the move, and git's message for it. */
+export interface ReflogEntry {
+  id: string
+  /** e.g. `commit: Add the menu`, `reset: moving to HEAD~1`, `checkout: moving from main to feature`. */
+  message: string
 }
 
 export interface Repo {
@@ -120,6 +131,13 @@ export interface Repo {
    * Optional, so states saved before it existed stay valid.
    */
   previous?: Head
+  /**
+   * Reflogs, newest entry first: `HEAD` and one per local branch (by name). Optional, so states saved before it
+   * existed stay valid. See docs/features/git-model.md, "Reflog".
+   */
+  reflog?: Record<string, ReflogEntry[]>
+  /** Where HEAD was before the last reset, merge or rebase (git's ORIG_HEAD). Optional, like `reflog`. */
+  origHead?: string
 }
 
 export interface Remote {

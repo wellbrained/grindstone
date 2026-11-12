@@ -4,7 +4,7 @@ useHead({ title: t('about.title') })
 useSeoMeta({ description: t('about.intro') })
 
 const points = ['teammates', 'real', 'graph', 'ide'] as const
-const later = ['levels', 'disasters', 'workflows', 'tracks', 'profile'] as const
+const later = ['levels', 'workflows', 'tracks', 'profile'] as const
 </script>
 
 <template>

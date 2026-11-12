@@ -215,7 +215,13 @@ describe('git rebase -i', () => {
   it('aborts while the message is open: everything back as before', () => {
     const state = feature()
     const asked = save(exec(state, 'git rebase -i main').state, todoOf(state, ['reword <feature~2>', 'pick <feature~1>', 'pick <feature>']))
-    expect(ok(asked.state, 'git rebase --abort')).toEqual({ ...state, clock: asked.state.clock })
+    const aborted = ok(asked.state, 'git rebase --abort')
+    // only the reflog remembers the rebase: its start, the pick, and the way back
+    const { reflog, origHead, ...repo } = aborted.repo!
+    expect({ ...aborted, repo }).toEqual({ ...state, clock: asked.state.clock, repo: { ...state.repo!, reflog: undefined } })
+    expect(reflog!.HEAD!.slice(0, 3).map(entry => entry.message)).toEqual(['rebase (abort): returning to refs/heads/feature', 'rebase (pick): Add a', 'rebase (start): checkout main'])
+    expect(reflog!.feature).toEqual(state.repo!.reflog!.feature)
+    expect(origHead).toBe(resolve(state, 'feature'))
   })
 
   it('works on HEAD~n: rewords the commit before last, the newest keeps its message and files', () => {

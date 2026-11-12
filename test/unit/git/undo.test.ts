@@ -439,9 +439,8 @@ describe('git stash', () => {
 })
 
 describe('command list', () => {
-  it('supports restore, reset, revert and stash, not cherry-pick or reflog', () => {
-    expect(gitCommandNames).toEqual(expect.arrayContaining(['restore', 'reset', 'revert', 'stash']))
+  it('supports restore, reset, revert, stash and reflog, not cherry-pick', () => {
+    expect(gitCommandNames).toEqual(expect.arrayContaining(['restore', 'reset', 'revert', 'stash', 'reflog']))
     expect(exec(base(), 'git cherry-pick HEAD').text).toBe('git: \'cherry-pick\' is not in this trainer yet')
-    expect(exec(base(), 'git reflog').text).toBe('git: \'reflog\' is not in this trainer yet')
   })
 })

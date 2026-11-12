@@ -28,6 +28,7 @@ export const cheatGroups: CheatGroup[] = [
       { name: 'init', summary: 'Turn the current folder into a git repository.', examples: [{ line: 'git init', note: 'Start tracking this folder' }] },
       { name: 'status', summary: 'Show the branch, what is staged, what changed and what git does not track yet.', examples: [{ line: 'git status', note: 'Where am I, what changed?' }, { line: 'git status -s', note: 'The short version' }] },
       { name: 'add', summary: 'Stage changes: choose what goes into the next commit.', examples: [{ line: 'git add app.js', note: 'Stage one file' }, { line: 'git add .', note: 'Stage everything in this folder' }] },
+      { name: 'rm', summary: 'Stop tracking a file: delete it, or keep it on your disk with --cached.', examples: [{ line: 'git rm old-page.html', note: 'Delete a file and stage the deletion' }, { line: 'git rm --cached .env', note: 'Stop tracking a file, keep it on your disk' }, { line: 'git rm -r --cached dist', note: 'The same for a whole folder' }] },
       { name: 'commit', summary: 'Save the staged changes as a snapshot with a message.', examples: [{ line: 'git commit -m "Add login form"', note: 'Commit what is staged' }, { line: 'git commit -am "Fix typo"', note: 'Stage tracked files and commit in one go' }, { line: 'git commit --amend -m "Better message"', note: 'Replace the last commit (only before you push it)' }] }
     ]
   },
@@ -68,10 +69,11 @@ export const cheatGroups: CheatGroup[] = [
   },
   {
     id: 'undo',
-    title: 'Undo',
+    title: 'Undo and rescue',
     commands: [
       { name: 'restore', summary: 'Throw away changes in a file, or take it out of the staging area.', examples: [{ line: 'git restore app.js', note: 'Throw away unstaged changes, for good' }, { line: 'git restore --staged app.js', note: 'Unstage a file, keep your edits' }] },
       { name: 'reset', summary: 'Move the branch back, keeping or dropping the changes.', examples: [{ line: 'git reset --soft HEAD~1', note: 'Undo the last commit, keep its changes staged' }, { line: 'git reset HEAD~1', note: 'Undo the last commit, keep its changes in your files' }, { line: 'git reset --hard HEAD~1', note: 'Drop the last commit and all uncommitted work' }] },
+      { name: 'reflog', summary: 'Where HEAD has been: find commits a reset, rebase or deleted branch left behind.', examples: [{ line: 'git reflog', note: 'Every move of HEAD, newest first' }, { line: 'git reset --hard HEAD@{1}', note: 'Back to where HEAD was one move ago' }, { line: 'git branch rescue a1b2c3d', note: 'Put a branch on a lost commit' }, { line: 'git reset --hard ORIG_HEAD', note: 'Undo the last reset, merge or rebase' }] },
       { name: 'revert', summary: 'Add a new commit that undoes an old one; safe on shared branches.', examples: [{ line: 'git revert a1b2c3d', note: 'Undo a pushed commit' }, { line: 'git revert HEAD~1', note: 'Undo the commit before last' }] },
       { name: 'stash', summary: 'Put unfinished changes aside and get them back later.', examples: [{ line: 'git stash', note: 'Park your changes' }, { line: 'git stash -u', note: 'Park new files too' }, { line: 'git stash list', note: 'What is parked?' }, { line: 'git stash pop', note: 'Bring the newest back' }] },
       { name: 'cherry-pick', comingSoon: true, summary: 'Copy one commit from another branch onto yours.', examples: [{ line: 'git cherry-pick a1b2c3d', note: 'Take just that fix' }] }

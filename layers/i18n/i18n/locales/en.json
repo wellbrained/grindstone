@@ -186,7 +186,6 @@
     "laterTitle": "Coming later",
     "later": {
       "levels": "More git levels: cherry-pick, reset vs. revert, stash",
-      "disasters": "Disaster scenarios: a leaked API key, the wrong branch rebased, a hotfix in the middle of a feature",
       "workflows": "Workflow tracks: GitFlow, trunk-based, release branches",
       "tracks": "More tracks: working with AI, web fundamentals, debugging, framework deep dives",
       "profile": "A skill profile that shows where you are strong and what to practise next"

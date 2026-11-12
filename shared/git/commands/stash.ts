@@ -8,6 +8,7 @@ import { createCommit, subject } from '../objects/commit'
 import { shortId } from '../objects/hash'
 import { done, err, fail, out } from '../output'
 import { mergeTrees } from '../merge3'
+import { logHead } from '../reflog'
 import { headId, withEntry, without } from '../state'
 import { moveTrees, treesEqual, union } from '../worktree'
 import type { Command, CommandResult, GitState, OutputLine, Repo, StashEntry, Tree } from '../types'
@@ -52,7 +53,8 @@ const push = (state: GitState, repo: Repo, argv: string[]): CommandResult => {
   let workdir = state.workdir
   for (const path of union(repo.index, headCommit.tree)) workdir = withEntry(workdir, path, headCommit.tree[path])
   for (const path of Object.keys(untracked)) workdir = without(workdir, path)
-  const next: Repo = { ...repo, index: headCommit.tree, stash: [entry, ...repo.stash] }
+  // git resets the working tree to HEAD for this, and the reflog says so
+  const next: Repo = logHead({ ...repo, index: headCommit.tree, stash: [entry, ...repo.stash] }, 'reset: moving to HEAD')
   return done({ ...withRepo(created.state, next), workdir }, [out(`Saved working directory and index state ${message}`)])
 }
 

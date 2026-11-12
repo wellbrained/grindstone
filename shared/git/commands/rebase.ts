@@ -5,6 +5,7 @@ import { commitsToReplay, isAncestor } from '../objects/graph'
 import { shortId } from '../objects/hash'
 import { done, err, fail, hint, out, plural, ref } from '../output'
 import { mergeTrees } from '../merge3'
+import { logBranch, logHead } from '../reflog'
 import { resolveRev } from '../refs'
 import { headId, headTree, withEntry } from '../state'
 import { localChanges, moveTrees, treesEqual } from '../worktree'
@@ -35,18 +36,17 @@ function withOperation(state: GitState, change: Partial<RebaseOperation>): GitSt
 
 const isMeld = (action: RebaseAction | undefined) => action === 'squash' || action === 'fixup'
 
+/** A reflog message of this rebase: `rebase (pick): <subject>`, `pull --rebase (finish): ...`. */
+const reflogLine = (operation: RebaseOperation, step: string, text: string) => `${operation.action ?? 'rebase'} (${step}): ${text}`
+
 function finish(state: GitState, operation: RebaseOperation, output: OutputLine[]): CommandResult {
   const repo = state.repo!
   const tip = headId(repo)!
   if (!operation.branch) {
     return done(withRepo(state, { ...repo, operation: null }), [...output, out('Successfully rebased and updated detached HEAD.')])
   }
-  const next: Repo = {
-    ...repo,
-    branches: { ...repo.branches, [operation.branch]: tip },
-    head: { type: 'branch', name: operation.branch },
-    operation: null
-  }
+  const updated = logBranch({ ...repo, branches: { ...repo.branches, [operation.branch]: tip } }, operation.branch, reflogLine(operation, 'finish', `refs/heads/${operation.branch} onto ${operation.onto}`))
+  const next: Repo = logHead({ ...updated, head: { type: 'branch', name: operation.branch }, operation: null }, reflogLine(operation, 'finish', `returning to refs/heads/${operation.branch}`), { branch: false })
   return done(withRepo(state, next), [...output, out('Successfully rebased and updated ', ref(`refs/heads/${operation.branch}`), '.')])
 }
 
@@ -153,23 +153,27 @@ function parseTodo(repo: Repo, text: string): ParsedTodo {
  * Commits the replayed changes (already in the index) for one step: a new commit for pick and reword (or, when the
  * commit's parent is HEAD and nothing changed, git's fast-forward to the commit itself), an amended HEAD for squash and fixup.
  */
-function commitStep(state: GitState, step: RebaseStep, fastForward: boolean): { state: GitState, output: OutputLine[] } {
+function commitStep(state: GitState, step: RebaseStep, fastForward: boolean, continued = false): { state: GitState, output: OutputLine[] } {
   const repo = state.repo!
   const operation = repo.operation as RebaseOperation
   const commit = repo.commits[step.commit]!
+  // a reword is a pick first; its new message gets its own entry once saved
+  const reflog = (text: string) => reflogLine(operation, continued ? 'continue' : step.action === 'reword' ? 'pick' : step.action, text)
   if (isMeld(step.action)) {
     const chain = [...(operation.chain ?? []), { message: commit.message, keep: step.action === 'squash' }]
     const head = repo.commits[headId(repo)!]!
-    const committed = commitIndex(state, { message: chainMessage(chain), amend: true, author: head.author })
+    const message = chainMessage(chain)
+    const committed = commitIndex(state, { message, amend: true, author: head.author, reflog: reflog(message.split('\n')[0]!) })
     return { state: withOperation(committed.state, { chain }), output: committed.output }
   }
   const chain = [{ message: commit.message, keep: true }]
   if (fastForward) {
-    return { state: withOperation(withRepo(state, { ...repo, head: { type: 'detached', commit: commit.id } }), { chain }), output: [] }
+    const moved = logHead({ ...repo, head: { type: 'detached', commit: commit.id } }, reflog(subject(commit)))
+    return { state: withOperation(withRepo(state, moved), { chain }), output: [] }
   }
   // a commit whose changes are already upstream becomes empty and is dropped
   if (treesEqual(repo.index, headTree(repo))) return { state, output: [] }
-  const committed = commitIndex(state, { message: commit.message, author: commit.author })
+  const committed = commitIndex(state, { message: commit.message, author: commit.author, reflog: reflog(subject(commit)) })
   return { state: withOperation(committed.state, { chain }), output: committed.output }
 }
 
@@ -246,12 +250,13 @@ function begin(state: GitState, operation: RebaseOperation, todo: RebaseStep[]):
   const repo = state.repo!
   const moved = moveTrees(repo, state.workdir, headTree(repo), repo.commits[operation.onto]!.tree, 'checkout')
   if (!moved.ok) return fail(state, moved.output)
-  const next: Repo = { ...repo, head: { type: 'detached', commit: operation.onto }, index: moved.index, operation: { ...operation, todo, editor: null } }
+  const detached: Repo = { ...repo, head: { type: 'detached', commit: operation.onto }, index: moved.index, origHead: operation.origHead, operation: { ...operation, todo, editor: null } }
+  const next = logHead(detached, reflogLine(operation, 'start', `checkout ${operation.upstream ?? operation.onto}`))
   return replay({ ...withRepo(state, next), workdir: moved.workdir }, [])
 }
 
-/** Starts rebasing HEAD onto `onto`. Used by rebase and pull --rebase. */
-export function startRebase(state: GitState, onto: string): CommandResult {
+/** Starts rebasing HEAD onto `onto` (`upstream` as typed, `action` the reflog's name). Used by rebase and pull --rebase. */
+export function startRebase(state: GitState, onto: string, names: { upstream?: string, action?: string } = {}): CommandResult {
   const repo = state.repo!
   const head = headId(repo)
   if (!head) return fatal(state, 'fatal: invalid upstream \'HEAD\'')
@@ -264,12 +269,22 @@ export function startRebase(state: GitState, onto: string): CommandResult {
   }
 
   const todo = commitsToReplay(repo.commits, head, onto).map(commit => ({ action: 'pick' as const, commit: commit.id }))
-  const operation: RebaseOperation = { type: 'rebase', branch, origHead: head, onto, todo: [], stopped: null, before: { index: repo.index, workdir: state.workdir } }
+  const operation: RebaseOperation = {
+    type: 'rebase',
+    branch,
+    origHead: head,
+    onto,
+    todo: [],
+    stopped: null,
+    before: { index: repo.index, workdir: state.workdir },
+    ...(names.action ? { action: names.action } : {}),
+    ...(names.upstream ? { upstream: names.upstream } : {})
+  }
   return begin(state, operation, todo)
 }
 
 /** `git rebase -i`: writes the todo list and waits for the editor; nothing moves until it is saved (submitEditor). */
-function startInteractive(state: GitState, onto: string): CommandResult {
+function startInteractive(state: GitState, onto: string, upstream: string): CommandResult {
   const repo = state.repo!
   const head = headId(repo)
   if (!head) return fatal(state, 'fatal: invalid upstream \'HEAD\'')
@@ -286,7 +301,8 @@ function startInteractive(state: GitState, onto: string): CommandResult {
     stopped: null,
     before: { index: repo.index, workdir: state.workdir },
     interactive: true,
-    editor: { kind: 'todo', path: TODO_PATH, text }
+    editor: { kind: 'todo', path: TODO_PATH, text },
+    upstream
   }
   return done(withRepo(state, { ...repo, operation }), [hint(WAITING)])
 }
@@ -315,7 +331,9 @@ function applyMessage(state: GitState, text: string): CommandResult {
       exitCode: 1
     }
   }
-  const committed = commitIndex(withOperation(state, { editor: null }), { message, amend: true, author: head.author })
+  const step = ((repo.operation as RebaseOperation).chain?.length ?? 0) > 1 ? 'squash' : 'reword'
+  const reflog = reflogLine(repo.operation as RebaseOperation, step, message.split('\n')[0]!)
+  const committed = commitIndex(withOperation(state, { editor: null }), { message, amend: true, author: head.author, reflog })
   return replay(withOperation(committed.state, { chain: [{ message, keep: true }] }), committed.output)
 }
 
@@ -354,7 +372,11 @@ export const rebase: Command = (state, argv) => {
     if (!operation) return noRebase(state)
     const head = operation.branch ? { type: 'branch' as const, name: operation.branch } : { type: 'detached' as const, commit: operation.origHead }
     const branches = operation.branch ? { ...repo.branches, [operation.branch]: operation.origHead } : repo.branches
-    const next: Repo = { ...repo, head, branches, index: operation.before.index, unmerged: {}, operation: null }
+    const restored: Repo = { ...repo, head, branches, index: operation.before.index, unmerged: {}, operation: null }
+    // only a rebase that had moved HEAD records the way back (not one still waiting for its todo list)
+    const moved = repo.head.type !== head.type || headId(repo) !== operation.origHead
+    const target = operation.branch ? `refs/heads/${operation.branch}` : operation.origHead
+    const next = moved ? logHead(restored, reflogLine(operation, 'abort', `returning to ${target}`), { branch: false }) : restored
     return done({ ...withRepo(state, next), workdir: operation.before.workdir })
   }
 
@@ -378,7 +400,7 @@ export const rebase: Command = (state, argv) => {
     const output: OutputLine[] = []
     const step = operation.stopped
     if (step && !treesEqual(repo.index, headTree(repo))) {
-      const committed = commitStep(current, step, false)
+      const committed = commitStep(current, step, false, true)
       current = committed.state
       output.push(...committed.output)
       const paused = pauseFor(current, step)
@@ -414,5 +436,5 @@ export const rebase: Command = (state, argv) => {
   }
   const onto = resolveRev(repo, upstream)
   if (!onto) return fatal(state, `fatal: invalid upstream '${upstream}'`)
-  return flags.has('-i') ? startInteractive(state, onto) : startRebase(state, onto)
+  return flags.has('-i') ? startInteractive(state, onto, upstream) : startRebase(state, onto, { upstream })
 }

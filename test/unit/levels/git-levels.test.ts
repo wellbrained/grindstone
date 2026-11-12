@@ -86,7 +86,18 @@ const initialGoals: Record<string, Record<string, boolean>> = {
   'git-14-undo-pushed-commit': { reverted: false, history: true, pushed: false },
   'git-practice-revert-before-last': { reverted: false },
   'git-15-park-unfinished-work': { 'fixed': false, 'back': false, 'stash-empty': false },
-  'git-practice-stash-untracked': { stashed: false }
+  'git-practice-stash-untracked': { stashed: false },
+  'git-30-committed-on-main': { 'branch': false, 'main-back': false, 'on-branch': false },
+  'git-practice-move-commit-to-branch': { moved: false, main: false },
+  'git-31-lost-commits-after-reset': { looked: false, back: false, files: false },
+  'git-practice-find-lost-commit': { back: false },
+  'git-32-rebased-the-wrong-branch': { 'main-back': false, 'on-top': false },
+  'git-practice-undo-rebase': { undone: false },
+  'git-33-committed-a-secret': { 'out-of-history': false, 'one-commit': false, 'kept': false },
+  'git-practice-untrack-file': { untracked: false },
+  'git-practice-remove-file': { deleted: false },
+  'git-34-deleted-a-branch': { 'restored': false, 'main-unchanged': false },
+  'git-practice-restore-branch': { restored: false }
 }
 
 describe('level list', () => {
@@ -98,7 +109,8 @@ describe('level list', () => {
     expect(nextLevel('git-practice-ignore-logs')?.id).toBe('git-02-branch')
     expect(nextLevel('git-06-teammate-sync')?.id).toBe('git-practice-prune-gone-branches')
     expect(nextLevel('git-practice-prune-gone-branches')?.id).toBe('git-11-fix-last-commit')
-    expect(nextLevel('git-practice-stash-untracked')).toBeNull()
+    expect(nextLevel('git-practice-stash-untracked')?.id).toBe('git-30-committed-on-main')
+    expect(nextLevel('git-practice-restore-branch')).toBeNull()
     expect(levelById('nope')).toBeNull()
   })
 })
@@ -340,7 +352,37 @@ const wrongPaths: [id: string, why: string, lines: SolutionStep[], failing: stri
     'git switch feature/gift-cards',
     'git stash apply'
   ], ['stash-empty']],
-  ['git-practice-stash-untracked', 'leaves the new file behind', ['git stash'], ['stashed']]
+  ['git-practice-stash-untracked', 'leaves the new file behind', ['git stash'], ['stashed']],
+  ['git-30-committed-on-main', 'keeps the changes staged on main with a soft reset', ['git branch feature/cake-orders', 'git reset --soft origin/main'], ['on-branch']],
+  ['git-30-committed-on-main', 'moves main back before a branch holds the commits', ['git reset --hard origin/main', 'git switch -c feature/cake-orders'], ['branch']],
+  ['git-30-committed-on-main', 'only creates the branch, main keeps the commits', ['git switch -c feature/cake-orders'], ['main-back']],
+  ['git-practice-move-commit-to-branch', 'switches to a new branch, main keeps the commit', ['git switch -c feature/gluten-free'], ['main']],
+  ['git-31-lost-commits-after-reset', 'goes back only to the first of the two commits', ['git reflog', 'git reset --hard HEAD@{2}'], ['back', 'files']],
+  ['git-31-lost-commits-after-reset', 'moves the branch back without the files', ['git reflog', 'git reset HEAD@{1}'], ['files']],
+  ['git-practice-find-lost-commit', 'moves main back without the files', ['git reflog', 'git reset HEAD@{1}'], ['back']],
+  ['git-32-rebased-the-wrong-branch', 'does the intended rebase without fixing main', ['git switch feature/allergen-labels', 'git rebase main'], ['main-back', 'on-top']],
+  ['git-32-rebased-the-wrong-branch', 'resets main to the start of the rebase', ['git reflog', 'git reset --hard HEAD@{3}', 'git switch feature/allergen-labels', 'git rebase main'], ['main-back', 'on-top']],
+  ['git-32-rebased-the-wrong-branch', 'merges origin/main into the rebased main', ['git merge origin/main'], ['main-back', 'on-top']],
+  ['git-practice-undo-rebase', 'goes back one move, to the last copied commit', ['git reset --hard HEAD@{1}'], ['undone']],
+  ['git-33-committed-a-secret', 'commits the removal on top: the key stays in the history', [
+    'git rm --cached .env',
+    'echo ".env" >> .gitignore',
+    'git add .gitignore',
+    'git commit -m "Stop tracking .env"'
+  ], ['out-of-history', 'one-commit']],
+  ['git-33-committed-a-secret', 'deletes .env from the disk with a plain git rm', [
+    'git rm .env',
+    'echo ".env" >> .gitignore',
+    'git add .gitignore',
+    'git commit --amend --no-edit'
+  ], ['kept']],
+  ['git-33-committed-a-secret', 'amends without ignoring .env', ['git rm --cached .env', 'git commit --amend --no-edit'], ['one-commit', 'kept']],
+  ['git-practice-untrack-file', 'deletes the file from the disk too', ['git rm .vscode/settings.json', 'git commit -m "Remove editor settings"'], ['untracked']],
+  ['git-practice-remove-file', 'deletes the file without staging the deletion', ['rm summer.html', 'git commit -m "Remove the summer ice cream page"'], ['deleted']],
+  ['git-34-deleted-a-branch', 'resets main onto the lost commits', ['git reflog', 'git reset --hard HEAD@{2}', 'git branch feature/loyalty-card'], ['main-unchanged']],
+  ['git-34-deleted-a-branch', 'brings back only the first commit', ['git reflog', 'git branch feature/loyalty-card HEAD@{3}'], ['restored', 'main-unchanged']],
+  ['git-34-deleted-a-branch', 'creates a new branch from main instead', ['git switch -c feature/loyalty-card'], ['restored', 'main-unchanged']],
+  ['git-practice-restore-branch', 'creates the branch on the current commit', ['git branch fix/price-typo'], ['restored']]
 ]
 
 describe.each(wrongPaths)('%s: %s', (id, _why, lines, failing) => {
@@ -769,5 +811,121 @@ describe('git-practice-prune-gone-branches', () => {
     expect(play(item, ['git branch -a']).text).toContain('remotes/origin/feature/allergy-labels')
     const { steps } = play(item, item.solution)
     expect(steps[0]!.output.map(line => 'text' in line ? line.text : '').join('\n')).toContain(' - [deleted]         (none)     -> origin/feature/allergy-labels')
+  })
+})
+
+const texts = (steps: SubmitResult[]) => steps.map(step => step.output.map(line => 'text' in line ? line.text : '').join('\n'))
+
+describe('git-30-committed-on-main', () => {
+  it('also counts switching to the new branch first and resetting main from there', () => {
+    const { session } = play(level('git-30-committed-on-main'), [
+      'git switch -c feature/cake-orders',
+      'git switch main',
+      'git reset --hard origin/main',
+      'git switch feature/cake-orders'
+    ])
+    expect(session.solved).toBe(true)
+  })
+})
+
+describe('git-31-lost-commits-after-reset', () => {
+  const item = level('git-31-lost-commits-after-reset')
+
+  it('starts with the reset and both commits in the reflog, and names the real id in its last hint', () => {
+    const { state } = startLevel(item)
+    const lost = commitsOf(state, 'HEAD@{1}')
+    expect(lost.map(commit => commit.message).slice(0, 2)).toEqual(['Add stollen and mince pies to the Christmas menu', 'Add the Christmas menu page'])
+    expect(item.hints[2]).toContain(`git reset --hard ${lost[0]!.id.slice(0, 7)}`)
+    const [log, reflog] = texts(play(item, ['git log --oneline', 'git reflog']).steps)
+    expect(log).not.toContain('Christmas')
+    expect(reflog!.split('\n')).toEqual([
+      expect.stringMatching(/^[0-9a-f]{7} \(HEAD -> feature\/christmas-menu, main, origin\/main\) HEAD@\{0\}: reset: moving to HEAD~2$/),
+      `${lost[0]!.id.slice(0, 7)} HEAD@{1}: commit: Add stollen and mince pies to the Christmas menu`,
+      `${lost[1]!.id.slice(0, 7)} HEAD@{2}: commit: Add the Christmas menu page`,
+      expect.stringMatching(/HEAD@\{3\}: checkout: moving from main to feature\/christmas-menu$/),
+      expect.stringMatching(/HEAD@\{4\}: commit \(initial\): Start the bakery website$/)
+    ])
+  })
+
+  it('also counts the id from the reflog, and a rescue branch merged back', () => {
+    const lost = commitsOf(startLevel(item).state, 'HEAD@{1}')[0]!.id.slice(0, 7)
+    expect(play(item, ['git reflog', `git reset --hard ${lost}`]).session.solved).toBe(true)
+    expect(play(item, ['git reflog', `git branch rescue ${lost}`, 'git merge rescue']).session.solved).toBe(true)
+  })
+})
+
+describe('git-32-rebased-the-wrong-branch', () => {
+  const item = level('git-32-rebased-the-wrong-branch')
+
+  it('starts diverged, with the whole rebase in the reflog and main\'s old position right below it', () => {
+    const { state } = startLevel(item)
+    expect(item.solution[2]).toBe('git reset --hard HEAD@{4}')
+    expect(state.repo!.reflog!.HEAD!.slice(0, 5).map(entry => entry.message)).toEqual([
+      'rebase (finish): returning to refs/heads/main',
+      'rebase (pick): Style the address footer',
+      'rebase (pick): Open at 6:30 on Saturdays',
+      'rebase (start): checkout feature/allergen-labels',
+      'pull: Fast-forward'
+    ])
+    expect(commitsOf(state, 'HEAD@{4}')[0]!.id).toBe(commitsOf(state, 'origin/main')[0]!.id)
+    expect(commitsOf(state, 'ORIG_HEAD')[0]!.id).toBe(commitsOf(state, 'origin/main')[0]!.id)
+    expect(texts(play(item, ['git status']).steps)[0]).toContain('and have 4 and 2 different commits each, respectively.')
+  })
+
+  it('also counts ORIG_HEAD, main@{1} and origin/main as the way back', () => {
+    for (const rev of ['ORIG_HEAD', 'main@{1}', 'origin/main']) {
+      expect(play(item, [`git reset --hard ${rev}`, 'git switch feature/allergen-labels', 'git rebase main']).session.solved).toBe(true)
+    }
+  })
+})
+
+describe('git-33-committed-a-secret', () => {
+  const item = level('git-33-committed-a-secret')
+
+  it('keeps .env on the disk after git rm --cached, and git add . skips it once it is ignored', () => {
+    const { steps, session } = play(item, ['git rm --cached .env', 'git status -s', 'echo ".env" >> .gitignore', 'git add .', 'git status -s'])
+    expect(texts(steps)[0]).toBe('rm \'.env\'')
+    expect(texts(steps)[1]).toBe('D  .env\n?? .env')
+    expect(texts(steps)[4]).toBe('D  .env\nM  .gitignore')
+    expect(session.state.workdir['.env']).toContain('PAYMENT_API_KEY=test-key-not-real-0000')
+  })
+
+  it('also counts amending with a new message', () => {
+    expect(play(item, ['git rm --cached .env', 'echo ".env" >> .gitignore', 'git add .gitignore', 'git commit --amend -m "Add card payments, key stays local"']).session.solved).toBe(true)
+  })
+})
+
+describe('git-34-deleted-a-branch', () => {
+  const item = level('git-34-deleted-a-branch')
+
+  it('quotes the id git printed when it deleted the branch, in the story and the last hint', () => {
+    const deleted = play(item, ['git branch feature/loyalty-card HEAD@{2}', 'git branch -D feature/loyalty-card'])
+    const line = texts(deleted.steps)[1]!
+    expect(line).toMatch(/^Deleted branch feature\/loyalty-card \(was [0-9a-f]{7}\)\.$/)
+    expect(item.story).toContain(`"${line}"`)
+    expect(item.hints[2]).toContain(`git branch feature/loyalty-card ${line.slice(-9, -2)}`)
+  })
+
+  it('also counts the id from the story', () => {
+    const id = /\(was ([0-9a-f]{7})\)/.exec(item.story)![1]!
+    expect(play(item, [`git branch feature/loyalty-card ${id}`]).session.solved).toBe(true)
+  })
+
+  it('has no log for the deleted branch any more', () => {
+    expect(texts(play(item, ['git reflog show feature/loyalty-card']).steps)[0]).toContain('fatal: ambiguous argument \'feature/loyalty-card\'')
+  })
+})
+
+describe('git-practice-restore-branch', () => {
+  it('quotes the id git printed when it deleted the branch', () => {
+    const item = level('git-practice-restore-branch')
+    const deleted = play(item, ['git branch fix/price-typo HEAD@{1}', 'git branch -D fix/price-typo'])
+    expect(item.kind === 'practice' && item.task).toContain(`"${texts(deleted.steps)[1]}"`)
+  })
+})
+
+describe('git-practice-undo-rebase', () => {
+  it('also counts the reflog line below the rebase start', () => {
+    expect(play(level('git-practice-undo-rebase'), ['git reflog', 'git reset --hard HEAD@{3}']).session.solved).toBe(true)
   })
 })

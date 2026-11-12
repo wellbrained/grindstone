@@ -2,6 +2,7 @@ import { parseArgs } from '../args'
 import { isAncestor } from '../objects/graph'
 import { shortId } from '../objects/hash'
 import { done, err, fail, hint, out, ref } from '../output'
+import { dropLog, logBranch, logHead, renameLog } from '../reflog'
 import { isValidBranchName, resolveRev, trackingRef } from '../refs'
 import { headId, withEntry, without } from '../state'
 import type { Command, CommandResult, GitState, OutputLine, Repo } from '../types'
@@ -70,12 +71,15 @@ function rename(state: GitState, repo: Repo, names: string[], force: boolean): C
   const tip = repo.branches[from]
   const branches = without(repo.branches, from)
   const upstream = without(repo.upstream, from)
-  const next: Repo = {
+  let next: Repo = renameLog({
     ...repo,
     branches: tip ? { ...branches, [to]: tip } : branches,
     upstream: withEntry(upstream, to, repo.upstream[from]),
     head: from === current ? { type: 'branch', name: to } : repo.head
-  }
+  }, from, to)
+  // git notes the rename in the branch's log, and in HEAD's when it is the branch you are on
+  const message = `Branch: renamed refs/heads/${from} to refs/heads/${to}`
+  if (tip) next = from === current ? logHead(next, message) : logBranch(next, to, message)
   return done(withRepo(state, next))
 }
 
@@ -115,7 +119,7 @@ export const branch: Command = (state, argv) => {
       }
       const { [name]: _deleted, ...branches } = next.branches
       const { [name]: _upstream, ...upstreams } = next.upstream
-      next = { ...next, branches, upstream: upstreams }
+      next = dropLog({ ...next, branches, upstream: upstreams }, name)
       output.push(out('Deleted branch ', ref(name), ` (was ${shortId(tip)}).`))
     }
     return done(withRepo(state, next), output)
@@ -140,10 +144,10 @@ export const branch: Command = (state, argv) => {
   const at = resolveRev(repo, start)
   if (!at) return fatal(state, `fatal: not a valid object name: '${start === 'HEAD' && repo.head.type === 'branch' ? repo.head.name : start}'`)
   const upstream = trackedBy(repo, start)
-  const next: Repo = {
+  const next: Repo = logBranch({
     ...repo,
     branches: { ...repo.branches, [name]: at },
     upstream: upstream ? { ...repo.upstream, [name]: upstream } : repo.upstream
-  }
+  }, name, `branch: Created from ${start}`)
   return done(withRepo(state, next), upstream ? [trackingLine(name, upstream)] : [])
 }

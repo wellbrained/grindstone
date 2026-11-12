@@ -5,6 +5,7 @@ import { shortId } from '../objects/hash'
 import { done, err, fail, out } from '../output'
 import { mergeTrees } from '../merge3'
 import type { TreeMergeResult } from '../merge3'
+import { logHead } from '../reflog'
 import { resolveRev } from '../refs'
 import { headId, headTree, withEntry } from '../state'
 import { moveTrees } from '../worktree'
@@ -47,6 +48,8 @@ export interface MergeOptions {
   message: string
   noFf?: boolean
   ffOnly?: boolean
+  /** The reflog's name for this merge: `merge <label>` by default, `pull ...` for a pull. */
+  reflog?: string
 }
 
 /** Merges commit `theirs` (named `label` in conflict markers) into HEAD. Used by merge and pull. */
@@ -56,12 +59,15 @@ export function mergeInto(state: GitState, theirs: string, label: string, option
   const theirsTree = repo.commits[theirs]!.tree
 
   if (head && isAncestor(repo.commits, theirs, head)) return done(state, [out('Already up to date.')])
+  const action = options.reflog ?? `merge ${label}`
+  // git sets ORIG_HEAD to where HEAD was before every merge
+  const origHead = head ? { origHead: head } : {}
 
   if (!head || (isAncestor(repo.commits, head, theirs) && !options.noFf)) {
     const lines = head ? [out(`Updating ${shortId(head)}..${shortId(theirs)}`)] : []
     const moved = moveTrees(repo, state.workdir, headTree(repo), theirsTree, 'merge')
     if (!moved.ok) return fail(state, [...lines, ...moved.output])
-    const next = moveHead({ ...repo, index: moved.index }, theirs)
+    const next = logHead({ ...moveHead({ ...repo, index: moved.index }, theirs), ...origHead }, `${action}: Fast-forward`)
     return done({ ...withRepo(state, next), workdir: moved.workdir }, [...lines, out('Fast-forward'), ...diffstat(headTree(repo), theirsTree)])
   }
   if (options.ffOnly) return fatal(state, 'fatal: Not possible to fast-forward, aborting.')
@@ -76,6 +82,7 @@ export function mergeInto(state: GitState, theirs: string, label: string, option
   if (merged.conflicts.length) {
     const next: Repo = {
       ...repo,
+      ...origHead,
       index: applied.index,
       unmerged: applied.unmerged,
       operation: { type: 'merge', theirs, message: options.message, before: { index: repo.index, workdir: state.workdir } }
@@ -87,7 +94,7 @@ export function mergeInto(state: GitState, theirs: string, label: string, option
   }
 
   const created = createCommit(state, { parents: [head, theirs], tree: merged.index, message: options.message })
-  const next = moveHead(storeCommit({ ...repo, index: applied.index }, created.commit), created.commit.id)
+  const next = logHead(moveHead(storeCommit({ ...repo, ...origHead, index: applied.index }, created.commit), created.commit.id), `${action}: Merge made by the 'ort' strategy.`)
   return done({ ...withRepo(created.state, next), workdir: applied.workdir }, [
     ...report,
     out('Merge made by the \'ort\' strategy.'),

@@ -8,10 +8,12 @@ import { init } from './init'
 import { log } from './log'
 import { merge } from './merge'
 import { rebase } from './rebase'
+import { reflog } from './reflog'
 import { fetch, pull, push, remote } from './remote'
 import { reset } from './reset'
 import { restore } from './restore'
 import { revert } from './revert'
+import { rm } from './rm'
 import { stash } from './stash'
 import { status } from './status'
 import { checkout, switchCommand } from './switch'
@@ -20,6 +22,7 @@ export const GIT_COMMANDS: Record<string, { run: Command, summary: string }> = {
   init: { run: init, summary: 'Create an empty Git repository' },
   status: { run: status, summary: 'Show the working tree status' },
   add: { run: add, summary: 'Add file contents to the index' },
+  rm: { run: rm, summary: 'Remove files from the working tree and from the index' },
   commit: { run: commit, summary: 'Record changes to the repository' },
   log: { run: log, summary: 'Show commit logs' },
   diff: { run: diff, summary: 'Show changes between the index and the working tree' },
@@ -30,6 +33,7 @@ export const GIT_COMMANDS: Record<string, { run: Command, summary: string }> = {
   reset: { run: reset, summary: 'Reset current HEAD to the specified state' },
   revert: { run: revert, summary: 'Revert some existing commits' },
   stash: { run: stash, summary: 'Stash the changes in a dirty working directory away' },
+  reflog: { run: reflog, summary: 'Show where HEAD and your branches have been' },
   merge: { run: merge, summary: 'Join two development histories together' },
   rebase: { run: rebase, summary: 'Reapply commits on top of another base tip' },
   fetch: { run: fetch, summary: 'Download objects and refs from origin' },
@@ -42,8 +46,8 @@ export const GIT_COMMANDS: Record<string, { run: Command, summary: string }> = {
 const KNOWN_ELSEWHERE = [
   'am', 'apply', 'archive', 'bisect', 'blame', 'bundle', 'cat-file', 'cherry', 'cherry-pick', 'clean', 'clone',
   'config', 'describe', 'format-patch', 'fsck', 'gc', 'grep', 'gui', 'ls-files', 'ls-remote', 'ls-tree',
-  'maintenance', 'mv', 'notes', 'prune', 'range-diff', 'reflog', 'rerere',
-  'rev-list', 'rev-parse', 'rm', 'shortlog', 'show', 'show-branch', 'sparse-checkout',
+  'maintenance', 'mv', 'notes', 'prune', 'range-diff', 'rerere',
+  'rev-list', 'rev-parse', 'shortlog', 'show', 'show-branch', 'sparse-checkout',
   'submodule', 'tag', 'whatchanged', 'worktree'
 ]
 

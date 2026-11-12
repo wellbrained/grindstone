@@ -19,9 +19,9 @@ export interface CompletionResult {
 }
 
 /** git subcommands that take a branch (or a revision, or `origin`). */
-const BRANCH_ARGS = new Set(['switch', 'checkout', 'merge', 'rebase', 'branch', 'log', 'push', 'pull', 'fetch', 'diff', 'reset', 'revert'])
+const BRANCH_ARGS = new Set(['switch', 'checkout', 'merge', 'rebase', 'branch', 'log', 'push', 'pull', 'fetch', 'diff', 'reset', 'revert', 'reflog'])
 /** git subcommands that take a file. */
-const FILE_ARGS = new Set(['add', 'checkout', 'diff', 'commit', 'restore', 'reset'])
+const FILE_ARGS = new Set(['add', 'rm', 'checkout', 'diff', 'commit', 'restore', 'reset'])
 /** `git stash <subcommand>`. */
 const STASH_SUBCOMMANDS = ['push', 'list', 'pop', 'apply', 'drop', 'clear']
 /** shell and trainer commands that take a file. */
