@@ -11,7 +11,7 @@ Status: accepted, 2026-11-12 (Nik, grilling + previews).
 ## Two kinds of exercise
 
 - **Scenario**: a story, goals, up to three hints, a debrief (as before). Numbered `chapter.position` (1.1, 1.2 …).
-- **Practice task** (called "Practice" in the UI, not "drill"): one short task of 1–3 commands, no story, ~30 s, one goal, one hint, "Next" and "Again". It belongs to the scenario it trains and sits right after it.
+- **Practice task** (called "Practice" in the UI, not "drill"): one short task of 1–3 commands, no story, ~30 s, one goal (a few at most, when one task needs guards against a wrong path; decided 2026-11-12 after the review), one hint, "Next" and "Again". It belongs to the scenario it trains and sits right after it.
 - Every entry has a **difficulty** (1–3) and an **estimated time**.
 
 ## How practice tasks are shown (preview G2)

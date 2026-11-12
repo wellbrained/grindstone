@@ -52,7 +52,7 @@ The scenario engine (`shared/levels/`) and the git track's levels (`shared/level
 ADR 0006 (`docs/adr/0006-git-v1-practice-and-progress.md`). `Level = Scenario | PracticeTask`, told apart by `kind`.
 
 - **Scenario** (`kind: 'scenario'`): a story, goals, three hints, a debrief. Numbered.
-- **Practice task** (`kind: 'practice'`, "Practice" in the UI, never "drill"): one short task of 1-3 commands, about 30 seconds, one goal (or a few), one hint, a one-line `why` shown once solved, "Next" and "Again" instead of a debrief. No number.
+- **Practice task** (`kind: 'practice'`, "Practice" in the UI, never "drill"): one short task of 1-3 commands, about 30 seconds, one goal (a few at most, ADR 0006), one hint, a one-line `why` shown once solved, "Next" and "Again" instead of a debrief. No number.
 - **Where a practice task belongs**: it names its scenario in `practises` *and* is listed in the chapter right after that scenario (after the scenario's other practice tasks). The level file says what it trains; the chapter list stays the one place for the order; `defineTrack` checks that both agree, so a moved line fails at start-up instead of drawing a practice task under the wrong scenario. `nextLevel` therefore goes scenario, its practice tasks, next scenario.
 - **Difficulty** (`1 | 2 | 3`, drawn as filled dots) and **minutes** (an estimate; a practice task about `0.5`, shown as "~30 s") on every entry.
 
@@ -225,7 +225,7 @@ Chapter 7, Disasters (ADR 0006, batch 7; no preview, the owner delegated the tex
 
 | | Entry | Kind | Difficulty | Time |
 | --- | --- | --- | --- | --- |
-| 7.1 | **Committed on main by mistake**: two unpushed commits on main belong on `feature/cake-orders`; `git branch`, `git reset --hard origin/main`, `git switch`; the story asks for `git status` before `--hard`. A soft reset (changes left staged on main) and resetting before the branch exists do not count | scenario | 2 | ~5 min |
+| 7.1 | **Committed on main by mistake**: two unpushed commits on main belong on `feature/cake-orders`; `git branch`, `git reset --hard origin/main`, `git switch`; the story warns that moving main back throws away uncommitted work, so check that nothing is uncommitted first. A soft reset (changes left staged on main) and resetting before the branch exists do not count | scenario | 2 | ~5 min |
 | | Move your last commit to a new branch: `git branch feature/gluten-free`, `git reset --hard HEAD~1`, staying on main (`switch -c` alone does not count) | practice | 1 | ~30 s |
 | 7.2 | **Lost commits after a reset**: last night's `git reset --hard HEAD~2` dropped two commits on `feature/christmas-menu`; `git reflog` (read from the history), `git reset --hard HEAD@{1}`; the debrief covers `git branch rescue <id>`, that the reflog is local and expires, and that uncommitted work is not in it. A mixed reset (files not back) and `HEAD@{2}` (only the first commit) do not count | scenario | 2 | ~5 min |
 | | Find a lost commit in the reflog: `git reflog`, `git reset --hard HEAD@{1}` after a reset dropped "Add the hot drinks page" | practice | 1 | ~30 s |

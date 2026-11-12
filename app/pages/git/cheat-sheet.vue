@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { levelNumber } from '#shared/levels'
-import { cheatGroups, levelsUsing } from '~/utils/git-cheatsheet'
+import { cheatGroups, groupKey, levelsUsing, noteKey, summaryKey } from '~/utils/git-cheatsheet'
 
 const { t } = useI18n()
 useHead({ title: t('cheat.title') })
@@ -9,13 +9,13 @@ useSeoMeta({ description: t('cheat.intro') })
 const query = ref('')
 const copied = ref<string | null>(null)
 
-// Filter on the command name, its summary and its example lines.
+// Filter on the command name, its (translated) summary and its example lines and notes.
 const groups = computed(() => {
   const q = query.value.trim().toLowerCase()
   return cheatGroups
     .map(group => ({
       ...group,
-      commands: group.commands.filter(command => !q || [command.name, command.summary, ...command.examples.flatMap(e => [e.line, e.note])]
+      commands: group.commands.filter(command => !q || [command.name, t(summaryKey(command.name)), ...command.examples.flatMap((e, i) => [e.line, t(noteKey(command.name, i))])]
         .some(text => text.toLowerCase().includes(q)))
     }))
     .filter(group => group.commands.length > 0)
@@ -64,7 +64,7 @@ async function copy(line: string) {
           :key="group.id"
           :href="`#${group.id}`"
           class="text-muted hover:text-highlighted"
-        >{{ group.title }}</a>
+        >{{ t(groupKey(group.id)) }}</a>
       </nav>
     </div>
 
@@ -83,7 +83,7 @@ async function copy(line: string) {
         class="break-inside-avoid pt-6 scroll-mt-20"
       >
         <h2 class="font-mono text-sm font-medium text-muted">
-          {{ group.title }}
+          {{ t(groupKey(group.id)) }}
         </h2>
         <ul class="mt-3 space-y-4">
           <li
@@ -108,12 +108,12 @@ async function copy(line: string) {
               />
             </div>
             <p class="mt-1.5 text-sm text-toned">
-              {{ command.summary }}
+              {{ t(summaryKey(command.name)) }}
             </p>
             <!-- a small terminal: each example as a "# what it does" comment above its command; click a pair to copy the command -->
             <ul class="mt-3 space-y-1 rounded-r-lg border-l-2 border-accented bg-(--app-terminal) py-2 font-mono text-sm">
               <li
-                v-for="example in command.examples"
+                v-for="(example, exampleIndex) in command.examples"
                 :key="example.line"
               >
                 <button
@@ -123,7 +123,7 @@ async function copy(line: string) {
                   @click="copy(example.line)"
                 >
                   <span class="min-w-0 flex-1">
-                    <span class="block text-xs text-muted"># {{ example.note }}</span>
+                    <span class="block text-xs text-muted"># {{ t(noteKey(command.name, exampleIndex)) }}</span>
                     <span class="block text-highlighted wrap-break-word"><span
                       class="mr-2 text-dimmed"
                       aria-hidden="true"

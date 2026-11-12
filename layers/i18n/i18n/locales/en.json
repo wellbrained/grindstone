@@ -156,7 +156,200 @@
     "none": "No command matches \"{query}\".",
     "soon": "Coming to the trainer",
     "copy": "Copy {line}",
-    "practise": "Practise it in:"
+    "practise": "Practise it in:",
+    "groups": {
+      "start": "Start and save",
+      "branches": "Branches and tags",
+      "combine": "Combine work",
+      "remotes": "Remotes and teammates",
+      "inspect": "Look around",
+      "undo": "Undo and rescue"
+    },
+    "commands": {
+      "init": {
+        "summary": "Turn the current folder into a git repository.",
+        "examples": {
+          "0": "Start tracking this folder"
+        }
+      },
+      "status": {
+        "summary": "Show the branch, what is staged, what changed and what git does not track yet.",
+        "examples": {
+          "0": "Where am I, what changed?",
+          "1": "The short version"
+        }
+      },
+      "add": {
+        "summary": "Stage changes: choose what goes into the next commit.",
+        "examples": {
+          "0": "Stage one file",
+          "1": "Stage everything in this folder"
+        }
+      },
+      "rm": {
+        "summary": "Stop tracking a file: delete it, or keep it on your disk with --cached.",
+        "examples": {
+          "0": "Delete a file and stage the deletion",
+          "1": "Stop tracking a file, keep it on your disk",
+          "2": "The same for a whole folder"
+        }
+      },
+      "commit": {
+        "summary": "Save the staged changes as a snapshot with a message.",
+        "examples": {
+          "0": "Commit what is staged",
+          "1": "Stage tracked files and commit in one go",
+          "2": "Replace the last commit (only before you push it)"
+        }
+      },
+      "branch": {
+        "summary": "List, create and delete branches.",
+        "examples": {
+          "0": "List local branches",
+          "1": "Include origin/* branches",
+          "2": "Delete a merged branch",
+          "3": "Rename the branch you are on"
+        }
+      },
+      "switch": {
+        "summary": "Move to another branch (the modern way).",
+        "examples": {
+          "0": "Go to main",
+          "1": "Create a branch and switch to it",
+          "2": "Back to the branch you were on before",
+          "3": "Look at an old commit without moving a branch"
+        }
+      },
+      "checkout": {
+        "summary": "The older all-rounder: switch branches, or restore a file.",
+        "examples": {
+          "0": "Create a branch and switch to it",
+          "1": "Throw away unstaged changes to a file",
+          "2": "In a conflict, take the version of the branch you merge in"
+        }
+      },
+      "tag": {
+        "summary": "Give a commit a fixed name, usually a release version.",
+        "examples": {
+          "0": "List the tags",
+          "1": "An annotated tag on HEAD: with message, tagger and date",
+          "2": "A lightweight tag on a given commit",
+          "3": "Share a tag (a plain git push does not)",
+          "4": "Delete a local tag"
+        }
+      },
+      "merge": {
+        "summary": "Bring another branch into the current one: fast-forward, or a merge commit.",
+        "examples": {
+          "0": "Merge into the branch you are on",
+          "1": "Always make a merge commit, even for a fast-forward",
+          "2": "Only move forward, never make a merge commit",
+          "3": "Give up a merge with conflicts"
+        }
+      },
+      "rebase": {
+        "summary": "Replay your commits on top of another branch, for a straight history.",
+        "examples": {
+          "0": "Put your branch on top of main",
+          "1": "After fixing a conflict and git add",
+          "2": "Go back to how it was before",
+          "3": "Tidy up your last three commits",
+          "4": "Reword, squash or drop every commit on your branch"
+        }
+      },
+      "cherry-pick": {
+        "summary": "Copy single commits from another branch onto yours, as new commits.",
+        "examples": {
+          "0": "Take just that fix",
+          "1": "Note in the message where it came from",
+          "2": "After fixing a conflict and git add",
+          "3": "Give up and go back"
+        }
+      },
+      "remote": {
+        "summary": "Show the remote repository you push to and fetch from.",
+        "examples": {
+          "0": "Where is origin?"
+        }
+      },
+      "fetch": {
+        "summary": "Download what others pushed, without touching your branches.",
+        "examples": {
+          "0": "Update origin/*",
+          "1": "Also drop origin/* branches that are gone on origin"
+        }
+      },
+      "pull": {
+        "summary": "Fetch and bring the changes into your branch.",
+        "examples": {
+          "0": "Fetch and merge",
+          "1": "Fetch and rebase your work on top"
+        }
+      },
+      "push": {
+        "summary": "Upload your commits to origin.",
+        "examples": {
+          "0": "First push of a new branch, remember the upstream",
+          "1": "Update a rewritten branch, but only if nobody pushed in between"
+        }
+      },
+      "log": {
+        "summary": "Show the history.",
+        "examples": {
+          "0": "One line per commit",
+          "1": "All branches as a graph",
+          "2": "Commits you have not pushed yet",
+          "3": "Commits you have not pulled yet (after git fetch)"
+        }
+      },
+      "diff": {
+        "summary": "Show what changed, line by line.",
+        "examples": {
+          "0": "Changes not staged yet",
+          "1": "What the next commit will contain"
+        }
+      },
+      "restore": {
+        "summary": "Throw away changes in a file, or take it out of the staging area.",
+        "examples": {
+          "0": "Throw away unstaged changes, for good",
+          "1": "Unstage a file, keep your edits"
+        }
+      },
+      "reset": {
+        "summary": "Move the branch back, keeping or dropping the changes.",
+        "examples": {
+          "0": "Undo the last commit, keep its changes staged",
+          "1": "Undo the last commit, keep its changes in your files",
+          "2": "Drop the last commit and all uncommitted work"
+        }
+      },
+      "reflog": {
+        "summary": "Where HEAD has been: find commits a reset, rebase or deleted branch left behind.",
+        "examples": {
+          "0": "Every move of HEAD, newest first",
+          "1": "Back to where HEAD was one move ago",
+          "2": "Put a branch on a lost commit",
+          "3": "Undo the last reset, merge or rebase"
+        }
+      },
+      "revert": {
+        "summary": "Add a new commit that undoes an old one; safe on shared branches.",
+        "examples": {
+          "0": "Undo a pushed commit",
+          "1": "Undo the commit before last"
+        }
+      },
+      "stash": {
+        "summary": "Put unfinished changes aside and get them back later.",
+        "examples": {
+          "0": "Park your changes",
+          "1": "Park new files too",
+          "2": "What is parked?",
+          "3": "Bring the newest back"
+        }
+      }
+    }
   },
   "about": {
     "kicker": "About",

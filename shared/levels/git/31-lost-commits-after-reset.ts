@@ -49,11 +49,11 @@ export const lostCommitsAfterReset: Scenario = {
   title: 'Lost commits after a reset',
   story: [
     `Last night you finished two commits on \`${BRANCH}\`: "${FIRST}" and "${SECOND}". Then you wanted to throw away a snowflake experiment in style.css and typed \`git reset --hard HEAD~2\` instead of \`git reset --hard\`. This morning both commits are gone from \`git log\`, and christmas.html is gone from your disk. Nothing was pushed.`,
-    `They aren't lost: git's reflog remembers every place HEAD has been. Look there, find the newer of the two commits, and put \`${BRANCH}\` back on it, with christmas.html back in your files. The snowflakes stay gone; they were never committed.`
+    `They aren't lost: git remembers every place HEAD has been. Look there, find the newer of the two commits, and put \`${BRANCH}\` back on it, with christmas.html back in your files. The snowflakes stay gone; they were never committed.`
   ].join('\n\n'),
   setup,
   goals: [
-    { id: 'looked', label: 'You looked in the reflog: `git reflog`', check: ({ history }) => ran(history, 'reflog') },
+    { id: 'looked', label: 'You looked up where HEAD has been', check: ({ history }) => ran(history, 'reflog') },
     { id: 'back', label: `${BRANCH} has both commits again`, check: ({ state }) => resolve(state, BRANCH) === LOST },
     {
       id: 'files',

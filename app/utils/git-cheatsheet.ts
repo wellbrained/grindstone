@@ -1,86 +1,85 @@
-// Content of the git cheat sheet (/git/cheat-sheet). Pure data plus the link to the levels that use a command,
-// derived from the level solutions so it never goes stale. Supported forms: docs/features/git-model.md.
+// Structure of the git cheat sheet (/git/cheat-sheet): groups, command names and example lines (data, not translated),
+// plus the link to the levels that use a command, derived from the level solutions so it never goes stale. Every
+// visible text lives in the i18n locales under `cheat.*`; the key helpers below say where. Supported forms: docs/features/git-model.md.
 import { gitLevels, gitSubcommands } from '../../shared/levels'
 import type { Level } from '../../shared/levels'
 
 export interface CheatCommand {
   /** The git subcommand, e.g. 'commit'. */
   name: string
-  /** What it does, in one line. */
-  summary: string
-  /** Typical uses: the command line and what it does. */
-  examples: { line: string, note: string }[]
+  /** Typical uses: the command lines (data, not translated). Their notes are i18n keys, see `noteKey`. */
+  examples: { line: string }[]
   /** Not in the trainer yet. */
   comingSoon?: boolean
 }
 
 export interface CheatGroup {
   id: string
-  title: string
   commands: CheatCommand[]
 }
 
 export const cheatGroups: CheatGroup[] = [
   {
     id: 'start',
-    title: 'Start and save',
     commands: [
-      { name: 'init', summary: 'Turn the current folder into a git repository.', examples: [{ line: 'git init', note: 'Start tracking this folder' }] },
-      { name: 'status', summary: 'Show the branch, what is staged, what changed and what git does not track yet.', examples: [{ line: 'git status', note: 'Where am I, what changed?' }, { line: 'git status -s', note: 'The short version' }] },
-      { name: 'add', summary: 'Stage changes: choose what goes into the next commit.', examples: [{ line: 'git add app.js', note: 'Stage one file' }, { line: 'git add .', note: 'Stage everything in this folder' }] },
-      { name: 'rm', summary: 'Stop tracking a file: delete it, or keep it on your disk with --cached.', examples: [{ line: 'git rm old-page.html', note: 'Delete a file and stage the deletion' }, { line: 'git rm --cached .env', note: 'Stop tracking a file, keep it on your disk' }, { line: 'git rm -r --cached dist', note: 'The same for a whole folder' }] },
-      { name: 'commit', summary: 'Save the staged changes as a snapshot with a message.', examples: [{ line: 'git commit -m "Add login form"', note: 'Commit what is staged' }, { line: 'git commit -am "Fix typo"', note: 'Stage tracked files and commit in one go' }, { line: 'git commit --amend -m "Better message"', note: 'Replace the last commit (only before you push it)' }] }
+      { name: 'init', examples: [{ line: 'git init' }] },
+      { name: 'status', examples: [{ line: 'git status' }, { line: 'git status -s' }] },
+      { name: 'add', examples: [{ line: 'git add app.js' }, { line: 'git add .' }] },
+      { name: 'rm', examples: [{ line: 'git rm old-page.html' }, { line: 'git rm --cached .env' }, { line: 'git rm -r --cached dist' }] },
+      { name: 'commit', examples: [{ line: 'git commit -m "Add login form"' }, { line: 'git commit -am "Fix typo"' }, { line: 'git commit --amend -m "Better message"' }] }
     ]
   },
   {
     id: 'branches',
-    title: 'Branches and tags',
     commands: [
-      { name: 'branch', summary: 'List, create and delete branches.', examples: [{ line: 'git branch', note: 'List local branches' }, { line: 'git branch -a', note: 'Include origin/* branches' }, { line: 'git branch -d feature/login', note: 'Delete a merged branch' }, { line: 'git branch -m feature/gallery', note: 'Rename the branch you are on' }] },
-      { name: 'switch', summary: 'Move to another branch (the modern way).', examples: [{ line: 'git switch main', note: 'Go to main' }, { line: 'git switch -c feature/login', note: 'Create a branch and switch to it' }, { line: 'git switch -', note: 'Back to the branch you were on before' }, { line: 'git switch --detach a1b2c3d', note: 'Look at an old commit without moving a branch' }] },
-      { name: 'checkout', summary: 'The older all-rounder: switch branches, or restore a file.', examples: [{ line: 'git checkout -b feature/login', note: 'Create a branch and switch to it' }, { line: 'git checkout -- app.js', note: 'Throw away unstaged changes to a file' }, { line: 'git checkout --theirs prices.json', note: 'In a conflict, take the version of the branch you merge in' }] },
-      { name: 'tag', summary: 'Give a commit a fixed name, usually a release version.', examples: [{ line: 'git tag', note: 'List the tags' }, { line: 'git tag -a v1.4.0 -m "Version 1.4.0"', note: 'An annotated tag on HEAD: with message, tagger and date' }, { line: 'git tag v1.4.0 a1b2c3d', note: 'A lightweight tag on a given commit' }, { line: 'git push origin v1.4.0', note: 'Share a tag (a plain git push does not)' }, { line: 'git tag -d v1.4.0', note: 'Delete a local tag' }] }
+      { name: 'branch', examples: [{ line: 'git branch' }, { line: 'git branch -a' }, { line: 'git branch -d feature/login' }, { line: 'git branch -m feature/gallery' }] },
+      { name: 'switch', examples: [{ line: 'git switch main' }, { line: 'git switch -c feature/login' }, { line: 'git switch -' }, { line: 'git switch --detach a1b2c3d' }] },
+      { name: 'checkout', examples: [{ line: 'git checkout -b feature/login' }, { line: 'git checkout -- app.js' }, { line: 'git checkout --theirs prices.json' }] },
+      { name: 'tag', examples: [{ line: 'git tag' }, { line: 'git tag -a v1.4.0 -m "Version 1.4.0"' }, { line: 'git tag v1.4.0 a1b2c3d' }, { line: 'git push origin v1.4.0' }, { line: 'git tag -d v1.4.0' }] }
     ]
   },
   {
     id: 'combine',
-    title: 'Combine work',
     commands: [
-      { name: 'merge', summary: 'Bring another branch into the current one: fast-forward, or a merge commit.', examples: [{ line: 'git merge feature/login', note: 'Merge into the branch you are on' }, { line: 'git merge --no-ff feature/login', note: 'Always make a merge commit, even for a fast-forward' }, { line: 'git merge --ff-only feature/login', note: 'Only move forward, never make a merge commit' }, { line: 'git merge --abort', note: 'Give up a merge with conflicts' }] },
-      { name: 'rebase', summary: 'Replay your commits on top of another branch, for a straight history.', examples: [{ line: 'git rebase main', note: 'Put your branch on top of main' }, { line: 'git rebase --continue', note: 'After fixing a conflict and git add' }, { line: 'git rebase --abort', note: 'Go back to how it was before' }, { line: 'git rebase -i HEAD~3', note: 'Tidy up your last three commits' }, { line: 'git rebase -i main', note: 'Reword, squash or drop every commit on your branch' }] },
-      { name: 'cherry-pick', summary: 'Copy single commits from another branch onto yours, as new commits.', examples: [{ line: 'git cherry-pick a1b2c3d', note: 'Take just that fix' }, { line: 'git cherry-pick -x a1b2c3d', note: 'Note in the message where it came from' }, { line: 'git cherry-pick --continue', note: 'After fixing a conflict and git add' }, { line: 'git cherry-pick --abort', note: 'Give up and go back' }] }
+      { name: 'merge', examples: [{ line: 'git merge feature/login' }, { line: 'git merge --no-ff feature/login' }, { line: 'git merge --ff-only feature/login' }, { line: 'git merge --abort' }] },
+      { name: 'rebase', examples: [{ line: 'git rebase main' }, { line: 'git rebase --continue' }, { line: 'git rebase --abort' }, { line: 'git rebase -i HEAD~3' }, { line: 'git rebase -i main' }] },
+      { name: 'cherry-pick', examples: [{ line: 'git cherry-pick a1b2c3d' }, { line: 'git cherry-pick -x a1b2c3d' }, { line: 'git cherry-pick --continue' }, { line: 'git cherry-pick --abort' }] }
     ]
   },
   {
     id: 'remotes',
-    title: 'Remotes and teammates',
     commands: [
-      { name: 'remote', summary: 'Show the remote repository you push to and fetch from.', examples: [{ line: 'git remote -v', note: 'Where is origin?' }] },
-      { name: 'fetch', summary: 'Download what others pushed, without touching your branches.', examples: [{ line: 'git fetch', note: 'Update origin/*' }, { line: 'git fetch --prune', note: 'Also drop origin/* branches that are gone on origin' }] },
-      { name: 'pull', summary: 'Fetch and bring the changes into your branch.', examples: [{ line: 'git pull', note: 'Fetch and merge' }, { line: 'git pull --rebase', note: 'Fetch and rebase your work on top' }] },
-      { name: 'push', summary: 'Upload your commits to origin.', examples: [{ line: 'git push -u origin feature/login', note: 'First push of a new branch, remember the upstream' }, { line: 'git push --force-with-lease', note: 'Update a rewritten branch, but only if nobody pushed in between' }] }
+      { name: 'remote', examples: [{ line: 'git remote -v' }] },
+      { name: 'fetch', examples: [{ line: 'git fetch' }, { line: 'git fetch --prune' }] },
+      { name: 'pull', examples: [{ line: 'git pull' }, { line: 'git pull --rebase' }] },
+      { name: 'push', examples: [{ line: 'git push -u origin feature/login' }, { line: 'git push --force-with-lease' }] }
     ]
   },
   {
     id: 'inspect',
-    title: 'Look around',
     commands: [
-      { name: 'log', summary: 'Show the history.', examples: [{ line: 'git log --oneline', note: 'One line per commit' }, { line: 'git log --oneline --graph --all', note: 'All branches as a graph' }, { line: 'git log origin/main..main', note: 'Commits you have not pushed yet' }, { line: 'git log main..origin/main', note: 'Commits you have not pulled yet (after git fetch)' }] },
-      { name: 'diff', summary: 'Show what changed, line by line.', examples: [{ line: 'git diff', note: 'Changes not staged yet' }, { line: 'git diff --staged', note: 'What the next commit will contain' }] }
+      { name: 'log', examples: [{ line: 'git log --oneline' }, { line: 'git log --oneline --graph --all' }, { line: 'git log origin/main..main' }, { line: 'git log main..origin/main' }] },
+      { name: 'diff', examples: [{ line: 'git diff' }, { line: 'git diff --staged' }] }
     ]
   },
   {
     id: 'undo',
-    title: 'Undo and rescue',
     commands: [
-      { name: 'restore', summary: 'Throw away changes in a file, or take it out of the staging area.', examples: [{ line: 'git restore app.js', note: 'Throw away unstaged changes, for good' }, { line: 'git restore --staged app.js', note: 'Unstage a file, keep your edits' }] },
-      { name: 'reset', summary: 'Move the branch back, keeping or dropping the changes.', examples: [{ line: 'git reset --soft HEAD~1', note: 'Undo the last commit, keep its changes staged' }, { line: 'git reset HEAD~1', note: 'Undo the last commit, keep its changes in your files' }, { line: 'git reset --hard HEAD~1', note: 'Drop the last commit and all uncommitted work' }] },
-      { name: 'reflog', summary: 'Where HEAD has been: find commits a reset, rebase or deleted branch left behind.', examples: [{ line: 'git reflog', note: 'Every move of HEAD, newest first' }, { line: 'git reset --hard HEAD@{1}', note: 'Back to where HEAD was one move ago' }, { line: 'git branch rescue a1b2c3d', note: 'Put a branch on a lost commit' }, { line: 'git reset --hard ORIG_HEAD', note: 'Undo the last reset, merge or rebase' }] },
-      { name: 'revert', summary: 'Add a new commit that undoes an old one; safe on shared branches.', examples: [{ line: 'git revert a1b2c3d', note: 'Undo a pushed commit' }, { line: 'git revert HEAD~1', note: 'Undo the commit before last' }] },
-      { name: 'stash', summary: 'Put unfinished changes aside and get them back later.', examples: [{ line: 'git stash', note: 'Park your changes' }, { line: 'git stash -u', note: 'Park new files too' }, { line: 'git stash list', note: 'What is parked?' }, { line: 'git stash pop', note: 'Bring the newest back' }] }
+      { name: 'restore', examples: [{ line: 'git restore app.js' }, { line: 'git restore --staged app.js' }] },
+      { name: 'reset', examples: [{ line: 'git reset --soft HEAD~1' }, { line: 'git reset HEAD~1' }, { line: 'git reset --hard HEAD~1' }] },
+      { name: 'reflog', examples: [{ line: 'git reflog' }, { line: 'git reset --hard HEAD@{1}' }, { line: 'git branch rescue a1b2c3d' }, { line: 'git reset --hard ORIG_HEAD' }] },
+      { name: 'revert', examples: [{ line: 'git revert a1b2c3d' }, { line: 'git revert HEAD~1' }] },
+      { name: 'stash', examples: [{ line: 'git stash' }, { line: 'git stash -u' }, { line: 'git stash list' }, { line: 'git stash pop' }] }
     ]
   }
 ]
+
+/** i18n key of a group's title. */
+export const groupKey = (groupId: string) => `cheat.groups.${groupId}`
+/** i18n key of a command's one-line summary. */
+export const summaryKey = (command: string) => `cheat.commands.${command}.summary`
+/** i18n key of the note above an example line (counted from 0 in the order of `examples`). */
+export const noteKey = (command: string, index: number) => `cheat.commands.${command}.examples.${index}`
 
 /** The scenarios whose solution uses this git subcommand, in level order (practice tasks have no number to link by). */
 export function levelsUsing(name: string, levels: readonly Level[] = gitLevels): Level[] {

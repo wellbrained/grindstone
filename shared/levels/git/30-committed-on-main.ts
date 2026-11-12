@@ -39,7 +39,7 @@ export const committedOnMain: Scenario = {
   title: 'Committed on main by mistake',
   story: [
     'You came in early and got straight to work on cake orders for the bakery website: two commits, "Add the cake order form" and "Link the cake order form from the home page". Only then did you notice `git status` saying "On branch main". The team changes main only through pull requests, but you haven\'t pushed yet, so nobody has these commits.',
-    `Move both commits to a new branch \`${BRANCH}\`, put main back where origin/main is, and carry on on the new branch. Your working tree is clean, so \`git reset --hard\` can't throw anything away here; still, check \`git status\` before you use it.`
+    `Move both commits to a new branch \`${BRANCH}\`, put main back where origin/main is, and carry on on the new branch. Your working tree is clean, so moving main back can't throw anything away here; still, check that nothing is uncommitted first: the way back to origin's main throws away uncommitted work for good.`
   ].join('\n\n'),
   setup,
   goals: [

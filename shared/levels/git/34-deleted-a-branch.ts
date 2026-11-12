@@ -44,7 +44,7 @@ export const deletedABranch: Scenario = {
   title: 'Deleted a branch with unmerged work',
   story: [
     `An hour ago you tidied up your branches and deleted \`${BRANCH}\` with \`git branch -D\`, sure it was merged. It wasn't: your two commits for Maya's loyalty card page were never merged or pushed. git even told you, "Deleted branch ${BRANCH} (was ${TIP.slice(0, 7)}).", but you only noticed now. Since then you've fixed the croissant price on main.`,
-    `Bring \`${BRANCH}\` back with both commits. Use the id git printed, or find the commit in \`git reflog\`. Leave main as it is.`
+    `Bring \`${BRANCH}\` back with both commits. Use the id git printed, or look up where HEAD has been and find the commit there. Leave main as it is.`
   ].join('\n\n'),
   setup,
   goals: [

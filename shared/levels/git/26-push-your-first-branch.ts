@@ -50,7 +50,7 @@ export const pushYourFirstBranch: Scenario = {
   title: 'Push your first branch',
   story: [
     `Maya wants customers to pre-order their Christmas stollen online. You built the order form on \`${BRANCH}\`: one commit, and so far it exists only on your machine. Jonas is waiting to review it.`,
-    `Push the branch to origin, and set it up so that from now on a plain \`git push\` and \`git pull\` know where this branch belongs. Start with a plain \`git push\` and read what git tells you. When you're done, check with \`git status\`.`
+    `Push the branch to origin, and set it up so that from now on pushing and pulling need no names: git knows where this branch belongs. Read what git tells you when you first try. When you're done, check that git agrees you're up to date with origin.`
   ].join('\n\n'),
   setup,
   goals: [
@@ -58,7 +58,7 @@ export const pushYourFirstBranch: Scenario = {
     { id: 'upstream', label: `${BRANCH} tracks origin/${BRANCH}`, check: ({ state }) => tracking(state) },
     {
       id: 'checked',
-      label: `\`git status\` says you're up to date with origin/${BRANCH}`,
+      label: `You checked that you're up to date with origin/${BRANCH}`,
       check: ({ state, history }) => pushed(state) && tracking(state) && checkedStatus(history)
     }
   ],

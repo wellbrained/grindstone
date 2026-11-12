@@ -69,7 +69,7 @@ export const whatChanged: Scenario = {
   title: 'What changed?',
   story: [
     'Back from lunch. Before the break you worked on two things for the bakery website: new opening hours, which Maya wants online this afternoon, and a dark theme that is far from ready. Some of it is staged, some is not, and you no longer remember which change sits in which file.',
-    'Put every opening-hours change into one commit and leave the dark theme out. Look before you commit: `git status` lists the changed files, `git diff` shows the changes you have not staged yet, `git diff --staged` the ones you have.'
+    'Put every opening-hours change into one commit and leave the dark theme out. Look before you commit: check which files changed, and read the changes themselves, both the ones you have staged and the ones you have not.'
   ].join('\n\n'),
   setup,
   goals: [
@@ -88,7 +88,7 @@ export const whatChanged: Scenario = {
     },
     {
       id: 'looked',
-      label: 'You looked at both sides: `git diff` and `git diff --staged`',
+      label: 'You looked at both the unstaged and the staged changes',
       check: ({ history }) => ran(history, 'diff', args => !args.includes('--staged') && !args.includes('--cached'))
         && ran(history, 'diff', args => args.includes('--staged') || args.includes('--cached'))
     }

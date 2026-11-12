@@ -38,7 +38,7 @@ export const tagARelease: Scenario = {
   minutes: 5,
   title: 'Tag a release',
   story: [
-    `This morning version 1.4.0 of the website went live: main's commit "${RELEASED}". Jonas has pushed a commit since, which isn't part of it. The team, and Ben's deploy script, find every release by its tag, like \`v1.3.0\` before it (\`git tag\` lists them).`,
+    `This morning version 1.4.0 of the website went live: main's commit "${RELEASED}". Jonas has pushed a commit since, which isn't part of it. The team, and Ben's deploy script, find every release by its tag, like \`v1.3.0\` before it.`,
     `Tag the release: an annotated tag \`${TAG}\` on the commit "${RELEASED}", with the message "${MESSAGE}". Then put the tag on origin, so everyone has it.`
   ].join('\n\n'),
   setup,
