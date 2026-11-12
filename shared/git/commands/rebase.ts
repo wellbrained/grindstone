@@ -6,6 +6,7 @@ import { shortId } from '../objects/hash'
 import { done, err, fail, hint, out, plural, ref } from '../output'
 import { mergeTrees } from '../merge3'
 import { logBranch, logHead } from '../reflog'
+import { rebaseProgress } from '../rebase-progress'
 import { resolveRev } from '../refs'
 import { headId, headTree, withEntry } from '../state'
 import { localChanges, moveTrees, treesEqual } from '../worktree'
@@ -21,7 +22,9 @@ export const MESSAGE_PATH = '.git/COMMIT_EDITMSG'
 
 const WAITING = 'hint: Waiting for your editor to close the file...'
 
-const noRebase = (state: GitState) => fatal(state, 'fatal: No rebase in progress?')
+const noRebase = (state: GitState) => fatal(state, 'fatal: no rebase in progress')
+
+const ADVICE_OFF = 'hint: Disable this message with "git config set advice.mergeConflict false"'
 
 const rebaseOf = (state: GitState): RebaseOperation | null =>
   state.repo?.operation?.type === 'rebase' ? state.repo.operation : null
@@ -58,12 +61,12 @@ const MESSAGE_HELP = [
   '#'
 ]
 
-const messageFooter = (operation: RebaseOperation) => [...MESSAGE_HELP, `# interactive rebase in progress; onto ${shortId(operation.onto)}`, '']
+const messageFooter = (repo: Repo, operation: RebaseOperation) => [...MESSAGE_HELP, ...rebaseProgress(repo, operation).map(text => `# ${text}`), '']
 
 const chainMessage = (chain: ChainMessage[]) => chain.filter(entry => entry.keep).map(entry => entry.message).join('\n\n')
 
 /** git's squash message: every message of the chain, the ones of fixups commented out. */
-function combinationText(chain: ChainMessage[], operation: RebaseOperation): string {
+function combinationText(repo: Repo, chain: ChainMessage[], operation: RebaseOperation): string {
   const lines = [`# This is a combination of ${chain.length} commits.`]
   chain.forEach((entry, i) => {
     // the first one is the commit the others meld into, always kept
@@ -72,7 +75,7 @@ function combinationText(chain: ChainMessage[], operation: RebaseOperation): str
     else lines.push(kept ? `# This is the commit message #${i + 1}:` : `# The commit message #${i + 1} will be skipped:`)
     lines.push('', ...entry.message.split('\n').map(line => kept ? line : `# ${line}`), '')
   })
-  return [...lines, ...messageFooter(operation)].join('\n')
+  return [...lines, ...messageFooter(repo, operation)].join('\n')
 }
 
 /** git's default cleanup: drop # lines and trailing spaces, collapse blank lines, trim blank lines at both ends. */
@@ -104,12 +107,12 @@ const TODO_HELP = [
 ]
 
 function todoText(commits: Commit[], upstream: string, head: string, onto: string): string {
-  const lines = commits.length ? commits.map(commit => `pick ${shortId(commit.id)} ${subject(commit)}`) : ['noop']
+  const lines = commits.length ? commits.map(commit => `pick ${shortId(commit.id)} # ${subject(commit)}`) : ['noop']
   const count = plural(lines.length, 'command')
   return [...lines, '', `# Rebase ${shortId(upstream)}..${shortId(head)} onto ${shortId(onto)} (${count})`, ...TODO_HELP].join('\n')
 }
 
-const TODO_ACTIONS: Record<string, RebaseAction | 'drop' | 'noop'> = {
+const TODO_ACTIONS: Record<string, RebaseAction | 'noop'> = {
   pick: 'pick', p: 'pick', reword: 'reword', r: 'reword', squash: 'squash', s: 'squash', fixup: 'fixup', f: 'fixup', drop: 'drop', d: 'drop', noop: 'noop'
 }
 /** Real todo commands the trainer does not run (yet), with their short forms. */
@@ -140,8 +143,7 @@ function parseTodo(repo: Repo, text: string): ParsedTodo {
     if (!target) return { ok: false, errors: [`error: missing arguments for ${name}`, invalid] }
     const commit = resolveRev(repo, target)
     if (!commit) return { ok: false, errors: [`error: could not parse '${target}'`, invalid] }
-    if (action === 'drop') continue
-    if (isMeld(action) && !steps.length) return { ok: false, errors: [`error: cannot '${name}' without a previous commit`] }
+    if (isMeld(action) && steps.every(step => step.action === 'drop')) return { ok: false, errors: [`error: cannot '${name}' without a previous commit`] }
     steps.push({ action, commit })
   }
   return { ok: true, steps, commands }
@@ -157,8 +159,8 @@ function commitStep(state: GitState, step: RebaseStep, fastForward: boolean, con
   const repo = state.repo!
   const operation = repo.operation as RebaseOperation
   const commit = repo.commits[step.commit]!
-  // a reword is a pick first; its new message gets its own entry once saved
-  const reflog = (text: string) => reflogLine(operation, continued ? 'continue' : step.action === 'reword' ? 'pick' : step.action, text)
+  // a reword is a pick first (logged under its own name); its new message gets another entry once saved
+  const reflog = (text: string) => reflogLine(operation, continued ? 'continue' : step.action, text)
   if (isMeld(step.action)) {
     const chain = [...(operation.chain ?? []), { message: commit.message, keep: step.action === 'squash' }]
     const head = repo.commits[headId(repo)!]!
@@ -168,7 +170,8 @@ function commitStep(state: GitState, step: RebaseStep, fastForward: boolean, con
   }
   const chain = [{ message: commit.message, keep: true }]
   if (fastForward) {
-    const moved = logHead({ ...repo, head: { type: 'detached', commit: commit.id } }, reflog(subject(commit)))
+    // git moves HEAD straight to the commit instead of picking it
+    const moved = logHead({ ...repo, head: { type: 'detached', commit: commit.id } }, `${operation.action ?? 'rebase'}: fast-forward`)
     return { state: withOperation(withRepo(state, moved), { chain }), output: [] }
   }
   // a commit whose changes are already upstream becomes empty and is dropped
@@ -184,9 +187,9 @@ function pauseFor(state: GitState, step: RebaseStep): GitState | null {
   const chain = operation.chain ?? []
   let text: string | null = null
   if (step.action === 'reword') {
-    text = [chainMessage(chain), '', ...messageFooter(operation)].join('\n')
+    text = [chainMessage(chain), '', ...messageFooter(repo, operation)].join('\n')
   } else if (isMeld(step.action) && !isMeld(operation.todo[0]?.action) && chain.slice(1).some(entry => entry.keep)) {
-    text = combinationText(chain, operation)
+    text = combinationText(repo, chain, operation)
   }
   if (text === null) return null
   return withOperation(state, { editor: { kind: 'message', path: MESSAGE_PATH, text } })
@@ -200,6 +203,13 @@ function replay(start: GitState, output: OutputLine[]): CommandResult {
     const operation = repo.operation as RebaseOperation
     const [step, ...rest] = operation.todo
     if (!step) return finish(state, operation, output)
+    const finished = [...(operation.done ?? []), step]
+
+    // a dropped commit is only counted as done
+    if (step.action === 'drop') {
+      state = withRepo(state, { ...repo, operation: { ...operation, todo: rest, done: finished } })
+      continue
+    }
 
     const commit = repo.commits[step.commit]!
     const head = headId(repo)
@@ -215,7 +225,7 @@ function replay(start: GitState, output: OutputLine[]): CommandResult {
         ...repo,
         index: applied.index,
         unmerged: applied.unmerged,
-        operation: { ...operation, todo: rest, stopped: step }
+        operation: { ...operation, todo: rest, stopped: step, done: finished }
       }
       const apply = `${shortId(commit.id)}... ${subject(commit)}`
       return fail({ ...withRepo(state, stopped), workdir: applied.workdir }, [
@@ -226,11 +236,13 @@ function replay(start: GitState, output: OutputLine[]): CommandResult {
         hint('hint: "git add/rm <conflicted_files>", then run "git rebase --continue".'),
         hint('hint: You can instead skip this commit: run "git rebase --skip".'),
         hint('hint: To abort and get back to the state before "git rebase", run "git rebase --abort".'),
-        err(`Could not apply ${apply}`)
+        hint(ADVICE_OFF),
+        // the todo line's "# <subject>" is what git quotes here
+        err(`Could not apply ${shortId(commit.id)}... # ${subject(commit)}`)
       ])
     }
 
-    state = { ...withRepo(state, { ...repo, index: applied.index, operation: { ...operation, todo: rest } }), workdir: applied.workdir }
+    state = { ...withRepo(state, { ...repo, index: applied.index, operation: { ...operation, todo: rest, done: finished } }), workdir: applied.workdir }
     const fastForward = !isMeld(step.action) && commit.parents[0] === head && treesEqual(applied.index, commit.tree)
     state = commitStep(state, step, fastForward).state
     const paused = pauseFor(state, step)
@@ -239,18 +251,37 @@ function replay(start: GitState, output: OutputLine[]): CommandResult {
 }
 
 function refuseDirty(state: GitState): CommandResult | null {
-  const changes = localChanges(state.repo!, state.workdir)
-  if (changes.unstaged) return fail(state, [err('error: cannot rebase: You have unstaged changes.'), err('error: Please commit or stash them.')])
-  if (changes.staged) return fail(state, [err('error: cannot rebase: Your index contains uncommitted changes.'), err('error: Please commit or stash them.')])
+  const repo = state.repo!
+  // unmerged paths count as both: unstaged changes and an index that is not clean
+  const unmerged = Object.keys(repo.unmerged).sort()
+  const changes = unmerged.length ? { staged: true, unstaged: true } : localChanges(repo, state.workdir)
+  const ask = err('error: Please commit or stash them.')
+  if (changes.unstaged && changes.staged) {
+    return fail(state, [
+      ...unmerged.map(path => err(`${path}: needs merge`)),
+      err('error: cannot rebase: You have unstaged changes.'),
+      err('error: additionally, your index contains uncommitted changes.'),
+      ask
+    ])
+  }
+  if (changes.unstaged) return fail(state, [err('error: cannot rebase: You have unstaged changes.'), ask])
+  if (changes.staged) return fail(state, [err('error: cannot rebase: Your index contains uncommitted changes.'), ask])
   return null
 }
 
 /** Checks out `onto` (detached) and replays `todo`, as the operation's next steps. */
-function begin(state: GitState, operation: RebaseOperation, todo: RebaseStep[]): CommandResult {
+function begin(state: GitState, operation: RebaseOperation, steps: RebaseStep[]): CommandResult {
   const repo = state.repo!
-  const moved = moveTrees(repo, state.workdir, headTree(repo), repo.commits[operation.onto]!.tree, 'checkout')
+  // like git, leading picks whose parent is already the base are not replayed: the base moves up over them
+  let base = operation.onto
+  let skipped = 0
+  while (steps[skipped]?.action === 'pick' && repo.commits[steps[skipped]!.commit]!.parents[0] === base) base = steps[skipped++]!.commit
+  const todo = steps.slice(skipped)
+  // a squash or fixup right after the skipped picks melds into the last of them, whose message starts the chain
+  const chain = skipped ? [{ message: repo.commits[base]!.message, keep: true }] : operation.chain
+  const moved = moveTrees(repo, state.workdir, headTree(repo), repo.commits[base]!.tree, 'checkout')
   if (!moved.ok) return fail(state, moved.output)
-  const detached: Repo = { ...repo, head: { type: 'detached', commit: operation.onto }, index: moved.index, origHead: operation.origHead, operation: { ...operation, todo, editor: null } }
+  const detached: Repo = { ...repo, head: { type: 'detached', commit: base }, index: moved.index, origHead: operation.origHead, operation: { ...operation, todo, done: steps.slice(0, skipped), editor: null, ...(chain ? { chain } : {}) } }
   const next = logHead(detached, reflogLine(operation, 'start', `checkout ${operation.upstream ?? operation.onto}`))
   return replay({ ...withRepo(state, next), workdir: moved.workdir }, [])
 }
@@ -417,7 +448,7 @@ export const rebase: Command = (state, argv) => {
       '\tgit rebase (--continue | --abort | --skip)'
     ].join('\n'))
   }
-  if (repo.operation?.type === 'merge') return fatal(state, 'fatal: You have not concluded your merge (MERGE_HEAD exists).')
+  if (repo.operation?.type === 'merge') return refuseDirty(state) ?? fatal(state, 'fatal: You have not concluded your merge (MERGE_HEAD exists).')
   if (repo.operation?.type === 'cherry-pick') return fatal(state, CHERRY_PICKING.split('\n')[0]!)
 
   let upstream = positionals[0]

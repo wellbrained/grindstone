@@ -11,6 +11,17 @@ import { fatal, notARepo, withRepo } from './common'
 export const branchExistsError = (state: GitState, name: string) => fatal(state, `fatal: a branch named '${name}' already exists`)
 export const invalidNameError = (state: GitState, name: string) => fatal(state, `fatal: '${name}' is not a valid branch name`)
 
+/**
+ * Why a new branch cannot be created, or null: the name is taken, or it clashes with another branch as file and
+ * folder (`a` next to `a/b`), which git's ref store cannot hold.
+ */
+export function creationError(state: GitState, repo: Repo, name: string): CommandResult | null {
+  if (repo.branches[name]) return branchExistsError(state, name)
+  const clash = Object.keys(repo.branches).find(other => other.startsWith(`${name}/`) || name.startsWith(`${other}/`))
+  if (!clash) return null
+  return fatal(state, `fatal: cannot lock ref 'refs/heads/${name}': 'refs/heads/${clash}' exists; cannot create 'refs/heads/${name}'`)
+}
+
 /** If `start` names a remote-tracking ref, the branch on origin it tracks. */
 export function trackedBy(repo: Repo, start: string): string | null {
   const name = start.replace(/^remotes\//, '')
@@ -114,7 +125,8 @@ export const branch: Command = (state, argv) => {
         return fail(withRepo(state, next), [
           ...output,
           err(`error: the branch '${name}' is not fully merged`),
-          hint(`hint: If you are sure you want to delete it, run 'git branch -D ${name}'`)
+          hint(`hint: If you are sure you want to delete it, run 'git branch -D ${name}'`),
+          hint('hint: Disable this message with "git config set advice.forceDeleteBranch false"')
         ])
       }
       const { [name]: _deleted, ...branches } = next.branches
@@ -138,9 +150,11 @@ export const branch: Command = (state, argv) => {
     return done(state, list(repo, !flags.has('-r'), flags.has('-a') || flags.has('-r')))
   }
 
-  const [name, start = 'HEAD'] = positionals as [string, string?]
+  const [name, given] = positionals as [string, string?]
+  const start = given ?? 'HEAD'
   if (!isValidBranchName(name)) return invalidNameError(state, name)
-  if (repo.branches[name]) return branchExistsError(state, name)
+  const clash = creationError(state, repo, name)
+  if (clash) return clash
   const at = resolveRev(repo, start)
   if (!at) return fatal(state, `fatal: not a valid object name: '${start === 'HEAD' && repo.head.type === 'branch' ? repo.head.name : start}'`)
   const upstream = trackedBy(repo, start)
@@ -148,6 +162,7 @@ export const branch: Command = (state, argv) => {
     ...repo,
     branches: { ...repo.branches, [name]: at },
     upstream: upstream ? { ...repo.upstream, [name]: upstream } : repo.upstream
-  }, name, `branch: Created from ${start}`)
+  // without a start point git names the branch HEAD is on
+  }, name, `branch: Created from ${given === undefined && repo.head.type === 'branch' ? repo.head.name : start}`)
   return done(withRepo(state, next), upstream ? [trackingLine(name, upstream)] : [])
 }

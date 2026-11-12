@@ -134,7 +134,7 @@ describe('git add with a .gitignore', () => {
     for (const [command, shown] of [['git add .env', '.env'], ['git add dist/app.js', 'dist'], ['git add dist', 'dist']] as const) {
       const result = run(project(), command)
       expect(result.exitCode).toBe(1)
-      expect(textOf(result)).toBe(`The following paths are ignored by one of your .gitignore files:\n${shown}\nhint: Use -f if you really want to add them.`)
+      expect(textOf(result)).toBe(`The following paths are ignored by one of your .gitignore files:\n${shown}\nhint: Use -f if you really want to add them.\nhint: Disable this message with "git config set advice.addIgnoredFile false"`)
       expect(result.output.at(-1)!.kind).toBe('hint')
       expect(Object.keys(result.state.repo!.index)).toEqual(['src/app.js'])
     }

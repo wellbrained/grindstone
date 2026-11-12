@@ -39,7 +39,7 @@ export interface MergeOperation {
 }
 
 /** What an interactive rebase does with one commit (`drop` never reaches the todo: the line is simply left out). */
-export type RebaseAction = 'pick' | 'reword' | 'squash' | 'fixup'
+export type RebaseAction = 'pick' | 'reword' | 'squash' | 'fixup' | 'drop'
 
 export interface RebaseStep {
   action: RebaseAction
@@ -72,6 +72,8 @@ export interface RebaseOperation {
   todo: RebaseStep[]
   /** The step that stopped with a conflict (or an empty commit message), if any. */
   stopped: RebaseStep | null
+  /** Steps already run (the stopped one included), oldest first, for the status. Optional, so older saved states stay valid. */
+  done?: RebaseStep[]
   before: Snapshot
   /** `git rebase -i`. Optional, so states saved before it existed stay valid. */
   interactive?: boolean

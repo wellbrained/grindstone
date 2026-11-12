@@ -167,7 +167,21 @@ describe('git push', () => {
   it('only pushes when there is a remote', () => {
     const local = repo().file('a.txt', 'a').commit('one').build()
     expect(exec(local, 'git push').text).toContain('fatal: No configured push destination.')
-    expect(exec(local, 'git fetch').text).toBe('fatal: \'origin\' does not appear to be a git repository\nfatal: Could not read from remote repository.\n\nPlease make sure you have the correct access rights\nand the repository exists.')
+    // git fetch has nothing to do without a remote; naming one that does not exist is an error
+    expect(exec(local, 'git fetch').text).toBe('')
+    expect(exec(local, 'git fetch origin').text).toBe('fatal: \'origin\' does not appear to be a git repository\nfatal: Could not read from remote repository.\n\nPlease make sure you have the correct access rights\nand the repository exists.')
+    expect(exec(local, 'git pull').text).toBe([
+      'There is no tracking information for the current branch.',
+      'Please specify which branch you want to merge with.',
+      'See git-pull(1) for details.',
+      '',
+      '    git pull <remote> <branch>',
+      '',
+      'If you wish to set tracking information for this branch you can do so with:',
+      '',
+      '    git branch --set-upstream-to=<remote>/<branch> main',
+      ''
+    ].join('\n'))
   })
 })
 

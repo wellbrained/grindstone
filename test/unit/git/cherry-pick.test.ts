@@ -87,7 +87,8 @@ describe('git cherry-pick', () => {
       'hint: "git cherry-pick --continue".',
       'hint: You can instead skip this commit with "git cherry-pick --skip".',
       'hint: To abort and get back to the state before "git cherry-pick",',
-      'hint: run "git cherry-pick --abort".'
+      'hint: run "git cherry-pick --abort".',
+      'hint: Disable this message with "git config set advice.mergeConflict false"'
     ].join('\n'))
     expect(operationInProgress(stopped)).toBe('cherry-pick')
     expect(unmergedPaths(stopped)).toEqual(['app.txt'])

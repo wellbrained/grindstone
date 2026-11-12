@@ -2,6 +2,7 @@ import { parseArgs } from '../args'
 import { shortId } from '../objects/hash'
 import { done, err, fail, hint, out, ref, toned } from '../output'
 import { headId } from '../state'
+import { rebaseProgress } from '../rebase-progress'
 import { computeStatus } from '../worktree'
 import type { Command, OutputLine, Repo, Tree } from '../types'
 import { notARepo, trackingInfo } from './common'
@@ -17,7 +18,7 @@ export function statusLines(repo: Repo, workdir: Tree): OutputLine[] {
 
   if (operation?.type === 'rebase') {
     const onto = shortId(operation.onto)
-    lines.push(out(`${operation.interactive ? 'interactive ' : ''}rebase in progress; onto ${onto}`))
+    lines.push(...rebaseProgress(repo, operation).map(text => out(text)))
     lines.push(operation.branch
       ? out('You are currently rebasing branch \'', ref(operation.branch), `' on '${onto}'.`)
       : out(`You are currently rebasing on '${onto}'.`))
@@ -63,17 +64,19 @@ export function statusLines(repo: Repo, workdir: Tree): OutputLine[] {
     }
   }
 
+  // git leaves the "unstage" hint out while a merge or cherry-pick is in progress (its text would be misleading there)
+  const unstageHint = operation?.type !== 'merge' && operation?.type !== 'cherry-pick'
   if (status.staged.length) {
     lines.push(out('Changes to be committed:'))
-    lines.push(hint(head ? '  (use "git restore --staged <file>..." to unstage)' : '  (use "git rm --cached <file>..." to unstage)'))
+    if (unstageHint) lines.push(hint(head ? '  (use "git restore --staged <file>..." to unstage)' : '  (use "git rm --cached <file>..." to unstage)'))
     lines.push(...status.staged.map(entry => toned(out(`\t${`${entry.label}:`.padEnd(12)}${entry.path}`), 'added')))
     lines.push(blank())
   }
   if (status.unmerged.length) {
     const removal = status.unmerged.some(entry => entry.label.startsWith('deleted'))
     lines.push(out('Unmerged paths:'))
-    if (operation?.type === 'rebase') lines.push(hint('  (use "git restore --staged <file>..." to unstage)'))
-    lines.push(hint(`  (use "git ${removal ? 'add/rm' : 'add'} <file>..." to mark resolution)`))
+    if (unstageHint) lines.push(hint(head ? '  (use "git restore --staged <file>..." to unstage)' : '  (use "git rm --cached <file>..." to unstage)'))
+    lines.push(hint(removal ? '  (use "git add/rm <file>..." as appropriate to mark resolution)' : '  (use "git add <file>..." to mark resolution)'))
     lines.push(...status.unmerged.map(entry => toned(out(`\t${`${entry.label}:`.padEnd(17)}${entry.path}`), 'removed')))
     lines.push(blank())
   }

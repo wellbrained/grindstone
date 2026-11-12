@@ -31,7 +31,7 @@ describe('git branch', () => {
     expect(deleted.state.repo!.branches.done).toBeUndefined()
 
     const unmerged = ok(state, 'git switch -c wip', 'echo w > w.txt', 'git add .', 'git commit -m wip', 'git switch main')
-    expect(exec(unmerged, 'git branch -d wip').text).toBe('error: the branch \'wip\' is not fully merged\nhint: If you are sure you want to delete it, run \'git branch -D wip\'')
+    expect(exec(unmerged, 'git branch -d wip').text).toBe('error: the branch \'wip\' is not fully merged\nhint: If you are sure you want to delete it, run \'git branch -D wip\'\nhint: Disable this message with "git config set advice.forceDeleteBranch false"')
     expect(ok(unmerged, 'git branch -D wip').repo!.branches.wip).toBeUndefined()
     expect(exec(state, 'git branch -d nope').text).toBe('error: branch \'nope\' not found')
   })
@@ -212,9 +212,11 @@ describe('git switch - and checkout -', () => {
     expect(ok(base(), 'git checkout -b feature', 'git checkout -').repo!.head).toEqual({ type: 'branch', name: 'main' })
   })
 
-  it('does not count staying on the same branch as a move', () => {
+  it('counts staying on the same branch as a move, like git: "-" then leads to the same branch', () => {
     const state = ok(base(), 'git switch -c feature', 'git switch feature')
-    expect(ok(state, 'git switch -').repo!.head).toEqual({ type: 'branch', name: 'main' })
+    const result = exec(state, 'git switch -')
+    expect(result.text).toBe('Already on \'feature\'')
+    expect(result.state.repo!.head).toEqual({ type: 'branch', name: 'feature' })
   })
 
   it('goes back to a detached HEAD with checkout -, and asks for --detach with switch - (edge case)', () => {
@@ -222,7 +224,7 @@ describe('git switch - and checkout -', () => {
     const first = state.repo!.commits[state.repo!.branches.main!]!.parents[0]!
     expect(ok(state, 'git checkout -').repo!.head).toEqual({ type: 'detached', commit: first })
     expect(exec(state, 'git switch -').text).toBe([
-      `fatal: a branch is expected, got commit '${first.slice(0, 7)}'`,
+      `fatal: a branch is expected, got commit '${first}'`,
       'hint: If you want to detach HEAD at the commit, try again with the --detach option.'
     ].join('\n'))
     expect(ok(state, 'git switch --detach -').repo!.head).toEqual({ type: 'detached', commit: first })

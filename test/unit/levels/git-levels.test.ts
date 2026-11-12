@@ -516,7 +516,7 @@ describe('git-17-pick-up-teammate-branch', () => {
 describe('git-18-clean-up-branches', () => {
   it('refuses -d on the unmerged experiment, like git', () => {
     const { text, session } = play(level('git-18-clean-up-branches'), ['git branch -d experiment/parallax'])
-    expect(text).toBe('error: the branch \'experiment/parallax\' is not fully merged\nhint: If you are sure you want to delete it, run \'git branch -D experiment/parallax\'')
+    expect(text).toBe('error: the branch \'experiment/parallax\' is not fully merged\nhint: If you are sure you want to delete it, run \'git branch -D experiment/parallax\'\nhint: Disable this message with "git config set advice.forceDeleteBranch false"')
     expect(session.goalsMet['experiment-gone']).toBe(false)
   })
 })
@@ -762,7 +762,7 @@ describe('git-23-conflict-during-a-rebase', () => {
   it('stops at your second commit, with the first one already replayed and the third still to come', () => {
     const { text, session } = play(item, ['git rebase main', 'git status'])
     expect(text).toContain('CONFLICT (content): Merge conflict in index.html')
-    expect(text).toMatch(/Could not apply [0-9a-f]{7}\.\.\. Link the autumn menu from the home page/)
+    expect(text).toMatch(/Could not apply [0-9a-f]{7}\.\.\. # Link the autumn menu from the home page/)
     expect(text).toContain('You are currently rebasing branch \'feature/autumn-menu\' on')
     expect(commitsOf(session.state, 'main..HEAD').map(commit => commit.message)).toEqual(['Add the autumn menu page'])
     expect(session.goalsMet).toEqual({ 'on-top': false, 'resolved': false, 'both': false })
@@ -928,7 +928,7 @@ describe('git-31-lost-commits-after-reset', () => {
     const [log, reflog] = texts(play(item, ['git log --oneline', 'git reflog']).steps)
     expect(log).not.toContain('Christmas')
     expect(reflog!.split('\n')).toEqual([
-      expect.stringMatching(/^[0-9a-f]{7} \(HEAD -> feature\/christmas-menu, main, origin\/main\) HEAD@\{0\}: reset: moving to HEAD~2$/),
+      expect.stringMatching(/^[0-9a-f]{7} \(HEAD -> feature\/christmas-menu, origin\/main, main\) HEAD@\{0\}: reset: moving to HEAD~2$/),
       `${lost[0]!.id.slice(0, 7)} HEAD@{1}: commit: Add stollen and mince pies to the Christmas menu`,
       `${lost[1]!.id.slice(0, 7)} HEAD@{2}: commit: Add the Christmas menu page`,
       expect.stringMatching(/HEAD@\{3\}: checkout: moving from main to feature\/christmas-menu$/),

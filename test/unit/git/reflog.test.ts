@@ -92,8 +92,8 @@ describe('git reflog', () => {
     ])
     expect(messages(state, 'fix')).toEqual(['branch: Created from HEAD'])
     expect(messages(ok(base(), 'git branch old HEAD~1'), 'old')).toEqual(['branch: Created from HEAD~1'])
-    // "Already on" moves nothing and records nothing
-    expect(messages(ok(base(), 'git switch main'))).toEqual(messages(base()))
+    // "Already on" moves nothing, but git still writes an entry
+    expect(messages(ok(base(), 'git switch main'))).toEqual(['checkout: moving from main to main', ...messages(base())])
   })
 
   it('records merges as fast-forward or with the strategy, and a concluded conflict as commit (merge)', () => {

@@ -38,7 +38,7 @@ describe('git add', () => {
     const missing = exec(initialised(), 'git add nope.txt')
     expect(missing.text).toBe('fatal: pathspec \'nope.txt\' did not match any files')
     expect(missing.last.exitCode).toBe(128)
-    expect(exec(initialised(), 'git add').text).toBe('Nothing specified, nothing added.\nhint: Maybe you wanted to say \'git add .\'?')
+    expect(exec(initialised(), 'git add').text).toBe('Nothing specified, nothing added.\nhint: Maybe you wanted to say \'git add .\'?\nhint: Disable this message with "git config set advice.addEmptyPathspec false"')
   })
 })
 

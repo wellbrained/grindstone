@@ -37,9 +37,9 @@ describe('git rebase -i', () => {
     expect(editor.path).toBe(TODO_PATH)
     const main = short(state, 'main')
     expect(editor.text).toBe([
-      `pick ${short(state, 'feature~2')} Add a`,
-      `pick ${short(state, 'feature~1')} wip`,
-      `pick ${short(state, 'feature')} fix typo`,
+      `pick ${short(state, 'feature~2')} # Add a`,
+      `pick ${short(state, 'feature~1')} # wip`,
+      `pick ${short(state, 'feature')} # fix typo`,
       '',
       `# Rebase ${main}..${short(state, 'feature')} onto ${main} (3 commands)`,
       '#',
@@ -100,6 +100,12 @@ describe('git rebase -i', () => {
       '# with \'#\' will be ignored, and an empty message aborts the commit.',
       '#',
       `# interactive rebase in progress; onto ${short(state, 'main')}`,
+      '# Last command done (1 command done):',
+      `#    reword ${short(state, 'feature~2')} # Add a`,
+      '# Next commands to do (2 remaining commands):',
+      `#    pick ${short(state, 'feature~1')} # wip`,
+      `#    pick ${short(state, 'feature')} # fix typo`,
+      '#   (use "git rebase --edit-todo" to view and edit)',
       ''
     ].join('\n'))
     // still busy while the message is open
@@ -146,6 +152,11 @@ describe('git rebase -i', () => {
       '# with \'#\' will be ignored, and an empty message aborts the commit.',
       '#',
       `# interactive rebase in progress; onto ${short(state, 'main')}`,
+      '# Last commands done (3 commands done):',
+      `#    squash ${short(state, 'feature~1')} # wip`,
+      `#    fixup ${short(state, 'feature')} # fix typo`,
+      '#   (see more in file .git/rebase-merge/done)',
+      '# No commands remaining.',
       ''
     ].join('\n'))
     // saved as it is: the # lines go, the kept messages stay
@@ -219,7 +230,7 @@ describe('git rebase -i', () => {
     // only the reflog remembers the rebase: its start, the pick, and the way back
     const { reflog, origHead, ...repo } = aborted.repo!
     expect({ ...aborted, repo }).toEqual({ ...state, clock: asked.state.clock, repo: { ...state.repo!, reflog: undefined } })
-    expect(reflog!.HEAD!.slice(0, 3).map(entry => entry.message)).toEqual(['rebase (abort): returning to refs/heads/feature', 'rebase (pick): Add a', 'rebase (start): checkout main'])
+    expect(reflog!.HEAD!.slice(0, 3).map(entry => entry.message)).toEqual(['rebase (abort): returning to refs/heads/feature', 'rebase: fast-forward', 'rebase (start): checkout main'])
     expect(reflog!.feature).toEqual(state.repo!.reflog!.feature)
     expect(origHead).toBe(resolve(state, 'feature'))
   })
@@ -227,7 +238,7 @@ describe('git rebase -i', () => {
   it('works on HEAD~n: rewords the commit before last, the newest keeps its message and files', () => {
     const state = feature()
     const waiting = exec(state, 'git rebase -i HEAD~2').state
-    expect(waitingEditor(waiting)!.text.split('\n').slice(0, 2)).toEqual([`pick ${short(state, 'feature~1')} wip`, `pick ${short(state, 'feature')} fix typo`])
+    expect(waitingEditor(waiting)!.text.split('\n').slice(0, 2)).toEqual([`pick ${short(state, 'feature~1')} # wip`, `pick ${short(state, 'feature')} # fix typo`])
     const asked = save(waiting, todoOf(state, ['reword <feature~1> wip', 'pick <feature> fix typo']))
     const done = save(asked.state, 'Add b')
     expect(messages(done.state)).toEqual(['fix typo', 'Add b', 'Add a'])

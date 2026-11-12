@@ -31,7 +31,7 @@ const push = (state: GitState, repo: Repo, argv: string[]): CommandResult => {
 
   const unmerged = Object.keys(repo.unmerged).sort()
   if (unmerged.length) {
-    return fail(state, [...unmerged.map(path => err(`${path}: needs merge`)), err('error: could not save the stash: you have unmerged files')])
+    return fail(state, [...unmerged.map(path => err(`${path}: needs merge`)), err('error: could not write index')])
   }
   const head = headId(repo)
   if (!head) return fail(state, [err('You do not have the initial commit yet')])
@@ -58,14 +58,22 @@ const push = (state: GitState, repo: Repo, argv: string[]): CommandResult => {
   return done({ ...withRepo(created.state, next), workdir }, [out(`Saved working directory and index state ${message}`)])
 }
 
-/** The entry an argument names (`stash@{1}` or `1`, the newest by default), or the error. */
+/**
+ * The entry an argument names (`stash@{1}` or a bare `1`, the newest by default), or git's error: "No stash entries
+ * found." only without an argument; otherwise an unusable name is "not a valid reference" (exit 1) and a number past
+ * the end counts the entries (exit 128).
+ */
 function pick(state: GitState, repo: Repo, arg: string | undefined): { index: number, name: string } | CommandResult {
-  if (!repo.stash.length) return fail(state, [err('No stash entries found.')])
-  if (arg === undefined) return { index: 0, name: 'refs/stash@{0}' }
-  const match = /^(?:stash@\{(\d+)\}|(\d+))$/.exec(arg)
-  const index = match ? Number(match[1] ?? match[2]) : -1
-  if (index < 0 || index >= repo.stash.length) return fail(state, [err(`error: ${arg} is not a valid reference`)])
-  return { index, name: `stash@{${index}}` }
+  if (arg === undefined) {
+    return repo.stash.length ? { index: 0, name: 'refs/stash@{0}' } : fail(state, [err('No stash entries found.')])
+  }
+  const braced = /^stash@\{(\d+)\}$/.exec(arg)
+  const bare = /^\d+$/.test(arg)
+  const index = braced ? Number(braced[1]) : bare ? Number(arg) : -1
+  // git spells a bare number out as refs/stash@{n} in its messages
+  if (index < 0 || !repo.stash.length) return fail(state, [err(`error: ${bare ? `refs/stash@{${arg}}` : arg} is not a valid reference`)])
+  if (index >= repo.stash.length) return fail(state, [err(`fatal: log for '${bare ? 'refs/stash' : 'stash'}' only has ${repo.stash.length} entries`)], 128)
+  return { index, name: bare ? `refs/stash@{${index}}` : `stash@{${index}}` }
 }
 
 const dropped = (entry: StashEntry, name: string) => out(`Dropped ${name} (${entry.id})`)
@@ -93,7 +101,8 @@ const apply = (state: GitState, repo: Repo, argv: string[], pop: boolean): Comma
     return fail(state, [err(`error: this stash conflicts with ${paths}; applying a stash with conflicts is not in this trainer yet`), ...kept])
   }
   const moved = moveTrees(repo, state.workdir, repo.index, merged.index, 'merge')
-  if (!moved.ok) return fail(state, [...moved.output, ...kept])
+  // git shows where things stand after refusing, then says the entry is kept
+  if (!moved.ok) return fail(state, [...moved.output, ...statusLines(repo, state.workdir), ...kept])
 
   // the index stays as it was, except that new files come back staged (git without --index)
   let index = repo.index

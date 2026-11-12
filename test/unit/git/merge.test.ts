@@ -46,7 +46,20 @@ describe('git merge', () => {
     const noFf = ok(state, 'git merge --no-ff feature')
     expect(noFf.repo!.commits[noFf.repo!.branches.main!]!.parents).toHaveLength(2)
     const diverged = ok(state, 'echo m > m.txt', 'git add .', 'git commit -m m')
-    expect(exec(diverged, 'git merge --ff-only feature').text).toBe('fatal: Not possible to fast-forward, aborting.')
+    const refused = exec(diverged, 'git merge --ff-only feature')
+    expect(refused.last.exitCode).toBe(128)
+    expect(refused.text).toBe([
+      'hint: Diverging branches can\'t be fast-forwarded, you need to either:',
+      'hint:',
+      'hint: \tgit merge --no-ff',
+      'hint:',
+      'hint: or:',
+      'hint:',
+      'hint: \tgit rebase',
+      'hint:',
+      'hint: Disable this message with "git config set advice.diverging false"',
+      'fatal: Not possible to fast-forward, aborting.'
+    ].join('\n'))
   })
 
   it('stops on a conflict, then add and commit conclude the merge (edge case)', () => {
@@ -78,6 +91,7 @@ describe('git merge', () => {
     ].join('\n'))
 
     expect(exec(conflicted.state, 'git commit -m done').text).toBe([
+      'U\tapp.txt',
       'error: Committing is not possible because you have unmerged files.',
       'hint: Fix them up in the work tree, and then use \'git add/rm <file>\'',
       'hint: as appropriate to mark resolution and make a commit.',
