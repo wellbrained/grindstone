@@ -86,15 +86,25 @@ export class SetupBuilder {
     const repo = this.state.repo
     if (!repo) throw new Error('setup step "origin" needs a repository: start with repo()')
     const branches = { ...repo.branches }
-    const kept = reachable(repo.commits, Object.values(branches))
+    const tags = { ...repo.tags }
+    const kept = reachable(repo.commits, [...Object.values(branches), ...Object.values(tags).map(tag => tag.commit)])
     const commits = Object.fromEntries([...kept].map(id => [id, repo.commits[id]!]))
     const upstream = Object.fromEntries(Object.keys(branches).map(name => [name, name]))
     const current = repo.head.type === 'branch' ? repo.head.name : DEFAULT_BRANCH
     this.state = {
       ...this.state,
-      origin: { name: 'origin', url: options.url ?? DEFAULT_ORIGIN_URL, commits, branches, defaultBranch: current },
+      origin: { name: 'origin', url: options.url ?? DEFAULT_ORIGIN_URL, commits, branches, defaultBranch: current, ...(repo.tags ? { tags } : {}) },
       repo: { ...repo, remoteBranches: { ...branches }, upstream: { ...repo.upstream, ...upstream } }
     }
+    return this
+  }
+
+  /** `git tag <name> [<at>]`; with a `message` an annotated tag (`-m`), tagged by `author` (the user by default). */
+  tag(name: string, options: { at?: string, message?: string, author?: string | Author } = {}) {
+    const user = this.state.user
+    if (options.author) this.state = { ...this.state, user: authorFor(options.author) }
+    this.git('tag', ...(options.message !== undefined ? ['-m', options.message] : []), name, ...(options.at ? [options.at] : []))
+    this.state = { ...this.state, user }
     return this
   }
 

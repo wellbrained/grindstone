@@ -37,6 +37,8 @@ export function commitIndex(state: GitState, options: CommitOptions): { state: G
   const head = headId(repo)
   const previous = head ? repo.commits[head]! : null
   const merging = repo.operation?.type === 'merge' ? repo.operation : null
+  // a plain `git commit` that concludes a stopped cherry-pick; the picks after it wait for `git cherry-pick --continue`
+  const picking = repo.operation?.type === 'cherry-pick' && repo.operation.current ? repo.operation : null
   const parents = options.amend && previous
     ? previous.parents
     : [...(head ? [head] : []), ...(merging ? [merging.theirs] : [])]
@@ -45,8 +47,10 @@ export function commitIndex(state: GitState, options: CommitOptions): { state: G
   const commit = created.commit
   let next = moveHead(storeCommit(repo, commit), commit.id)
   if (merging) next = { ...next, operation: null, unmerged: {} }
+  if (picking) next = { ...next, operation: picking.todo.length ? { ...picking, current: null } : null, unmerged: {} }
   const amend = !!options.amend && !!previous
-  next = logHead(next, options.reflog ?? commitReflog(subject(commit), { amend, initial: parents.length === 0, merge: !!merging }))
+  const reflog = picking && !amend ? `commit (cherry-pick): ${subject(commit)}` : commitReflog(subject(commit), { amend, initial: parents.length === 0, merge: !!merging })
+  next = logHead(next, options.reflog ?? reflog)
 
   const root = parents.length === 0 ? ' (root-commit)' : ''
   const output = [out('[', headLabel(repo), `${root} ${shortId(commit.id)}] ${subject(commit)}`)]
@@ -82,9 +86,11 @@ export const commit: Command = (state, argv) => {
   }
 
   const previous = head ? repo.commits[head]! : null
+  const picked = repo.operation?.type === 'cherry-pick' && repo.operation.current ? repo.operation : null
   let message: string
   if (values['-m']) message = values['-m'].join('\n\n')
   else if (repo.operation?.type === 'merge') message = repo.operation.message
+  else if (picked && !amend) message = picked.message
   else if (amend && previous) message = previous.message
   else {
     return fail(state, [
@@ -100,6 +106,8 @@ export const commit: Command = (state, argv) => {
     return fail(state, statusLines(repo, state.workdir))
   }
 
-  const result = commitIndex(working, { message: message.trim(), amend, author: amend ? previous!.author : undefined })
+  // like git, a commit that concludes a cherry-pick keeps the picked commit's author
+  const author = amend ? previous!.author : picked ? repo.commits[picked.current!]!.author : undefined
+  const result = commitIndex(working, { message: message.trim(), amend, author })
   return { state: result.state, output: result.output, exitCode: 0 }
 }

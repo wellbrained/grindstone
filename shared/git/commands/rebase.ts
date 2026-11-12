@@ -12,7 +12,7 @@ import { localChanges, moveTrees, treesEqual } from '../worktree'
 import type { ChainMessage, Command, CommandResult, Commit, EditorWait, GitState, OutputLine, RebaseAction, RebaseOperation, RebaseStep, Repo } from '../types'
 import { activeBranch } from './branch'
 import { commitIndex } from './commit'
-import { fatal, notARepo, withRepo } from './common'
+import { CHERRY_PICKING, fatal, notARepo, withRepo } from './common'
 import { applyMerge, conflictReport } from './merge'
 
 /** Where git writes the todo list and the commit message it opens in the editor. */
@@ -418,6 +418,7 @@ export const rebase: Command = (state, argv) => {
     ].join('\n'))
   }
   if (repo.operation?.type === 'merge') return fatal(state, 'fatal: You have not concluded your merge (MERGE_HEAD exists).')
+  if (repo.operation?.type === 'cherry-pick') return fatal(state, CHERRY_PICKING.split('\n')[0]!)
 
   let upstream = positionals[0]
   if (!upstream) {

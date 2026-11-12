@@ -34,11 +34,12 @@ export const cheatGroups: CheatGroup[] = [
   },
   {
     id: 'branches',
-    title: 'Branches',
+    title: 'Branches and tags',
     commands: [
       { name: 'branch', summary: 'List, create and delete branches.', examples: [{ line: 'git branch', note: 'List local branches' }, { line: 'git branch -a', note: 'Include origin/* branches' }, { line: 'git branch -d feature/login', note: 'Delete a merged branch' }, { line: 'git branch -m feature/gallery', note: 'Rename the branch you are on' }] },
       { name: 'switch', summary: 'Move to another branch (the modern way).', examples: [{ line: 'git switch main', note: 'Go to main' }, { line: 'git switch -c feature/login', note: 'Create a branch and switch to it' }, { line: 'git switch -', note: 'Back to the branch you were on before' }, { line: 'git switch --detach a1b2c3d', note: 'Look at an old commit without moving a branch' }] },
-      { name: 'checkout', summary: 'The older all-rounder: switch branches, or restore a file.', examples: [{ line: 'git checkout -b feature/login', note: 'Create a branch and switch to it' }, { line: 'git checkout -- app.js', note: 'Throw away unstaged changes to a file' }, { line: 'git checkout --theirs prices.json', note: 'In a conflict, take the version of the branch you merge in' }] }
+      { name: 'checkout', summary: 'The older all-rounder: switch branches, or restore a file.', examples: [{ line: 'git checkout -b feature/login', note: 'Create a branch and switch to it' }, { line: 'git checkout -- app.js', note: 'Throw away unstaged changes to a file' }, { line: 'git checkout --theirs prices.json', note: 'In a conflict, take the version of the branch you merge in' }] },
+      { name: 'tag', summary: 'Give a commit a fixed name, usually a release version.', examples: [{ line: 'git tag', note: 'List the tags' }, { line: 'git tag -a v1.4.0 -m "Version 1.4.0"', note: 'An annotated tag on HEAD: with message, tagger and date' }, { line: 'git tag v1.4.0 a1b2c3d', note: 'A lightweight tag on a given commit' }, { line: 'git push origin v1.4.0', note: 'Share a tag (a plain git push does not)' }, { line: 'git tag -d v1.4.0', note: 'Delete a local tag' }] }
     ]
   },
   {
@@ -46,7 +47,8 @@ export const cheatGroups: CheatGroup[] = [
     title: 'Combine work',
     commands: [
       { name: 'merge', summary: 'Bring another branch into the current one: fast-forward, or a merge commit.', examples: [{ line: 'git merge feature/login', note: 'Merge into the branch you are on' }, { line: 'git merge --no-ff feature/login', note: 'Always make a merge commit, even for a fast-forward' }, { line: 'git merge --ff-only feature/login', note: 'Only move forward, never make a merge commit' }, { line: 'git merge --abort', note: 'Give up a merge with conflicts' }] },
-      { name: 'rebase', summary: 'Replay your commits on top of another branch, for a straight history.', examples: [{ line: 'git rebase main', note: 'Put your branch on top of main' }, { line: 'git rebase --continue', note: 'After fixing a conflict and git add' }, { line: 'git rebase --abort', note: 'Go back to how it was before' }, { line: 'git rebase -i HEAD~3', note: 'Tidy up your last three commits' }, { line: 'git rebase -i main', note: 'Reword, squash or drop every commit on your branch' }] }
+      { name: 'rebase', summary: 'Replay your commits on top of another branch, for a straight history.', examples: [{ line: 'git rebase main', note: 'Put your branch on top of main' }, { line: 'git rebase --continue', note: 'After fixing a conflict and git add' }, { line: 'git rebase --abort', note: 'Go back to how it was before' }, { line: 'git rebase -i HEAD~3', note: 'Tidy up your last three commits' }, { line: 'git rebase -i main', note: 'Reword, squash or drop every commit on your branch' }] },
+      { name: 'cherry-pick', summary: 'Copy single commits from another branch onto yours, as new commits.', examples: [{ line: 'git cherry-pick a1b2c3d', note: 'Take just that fix' }, { line: 'git cherry-pick -x a1b2c3d', note: 'Note in the message where it came from' }, { line: 'git cherry-pick --continue', note: 'After fixing a conflict and git add' }, { line: 'git cherry-pick --abort', note: 'Give up and go back' }] }
     ]
   },
   {
@@ -75,8 +77,7 @@ export const cheatGroups: CheatGroup[] = [
       { name: 'reset', summary: 'Move the branch back, keeping or dropping the changes.', examples: [{ line: 'git reset --soft HEAD~1', note: 'Undo the last commit, keep its changes staged' }, { line: 'git reset HEAD~1', note: 'Undo the last commit, keep its changes in your files' }, { line: 'git reset --hard HEAD~1', note: 'Drop the last commit and all uncommitted work' }] },
       { name: 'reflog', summary: 'Where HEAD has been: find commits a reset, rebase or deleted branch left behind.', examples: [{ line: 'git reflog', note: 'Every move of HEAD, newest first' }, { line: 'git reset --hard HEAD@{1}', note: 'Back to where HEAD was one move ago' }, { line: 'git branch rescue a1b2c3d', note: 'Put a branch on a lost commit' }, { line: 'git reset --hard ORIG_HEAD', note: 'Undo the last reset, merge or rebase' }] },
       { name: 'revert', summary: 'Add a new commit that undoes an old one; safe on shared branches.', examples: [{ line: 'git revert a1b2c3d', note: 'Undo a pushed commit' }, { line: 'git revert HEAD~1', note: 'Undo the commit before last' }] },
-      { name: 'stash', summary: 'Put unfinished changes aside and get them back later.', examples: [{ line: 'git stash', note: 'Park your changes' }, { line: 'git stash -u', note: 'Park new files too' }, { line: 'git stash list', note: 'What is parked?' }, { line: 'git stash pop', note: 'Bring the newest back' }] },
-      { name: 'cherry-pick', comingSoon: true, summary: 'Copy one commit from another branch onto yours.', examples: [{ line: 'git cherry-pick a1b2c3d', note: 'Take just that fix' }] }
+      { name: 'stash', summary: 'Put unfinished changes aside and get them back later.', examples: [{ line: 'git stash', note: 'Park your changes' }, { line: 'git stash -u', note: 'Park new files too' }, { line: 'git stash list', note: 'What is parked?' }, { line: 'git stash pop', note: 'Bring the newest back' }] }
     ]
   }
 ]

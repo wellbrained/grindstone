@@ -240,3 +240,32 @@ describe('session data', () => {
     expect(session.commandCount).toBe(MAX_SNAPSHOTS + 5)
   })
 })
+
+describe('when triggers', () => {
+  // Maya merges notes.txt on origin once the commit with it reached origin's main
+  const merging: Level = {
+    ...fixture,
+    teammates: [{
+      id: 'maya-sees-notes',
+      author: 'Maya',
+      trigger: { when: state => !!remoteBranchHead(state, 'main') && state.origin!.commits[remoteBranchHead(state, 'main')!]!.tree['notes.txt'] !== undefined },
+      apply: state => teammateCommit(state, { author: 'Maya', message: 'Thanks for the notes', files: { 'thanks.txt': 'thanks\n' } }),
+      notice: 'Maya saw your notes.'
+    }]
+  }
+
+  it('fires right after the command that makes the check pass, once per timeline', () => {
+    let session = startLevel(merging)
+    const steps: SubmitResult[] = []
+    for (const line of [...fixture.solution, 'git status', 'git push', 'git status']) {
+      const result = submit(deepFreeze(session), merging, line)
+      steps.push(result)
+      session = result.session
+    }
+    expect(steps.map(step => step.notices.map(notice => notice.author))).toEqual([[], [], [], [], ['Maya'], []])
+    expect(session.firedEvents).toEqual(['maya-sees-notes'])
+    const undone = submit(submit(session, merging, 'undo').session, merging, 'undo')
+    expect(undone.session.firedEvents).toEqual([])
+    expect(submit(undone.session, merging, 'git push').notices.map(notice => notice.author)).toEqual(['Maya'])
+  })
+})

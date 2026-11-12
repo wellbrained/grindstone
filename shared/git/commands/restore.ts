@@ -26,7 +26,9 @@ export function sideOf(argv: string[]): ConflictSide | null {
 export function conflictSide(repo: Repo, path: string, side: ConflictSide): string | undefined {
   if (side === 'ours') return headTree(repo)[path]
   const operation = repo.operation
-  const commit = operation?.type === 'merge' ? operation.theirs : operation?.type === 'rebase' ? operation.stopped?.commit ?? null : null
+  const commit = operation?.type === 'merge'
+    ? operation.theirs
+    : operation?.type === 'rebase' ? operation.stopped?.commit ?? null : operation?.type === 'cherry-pick' ? operation.current : null
   return commit ? repo.commits[commit]!.tree[path] : undefined
 }
 

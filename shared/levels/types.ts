@@ -34,6 +34,8 @@ export type TeammateTrigger
   = | { afterCommands: number }
   /** Fires right before a line that contains a command starting with this prefix (whole words), e.g. 'git push'. */
     | { beforeCommand: string }
+  /** Fires right after a counted command once this check passes on the new state, e.g. "your branch is on origin". */
+    | { when: (state: GitState) => boolean }
 
 export interface TeammateEvent {
   id: string

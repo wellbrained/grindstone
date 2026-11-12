@@ -146,6 +146,23 @@ describe('layoutGraph', () => {
     expect(node(layout, 'b2').labels[0]!.head).toBe(false)
   })
 
+  it('labels tags after the branches, neutral and without a lane, and keeps tagged commits drawn', () => {
+    const layout = layoutGraph(input({
+      commits: commitsOf(commit('a1', [], 1), commit('b2', ['a1'], 2), commit('s3', ['a1'], 3)),
+      branches: { main: 'b2' },
+      tags: { 'v1.0.0': 'b2', 'v0.9.0': 'a1', 'old-side': 's3', 'broken': 'zzz' }
+    }))
+    expect(node(layout, 'b2').labels).toEqual([
+      { name: 'main', kind: 'local', branch: 'main', head: true },
+      { name: 'tag: v1.0.0', kind: 'tag', branch: 'v1.0.0', head: false }
+    ])
+    expect(node(layout, 'a1').labels.map(l => l.name)).toEqual(['tag: v0.9.0'])
+    // a commit only a tag reaches is still drawn, on a line of its own
+    expect(node(layout, 's3').labels.map(l => l.name)).toEqual(['tag: old-side'])
+    expect(node(layout, 'b2').lane).toBe(0)
+    expect(layout.nodes).toHaveLength(3)
+  })
+
   it('ignores refs that point at unknown commits', () => {
     const layout = layoutGraph(input({ commits: commitsOf(commit('a1', [], 1)), branches: { main: 'a1', broken: 'zzz' } }))
     expect(layout.nodes.map(n => n.id)).toEqual(['a1'])

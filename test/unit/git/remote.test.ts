@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { remoteBranchHead, repo, teammateCommit, trackingBranchHead } from '../../../shared/git'
+import { remoteBranchHead, repo, teammateCommit, teammateMerge, trackingBranchHead } from '../../../shared/git'
 import { exec, ok } from './helpers'
 
 const URL = 'https://git.example.com/team/project.git'
@@ -244,5 +244,22 @@ describe('branches gone on origin', () => {
     expect(text).toBe(`From ${URL}\n - [deleted]         (none)     -> origin/topic`)
     expect(pruned.repo!.remoteBranches.topic).toBeUndefined()
     expect(exec(pruned, 'git branch -d topic').text).toMatch(/^Deleted branch topic \(was [0-9a-f]{7}\)\.$/)
+  })
+})
+
+describe('teammateMerge', () => {
+  it('merges a branch on origin with a merge commit, like a pull request, and can delete the branch', () => {
+    const state = ok(published().build(), 'git switch -c feature/x', 'echo x > x.txt', 'git add x.txt', 'git commit -m "Add x"', 'git push -u origin feature/x')
+    const withTeammate = teammateCommit(state, { author: 'Jonas', message: 'Add docs', files: { 'docs.md': 'd\n' } })
+    const merged = teammateMerge(withTeammate, { author: 'Maya', branch: 'feature/x', message: 'Merge pull request #1 from feature/x', deleteBranch: true })!
+    const tip = merged.origin!.commits[remoteBranchHead(merged, 'main')!]!
+    expect(tip.parents).toEqual([remoteBranchHead(withTeammate, 'main'), remoteBranchHead(state, 'feature/x')])
+    expect(tip.author.name).toBe('Maya')
+    expect(tip.tree).toMatchObject({ 'x.txt': 'x\n', 'docs.md': 'd\n' })
+    expect(remoteBranchHead(merged, 'feature/x')).toBeNull()
+    // nothing left to merge, or a conflict: null
+    expect(teammateMerge(merged, { author: 'Maya', branch: 'feature/x', message: 'again' })).toBeNull()
+    const clash = teammateCommit(state, { author: 'Jonas', message: 'Other x', files: { 'x.txt': 'other\n' } })
+    expect(teammateMerge(clash, { author: 'Maya', branch: 'feature/x', message: 'clash' })).toBeNull()
   })
 })

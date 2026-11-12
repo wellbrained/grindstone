@@ -26,6 +26,8 @@ function resolveBase(repo: Repo, name: string): string | null {
   if (local) return local
   const remote = name.replace(/^refs\/remotes\//, '').replace(/^remotes\//, '')
   if (remote.startsWith('origin/') && repo.remoteBranches[remote.slice(7)]) return repo.remoteBranches[remote.slice(7)]!
+  const tag = repo.tags?.[name.replace(/^refs\/tags\//, '')]
+  if (tag) return tag.commit
   if (/^[0-9a-f]{4,40}$/.test(name)) {
     const matches = Object.keys(repo.commits).filter(id => id.startsWith(name))
     if (matches.length === 1) return matches[0]!
@@ -33,7 +35,7 @@ function resolveBase(repo: Repo, name: string): string | null {
   return null
 }
 
-/** Resolves HEAD, ORIG_HEAD, branches, origin/<branch>, (short) ids, reflog entries (`HEAD@{2}`, `main@{1}`) and ~n / ^n suffixes to a commit id. */
+/** Resolves HEAD, ORIG_HEAD, branches, origin/<branch>, tags, (short) ids, reflog entries (`HEAD@{2}`, `main@{1}`) and ~n / ^n suffixes to a commit id. */
 export function resolveRev(repo: Repo, rev: string): string | null {
   const match = /^(.+?)((?:[~^]\d*)*)$/.exec(rev)
   if (!match) return null
@@ -50,11 +52,17 @@ export function resolveRev(repo: Repo, rev: string): string | null {
   return id && repo.commits[id] ? id : null
 }
 
-/** The ` (HEAD -> main, feature, origin/main)` part of a log line, or nothing. */
+/** Tag names, sorted like git (byte order: v1.10 before v1.9). */
+export const tagNames = (tags: Record<string, unknown> | undefined) => Object.keys(tags ?? {}).sort((a, b) => a < b ? -1 : a > b ? 1 : 0)
+
+/** The ` (HEAD -> main, tag: v1.0, feature, origin/main)` part of a log line, or nothing. Tags are plain text (no branch colour). */
 export function decorations(repo: Repo, id: string): Part[] {
   const parts: Part[][] = []
   const current = repo.head.type === 'branch' ? repo.head.name : null
   if (headId(repo) === id) parts.push(current ? [ref('HEAD'), ' -> ', ref(current)] : [ref('HEAD')])
+  for (const name of tagNames(repo.tags)) {
+    if (repo.tags![name]!.commit === id) parts.push([`tag: ${name}`])
+  }
   for (const name of Object.keys(repo.branches).sort()) {
     if (repo.branches[name] === id && !(name === current && headId(repo) === id)) parts.push([ref(name)])
   }

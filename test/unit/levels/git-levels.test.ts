@@ -97,7 +97,19 @@ const initialGoals: Record<string, Record<string, boolean>> = {
   'git-practice-untrack-file': { untracked: false },
   'git-practice-remove-file': { deleted: false },
   'git-34-deleted-a-branch': { 'restored': false, 'main-unchanged': false },
-  'git-practice-restore-branch': { restored: false }
+  'git-practice-restore-branch': { restored: false },
+  'git-35-pull-request-flow': { merged: false, pulled: false, deleted: false, pruned: false },
+  'git-practice-clean-up-after-merge': { pulled: false, deleted: false, pruned: false },
+  'git-36-hotfix-mid-feature': { hotfix: false, shipped: false, back: false, merged: false },
+  'git-practice-stash-for-hotfix': { stashed: false, hotfix: false },
+  'git-37-fix-the-release-branch': { 'picked': false, 'nothing-else': false, 'pushed': false },
+  'git-practice-cherry-pick-commit': { picked: false },
+  'git-practice-cherry-pick-x': { recorded: false },
+  'git-38-tag-a-release': { tagged: false, pushed: false },
+  'git-practice-annotated-tag': { tagged: false },
+  'git-practice-list-tags': { listed: false },
+  'git-39-gitflow-release': { release: false, main: false, tag: false, develop: false },
+  'git-practice-release-from-develop': { started: false }
 }
 
 describe('level list', () => {
@@ -110,7 +122,8 @@ describe('level list', () => {
     expect(nextLevel('git-06-teammate-sync')?.id).toBe('git-practice-prune-gone-branches')
     expect(nextLevel('git-practice-prune-gone-branches')?.id).toBe('git-11-fix-last-commit')
     expect(nextLevel('git-practice-stash-untracked')?.id).toBe('git-30-committed-on-main')
-    expect(nextLevel('git-practice-restore-branch')).toBeNull()
+    expect(nextLevel('git-practice-restore-branch')?.id).toBe('git-35-pull-request-flow')
+    expect(nextLevel('git-practice-release-from-develop')).toBeNull()
     expect(levelById('nope')).toBeNull()
   })
 })
@@ -170,6 +183,10 @@ describe.each(gitLevels.map(item => [item.id, item] as const))('%s', (_id, item)
 
 /** 4.2: the resolved index.html, as the solution writes it. */
 const AUTUMN_RESOLVED = level('git-23-conflict-during-a-rebase').solution[1] as string
+/** 8.1: the Sunday line, as the solution adds it. */
+const SUNDAY_LINE = level('git-35-pull-request-flow').solution[2] as string
+/** 8.2: the banner fix, as the solution writes it. */
+const BANNER_FIX = level('git-36-hotfix-mid-feature').solution[2] as string
 /** 4.4: the short ids of your three commits, oldest first. */
 const GIFT = commitsOf(startLevel(level('git-25-tidy-up-before-review')).state, 'main..feature/gift-cards').map(commit => commit.id.slice(0, 7)).reverse()
 
@@ -382,7 +399,79 @@ const wrongPaths: [id: string, why: string, lines: SolutionStep[], failing: stri
   ['git-34-deleted-a-branch', 'resets main onto the lost commits', ['git reflog', 'git reset --hard HEAD@{2}', 'git branch feature/loyalty-card'], ['main-unchanged']],
   ['git-34-deleted-a-branch', 'brings back only the first commit', ['git reflog', 'git branch feature/loyalty-card HEAD@{3}'], ['restored', 'main-unchanged']],
   ['git-34-deleted-a-branch', 'creates a new branch from main instead', ['git switch -c feature/loyalty-card'], ['restored', 'main-unchanged']],
-  ['git-practice-restore-branch', 'creates the branch on the current commit', ['git branch fix/price-typo'], ['restored']]
+  ['git-practice-restore-branch', 'creates the branch on the current commit', ['git branch fix/price-typo'], ['restored']],
+  ['git-35-pull-request-flow', 'branches from the stale main, without pulling first', [
+    'git switch -c feature/sunday-hours',
+    SUNDAY_LINE,
+    'git commit -am "Add the Sunday opening hours"',
+    'git push -u origin feature/sunday-hours',
+    'git switch main',
+    'git pull',
+    'git branch -d feature/sunday-hours',
+    'git fetch --prune'
+  ], ['merged']],
+  ['git-35-pull-request-flow', 'leaves the branch and its origin/ copy behind', level('git-35-pull-request-flow').solution.slice(0, -2), ['deleted', 'pruned']],
+  ['git-35-pull-request-flow', 'deletes the branch but never pulls the merge', [
+    ...level('git-35-pull-request-flow').solution.slice(0, 6),
+    'git branch -d feature/sunday-hours',
+    'git fetch --prune'
+  ], ['pulled', 'deleted', 'pruned']],
+  ['git-practice-clean-up-after-merge', 'deletes and prunes without pulling the merge', ['git branch -d feature/newsletter-form', 'git fetch --prune'], ['pulled']],
+  ['git-36-hotfix-mid-feature', 'commits the fix straight on main, no hotfix branch', [
+    'git stash',
+    'git switch main',
+    BANNER_FIX,
+    'git commit -am "Fix the Christmas Eve hours in the banner"',
+    'git push',
+    'git switch feature/gift-cards',
+    'git stash pop',
+    'git merge main'
+  ], ['hotfix']],
+  ['git-36-hotfix-mid-feature', 'fixes it on the feature branch and ships the gift cards with it', [
+    BANNER_FIX,
+    'git commit -am "Fix the Christmas Eve hours in the banner"',
+    'git switch main',
+    'git merge feature/gift-cards',
+    'git push',
+    'git switch feature/gift-cards'
+  ], ['hotfix', 'shipped', 'back']],
+  ['git-36-hotfix-mid-feature', 'never brings the fix into the feature branch', level('git-36-hotfix-mid-feature').solution.slice(0, -1), ['merged']],
+  ['git-36-hotfix-mid-feature', 'rebases the feature branch Jonas already pulled', [
+    ...level('git-36-hotfix-mid-feature').solution.slice(0, 8),
+    'git rebase main',
+    'git stash pop'
+  ], ['merged']],
+  ['git-practice-stash-for-hotfix', 'starts the hotfix from the feature branch', ['git stash', 'git switch -c hotfix/menu-typo'], ['hotfix']],
+  ['git-practice-stash-for-hotfix', 'switches without stashing, which git refuses', ['git switch -c hotfix/menu-typo main'], ['stashed', 'hotfix']],
+  ['git-37-fix-the-release-branch', 'merges main into the release branch', ['git switch release/1.4', 'git merge main', 'git push'], ['picked', 'nothing-else']],
+  ['git-37-fix-the-release-branch', 'picks the Christmas link instead of the fix', ['git switch release/1.4', 'git cherry-pick main', 'git push'], ['picked', 'nothing-else']],
+  ['git-37-fix-the-release-branch', 'picks the fix but does not push', level('git-37-fix-the-release-branch').solution.slice(0, 2), ['pushed']],
+  ['git-practice-cherry-pick-commit', 'merges main instead', ['git merge main'], ['picked']],
+  ['git-practice-cherry-pick-x', 'picks without -x', ['git cherry-pick main'], ['recorded']],
+  ['git-38-tag-a-release', 'makes a lightweight tag', ['git tag v1.4.0 HEAD~1', 'git push origin v1.4.0'], ['tagged', 'pushed']],
+  ['git-38-tag-a-release', 'tags the newest commit, which is not the release', ['git tag -a v1.4.0 -m "Version 1.4.0: online orders"', 'git push origin v1.4.0'], ['tagged', 'pushed']],
+  ['git-38-tag-a-release', 'pushes with a plain git push, which sends no tags', ['git tag -a v1.4.0 -m "Version 1.4.0: online orders" HEAD~1', 'git push'], ['pushed']],
+  ['git-practice-annotated-tag', 'makes a lightweight tag', ['git tag v1.5.0'], ['tagged']],
+  ['git-practice-list-tags', 'looks at the log instead', ['git log --oneline'], ['listed']],
+  ['git-39-gitflow-release', 'fast-forwards main instead of making a merge commit', [
+    ...level('git-39-gitflow-release').solution.slice(0, 4),
+    'git merge release/1.5',
+    ...level('git-39-gitflow-release').solution.slice(5)
+  ], ['main', 'tag']],
+  ['git-39-gitflow-release', 'never merges the release back into develop', level('git-39-gitflow-release').solution.slice(0, -2), ['develop']],
+  ['git-39-gitflow-release', 'makes a lightweight tag', [
+    ...level('git-39-gitflow-release').solution.slice(0, 5),
+    'git tag v1.5.0',
+    ...level('git-39-gitflow-release').solution.slice(6)
+  ], ['tag']],
+  ['git-39-gitflow-release', 'sets the version on develop, without a release branch', [
+    'echo "1.5.0" > version.txt',
+    'git commit -am "Set the version to 1.5.0"',
+    'git switch main',
+    'git merge --no-ff develop',
+    'git tag -a v1.5.0 -m "Version 1.5.0"'
+  ], ['release', 'main', 'develop']],
+  ['git-practice-release-from-develop', 'starts the release from main', ['git switch -c release/1.6'], ['started']]
 ]
 
 describe.each(wrongPaths)('%s: %s', (id, _why, lines, failing) => {
@@ -927,5 +1016,100 @@ describe('git-practice-restore-branch', () => {
 describe('git-practice-undo-rebase', () => {
   it('also counts the reflog line below the rebase start', () => {
     expect(play(level('git-practice-undo-rebase'), ['git reflog', 'git reset --hard HEAD@{3}']).session.solved).toBe(true)
+  })
+})
+
+describe('git-35-pull-request-flow', () => {
+  const item = level('git-35-pull-request-flow')
+
+  it('has Maya merge the pull request right after your push, and delete the branch on origin', () => {
+    const { steps } = play(item, item.solution.slice(0, 5))
+    expect(steps.map(step => step.notices.map(notice => notice.author))).toEqual([[], [], [], [], ['Maya']])
+    const state = steps[4]!.session.state
+    const tip = state.origin!.commits[state.origin!.branches.main!]!
+    expect(tip.message).toBe('Merge pull request #12 from feature/sunday-hours')
+    expect(state.origin!.branches['feature/sunday-hours']).toBeUndefined()
+    expect(steps[4]!.session.goalsMet).toEqual({ merged: true, pulled: false, deleted: false, pruned: false })
+  })
+
+  it('deletes the branch with -d once main has the merge', () => {
+    const { steps } = play(item, item.solution)
+    expect(texts(steps)[7]).toMatch(/^Deleted branch feature\/sunday-hours \(was [0-9a-f]{7}\)\.$/)
+    expect(texts(steps)[8]).toContain(' - [deleted]         (none)     -> origin/feature/sunday-hours')
+  })
+})
+
+describe('git-36-hotfix-mid-feature', () => {
+  const item = level('git-36-hotfix-mid-feature')
+
+  it('refuses to switch while the gift card work is uncommitted', () => {
+    const { text } = play(item, ['git switch main'])
+    expect(text).toContain('error: Your local changes to the following files would be overwritten by checkout:\n\tgift-cards.html')
+  })
+
+  it('also counts a WIP commit instead of the stash, and deleting the hotfix branch after the merge', () => {
+    const { session } = play(item, [
+      'git commit -am "WIP gift card amounts"',
+      'git switch -c hotfix/christmas-eve main',
+      BANNER_FIX,
+      'git commit -am "Fix the Christmas Eve hours in the banner"',
+      'git switch main',
+      'git merge hotfix/christmas-eve',
+      'git branch -d hotfix/christmas-eve',
+      'git push',
+      'git switch feature/gift-cards',
+      'git merge main'
+    ])
+    expect(session.solved).toBe(true)
+  })
+})
+
+describe('git-37-fix-the-release-branch', () => {
+  const item = level('git-37-fix-the-release-branch')
+
+  it('names the real id of Jonas\'s fix in its last hint, and copies it as a new commit', () => {
+    const { state } = startLevel(item)
+    const fix = commitsOf(state, 'main').find(commit => commit.message === 'Allow up to 12 loaves per order')!
+    expect(item.hints[2]).toContain(`git cherry-pick ${fix.id.slice(0, 7)}`)
+    const { steps, session } = play(item, item.solution.slice(0, 2))
+    const tip = commitsOf(session.state, 'release/1.4')[0]!
+    expect(texts(steps)[1]).toBe(`[release/1.4 ${tip.id.slice(0, 7)}] Allow up to 12 loaves per order\n 1 file changed, 1 insertion(+), 1 deletion(-)`)
+    expect(tip.id).not.toBe(fix.id)
+  })
+
+  it('also counts -x and the fix named as main~1', () => {
+    expect(play(item, ['git switch release/1.4', 'git cherry-pick -x main~1', 'git push']).session.solved).toBe(true)
+  })
+})
+
+describe('git-38-tag-a-release', () => {
+  const item = level('git-38-tag-a-release')
+
+  it('shows the old tag, and the new one on the released commit, in the log', () => {
+    const { steps } = play(item, ['git tag', 'git tag -a v1.4.0 -m "Version 1.4.0: online orders" HEAD~1', 'git log --oneline', 'git push origin v1.4.0'])
+    expect(texts(steps)[0]).toBe('v1.3.0')
+    expect(texts(steps)[2]).toMatch(/^[0-9a-f]{7} \(HEAD -> main, origin\/main\) Start the Christmas menu page\n[0-9a-f]{7} \(tag: v1\.4\.0\) Add online orders\n[0-9a-f]{7} \(tag: v1\.3\.0\) Add the opening hours page\n/)
+    expect(texts(steps)[3]).toBe('To https://git.example.com/team/project.git\n * [new tag]         v1.4.0 -> v1.4.0')
+  })
+
+  it('also counts the id, and git push --tags', () => {
+    const id = commitsOf(startLevel(item).state, 'main')[1]!.id.slice(0, 7)
+    expect(play(item, [`git tag -a v1.4.0 -m "Version 1.4.0: online orders" ${id}`, 'git push --tags']).session.solved).toBe(true)
+  })
+})
+
+describe('git-39-gitflow-release', () => {
+  it('makes a merge commit on main and tags it, and also counts deleting the release branch at the end', () => {
+    const item = level('git-39-gitflow-release')
+    const { steps } = play(item, item.solution)
+    expect(texts(steps)[4]).toContain('Merge made by the \'ort\' strategy.')
+    expect(play(item, [...item.solution, 'git branch -d release/1.5']).session.goalsMet).toEqual({ release: true, main: true, tag: true, develop: true })
+  })
+})
+
+describe('git-practice-list-tags', () => {
+  it('also counts git tag -n and -l', () => {
+    expect(play(level('git-practice-list-tags'), ['git tag -n']).session.solved).toBe(true)
+    expect(play(level('git-practice-list-tags'), ['git tag -l "v1.*"']).session.solved).toBe(true)
   })
 })

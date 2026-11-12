@@ -12,7 +12,7 @@ import { moveTrees } from '../worktree'
 import type { Command, CommandResult, GitState, OutputLine, Repo, Tree, UnmergedKind } from '../types'
 import { activeBranch } from './branch'
 import { commit as commitCommand } from './commit'
-import { diffstat, fatal, moveHead, notARepo, storeCommit, withRepo } from './common'
+import { CHERRY_PICKING, diffstat, fatal, moveHead, notARepo, storeCommit, withRepo } from './common'
 
 /** Applies a tree merge to index and working tree; conflicted paths keep their marker content. */
 export function applyMerge(repo: Repo, workdir: Tree, from: Tree, merged: TreeMergeResult, verb: 'merge' | 'checkout' = 'merge') {
@@ -127,6 +127,7 @@ export const merge: Command = (state, argv) => {
     return fatal(state, 'fatal: You have not concluded your merge (MERGE_HEAD exists).\nPlease, commit your changes before you merge.')
   }
   if (operation?.type === 'rebase') return fatal(state, 'fatal: You are in the middle of a rebase; finish it with "git rebase --continue" or "git rebase --abort" first.')
+  if (operation?.type === 'cherry-pick') return fatal(state, CHERRY_PICKING)
 
   let name = positionals[0]
   if (!name) {

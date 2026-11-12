@@ -81,6 +81,7 @@ export function useLevelPlay(level: Level, options: LevelPlayOptions = {}) {
       branches: repo.branches,
       remoteBranches: repo.remoteBranches,
       head: repo.head,
+      tags: Object.fromEntries(Object.entries(repo.tags ?? {}).map(([name, tag]) => [name, tag.commit])),
       origin: showOrigin.value && origin ? { commits: origin.commits, branches: origin.branches } : null
     })
   })

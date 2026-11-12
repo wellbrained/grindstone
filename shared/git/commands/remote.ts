@@ -4,12 +4,12 @@ import { isAncestor, reachable } from '../objects/graph'
 import type { Commits } from '../objects/graph'
 import { shortId } from '../objects/hash'
 import { done, err, fail, hint, out, ref } from '../output'
-import { trackingRef } from '../refs'
+import { tagNames, trackingRef } from '../refs'
 import { without } from '../state'
 import type { Command, CommandResult, GitState, OutputLine, Remote, Repo } from '../types'
 import { activeBranch, trackingLine } from './branch'
 import { unresolvedConflict } from './commit'
-import { fatal, notARepo, withRepo } from './common'
+import { CHERRY_PICKING, fatal, notARepo, withRepo } from './common'
 import { mergeInto } from './merge'
 import { startRebase } from './rebase'
 
@@ -42,8 +42,10 @@ export function fetchOrigin(state: GitState, only?: string): { state: GitState, 
   const origin = state.origin!
   const names = Object.keys(origin.branches).filter(name => only === undefined || name === only).sort()
   const remoteBranches = { ...repo.remoteBranches }
+  // tags come along (git's auto-following); a tag you already have, even a different one, stays as it is
+  const newTags = tagNames(origin.tags).filter(name => !repo.tags?.[name])
   // the ref column is as wide as the longest name shown, at least REF_WIDTH
-  const shown = names.filter(name => only !== undefined || repo.remoteBranches[name] !== origin.branches[name])
+  const shown = [...names.filter(name => only !== undefined || repo.remoteBranches[name] !== origin.branches[name]), ...newTags]
   const width = Math.max(REF_WIDTH, ...shown.map(name => name.length))
   const output: OutputLine[] = []
 
@@ -58,10 +60,18 @@ export function fetchOrigin(state: GitState, only?: string): { state: GitState, 
     else output.push(refLine('+', `${shortId(old)}...${shortId(tip)}`, name, trackingRef(name), width, '  (forced update)'))
   }
 
+  const tags = { ...repo.tags }
+  for (const name of newTags) {
+    tags[name] = origin.tags![name]!
+    output.push(refLine('*', '[new tag]', name, name, width))
+  }
+
+  const tips = [...names.map(name => origin.branches[name]!), ...newTags.map(name => tags[name]!.commit)]
   const next: Repo = {
     ...repo,
-    commits: copyCommits(origin.commits, repo.commits, names.map(name => origin.branches[name]!)),
-    remoteBranches
+    commits: copyCommits(origin.commits, repo.commits, tips),
+    remoteBranches,
+    ...(newTags.length ? { tags } : {})
   }
   return { state: withRepo(state, next), output: output.length ? [out(`From ${origin.url}`), ...output] : [] }
 }
@@ -101,6 +111,7 @@ export const pull: Command = (state, argv) => {
     return fatal(state, 'fatal: You have not concluded your merge (MERGE_HEAD exists).\nPlease, commit your changes before merging.')
   }
   if (repo.operation?.type === 'rebase') return fatal(state, 'fatal: You are in the middle of a rebase; finish it with "git rebase --continue" or "git rebase --abort" first.')
+  if (repo.operation?.type === 'cherry-pick') return fatal(state, CHERRY_PICKING.replace('before you merge', 'before merging'))
 
   const current = activeBranch(repo)
   const branch = named ?? (current ? repo.upstream[current] : undefined)
@@ -163,11 +174,49 @@ const NON_FAST_FORWARD = [
 const pushLine = (flag: string, summary: string, src: string, dst: string, suffix = '') =>
   out(` ${flag} ${summary.padEnd(SUMMARY_WIDTH)} `, ref(src), ' -> ', ref(dst), suffix)
 
+const tagLine = (flag: string, summary: string, name: string, suffix = '') => out(` ${flag} ${summary.padEnd(SUMMARY_WIDTH)} ${name} -> ${name}${suffix}`)
+
+/** `git push origin <tag>` and `git push --tags`: tags origin doesn't have yet; a different one there is only replaced with force. */
+function pushTags(state: GitState, names: string[], force: boolean): CommandResult {
+  const repo = state.repo!
+  const origin = state.origin!
+  const tags = { ...origin.tags }
+  const lines: OutputLine[] = []
+  const rejected: string[] = []
+  for (const name of names) {
+    const local = repo.tags![name]!
+    const there = tags[name]
+    const target = (tag: typeof local) => tag.annotation?.id ?? tag.commit
+    if (there && target(there) === target(local)) continue
+    if (there && !force) {
+      rejected.push(name)
+      continue
+    }
+    lines.push(there ? tagLine('+', `${shortId(target(there))}...${shortId(target(local))}`, name, ' (forced update)') : tagLine('*', '[new tag]', name))
+    tags[name] = local
+  }
+  if (!lines.length && !rejected.length) return done(state, [out('Everything up-to-date')])
+  const nextOrigin: Remote = {
+    ...origin,
+    commits: copyCommits(repo.commits, origin.commits, Object.values(tags).map(tag => tag.commit)),
+    tags
+  }
+  const next = lines.length ? { ...state, origin: nextOrigin } : state
+  if (!rejected.length) return done(next, [out(`To ${origin.url}`), ...lines])
+  return fail(next, [
+    out(`To ${origin.url}`),
+    ...lines,
+    ...rejected.map(name => tagLine('!', '[rejected]', name, ' (already exists)')),
+    err(`error: failed to push some refs to '${origin.url}'`),
+    hint('hint: Updates were rejected because the tag already exists in the remote.')
+  ])
+}
+
 export const push: Command = (state, argv) => {
   const repo = state.repo
   if (!repo) return notARepo(state)
   const parsed = parseArgs('push', argv, {
-    flags: ['-u', '--force', '--force-with-lease'],
+    flags: ['-u', '--force', '--force-with-lease', '--tags'],
     alias: { '--set-upstream': '-u', '-f': '--force' }
   })
   if (!parsed.ok) return fail(state, [err(parsed.error)])
@@ -189,6 +238,14 @@ export const push: Command = (state, argv) => {
   if (remote !== 'origin') return noRemote(state, remote)
   if (positionals.length > 2) return fail(state, [err('git push: pushing several branches at once is not in this trainer yet')])
   if (refspec?.includes(':')) return fail(state, [err('git push: <src>:<dst> refspecs are not in this trainer yet')])
+  const force = flags.has('--force') || flags.has('--force-with-lease')
+  if (flags.has('--tags')) {
+    if (refspec !== undefined) return fail(state, [err('git push: pushing --tags together with a branch is not in this trainer yet')])
+    return pushTags(state, tagNames(repo.tags), force)
+  }
+  if (refspec !== undefined && !repo.branches[refspec] && repo.tags?.[refspec.replace(/^refs\/tags\//, '')]) {
+    return pushTags(state, [refspec.replace(/^refs\/tags\//, '')], force)
+  }
 
   const current = activeBranch(repo)
   const src = refspec === undefined || refspec === 'HEAD' ? current : refspec

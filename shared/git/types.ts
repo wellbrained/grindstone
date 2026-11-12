@@ -85,7 +85,23 @@ export interface RebaseOperation {
   upstream?: string
 }
 
-export type Operation = MergeOperation | RebaseOperation
+/** `git cherry-pick` that stopped: a conflict, or a pick that came out empty. */
+export interface CherryPickOperation {
+  type: 'cherry-pick'
+  /** The commit whose pick stopped (git's CHERRY_PICK_HEAD); null once it is committed and more picks wait for `--continue`. */
+  current: string | null
+  /** The message the stopped pick is committed with (with the `-x` line, if asked for). */
+  message: string
+  /** Commits still to pick after the current one, in order. */
+  todo: string[]
+  /** `-x`: every pick records the commit it came from. */
+  recordOrigin: boolean
+  /** Where HEAD was before the command, for `--abort`. */
+  head: string
+  before: Snapshot
+}
+
+export type Operation = MergeOperation | RebaseOperation | CherryPickOperation
 
 /** One `git stash` entry: what index and working tree held, saved against the commit HEAD was on. */
 export interface StashEntry {
@@ -108,6 +124,22 @@ export interface ReflogEntry {
   id: string
   /** e.g. `commit: Add the menu`, `reset: moving to HEAD~1`, `checkout: moving from main to feature`. */
   message: string
+}
+
+/** An annotated tag's own object (`git tag -a`): who tagged it, when, and the message. */
+export interface TagAnnotation {
+  /** Deterministic 40-hex id of the tag object (`git tag -d` shows it). */
+  id: string
+  message: string
+  tagger: Author
+  /** Seconds since the epoch, from the logical clock. */
+  timestamp: number
+}
+
+/** A tag (refs/tags/<name>): a fixed name for one commit. A lightweight tag is only the name, an annotated one has an annotation. */
+export interface Tag {
+  commit: string
+  annotation?: TagAnnotation
 }
 
 export interface Repo {
@@ -138,6 +170,8 @@ export interface Repo {
   reflog?: Record<string, ReflogEntry[]>
   /** Where HEAD was before the last reset, merge or rebase (git's ORIG_HEAD). Optional, like `reflog`. */
   origHead?: string
+  /** Tags by name. Optional, so states saved before tags existed stay valid. */
+  tags?: Record<string, Tag>
 }
 
 export interface Remote {
@@ -146,6 +180,8 @@ export interface Remote {
   commits: Record<string, Commit>
   branches: Record<string, string>
   defaultBranch: string
+  /** Tags on origin, by name (optional, like `Repo.tags`). */
+  tags?: Record<string, Tag>
 }
 
 export interface GitState {

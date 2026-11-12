@@ -21,6 +21,7 @@ type Target
 
 function busy(state: GitState, repo: Repo): CommandResult | null {
   if (repo.operation?.type === 'merge') return fatal(state, 'fatal: cannot switch branch while merging\nConsider "git merge --quit" or "git worktree add".')
+  if (repo.operation?.type === 'cherry-pick') return fatal(state, 'fatal: cannot switch branch while cherry-picking\nConsider "git cherry-pick --quit" or "git worktree add".')
   if (repo.operation?.type === 'rebase') return fatal(state, 'fatal: cannot switch branch while rebasing\nConsider "git rebase --quit" or "git worktree add".')
   return null
 }

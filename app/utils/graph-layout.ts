@@ -16,15 +16,17 @@ export interface LayoutInput {
   /** Remote-tracking refs, keyed by the branch name on origin (drawn as `origin/<name>`). */
   remoteBranches: Record<string, string>
   head: { type: 'branch', name: string } | { type: 'detached', commit: string }
+  /** Tags: name -> commit. Optional; a tag gets a label but never a lane or a colour of its own. */
+  tags?: Record<string, string>
   /** The remote's own state; only passed when the "show origin" toggle is on. Unfetched commits and branch heads appear. */
   origin?: { commits: Record<string, LayoutCommit>, branches: Record<string, string> } | null
 }
 
-/** `local`: a branch (filled pill). `remote`: a remote-tracking ref (outlined). `origin`: the remote's real branch head (dashed). `head`: a detached HEAD. */
-export type LabelKind = 'local' | 'remote' | 'origin' | 'head'
+/** `local`: a branch (filled pill). `remote`: a remote-tracking ref (outlined). `origin`: the remote's real branch head (dashed). `head`: a detached HEAD. `tag`: a tag (neutral). */
+export type LabelKind = 'local' | 'remote' | 'origin' | 'head' | 'tag'
 
 export interface GraphLabel {
-  /** What the pill says: `main`, `origin/main`, `origin: main`, `HEAD`. */
+  /** What the pill says: `main`, `origin/main`, `origin: main`, `HEAD`, `tag: v1.4.0`. */
   name: string
   kind: LabelKind
   /** The branch name the colour comes from (see branch-palette.ts). */
@@ -153,7 +155,9 @@ function topoOrder(commits: Record<string, LayoutCommit>, ids: Set<string>): str
 export function layoutGraph(input: LayoutInput): GraphLayout {
   const commits: Record<string, LayoutCommit> = { ...input.origin?.commits, ...input.commits }
   const refs = collectRefs(input, commits)
-  const ids = reachable(commits, refs.map(ref => ref.tip))
+  // tags keep their commits in the graph (like `git log --all`) and get a label, but claim no lane
+  const tags = Object.keys(input.tags ?? {}).sort().map(name => ({ name, tip: input.tags![name]! })).filter(tag => commits[tag.tip])
+  const ids = reachable(commits, [...refs.map(ref => ref.tip), ...tags.map(tag => tag.tip)])
   const order = topoOrder(commits, ids)
 
   // A branch line is the first-parent chain from a ref's tip, down to the first commit another ref already claimed.
@@ -180,6 +184,9 @@ export function layoutGraph(input: LayoutInput): GraphLayout {
 
   const labelsFor = new Map<string, GraphLabel[]>()
   for (const ref of refs) labelsFor.set(ref.tip, [...labelsFor.get(ref.tip) ?? [], ref.label])
+  for (const tag of tags) {
+    labelsFor.set(tag.tip, [...labelsFor.get(tag.tip) ?? [], { name: `tag: ${tag.name}`, kind: 'tag', branch: tag.name, head: false }])
+  }
 
   const nodes: GraphNode[] = order.map((id) => {
     const commit = commits[id]!

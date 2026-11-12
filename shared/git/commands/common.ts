@@ -13,6 +13,9 @@ export const notARepo = (state: GitState) =>
 export const fatal = (state: GitState, message: string, code = 128) =>
   fail(state, message.split('\n').map(text => err(text)), code)
 
+/** What merge (and, worded for itself, pull and rebase) say while a cherry-pick is in progress. */
+export const CHERRY_PICKING = 'fatal: You have not concluded your cherry-pick (CHERRY_PICK_HEAD exists).\nPlease, commit your changes before you merge.'
+
 export const withRepo = (state: GitState, repo: Repo): GitState => ({ ...state, repo })
 
 export function storeCommit(repo: Repo, commit: Commit): Repo {

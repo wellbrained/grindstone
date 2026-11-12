@@ -157,24 +157,24 @@ const summary = computed(() => t('graph.summary', props.layout.nodes.length))
               <g
                 v-for="pill in row.pills"
                 :key="pill.label.name"
-                :class="pill.label.kind === 'head' ? 'text-highlighted' : branchClass(pill.label.branch)"
+                :class="pill.label.kind === 'head' ? 'text-highlighted' : pill.label.kind === 'tag' ? 'text-muted' : branchClass(pill.label.branch)"
                 :transform="`translate(${textX + pill.x} -10)`"
               >
                 <rect
                   :y="-PILL_H / 2"
                   :width="pill.width"
                   :height="PILL_H"
-                  rx="9"
+                  :rx="pill.label.kind === 'tag' ? 4 : 9"
                   :fill="pill.label.kind === 'local' || pill.label.kind === 'head' ? 'currentColor' : 'none'"
                   stroke="currentColor"
-                  stroke-width="1.5"
+                  :stroke-width="pill.label.kind === 'tag' ? 1 : 1.5"
                   :stroke-dasharray="pill.label.kind === 'origin' ? '3 2' : undefined"
                 />
                 <text
                   :x="pill.width / 2"
                   text-anchor="middle"
                   dominant-baseline="central"
-                  font-weight="600"
+                  :font-weight="pill.label.kind === 'tag' ? 500 : 600"
                   :fill="pill.label.kind === 'local' ? 'var(--branch-ink)' : pill.label.kind === 'head' ? 'var(--ui-bg-elevated)' : 'currentColor'"
                 >{{ pill.text }}</text>
               </g>

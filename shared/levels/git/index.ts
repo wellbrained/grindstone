@@ -37,6 +37,11 @@ import { lostCommitsAfterReset } from './31-lost-commits-after-reset'
 import { rebasedTheWrongBranch } from './32-rebased-the-wrong-branch'
 import { committedASecret } from './33-committed-a-secret'
 import { deletedABranch } from './34-deleted-a-branch'
+import { pullRequestFlow } from './35-pull-request-flow'
+import { hotfixMidFeature } from './36-hotfix-mid-feature'
+import { fixTheReleaseBranch } from './37-fix-the-release-branch'
+import { tagARelease } from './38-tag-a-release'
+import { gitflowRelease } from './39-gitflow-release'
 import { commitAll, diffFile, diffStaged, ignoreLogs, logOneline, stageOneFile } from './practice/basics'
 import { branchFromCommit, deleteMergedBranch, listBranches, listRemoteBranches, renameBranch, switchBack } from './practice/branching'
 import { findLostCommit, moveCommitToBranch, removeFile, restoreBranch, undoRebase, untrackFile } from './practice/disasters'
@@ -44,6 +49,7 @@ import { keepTheirVersion, listConflicts, mergeFfOnly, mergeMainIn, mergeNoFf } 
 import { abortRebase, pushWithLease, rebaseOntoMain, rewordOldCommit } from './practice/rewriting'
 import { fetchOnly, pruneGoneBranches, pullRebase, pushWithUpstream, unpushedCommits } from './practice/teamwork'
 import { amendNoEdit, discardFile, resetHard, resetSoft, revertBeforeLast, stashUntracked, unstageFile } from './practice/undo'
+import { annotatedTag, cherryPickCommit, cherryPickRecordOrigin, cleanUpAfterMerge, listTags, releaseFromDevelop, stashForHotfix } from './practice/workflows'
 
 export const gitTrack = defineTrack({
   id: 'git',
@@ -187,9 +193,22 @@ export const gitTrack = defineTrack({
     {
       id: 'workflows',
       title: 'Workflows',
-      description: 'GitFlow, trunk-based development and release branches, the way teams run them.',
+      description: 'How teams ship: pull requests, hotfixes, fixes for a release branch, tags and GitFlow releases.',
       colour: 7,
-      levels: []
+      levels: [
+        pullRequestFlow,
+        cleanUpAfterMerge,
+        hotfixMidFeature,
+        stashForHotfix,
+        fixTheReleaseBranch,
+        cherryPickCommit,
+        cherryPickRecordOrigin,
+        tagARelease,
+        annotatedTag,
+        listTags,
+        gitflowRelease,
+        releaseFromDevelop
+      ]
     }
   ]
 })

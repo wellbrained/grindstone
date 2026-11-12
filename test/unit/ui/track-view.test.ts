@@ -11,8 +11,8 @@ const rowStates = (progress = emptyProgress()) => Object.fromEntries(trackView(g
 describe('track view', () => {
   it('marks the first level as next up when nothing is solved', () => {
     const view = trackView(git, emptyProgress())
-    expect(view.count).toEqual({ solved: 0, total: 73 })
-    expect(view.liveChapters).toBe(7)
+    expect(view.count).toEqual({ solved: 0, total: 85 })
+    expect(view.liveChapters).toBe(8)
     expect(view.nextUp?.number).toBe('1.1')
     expect(view.chapters[0]!.rows.map(row => [row.place.number, row.state])).toEqual([
       ['1.1', 'next'],
@@ -29,7 +29,7 @@ describe('track view', () => {
     ])
   })
 
-  it('shows solved levels, one next up (a practice task counts), and the chapters without levels as coming', () => {
+  it('shows solved levels and one next up (a practice task counts); every git chapter has levels', () => {
     const progress = solvedProgress(['git-01-first-commit', 'git-03-merge'])
     expect(rowStates(progress)).toMatchObject({
       'git-01-first-commit': 'solved',
@@ -39,9 +39,9 @@ describe('track view', () => {
       'git-04-merge-conflict': 'open'
     })
     const view = trackView(git, progress)
-    expect(view.chapters.map(chapter => chapter.coming)).toEqual([false, false, false, false, false, false, false, true])
+    expect(view.chapters.map(chapter => chapter.coming)).toEqual([false, false, false, false, false, false, false, false])
     expect(view.chapters[2]!.count).toEqual({ solved: 1, total: 10 })
-    expect(view.chapters.map(chapter => chapter.state)).toEqual(['next', 'open', 'open', 'open', 'open', 'open', 'open', 'coming'])
+    expect(view.chapters.map(chapter => chapter.state)).toEqual(['next', 'open', 'open', 'open', 'open', 'open', 'open', 'open'])
   })
 
   it('carries the stored progress of each row (best run, practise again)', () => {

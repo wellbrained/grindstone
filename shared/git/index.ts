@@ -5,13 +5,13 @@ import { SHELL_COMMANDS } from './shell'
 export type * from './types'
 export type { Token, TokenizeResult } from './tokenize'
 export type { StateOptions } from './state'
-export type { TeammateChange } from './teammate'
+export type { TeammateChange, TeammateMerge } from './teammate'
 
 export { run, runArgv } from './run'
 export { tokenize } from './tokenize'
 export { createState, writeFile, DEFAULT_ORIGIN_URL } from './state'
 export { SetupBuilder, folder, repo } from './setup'
-export { teammateCommit } from './teammate'
+export { teammateCommit, teammateMerge } from './teammate'
 export { blobId, shortId } from './objects/hash'
 export { formatDate } from './commands/log'
 export { ignoreMatcher } from './ignore'
@@ -32,8 +32,10 @@ export {
   operationInProgress,
   remoteBranchHead,
   remoteCommitsOf,
+  remoteTagOf,
   resolve,
   stashEntries,
+  tagOf,
   trackingBranchHead,
   unmergedPaths,
   upstreamOf,

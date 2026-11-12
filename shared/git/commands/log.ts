@@ -110,7 +110,8 @@ export const log: Command = (state, argv) => {
   if (!repo) return notARepo(state)
   const normalized = argv.flatMap(arg => /^-\d+$/.test(arg) ? ['-n', arg.slice(1)] : [arg])
   const parsed = parseArgs('log', normalized, {
-    flags: ['--oneline', '--graph', '--all'],
+    // decorations are always on (git's default in a terminal), so --decorate changes nothing
+    flags: ['--oneline', '--graph', '--all', '--decorate'],
     values: ['-n'],
     alias: { '--max-count': '-n' }
   })
@@ -135,7 +136,7 @@ export const log: Command = (state, argv) => {
     }
   }
   if (flags.has('--all')) {
-    include.push(...Object.values(repo.branches), ...Object.values(repo.remoteBranches))
+    include.push(...Object.values(repo.branches), ...Object.values(repo.remoteBranches), ...Object.values(repo.tags ?? {}).map(tag => tag.commit))
     const head = headId(repo)
     if (head) include.push(head)
   }

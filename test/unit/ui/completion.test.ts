@@ -57,6 +57,15 @@ describe('complete', () => {
     expect(complete('git stash pop x', context).candidates).toEqual([])
   })
 
+  it('completes tags wherever a revision goes, and revisions for cherry-pick and tag', () => {
+    const tagged: CompletionContext = { ...context, tags: ['v1.3.0', 'v1.4.0'] }
+    expect(complete('git cherry-pick feature/lo', tagged).input).toBe('git cherry-pick feature/login ')
+    expect(complete('git switch --detach v1.3', tagged).input).toBe('git switch --detach v1.3.0 ')
+    expect(complete('git push origin v', tagged).candidates).toEqual(['v1.3.0', 'v1.4.0'])
+    expect(complete('git tag -d v1.4', tagged).input).toBe('git tag -d v1.4.0 ')
+    expect(complete('git fetch v', tagged).candidates).toEqual([])
+  })
+
   it('does not offer branch names for a subcommand that takes none', () => {
     expect(complete('git add ma', context).candidates).toEqual([])
   })

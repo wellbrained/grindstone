@@ -66,7 +66,7 @@ describe('track registry', () => {
     }
   })
 
-  it('maps the levels to their chapters and leaves chapter 8 empty', () => {
+  it('maps the levels to their chapters', () => {
     expect(git.chapters.map(chapter => chapter.levels.map(level => level.id))).toEqual([
       [
         'git-01-first-commit',
@@ -155,7 +155,20 @@ describe('track registry', () => {
         'git-34-deleted-a-branch',
         'git-practice-restore-branch'
       ],
-      []
+      [
+        'git-35-pull-request-flow',
+        'git-practice-clean-up-after-merge',
+        'git-36-hotfix-mid-feature',
+        'git-practice-stash-for-hotfix',
+        'git-37-fix-the-release-branch',
+        'git-practice-cherry-pick-commit',
+        'git-practice-cherry-pick-x',
+        'git-38-tag-a-release',
+        'git-practice-annotated-tag',
+        'git-practice-list-tags',
+        'git-39-gitflow-release',
+        'git-practice-release-from-develop'
+      ]
     ])
   })
 
@@ -267,7 +280,8 @@ describe('next level', () => {
     expect(nextLevel('git-06-teammate-sync')?.id).toBe('git-practice-prune-gone-branches')
     expect(nextLevel('git-practice-prune-gone-branches')?.id).toBe('git-11-fix-last-commit')
     expect(nextLevel('git-practice-stash-untracked')?.id).toBe('git-30-committed-on-main')
-    expect(nextLevel('git-practice-restore-branch')).toBeNull()
+    expect(nextLevel('git-practice-restore-branch')?.id).toBe('git-35-pull-request-flow')
+    expect(nextLevel('git-practice-release-from-develop')).toBeNull()
     expect(nextLevel('nope')).toBeNull()
     const track = bigTrack()
     expect(nextLevel('big-1-8', [track])?.id).toBe('big-2-1')
@@ -322,7 +336,7 @@ describe('next up and continue', () => {
 describe('progress counts', () => {
   it('counts solved entries per track and chapter, both kinds, ignoring unknown ids and unsolved entries', () => {
     const progress = solvedProgress(['git-03-merge', 'git-04-merge-conflict', 'git-01-first-commit', 'git-practice-stage-one-file', 'elsewhere'], { levelId: 'git-02-branch', at: 3 })
-    expect(trackProgress(git, progress)).toEqual({ solved: 4, total: 73 })
+    expect(trackProgress(git, progress)).toEqual({ solved: 4, total: 85 })
     expect(git.chapters.map(chapter => chapterProgress(chapter, progress))).toEqual([
       { solved: 2, total: 11 },
       { solved: 0, total: 11 },
@@ -331,7 +345,7 @@ describe('progress counts', () => {
       { solved: 0, total: 10 },
       { solved: 0, total: 12 },
       { solved: 0, total: 11 },
-      { solved: 0, total: 0 }
+      { solved: 0, total: 12 }
     ])
     expect(trackProgress(trackById('ai')!, progress)).toEqual({ solved: 0, total: 0 })
   })

@@ -7,7 +7,7 @@ Status: in development (v0.1 in progress). Plan: [docs/adr/0001-plan.md](docs/ad
 ## Why another git trainer?
 
 - **Teammates**: scripted colleagues push, force-push and review while you work, so syncing branches is real.
-- **Real situations**: rebasing onto a moved `main`, resolving conflicts, safe force-pushes; later disaster scenarios and workflow tracks.
+- **Real situations**: rebasing onto a moved `main`, resolving conflicts, safe force-pushes, getting out of disasters, and team workflows: pull requests, hotfixes, cherry-picks, release tags, GitFlow.
 - **Terminal and graph together**: every command redraws the commit graph.
 
 It runs entirely in the browser on its own simulated git ([why](docs/adr/0002-git-model.md)).

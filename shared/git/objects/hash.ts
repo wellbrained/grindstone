@@ -49,3 +49,16 @@ export function commitId(fields: CommitFields): string {
     fields.message
   ].join('\n\0'))
 }
+
+export interface TagFields {
+  commit: string
+  name: string
+  message: string
+  tagger: Author
+  timestamp: number
+}
+
+/** The id of an annotated tag's own object. */
+export function tagId(fields: TagFields): string {
+  return hashString(['tag', fields.commit, fields.name, `${fields.tagger.name} <${fields.tagger.email}> ${fields.timestamp}`, fields.message].join('\n\0'))
+}

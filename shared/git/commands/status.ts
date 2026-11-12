@@ -49,6 +49,18 @@ export function statusLines(repo: Repo, workdir: Tree): OutputLine[] {
       }
       lines.push(blank())
     }
+    if (operation?.type === 'cherry-pick') {
+      if (operation.current) {
+        lines.push(out(`You are currently cherry-picking commit ${shortId(operation.current)}.`))
+        lines.push(hint(status.unmerged.length ? '  (fix conflicts and run "git cherry-pick --continue")' : '  (all conflicts fixed: run "git cherry-pick --continue")'))
+      } else {
+        lines.push(out('Cherry-pick currently in progress.'))
+        lines.push(hint('  (run "git cherry-pick --continue" to continue)'))
+      }
+      lines.push(hint('  (use "git cherry-pick --skip" to skip this patch)'))
+      lines.push(hint('  (use "git cherry-pick --abort" to cancel the cherry-pick operation)'))
+      lines.push(blank())
+    }
   }
 
   if (status.staged.length) {

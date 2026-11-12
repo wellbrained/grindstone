@@ -57,12 +57,12 @@ const matchesPrefix = (command: string, prefix: string) => {
 }
 
 /** Applies events whose trigger matches, in level order; each fires once per timeline. */
-function fire(level: Level, state: GitState, fired: string[], shouldFire: (event: TeammateEvent) => boolean) {
+function fire(level: Level, state: GitState, fired: string[], shouldFire: (event: TeammateEvent, state: GitState) => boolean) {
   let next = state
   const firedNow: string[] = []
   const notices: Notice[] = []
   for (const event of level.teammates ?? []) {
-    if (fired.includes(event.id) || !shouldFire(event)) continue
+    if (fired.includes(event.id) || !shouldFire(event, next)) continue
     next = event.apply(next)
     firedNow.push(event.id)
     notices.push({ eventId: event.id, author: event.author, text: event.notice })
@@ -85,8 +85,8 @@ function counted(session: Session, level: Level, line: string, execute: (state: 
   const result = execute(before.state)
   const history = [...session.history, { line, exitCode: result.exitCode }]
 
-  const after = fire(level, result.state, before.fired, ({ trigger }) =>
-    'afterCommands' in trigger && history.length >= trigger.afterCommands)
+  const after = fire(level, result.state, before.fired, ({ trigger }, state) =>
+    ('afterCommands' in trigger && history.length >= trigger.afterCommands) || ('when' in trigger && trigger.when(state)))
 
   const goalsMet = goalsOf(level, after.state, history)
   const solvedNow = !session.solved && allMet(goalsMet)

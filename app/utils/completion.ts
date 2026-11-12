@@ -7,6 +7,8 @@ export interface CompletionContext {
   shellCommands: readonly string[]
   /** Local branches, `origin/<name>` refs and the names on origin. */
   branches: readonly string[]
+  /** Tags (they go wherever a revision goes); optional. */
+  tags?: readonly string[]
   /** Files in the working tree. */
   files: readonly string[]
 }
@@ -19,7 +21,9 @@ export interface CompletionResult {
 }
 
 /** git subcommands that take a branch (or a revision, or `origin`). */
-const BRANCH_ARGS = new Set(['switch', 'checkout', 'merge', 'rebase', 'branch', 'log', 'push', 'pull', 'fetch', 'diff', 'reset', 'revert', 'reflog'])
+const BRANCH_ARGS = new Set(['switch', 'checkout', 'merge', 'rebase', 'branch', 'log', 'push', 'pull', 'fetch', 'diff', 'reset', 'revert', 'reflog', 'cherry-pick', 'tag'])
+/** git subcommands that also take a tag (a revision, or `git push origin <tag>`, `git tag -d <tag>`). */
+const TAG_ARGS = new Set(['switch', 'checkout', 'merge', 'rebase', 'branch', 'log', 'push', 'diff', 'reset', 'revert', 'cherry-pick', 'tag'])
 /** git subcommands that take a file. */
 const FILE_ARGS = new Set(['add', 'rm', 'checkout', 'diff', 'commit', 'restore', 'reset'])
 /** `git stash <subcommand>`. */
@@ -47,6 +51,7 @@ function candidatesFor(words: string[], word: string, context: CompletionContext
     return [
       ...REMOTE_ARGS.has(second) ? ['origin'] : [],
       ...BRANCH_ARGS.has(second) ? context.branches : [],
+      ...TAG_ARGS.has(second) ? context.tags ?? [] : [],
       ...FILE_ARGS.has(second) ? context.files : []
     ]
   }

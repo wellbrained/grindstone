@@ -123,3 +123,15 @@ export function logsOnlyOn(args: string[], on: string[], notOn: string[]): boole
   const { include, exclude } = logRevisions(args)
   return include.length > 0 && include.every(rev => on.includes(rev)) && exclude.length > 0 && exclude.every(rev => notOn.includes(rev))
 }
+
+/**
+ * Whether HEAD's reflog shows commit `id` made while `branch` was checked out: the nearest `checkout: moving from ...
+ * to <branch>` before the commit's entry. Still works once the branch is deleted (HEAD's reflog keeps it, like git's).
+ */
+export function committedOn(state: GitState, id: string, branch: string): boolean {
+  const log = state.repo?.reflog?.HEAD ?? []
+  const at = log.findIndex(entry => entry.id === id && entry.message.startsWith('commit'))
+  if (at === -1) return false
+  const checkout = log.slice(at + 1).find(entry => entry.message.startsWith('checkout: moving from '))
+  return !!checkout && checkout.message.endsWith(` to ${branch}`)
+}

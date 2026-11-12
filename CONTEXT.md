@@ -19,7 +19,7 @@
 - **Git model**: Grindstone's own simulation of git (objects, refs, HEAD, index, working tree), not real git.
 - **Origin**: the simulated remote repository. Your repo sees it only through `fetch`, `pull` and `push`; teammates write only to it.
 - **Teammate**: a scripted colleague (e.g. Anna) who acts on `origin`.
-- **Teammate event**: one thing a teammate does (push commits, force-push, leave a review comment), fired by a **trigger**: after N of your commands, or right before a given command.
+- **Teammate event**: one thing a teammate does (push commits, force-push, merge a pull request on origin), fired by a **trigger**: after N of your commands, right before a given command, or once a check on the state passes (your branch reached origin).
 - **Shell**: the small fake shell around git (`ls`, `cat`, `echo >`, `echo >>`, `rm`, `touch`, `edit`).
 - **Graph**: the SVG commit graph that redraws after every command; local branches solid, `origin/*` outlined.
 - **Progress**: per level: solved, best run, latest run, "practise again", when you last played it (for Continue). Stored in localStorage; the About page downloads it as a backup file and loads it back.

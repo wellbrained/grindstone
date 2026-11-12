@@ -134,8 +134,8 @@ describe('state', () => {
 
 describe('unsupported commands', () => {
   it('names real git commands that are not in the trainer yet', () => {
-    const result = run(repo().file('a', 'a').commit('one').build(), 'git cherry-pick main')
-    expect(textOf(result)).toBe('git: \'cherry-pick\' is not in this trainer yet')
+    const result = run(repo().file('a', 'a').commit('one').build(), 'git bisect start')
+    expect(textOf(result)).toBe('git: \'bisect\' is not in this trainer yet')
     expect(result.exitCode).toBe(1)
   })
 

@@ -67,7 +67,7 @@
     "showOrigin": "Show origin",
     "empty": "No commits yet. The graph draws itself as soon as you make one.",
     "summary": "Commit graph with {n} commit | Commit graph with {n} commits",
-    "legend": "Filled labels are your branches, outlined ones are origin/* (your copy of the remote). The ringed commit is HEAD."
+    "legend": "Filled labels are your branches, outlined ones are origin/* (your copy of the remote), grey ones are tags. The ringed commit is HEAD."
   },
   "editor": {
     "description": "Edit the file and save it (Ctrl+S). Saving counts as a command.",
@@ -185,8 +185,6 @@
     "how": "Everything runs in your browser: Grindstone has its own git simulation in TypeScript, so levels are predictable, undo is instant and nothing is sent anywhere. Your progress stays on your device. The code is open source.",
     "laterTitle": "Coming later",
     "later": {
-      "levels": "More git levels: cherry-pick, reset vs. revert, stash",
-      "workflows": "Workflow tracks: GitFlow, trunk-based, release branches",
       "tracks": "More tracks: working with AI, web fundamentals, debugging, framework deep dives",
       "profile": "A skill profile that shows where you are strong and what to practise next"
     },

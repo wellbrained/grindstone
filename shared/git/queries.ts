@@ -4,7 +4,7 @@ import { isAncestor as reachableFrom, range } from './objects/graph'
 import { resolveRev } from './refs'
 import { headId } from './state'
 import { computeStatus } from './worktree'
-import type { Commit, EditorWait, GitState, StashEntry } from './types'
+import type { Commit, EditorWait, GitState, Operation, StashEntry, Tag } from './types'
 
 export function currentBranch(state: GitState): string | null {
   return state.repo?.head.type === 'branch' ? state.repo.head.name : null
@@ -79,7 +79,7 @@ export function conflictsInProgress(state: GitState): boolean {
   return unmergedPaths(state).length > 0
 }
 
-export function operationInProgress(state: GitState): 'merge' | 'rebase' | null {
+export function operationInProgress(state: GitState): Operation['type'] | null {
   return state.repo?.operation?.type ?? null
 }
 
@@ -112,4 +112,14 @@ export function hasConflictMarkers(content: string): boolean {
 /** The `git stash` entries, newest first (stash@{0} first). */
 export function stashEntries(state: GitState): StashEntry[] {
   return state.repo?.stash ?? []
+}
+
+/** A local tag, or null. */
+export function tagOf(state: GitState, name: string): Tag | null {
+  return state.repo?.tags?.[name] ?? null
+}
+
+/** A tag on origin, or null. */
+export function remoteTagOf(state: GitState, name: string): Tag | null {
+  return state.origin?.tags?.[name] ?? null
 }

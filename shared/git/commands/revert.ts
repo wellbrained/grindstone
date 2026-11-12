@@ -32,6 +32,9 @@ export const revert: Command = (state, argv) => {
   }
   if (repo.operation?.type === 'merge') return fatal(state, 'fatal: You have not concluded your merge (MERGE_HEAD exists).')
   if (repo.operation?.type === 'rebase') return fatal(state, 'fatal: You are in the middle of a rebase; finish it with "git rebase --continue" or "git rebase --abort" first.')
+  if (repo.operation?.type === 'cherry-pick') {
+    return fail(state, [err('error: cherry-pick is already in progress'), hint('hint: try "git cherry-pick (--continue | --abort | --quit)"'), err('fatal: revert failed')], 128)
+  }
 
   const head = requireCommit(state, repo)
   if (typeof head !== 'string') return head
