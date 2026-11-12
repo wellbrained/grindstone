@@ -18,7 +18,12 @@ import { throwAwayChange } from './12-throw-away-change'
 import { undoLocalCommit } from './13-undo-local-commit'
 import { undoPushedCommit } from './14-undo-pushed-commit'
 import { parkUnfinishedWork } from './15-park-unfinished-work'
+import { startedOnWrongBranch } from './16-started-on-wrong-branch'
+import { pickUpTeammateBranch } from './17-pick-up-teammate-branch'
+import { cleanUpBranches } from './18-clean-up-branches'
+import { lookAtOldVersion } from './19-look-at-old-version'
 import { commitAll, diffFile, diffStaged, ignoreLogs, logOneline, stageOneFile } from './practice/basics'
+import { branchFromCommit, deleteMergedBranch, listBranches, listRemoteBranches, renameBranch, switchBack } from './practice/branching'
 import { amendNoEdit, discardFile, resetHard, resetSoft, revertBeforeLast, stashUntracked, unstageFile } from './practice/undo'
 
 export const gitTrack = defineTrack({
@@ -55,7 +60,19 @@ export const gitTrack = defineTrack({
       title: 'Branching',
       description: 'Work on an idea without touching main.',
       colour: 1,
-      levels: [branch]
+      levels: [
+        branch,
+        listBranches,
+        startedOnWrongBranch,
+        switchBack,
+        pickUpTeammateBranch,
+        listRemoteBranches,
+        cleanUpBranches,
+        renameBranch,
+        deleteMergedBranch,
+        lookAtOldVersion,
+        branchFromCommit
+      ]
     },
     {
       id: 'merging',

@@ -19,7 +19,7 @@ export const branch: Scenario = {
   kind: 'scenario',
   difficulty: 1,
   minutes: 4,
-  title: 'Branch',
+  title: 'Start a branch',
   story: [
     'The welcome app greets visitors with a plain "Hello". You want to try a friendlier greeting, but main is what the team ships, so experiments do not go there.',
     'Start a branch called feature/greeting, change the greeting in src/greeting.ts and commit it on that branch. main must stay exactly as it is.'
@@ -48,7 +48,7 @@ export const branch: Scenario = {
     paragraphs: [
       'A branch is only a name pointing at a commit. `git switch -c feature/greeting` created that name on the commit main points at and made it your current branch.',
       'When you committed, git moved the current branch to the new commit. main did not move, because you were not on it. That is the whole trick: branches are cheap labels, so making one costs nothing.',
-      'If the experiment fails, switch back to main and delete the branch. If it works, you merge it, which is the next level.'
+      'If the experiment fails, switch back to main and delete the branch. If it works, you merge it: that is the Merging chapter.'
     ]
   },
   solution: [

@@ -64,7 +64,7 @@ function switchTo(state: GitState, target: Target): CommandResult {
   if (!moved.ok) return fail(state, moved.output)
 
   const head: Head = target.kind === 'detach' ? { type: 'detached', commit } : { type: 'branch', name: target.name }
-  let next: Repo = { ...repo, head, index: moved.index }
+  let next: Repo = { ...repo, head, index: moved.index, previous: repo.head }
   const output: OutputLine[] = []
   if (target.kind === 'new') {
     next = { ...next, branches: { ...next.branches, [target.name]: commit } }
@@ -112,6 +112,30 @@ function existingOrRemote(repo: Repo, name: string): Target | null {
   return null
 }
 
+const branchExpected = (state: GitState, name: string) => fail(state, [
+  err(`fatal: a branch is expected, got commit '${name}'`),
+  hint('hint: If you want to detach HEAD at the commit, try again with the --detach option.')
+], 128)
+
+/**
+ * Where `-` (git's `@{-1}`) leads: the previous branch (detached at its tip with `detach`), or the previous detached
+ * commit (a `commit` result without `detach`: switch refuses it, checkout detaches). Null when there is no previous
+ * position or its branch is gone.
+ */
+function previousTarget(repo: Repo, detach: boolean): Target | { kind: 'commit', commit: string } | null {
+  const previous = repo.previous
+  if (!previous) return null
+  if (previous.type === 'detached') {
+    const label = shortId(previous.commit)
+    return detach ? { kind: 'detach', commit: previous.commit, label } : { kind: 'commit', commit: previous.commit }
+  }
+  if (detach) {
+    const commit = repo.branches[previous.name]
+    return commit ? { kind: 'detach', commit, label: previous.name } : null
+  }
+  return existingOrRemote(repo, previous.name)
+}
+
 export const switchCommand: Command = (state, argv) => {
   const repo = state.repo
   if (!repo) return notARepo(state)
@@ -125,6 +149,11 @@ export const switchCommand: Command = (state, argv) => {
   }
   const name = positionals[0]
   if (!name) return fatal(state, 'fatal: missing branch or commit argument')
+  if (name === '-') {
+    const target = previousTarget(repo, flags.has('--detach'))
+    if (!target) return fatal(state, 'fatal: invalid reference: @{-1}')
+    return target.kind === 'commit' ? branchExpected(state, shortId(target.commit)) : switchTo(state, target)
+  }
   if (flags.has('--detach')) {
     const commit = resolveRev(repo, name)
     if (!commit) return fatal(state, `fatal: invalid reference: ${name}`)
@@ -135,12 +164,7 @@ export const switchCommand: Command = (state, argv) => {
   if (trackedBy(repo, name)) {
     return fail(state, [err(`fatal: a branch is expected, got remote branch '${name}'`)], 128)
   }
-  if (resolveRev(repo, name)) {
-    return fail(state, [
-      err(`fatal: a branch is expected, got commit '${name}'`),
-      hint('hint: If you want to detach HEAD at the commit, try again with the --detach option.')
-    ], 128)
-  }
+  if (resolveRev(repo, name)) return branchExpected(state, name)
   return fatal(state, `fatal: invalid reference: ${name}`)
 }
 
@@ -171,6 +195,11 @@ export const checkout: Command = (state, argv) => {
   if (separator) return restorePaths(state, repo, positionals)
   const name = positionals[0]
   if (!name) return fatal(state, 'fatal: you must specify a branch to checkout')
+  if (name === '-') {
+    // `-` is git's @{-1}; without a previous position git takes it as a path (and finds no such file)
+    const target = previousTarget(repo, flags.has('--detach'))
+    if (target) return switchTo(state, target.kind === 'commit' ? { kind: 'detach', commit: target.commit, label: shortId(target.commit) } : target)
+  }
 
   const target = flags.has('--detach') ? null : existingOrRemote(repo, name)
   if (target) return switchTo(state, target)

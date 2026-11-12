@@ -37,6 +37,16 @@ const initialGoals: Record<string, Record<string, boolean>> = {
   'git-10-ignore-build-files': { 'gitignore': false, 'kept': true, 'not-committed': true, 'clean': false },
   'git-practice-ignore-logs': { ignored: false, kept: true, clean: false },
   'git-02-branch': { 'on-branch': false, 'committed': false, 'main-unchanged': true },
+  'git-practice-list-branches': { shown: false },
+  'git-16-started-on-wrong-branch': { 'on-branch': false, 'committed': false, 'main-unchanged': false, 'clean': false },
+  'git-practice-switch-back': { back: false, dash: false },
+  'git-17-pick-up-teammate-branch': { tracking: false, jonas: false, thanks: false, pushed: false },
+  'git-practice-remote-branches': { shown: false },
+  'git-18-clean-up-branches': { 'merged-gone': false, 'experiment-gone': false, 'renamed': false },
+  'git-practice-rename-branch': { renamed: false },
+  'git-practice-delete-merged-branch': { deleted: false },
+  'git-19-look-at-old-version': { 'looked': false, 'branch': false, 'main-unchanged': false },
+  'git-practice-branch-from-commit': { branch: false },
   'git-03-merge': { 'on-main': false, 'merged': false },
   'git-04-merge-conflict': { 'merged': false, 'resolved': false, 'merge-commit': false },
   'git-05-rebase': { 'contains-main': false, 'linear': true, 'on-branch': true },
@@ -140,6 +150,57 @@ const wrongPaths: [id: string, why: string, lines: string[], failing: string[]][
   ['git-10-ignore-build-files', 'deletes the files instead of ignoring them', ['rm -r dist .env'], ['gitignore', 'kept']],
   ['git-10-ignore-build-files', 'writes the .gitignore but does not commit it', ['echo "dist/" > .gitignore', 'echo ".env" >> .gitignore'], ['gitignore', 'clean']],
   ['git-practice-ignore-logs', 'replaces the .gitignore with >', ['echo "*.log" > .gitignore', 'git commit -am "Ignore log files"'], ['kept']],
+  ['git-practice-list-branches', 'looks at git status instead', ['git status'], ['shown']],
+  ['git-practice-list-branches', 'lists only the branches on origin', ['git branch -r'], ['shown']],
+  ['git-16-started-on-wrong-branch', 'commits on main first, then creates the branch', [
+    'git add contact.html',
+    'git commit -m "Add contact form"',
+    'git switch -c feature/contact-form'
+  ], ['main-unchanged']],
+  ['git-16-started-on-wrong-branch', 'creates the branch but stays on main', [
+    'git branch feature/contact-form',
+    'git add contact.html',
+    'git commit -m "Add contact form"'
+  ], ['on-branch', 'committed', 'main-unchanged']],
+  ['git-practice-switch-back', 'types the branch name', ['git switch feature/contact-form'], ['dash']],
+  ['git-17-pick-up-teammate-branch', 'starts a new branch from main instead of the one from origin', [
+    'git switch -c feature/newsletter',
+    'echo "<h2>Thanks for signing up!</h2>" > thanks.html',
+    'git add thanks.html',
+    'git commit -m "Add the thank-you page"',
+    'git push -u origin feature/newsletter'
+  ], ['tracking', 'jonas', 'thanks', 'pushed']],
+  ['git-17-pick-up-teammate-branch', 'commits but does not push', [
+    'git fetch',
+    'git switch feature/newsletter',
+    'echo "<h2>Thanks for signing up!</h2>" > thanks.html',
+    'git add thanks.html',
+    'git commit -m "Add the thank-you page"'
+  ], ['pushed']],
+  ['git-17-pick-up-teammate-branch', 'commits on a detached origin/feature/newsletter', [
+    'git fetch',
+    'git checkout origin/feature/newsletter',
+    'echo "<h2>Thanks for signing up!</h2>" > thanks.html',
+    'git add thanks.html',
+    'git commit -m "Add the thank-you page"'
+  ], ['tracking', 'jonas', 'thanks', 'pushed']],
+  ['git-practice-remote-branches', 'lists only the local branches', ['git branch'], ['shown']],
+  ['git-18-clean-up-branches', 'merges the experiment so that -d works', [
+    'git merge experiment/parallax',
+    'git branch -d feature/opening-hours experiment/parallax',
+    'git branch -m feature/galery feature/gallery'
+  ], ['experiment-gone']],
+  ['git-18-clean-up-branches', 'copies the gallery branch instead of renaming it', [
+    'git branch -d feature/opening-hours',
+    'git branch -D experiment/parallax',
+    'git branch feature/gallery feature/galery'
+  ], ['renamed']],
+  ['git-practice-rename-branch', 'creates a second branch instead', ['git switch -c feature/cake-order'], ['renamed']],
+  ['git-practice-delete-merged-branch', 'deletes the branch it is on', ['git branch -d fix/menu-note'], ['deleted']],
+  ['git-19-look-at-old-version', 'creates the branch without looking first', ['git switch -c old-menu HEAD~2'], ['looked']],
+  ['git-19-look-at-old-version', 'moves main back instead', ['git log --oneline', 'git reset --hard HEAD~2', 'git switch -c old-menu'], ['looked', 'main-unchanged']],
+  ['git-19-look-at-old-version', 'looks but keeps no branch', ['git switch --detach HEAD~2', 'cat menu.html'], ['branch', 'main-unchanged']],
+  ['git-practice-branch-from-commit', 'starts the branch at the newest commit', ['git switch -c fix/prices'], ['branch']],
   ['git-11-fix-last-commit', 'adds the file in a second commit', ['git add src/streak.css', 'git commit -m "Add streak counter"'], ['one-commit']],
   ['git-11-fix-last-commit', 'fixes the message but forgets the file', ['git commit --amend -m "Add streak counter"'], ['files', 'clean']],
   ['git-practice-amend-no-edit', 'makes a new commit', ['git add src/reminders.css', 'git commit -m "Add reminder styles"'], ['amended']],
@@ -180,6 +241,71 @@ describe.each(wrongPaths)('%s: %s', (id, _why, lines, failing) => {
     const { session } = play(level(id), lines)
     expect(session.solved).toBe(false)
     expect(Object.entries(session.goalsMet).filter(([, met]) => !met).map(([goal]) => goal).sort()).toEqual([...failing].sort())
+  })
+})
+
+describe('git-16-started-on-wrong-branch', () => {
+  it('carries the unfinished contact form along to the new branch', () => {
+    const { text, session } = play(level('git-16-started-on-wrong-branch'), ['git switch -c feature/contact-form', 'git status -s'])
+    expect(text).toBe('Switched to a new branch \'feature/contact-form\'\n?? contact.html')
+    expect(session.goalsMet).toEqual({ 'on-branch': true, 'committed': false, 'main-unchanged': true, 'clean': false })
+  })
+})
+
+describe('git-practice-switch-back', () => {
+  it('also counts git checkout -', () => {
+    expect(play(level('git-practice-switch-back'), ['git checkout -']).session.solved).toBe(true)
+  })
+})
+
+describe('git-17-pick-up-teammate-branch', () => {
+  const item = level('git-17-pick-up-teammate-branch')
+
+  it('does not know Jonas\'s branch before a fetch, and creates a tracking branch after it', () => {
+    const { steps } = play(item, ['git branch -a', 'git switch feature/newsletter', 'git fetch', 'git branch -a', 'git switch feature/newsletter'])
+    const text = (i: number) => steps[i]!.output.map(line => 'text' in line ? line.text : '').join('\n')
+    expect(text(0)).toBe('* main\n  remotes/origin/main')
+    expect(text(1)).toBe('fatal: invalid reference: feature/newsletter')
+    expect(text(3)).toBe('* main\n  remotes/origin/feature/newsletter\n  remotes/origin/main')
+    expect(text(4)).toBe([
+      'branch \'feature/newsletter\' set up to track \'origin/feature/newsletter\'.',
+      'Switched to a new branch \'feature/newsletter\'',
+      'Your branch is up to date with \'origin/feature/newsletter\'.'
+    ].join('\n'))
+  })
+})
+
+describe('git-18-clean-up-branches', () => {
+  it('refuses -d on the unmerged experiment, like git', () => {
+    const { text, session } = play(level('git-18-clean-up-branches'), ['git branch -d experiment/parallax'])
+    expect(text).toBe('error: the branch \'experiment/parallax\' is not fully merged\nhint: If you are sure you want to delete it, run \'git branch -D experiment/parallax\'')
+    expect(session.goalsMet['experiment-gone']).toBe(false)
+  })
+})
+
+describe('git-19-look-at-old-version', () => {
+  const item = level('git-19-look-at-old-version')
+  const before = () => commitsOf(startLevel(item).state, 'main')[2]!
+
+  it('names the real id of the last commit before the redesign in its last hint', () => {
+    expect(commitsOf(startLevel(item).state, 'main')[1]!.message).toBe('Redesign the menu page')
+    expect(item.hints[2]).toContain(`git switch --detach ${before().id.slice(0, 7)}`)
+  })
+
+  it('shows the breakfast box in the detached version', () => {
+    const { text } = play(item, [`git checkout ${before().id.slice(0, 7)}`, 'cat menu.html'])
+    expect(text).toContain('You are in \'detached HEAD\' state.')
+    expect(text).toContain('Saturday breakfast box')
+  })
+
+  it('accepts git checkout <id> and HEAD~2 for looking', () => {
+    expect(play(item, ['git checkout HEAD~2', 'git switch -c old-menu']).session.solved).toBe(true)
+    expect(play(item, [`git checkout ${before().id}`, 'git switch -c old-menu']).session.solved).toBe(true)
+  })
+
+  it('does not count restoring a file with checkout as looking', () => {
+    const { session } = play(item, ['git checkout menu.html', 'git switch -c old-menu HEAD~2'])
+    expect(session.goalsMet.looked).toBe(false)
   })
 })
 

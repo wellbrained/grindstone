@@ -85,6 +85,11 @@ export interface Repo {
   operation: Operation | null
   /** `git stash` entries, newest first (stash@{0} is the first). */
   stash: StashEntry[]
+  /**
+   * Where HEAD was before the last switch or checkout that moved it (git's `@{-1}`, used by `switch -`).
+   * Optional, so states saved before it existed stay valid.
+   */
+  previous?: Head
 }
 
 export interface Remote {

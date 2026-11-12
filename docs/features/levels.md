@@ -40,7 +40,7 @@ The scenario engine (`shared/levels/`) and the git track's levels (`shared/level
 
 - **Track**: `{ id, title, scope (one line), tagline (one line for its home card, may be empty), description (the home card's pitch), status: 'live' | 'coming', cheatSheet (its path, or null), chapters }`. Everything the home page, the nav and the track page show about a track comes from here, so a new live track needs data only. `tracks` lists them in home page order: Git (live), then Working with AI, Web fundamentals, Debugging, Framework deep dives (coming: no chapters, no levels, not playable). `defineTrack` numbers the chapters and throws for a level of another track, a level listed twice, a coming track with levels, or a practice task that does not follow its scenario.
 - **Chapter**: `{ id (unique in its track, also the section anchor: /git#merging), trackId, number, title, description (one line), colour (a slot of the branch palette, 0-7), levels }`. `levels` is the play order: each scenario followed by its practice tasks. A chapter without levels is *coming*: shown with its description only.
-- **Git chapters**: 1 Basics (5 scenarios, 6 practice tasks), 2 Branching (Branch), 3 Merging (Merge, Merge conflict), 4 Rewriting history (Rebase), 5 Teamwork & remotes (Teammate sync), 6 Undo & recovery (5 scenarios, 7 practice tasks), 7 Disasters, 8 Workflows (7-8 coming). Colours: slot = chapter number - 1; slot 7 exists only for chapters, so branch colours in the graph did not move.
+- **Git chapters**: 1 Basics (5 scenarios, 6 practice tasks), 2 Branching (5 scenarios, 6 practice tasks), 3 Merging (Merge, Merge conflict), 4 Rewriting history (Rebase), 5 Teamwork & remotes (Teammate sync), 6 Undo & recovery (5 scenarios, 7 practice tasks), 7 Disasters, 8 Workflows (7-8 coming). Colours: slot = chapter number - 1; slot 7 exists only for chapters, so branch colours in the graph did not move.
 - **Numbers**: a scenario is `chapter.position` counting scenarios only, e.g. `1.2` for Stage only what belongs together, `3.2` for Merge conflict (`levelNumber`, `LevelPlace.number`). A practice task has no number (`number: null`); `LevelPlace.scenario` names its scenario and that scenario's number. `placeName(place)` is the text form: "3.2 Merge conflict", or the title alone for a practice task. The ids and URLs (`git-04-merge-conflict`, `/git/04-merge-conflict`, `/git/practice-stage-one-file`) never change when a level moves or gets renumbered.
 - **Counting both kinds**: "n of N solved" for a chapter and a track, **next up** and **Continue** count scenarios and practice tasks alike: a practice task is a level you solve like any other, so leaving one out would make the counts lie.
 - **Next up**: the first unsolved entry in play order (`nextUp`), a scenario or a practice task. **Continue** (`continueTarget`, `{ place, reason, at }`): the entry you last played while it is unsolved (`reason: 'resume'`, with the time), else next up (`'next'`); once nothing in the track is unsolved, the first entry flagged "practise again" in play order (`'practise'`); null when everything is solved and nothing is flagged. `practiseAgainIn(chapter, progress)` is the chapter menu's "Practise again". `trackToContinue` picks the track for the home page: the live track of the last played entry, else the first live track with a solve.
@@ -137,6 +137,22 @@ Chapter 1, Basics (ADR 0006, batch 1; difficulty and minutes):
 | 1.5 | **Ignore build files**: dist/ and a .env with a fake key appear; write and commit a .gitignore, keep the files, clean tree | scenario | 2 | ~6 min |
 | | Ignore every log file: append `*.log` with `>>` (a `>` that drops `dist/` does not count) and commit | practice | 1 | ~30 s |
 
+Chapter 2, Branching (ADR 0006, batch 3; preview `.impeccable/mocks/previews/branching-preview.html`). The scenarios share the Corner Bakery website (`shared/levels/git/bakery.ts`):
+
+| | Entry | Kind | Difficulty | Time |
+| --- | --- | --- | --- | --- |
+| 2.1 | **Start a branch** (`git-02-branch`, v0.1's "Branch", renamed): commit a change on `feature/greeting`; main must not move | scenario | 1 | ~4 min |
+| | List your branches: `git branch` (also `--list`, `-a`; `git branch -r` and `git status` do not count) | practice | 1 | ~30 s |
+| 2.2 | **Started on the wrong branch**: half a contact form in `contact.html`, uncommitted, on main; `git switch -c feature/contact-form` takes it along, commit there, main unchanged (the approved sample text; "main is unchanged" only counts once the branch exists) | scenario | 1 | ~4 min |
+| | Go back to the previous branch: `git switch -` (or `git checkout -`); typing the name does not count (the approved sample, plus a second goal for "without typing its name") | practice | 1 | ~30 s |
+| 2.3 | **Pick up a teammate's branch**: Jonas pushed `feature/newsletter` after your last fetch; `git fetch`, `git switch feature/newsletter` (a tracking branch from origin), commit `thanks.html` on top of his two commits, plain `git push`. `switch -c` from main is rejected on push | scenario | 2 | ~5 min |
+| | Show the branches on origin: `git branch -r` or `-a` | practice | 1 | ~30 s |
+| 2.4 | **Clean up old branches**: `git branch -d feature/opening-hours` (merged), `-d` refused then `-D experiment/parallax` (unmerged; merging it into main does not count), `git branch -m feature/galery feature/gallery` | scenario | 2 | ~6 min |
+| | Rename the current branch: `git branch -m feature/cake-order` | practice | 1 | ~30 s |
+| | Delete a merged branch: on `fix/menu-note`, `git switch main` then `git branch -d fix/menu-note` | practice | 1 | ~30 s |
+| 2.5 | **Look at an old version**: the menu before Jonas's redesign; `git switch --detach <id>` (or `git checkout <id>`), look, `git switch -c old-menu`; main unchanged. The detached look is read from the history (it leaves nothing in the state); the last hint names the real id | scenario | 2 | ~5 min |
+| | Start a branch from an older commit: `git switch -c fix/prices HEAD~1` | practice | 1 | ~30 s |
+
 Chapter 6, Undo & recovery (ADR 0006, batch 2; preview `.impeccable/mocks/previews/undo-preview.html`):
 
 | | Entry | Kind | Difficulty | Time |
@@ -154,10 +170,9 @@ Chapter 6, Undo & recovery (ADR 0006, batch 2; preview `.impeccable/mocks/previe
 | 6.5 | **Park unfinished work**: on `feature/gift-cards` with staged and unstaged work, `git switch main` refuses; `git stash`, fix Saturday hours on main, commit, switch back, `git stash pop`; the stash ends empty | scenario | 2 | ~6 min |
 | | Stash including new files: `git stash -u` | practice | 1 | ~30 s |
 
-Chapters 2-5 (v0.1):
+Chapters 3-5 (v0.1):
 
-1. **Branch** (2.1): commit a change on `feature/greeting`; main must not move.
-2. **Merge** (3.1): fast-forward `feature/about-page` into main, starting on the feature branch.
-3. **Merge conflict** (3.2): main (Ben) and `feature/footer` changed the same line; resolve and conclude with a two-parent merge commit. Committing the markers does not count.
-4. **Rebase** (4.1): `feature/search` is behind main (Chris); `git rebase main`. Merging main in does not count.
-5. **Teammate sync** (5.1): `feature/login` has 2 unpushed commits. Right before your first `git push`, Anna pushes 2 commits to origin/main, one changing the same line of `src/login.ts`. The push of the new branch succeeds, then you fetch, rebase onto origin/main, resolve, and update the remote branch with `--force-with-lease` (a plain push is rejected). A merge, or any bare `--force` / `-f` in the history, does not count; `undo` takes a bare force back. The file header explains why this flow was chosen over "already pushed in the setup".
+1. **Merge** (3.1): fast-forward `feature/about-page` into main, starting on the feature branch.
+2. **Merge conflict** (3.2): main (Ben) and `feature/footer` changed the same line; resolve and conclude with a two-parent merge commit. Committing the markers does not count.
+3. **Rebase** (4.1): `feature/search` is behind main (Chris); `git rebase main`. Merging main in does not count.
+4. **Teammate sync** (5.1): `feature/login` has 2 unpushed commits. Right before your first `git push`, Anna pushes 2 commits to origin/main, one changing the same line of `src/login.ts`. The push of the new branch succeeds, then you fetch, rebase onto origin/main, resolve, and update the remote branch with `--force-with-lease` (a plain push is rejected). A merge, or any bare `--force` / `-f` in the history, does not count; `undo` takes a bare force back. The file header explains why this flow was chosen over "already pushed in the setup".

@@ -4,7 +4,7 @@ Grindstone's own git simulation (`shared/git/`, decision in `docs/adr/0002-git-m
 
 ## How it works
 
-- **State** (`types.ts`): `GitState` holds the working tree (`workdir`, exists before `git init`), the local `repo` (or `null`), the remote `origin` (or `null`), the `user` and a logical `clock`. A `Repo` holds `commits` (id -> commit), `branches`, `head` (branch or detached commit), `index` (staged snapshot), `unmerged` paths, `remoteBranches` (the local `origin/*` refs), `upstream` config, the `operation` in progress (merge or rebase, with a snapshot for `--abort`) and the `stash` entries (newest first: id, base commit, message, index, tracked working tree files, untracked files taken with `-u`). Trees are flat maps `path -> content`. Everything is JSON-serialisable; the UI's undo is a stack of states.
+- **State** (`types.ts`): `GitState` holds the working tree (`workdir`, exists before `git init`), the local `repo` (or `null`), the remote `origin` (or `null`), the `user` and a logical `clock`. A `Repo` holds `commits` (id -> commit), `branches`, `head` (branch or detached commit), `previous` (where HEAD was before the last switch, git's `@{-1}`; optional, so older saved states stay valid), `index` (staged snapshot), `unmerged` paths, `remoteBranches` (the local `origin/*` refs), `upstream` config, the `operation` in progress (merge or rebase, with a snapshot for `--abort`) and the `stash` entries (newest first: id, base commit, message, index, tracked working tree files, untracked files taken with `-u`). Trees are flat maps `path -> content`. Everything is JSON-serialisable; the UI's undo is a stack of states.
 - **Immutability**: every command returns a new state and never mutates its input (the tests deep-freeze every state they pass in).
 - **Determinism**: no `Date.now` or randomness. Each new commit advances `clock`; its timestamp is 2026-03-02 09:00 UTC plus `clock` minutes. Ids are a 40-hex FNV-based hash over parents, tree, author, timestamp and message, so a replayed level always yields the same ids.
 - **Commands**: `(state, argv) => { state, output, exitCode }`. `run(state, line)` tokenizes the line (quotes, escapes, `>`, `>>`, `&&`, `;`) and dispatches to git or the shell. User errors never throw: they return git-like error lines and a non-zero `exitCode` with the state unchanged.
@@ -31,9 +31,9 @@ Grindstone's own git simulation (`shared/git/`, decision in `docs/adr/0002-git-m
 | `commit` | `-m` (repeatable), `-a`, `-am`, `--amend` (with `-m` or reusing the message), `--no-edit`, `--allow-empty`; plain `commit` concludes a merge with the prepared message |
 | `log` | `--oneline`, `--graph`, `--all`, `-n N` / `-N`, revisions, `a..b`, `^a` |
 | `diff` | working tree vs index, `--staged` / `--cached`, paths |
-| `branch` | list, `-a`, `-r`, create (with start point), `-d`, `-D`, `-u` / `--set-upstream-to` |
-| `switch` | `<branch>`, `-c <new> [start]`, `--detach <rev>`; creates a tracking branch from `origin/<name>` |
-| `checkout` | `<branch>`, `-b <new> [start]`, `<commit>` (detached HEAD), `-- <paths>` |
+| `branch` | list, `-a`, `-r`, create (with start point), `-d`, `-D`, `-m` / `--move` and `-M` (`[<old>] <new>`, see "Renaming and going back"), `-u` / `--set-upstream-to` |
+| `switch` | `<branch>`, `-c <new> [start]`, `--detach <rev>`, `-` (the previous branch); creates a tracking branch from `origin/<name>` |
+| `checkout` | `<branch>`, `-b <new> [start]`, `<commit>` (detached HEAD), `-` (the previous branch or commit), `-- <paths>` |
 | `restore` | `<paths>` (working tree from the index), `--staged` / `-S` (index from HEAD), `--worktree` / `-W` with `--staged` (both from HEAD); silent on success; unknown paths and unmerged files are refused like git |
 | `reset` | `[--soft \| --mixed \| --hard] [<commit>]` (default mixed, HEAD; hashes, branches, `HEAD~n`, `HEAD^`), `[<commit>] [--] <paths>` (unstage); mixed prints "Unstaged changes after reset:", hard "HEAD is now at ..." |
 | `revert` | `<commit>` (one), `--no-edit`; takes git's default message `Revert "<subject>"` + `This reverts commit <id>.` |
@@ -79,6 +79,14 @@ Anything else: real git commands answer `git: '<x>' is not in this trainer yet`,
 - Conflict markers are written but there is no `diff --cc`; `git diff` during a conflict compares against our side.
 - No editor: `commit` without `-m` asks for `-m` (except when concluding a merge or with `--amend`); `revert` always takes git's default message (`--edit` is not supported).
 - `.gitignore` files only: no `.git/info/exclude`, no global excludes file, no `status --ignored`, no `git check-ignore`. The ignored-file message leaves out git's last hint (`git config set advice.addIgnoredFile false`), since there is no `git config`. Switching branches treats ignored files like untracked ones (git would overwrite them).
+
+## Renaming and going back (`branch -m`, `switch -`)
+
+Tests in `test/unit/git/branch.test.ts`.
+
+- **`git branch -m <new>`** renames the branch you are on (HEAD stays on it); **`git branch -m <old> <new>`** renames any branch. Silent on success, like git. The upstream config moves to the new name. Before the first commit it renames the unborn branch. Errors as in git: `fatal: no branch named '<old>'`, `fatal: a branch named '<new>' already exists` (without `-M`), `fatal: '<new>' is not a valid branch name`, `fatal: branch name required`, `fatal: too many arguments for a rename operation`, `fatal: cannot rename the current branch while not on any` (detached HEAD). **`-M`** renames over an existing branch, except the one you are on (`fatal: cannot force update the branch '<name>' used by worktree at '<cwd>'`). Renaming to the same name is a silent no-op; the branch being rebased is refused.
+- **`git switch -`** / **`git checkout -`** go to where HEAD was before the last switch or checkout that moved it (`Repo.previous`, git's `@{-1}`). `switch -c`, `checkout -b` and `switch --detach` count as moves; "Already on" does not. A previous detached HEAD: `checkout -` detaches there again, `switch -` refuses with git's "a branch is expected, got commit" and the `--detach` hint (`switch --detach -` works). Nothing to go back to, or the previous branch was deleted: `switch -` answers `fatal: invalid reference: @{-1}`, `checkout -` falls back to a pathspec and answers `error: pathspec '-' did not match any file(s) known to git`.
+- Simplifications: there is no reflog, so `@{-1}` is one stored position, not a history: `@{-2}` and spelling `@{-1}` out are not supported, and `-` is only understood as the branch argument of `switch` / `checkout` (not as a start point after `-c`). Renaming or deleting a branch does not update the stored position (git's reflog would not either, it stores the old name). "Already on '<branch>'" does not change it either (git would record a move to the same branch, so `switch -` would stay). A rebase does not change it (git records its own checkouts in the reflog, but not as `checkout:` entries that `@{-1}` reads).
 
 ## Undo commands (`restore`, `reset`, `revert`, `stash`)
 

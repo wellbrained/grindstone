@@ -3,8 +3,8 @@ import { isAncestor } from '../objects/graph'
 import { shortId } from '../objects/hash'
 import { done, err, fail, hint, out, ref } from '../output'
 import { isValidBranchName, resolveRev, trackingRef } from '../refs'
-import { headId } from '../state'
-import type { Command, GitState, OutputLine, Repo } from '../types'
+import { headId, withEntry, without } from '../state'
+import type { Command, CommandResult, GitState, OutputLine, Repo } from '../types'
 import { fatal, notARepo, withRepo } from './common'
 
 export const branchExistsError = (state: GitState, name: string) => fatal(state, `fatal: a branch named '${name}' already exists`)
@@ -47,16 +47,50 @@ function list(repo: Repo, local: boolean, remote: boolean): OutputLine[] {
   return lines
 }
 
+/** `git branch -m [<old>] <new>` (`-M`: `force` over an existing name). Silent on success, like git. */
+function rename(state: GitState, repo: Repo, names: string[], force: boolean): CommandResult {
+  if (!names.length) return fatal(state, 'fatal: branch name required')
+  if (names.length > 2) return fatal(state, 'fatal: too many arguments for a rename operation')
+  const current = repo.head.type === 'branch' ? repo.head.name : null
+  if (names.length === 1 && !current) {
+    const rebasing = activeBranch(repo)
+    return rebasing ? fatal(state, `fatal: branch ${rebasing} is being rebased at ${state.cwd}`) : fatal(state, 'fatal: cannot rename the current branch while not on any')
+  }
+  const [from, to] = names.length === 2 ? names as [string, string] : [current!, names[0]!]
+  // the branch you are on may still be unborn (no commit yet): then only HEAD changes
+  if (!repo.branches[from] && from !== current) return fatal(state, `fatal: no branch named '${from}'`)
+  if (repo.operation?.type === 'rebase' && repo.operation.branch === from) return fatal(state, `fatal: branch ${from} is being rebased at ${state.cwd}`)
+  if (!isValidBranchName(to)) return invalidNameError(state, to)
+  if (from !== to && repo.branches[to]) {
+    if (!force) return branchExistsError(state, to)
+    if (to === current) return fatal(state, `fatal: cannot force update the branch '${to}' used by worktree at '${state.cwd}'`)
+  }
+  if (from === to) return done(state)
+
+  const tip = repo.branches[from]
+  const branches = without(repo.branches, from)
+  const upstream = without(repo.upstream, from)
+  const next: Repo = {
+    ...repo,
+    branches: tip ? { ...branches, [to]: tip } : branches,
+    upstream: withEntry(upstream, to, repo.upstream[from]),
+    head: from === current ? { type: 'branch', name: to } : repo.head
+  }
+  return done(withRepo(state, next))
+}
+
 export const branch: Command = (state, argv) => {
   const repo = state.repo
   if (!repo) return notARepo(state)
   const parsed = parseArgs('branch', argv, {
-    flags: ['-d', '-D', '-a', '-r', '--list'],
+    flags: ['-d', '-D', '-a', '-r', '-m', '-M', '--list'],
     values: ['-u'],
-    alias: { '--delete': '-d', '--all': '-a', '--remotes': '-r', '--set-upstream-to': '-u' }
+    alias: { '--delete': '-d', '--all': '-a', '--remotes': '-r', '--move': '-m', '--set-upstream-to': '-u' }
   })
   if (!parsed.ok) return fail(state, [err(parsed.error)])
   const { flags, values, positionals } = parsed.args
+
+  if (flags.has('-m') || flags.has('-M')) return rename(state, repo, positionals, flags.has('-M'))
 
   if (flags.has('-d') || flags.has('-D')) {
     if (!positionals.length) return fatal(state, 'fatal: branch name required')

@@ -11,7 +11,7 @@ const rowStates = (progress = emptyProgress()) => Object.fromEntries(trackView(g
 describe('track view', () => {
   it('marks the first level as next up when nothing is solved', () => {
     const view = trackView(git, emptyProgress())
-    expect(view.count).toEqual({ solved: 0, total: 28 })
+    expect(view.count).toEqual({ solved: 0, total: 38 })
     expect(view.liveChapters).toBe(6)
     expect(view.nextUp?.number).toBe('1.1')
     expect(view.chapters[0]!.rows.map(row => [row.place.number, row.state])).toEqual([
@@ -91,7 +91,7 @@ describe('chapter lanes', () => {
   })
 
   it('draws no lane through a chapter with one level', () => {
-    const [row] = trackView(git, emptyProgress()).chapters[1]!.rows
+    const [row] = trackView(git, emptyProgress()).chapters[3]!.rows
     expect(row!.lane).toEqual({ in: null, out: null, through: null, fork: null, sideIn: null, sideOut: null })
   })
 
