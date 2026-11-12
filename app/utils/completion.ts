@@ -20,10 +20,14 @@ export interface CompletionResult {
   candidates: string[]
 }
 
-/** git subcommands that take a branch (or a revision, or `origin`). */
-const BRANCH_ARGS = new Set(['switch', 'checkout', 'merge', 'rebase', 'branch', 'log', 'push', 'pull', 'fetch', 'diff', 'reset', 'revert', 'reflog', 'cherry-pick', 'tag'])
-/** git subcommands that also take a tag (a revision, or `git push origin <tag>`, `git tag -d <tag>`). */
-const TAG_ARGS = new Set(['switch', 'checkout', 'merge', 'rebase', 'branch', 'log', 'push', 'diff', 'reset', 'revert', 'cherry-pick', 'tag'])
+/**
+ * git subcommands that take a branch (or a revision, or `origin`), and whether they also take a tag (a revision, or
+ * `git push origin <tag>`, `git tag -d <tag>`).
+ */
+const REF_ARGS = new Map<string, { tags: boolean }>([
+  ...['switch', 'checkout', 'merge', 'rebase', 'branch', 'log', 'push', 'diff', 'reset', 'revert', 'cherry-pick', 'tag'].map(name => [name, { tags: true }] as const),
+  ...['pull', 'fetch', 'reflog'].map(name => [name, { tags: false }] as const)
+])
 /** git subcommands that take a file. */
 const FILE_ARGS = new Set(['add', 'rm', 'checkout', 'diff', 'commit', 'restore', 'reset'])
 /** `git stash <subcommand>`. */
@@ -48,10 +52,11 @@ function candidatesFor(words: string[], word: string, context: CompletionContext
     if (words.length === 1) return [...context.gitCommands]
     if (!second) return []
     if (second === 'stash') return words.length === 2 ? STASH_SUBCOMMANDS : []
+    const refs = REF_ARGS.get(second)
     return [
       ...REMOTE_ARGS.has(second) ? ['origin'] : [],
-      ...BRANCH_ARGS.has(second) ? context.branches : [],
-      ...TAG_ARGS.has(second) ? context.tags ?? [] : [],
+      ...refs ? context.branches : [],
+      ...refs?.tags ? context.tags ?? [] : [],
       ...FILE_ARGS.has(second) ? context.files : []
     ]
   }

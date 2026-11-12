@@ -5,7 +5,7 @@ import { commitsOf, currentBranch, hasMergeCommits, isAncestor, resolve } from '
 import type { GitState } from '../../git'
 import type { Scenario } from '../types'
 import { INDEX, STYLE, bakerySite, text } from './bakery'
-import { conflictFullyResolved, treeOf } from './checks'
+import { conflictFullyResolved, once, sameList, treeOf } from './checks'
 
 const BRANCH = 'feature/autumn-menu'
 const YOUR_COMMITS = ['Add pumpkin bread to the autumn menu', 'Link the autumn menu from the home page', 'Add the autumn menu page']
@@ -40,10 +40,11 @@ const setup = () => bakerySite()
   .switch(BRANCH)
   .build()
 
-const MAIN = resolve(setup(), 'main')!
+const start = once(setup)
+const MAIN = () => resolve(start(), 'main')!
 
 /** Main's newest commit is part of your branch (the rebase got past it). */
-const onMain = (state: GitState) => isAncestor(state, MAIN, BRANCH)
+const onMain = (state: GitState) => isAncestor(state, MAIN(), BRANCH)
 
 export const conflictDuringRebase: Scenario = {
   id: 'git-23-conflict-during-a-rebase',
@@ -62,7 +63,7 @@ export const conflictDuringRebase: Scenario = {
       id: 'on-top',
       label: `${BRANCH} has your three commits on top of main, no merge commits`,
       check: ({ state }) => onMain(state) && !hasMergeCommits(state, `main..${BRANCH}`)
-        && JSON.stringify(commitsOf(state, `main..${BRANCH}`).map(commit => commit.message)) === JSON.stringify(YOUR_COMMITS)
+        && sameList(commitsOf(state, `main..${BRANCH}`).map(commit => commit.message), YOUR_COMMITS)
     },
     // true before you start (nothing in progress), so it only counts once main is in your branch
     {

@@ -23,7 +23,7 @@ function list(state: GitState, repo: Repo, patterns: string[], annotations: bool
   const names = tagNames(repo.tags).filter(name => !matches.length || matches.some(match => match(name)))
   return done(state, names.map((name) => {
     if (!annotations) return out(name)
-    const tag = repo.tags![name]!
+    const tag = repo.tags[name]!
     const text = tag.annotation ? tag.annotation.message.split('\n')[0]! : subject(repo.commits[tag.commit]!)
     return out(`${name.padEnd(15)} ${text}`)
   }))
@@ -32,7 +32,7 @@ function list(state: GitState, repo: Repo, patterns: string[], annotations: bool
 function remove(state: GitState, repo: Repo, names: string[]) {
   // git deletes nothing, silently, when no name is given
   if (!names.length) return done(state)
-  let tags = repo.tags ?? {}
+  let tags = repo.tags
   const output = []
   let exitCode = 0
   for (const name of names) {
@@ -82,8 +82,8 @@ export const tag: Command = (state, argv) => {
   let created: Tag = { commit }
   if (message !== undefined) {
     // the tag is made "now": the logical time of the newest commit, without moving the clock
-    const fields = { commit, name, message: message.trim(), tagger: state.user, timestamp: BASE_TIME + state.clock * 60 }
-    created = { commit, annotation: { id: tagId(fields), message: fields.message, tagger: fields.tagger, timestamp: fields.timestamp } }
+    const annotation = { message: message.trim(), tagger: state.user, timestamp: BASE_TIME + state.clock * 60 }
+    created = { commit, annotation: { id: tagId({ commit, name, ...annotation }), ...annotation } }
   }
   const next = withRepo(state, { ...repo, tags: { ...repo.tags, [name]: created } })
   return done(next, existing ? [out(`Updated tag '${name}' (was ${shortId(tagTarget(existing))})`)] : [])

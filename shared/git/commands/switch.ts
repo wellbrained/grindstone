@@ -3,14 +3,14 @@ import { subject } from '../objects/commit'
 import { range } from '../objects/graph'
 import { shortId } from '../objects/hash'
 import { done, err, fail, hint, out, plural, ref } from '../output'
-import { logBranch, logHead } from '../reflog'
+import { logHead } from '../reflog'
 import { isValidBranchName, resolveRev } from '../refs'
 import { headId, headTree, normalizePath, own, withEntry } from '../state'
-import { moveTrees } from '../worktree'
+import { moveTrees, union } from '../worktree'
 import type { Command, CommandResult, GitState, Head, OutputLine, Repo } from '../types'
 import { matchPathspec } from './add'
 import { creationError, invalidNameError, trackedBy, trackingLine } from './branch'
-import { fatal, notARepo, trackingInfo, withRepo } from './common'
+import { blockedBy, fatal, moveRef, notARepo, trackingInfo, withRepo } from './common'
 import { conflictSide, sideOf } from './restore'
 import type { ConflictSide } from './restore'
 
@@ -19,13 +19,6 @@ type Target
     | { kind: 'new', name: string, start: string | null, upstream: string | null }
     // `advice`: git explains the detached HEAD state unless --detach was asked for
     | { kind: 'detach', commit: string, label: string, advice: boolean }
-
-function busy(state: GitState, repo: Repo): CommandResult | null {
-  if (repo.operation?.type === 'merge') return fatal(state, 'fatal: cannot switch branch while merging\nConsider "git merge --quit" or "git worktree add".')
-  if (repo.operation?.type === 'cherry-pick') return fatal(state, 'fatal: cannot switch branch while cherry-picking\nConsider "git cherry-pick --quit" or "git worktree add".')
-  if (repo.operation?.type === 'rebase') return fatal(state, 'fatal: cannot switch branch while rebasing\nConsider "git rebase --quit" or "git worktree add".')
-  return null
-}
 
 /** Warns about commits only reachable from the detached HEAD we are leaving (nothing to say when we land on the same commit). */
 function leftBehind(repo: Repo, next: Repo): OutputLine[] {
@@ -50,7 +43,7 @@ function leftBehind(repo: Repo, next: Repo): OutputLine[] {
 
 function switchTo(state: GitState, target: Target): CommandResult {
   const repo = state.repo!
-  const blocked = busy(state, repo)
+  const blocked = blockedBy(state, 'switch')
   if (blocked) return blocked
 
   if (target.kind === 'branch' && repo.head.type === 'branch' && repo.head.name === target.name) {
@@ -76,7 +69,7 @@ function switchTo(state: GitState, target: Target): CommandResult {
   let next: Repo = { ...repo, head, index: moved.index, previous: unchanged ? repo.previous : repo.head }
   const output: OutputLine[] = []
   if (target.kind === 'new') {
-    next = logBranch({ ...next, branches: { ...next.branches, [target.name]: commit } }, target.name, `branch: Created from ${target.start ?? 'HEAD'}`)
+    next = moveRef(next, { branch: target.name }, commit, { log: `branch: Created from ${target.start ?? 'HEAD'}` })
     if (target.upstream) {
       next = { ...next, upstream: { ...next.upstream, [target.name]: target.upstream } }
       output.push(trackingLine(target.name, target.upstream))
@@ -197,7 +190,7 @@ export const switchCommand: Command = (state, argv) => {
  * (they stay unmerged until `git add`).
  */
 function restorePaths(state: GitState, repo: Repo, specs: string[], side: ConflictSide | null): CommandResult {
-  const known = [...new Set([...Object.keys(repo.index), ...Object.keys(repo.unmerged)])].sort()
+  const known = union(repo.index, repo.unmerged)
   const paths = new Set<string>()
   for (const spec of specs) {
     const matched = matchPathspec(spec, known)

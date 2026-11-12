@@ -2,9 +2,8 @@
 // (docs/features/levels.md). "Fix an old commit message" is the approved sample of the chapter preview.
 import { commitsOf, currentBranch, hasMergeCommits, isAncestor, isWorkingTreeClean, operationInProgress, remoteBranchHead, resolve, shortId } from '../../../git'
 import type { GitState } from '../../../git'
-import type { PracticeTask } from '../../types'
 import { INDEX, MENU, bakerySite, text } from '../bakery'
-import { gitInvocations, isBareForcePush, isLeasePush, sameTree } from '../checks'
+import { gitInvocations, isBareForcePush, isLeasePush, practice, sameTree } from '../checks'
 
 // 4.1 Put your branch on top of main
 
@@ -20,13 +19,9 @@ const ontoSetup = () => bakerySite()
   .build()
 const ONTO_MAIN = resolve(ontoSetup(), 'main')!
 
-export const rebaseOntoMain: PracticeTask = {
+export const rebaseOntoMain = practice({
   id: 'git-practice-rebase-onto-main',
-  track: 'git',
-  kind: 'practice',
   practises: 'git-05-rebase',
-  difficulty: 1,
-  minutes: 0.5,
   title: 'Rebase your branch onto main',
   task: `Maya raised a price on main since you started \`${OPENING}\`. Put your branch on top of main, without a merge commit.`,
   setup: ontoSetup,
@@ -39,7 +34,7 @@ export const rebaseOntoMain: PracticeTask = {
   hints: ['On your branch, `git rebase main`.'],
   why: '`git rebase main` replays the commits that are only on your branch on top of main\'s newest commit, so the history stays one straight line.',
   solution: ['git rebase main']
-}
+})
 
 // 4.2 Conflict during a rebase
 
@@ -65,13 +60,9 @@ const abortSetup = () => bakerySite()
   .build()
 const ABORT_TIP = abortSetup().repo!.branches[PRICES]!
 
-export const abortRebase: PracticeTask = {
+export const abortRebase = practice({
   id: 'git-practice-abort-rebase',
-  track: 'git',
-  kind: 'practice',
   practises: 'git-23-conflict-during-a-rebase',
-  difficulty: 1,
-  minutes: 0.5,
   title: 'Give up a rebase',
   task: `Your rebase of \`${PRICES}\` onto main stopped on a conflict in \`prices.json\`, and you'd rather ask Maya which price is right. Cancel the rebase, so your branch and your files are exactly as before.`,
   setup: abortSetup,
@@ -83,7 +74,7 @@ export const abortRebase: PracticeTask = {
   hints: ['`git rebase --abort`'],
   why: '`git rebase --abort` puts your branch, the staging area and your files back to how they were before `git rebase`, as if you never started.',
   solution: ['git rebase --abort']
-}
+})
 
 // 4.3 Push a rebased branch
 
@@ -106,13 +97,9 @@ const leasePushed = (history: { line: string, exitCode: number }[]) => {
   return pushes.some(push => isLeasePush(push.args) && push.exitCode === 0) && !pushes.some(push => isBareForcePush(push.args))
 }
 
-export const pushWithLease: PracticeTask = {
+export const pushWithLease = practice({
   id: 'git-practice-push-with-lease',
-  track: 'git',
-  kind: 'practice',
   practises: 'git-24-push-a-rebased-branch',
-  difficulty: 1,
-  minutes: 0.5,
   title: 'Push your rewritten branch safely',
   task: `You just rebased \`${CAKES}\` onto main, and the old version of it is on origin. Update the branch on origin, the safe way.`,
   setup: leaseSetup,
@@ -123,7 +110,7 @@ export const pushWithLease: PracticeTask = {
   hints: ['`git push --force-with-lease`'],
   why: '`--force-with-lease` replaces the branch on origin only if nobody pushed to it since you last fetched, so you never wipe out a teammate\'s commit by accident.',
   solution: ['git push --force-with-lease']
-}
+})
 
 // 4.4 Tidy up before review (the approved sample)
 
@@ -152,12 +139,9 @@ function messageFixed(state: GitState): boolean {
     && sameTree(newest.tree, REWORD_NEWEST!.tree) && newest.parents[0] === older.id
 }
 
-export const rewordOldCommit: PracticeTask = {
+export const rewordOldCommit = practice({
   id: 'git-practice-reword-old-commit',
-  track: 'git',
-  kind: 'practice',
   practises: 'git-25-tidy-up-before-review',
-  difficulty: 1,
   minutes: 1,
   title: 'Fix an old commit message',
   task: 'The commit before last says `Add newsleter form`. Fix the typo, keep everything else as it is.',
@@ -170,4 +154,4 @@ export const rewordOldCommit: PracticeTask = {
     { save: `reword ${shortId(REWORD_OLDER!.id)} Add newsleter form\npick ${shortId(REWORD_NEWEST!.id)} Link the newsletter from the home page\n` },
     { save: 'Add newsletter form\n' }
   ]
-}
+})

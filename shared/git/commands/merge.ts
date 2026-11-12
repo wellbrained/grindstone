@@ -1,18 +1,17 @@
 import { parseArgs } from '../args'
-import { createCommit } from '../objects/commit'
+import { createCommit, subject } from '../objects/commit'
 import { isAncestor, mergeBase } from '../objects/graph'
 import { shortId } from '../objects/hash'
 import { done, err, fail, hint, out } from '../output'
 import { mergeTrees } from '../merge3'
 import type { TreeMergeResult } from '../merge3'
-import { logHead } from '../reflog'
 import { resolveRev } from '../refs'
 import { headId, headTree, own, withEntry } from '../state'
-import { moveTrees } from '../worktree'
-import type { Command, CommandResult, GitState, OutputLine, Repo, Tree, UnmergedKind } from '../types'
+import { hasUnmerged, moveTrees } from '../worktree'
+import type { Command, CommandResult, Commit, GitState, OutputLine, Repo, Tree, UnmergedKind } from '../types'
 import { activeBranch } from './branch'
 import { commit as commitCommand, unresolvedConflict } from './commit'
-import { CHERRY_PICKING, diffstat, fatal, moveHead, notARepo, restoreTracked, storeCommit, withRepo } from './common'
+import { blockedBy, diffstat, fatal, moveRef, notARepo, parentTree, restoreTracked, storeCommit, withRepo } from './common'
 
 /** Applies a tree merge to index and working tree; conflicted paths keep their marker content. */
 export function applyMerge(repo: Repo, workdir: Tree, from: Tree, merged: TreeMergeResult, verb: 'merge' | 'checkout' = 'merge') {
@@ -25,6 +24,15 @@ export function applyMerge(repo: Repo, workdir: Tree, from: Tree, merged: TreeMe
     index = withEntry(index, conflict.path, merged.index[conflict.path])
   }
   return { ...moved, index, unmerged }
+}
+
+/**
+ * Applies `commit`'s change (against its first parent) onto `ours`, as cherry-pick and rebase do: the three-way merge,
+ * with the commit named `<short id> (<subject>)` in conflict markers, and what it does to index and working tree.
+ */
+export function mergeCommit(repo: Repo, workdir: Tree, commit: Commit, ours: Tree) {
+  const merged = mergeTrees(parentTree(repo, commit), ours, commit.tree, { ours: 'HEAD', theirs: `${shortId(commit.id)} (${subject(commit)})` })
+  return { merged, applied: applyMerge(repo, workdir, ours, merged) }
 }
 
 /** "Auto-merging x" and "CONFLICT ..." lines in path order, as git prints them. */
@@ -60,14 +68,13 @@ export function mergeInto(state: GitState, theirs: string, label: string, option
 
   if (head && isAncestor(repo.commits, theirs, head)) return done(state, [out('Already up to date.')])
   const action = options.reflog ?? `merge ${label}`
-  // git sets ORIG_HEAD to where HEAD was before every merge
-  const origHead = head ? { origHead: head } : {}
 
   if (!head || (isAncestor(repo.commits, head, theirs) && !options.noFf)) {
     const lines = head ? [out(`Updating ${shortId(head)}..${shortId(theirs)}`)] : []
     const moved = moveTrees(repo, state.workdir, headTree(repo), theirsTree, 'merge')
     if (!moved.ok) return fail(state, [...lines, ...moved.output])
-    const next = logHead({ ...moveHead({ ...repo, index: moved.index }, theirs), ...origHead }, `${action}: Fast-forward`)
+    // git sets ORIG_HEAD to where HEAD was before every merge
+    const next = moveRef({ ...repo, index: moved.index }, 'HEAD', theirs, { log: `${action}: Fast-forward`, origHead: head })
     return done({ ...withRepo(state, next), workdir: moved.workdir }, [...lines, out('Fast-forward'), ...diffstat(headTree(repo), theirsTree)])
   }
   if (options.ffOnly) {
@@ -95,7 +102,7 @@ export function mergeInto(state: GitState, theirs: string, label: string, option
   if (merged.conflicts.length) {
     const next: Repo = {
       ...repo,
-      ...origHead,
+      ...(head ? { origHead: head } : {}),
       index: applied.index,
       unmerged: applied.unmerged,
       operation: { type: 'merge', theirs, message: options.message, before: { index: repo.index, workdir: state.workdir } }
@@ -107,7 +114,7 @@ export function mergeInto(state: GitState, theirs: string, label: string, option
   }
 
   const created = createCommit(state, { parents: [head, theirs], tree: merged.index, message: options.message })
-  const next = logHead(moveHead(storeCommit({ ...repo, ...origHead, index: applied.index }, created.commit), created.commit.id), `${action}: Merge made by the 'ort' strategy.`)
+  const next = moveRef(storeCommit({ ...repo, index: applied.index }, created.commit), 'HEAD', created.commit.id, { log: `${action}: Merge made by the 'ort' strategy.`, origHead: head })
   return done({ ...withRepo(created.state, next), workdir: applied.workdir }, [
     ...report,
     out('Merge made by the \'ort\' strategy.'),
@@ -136,12 +143,9 @@ export const merge: Command = (state, argv) => {
     if (operation?.type !== 'merge') return fatal(state, 'fatal: There is no merge in progress (MERGE_HEAD missing).')
     return commitCommand(state, [])
   }
-  if (operation?.type === 'merge') {
-    if (Object.keys(repo.unmerged).length) return unresolvedConflict(state, 'Merging')
-    return fatal(state, 'fatal: You have not concluded your merge (MERGE_HEAD exists).\nPlease, commit your changes before you merge.')
-  }
-  if (operation?.type === 'rebase') return fatal(state, 'fatal: You are in the middle of a rebase; finish it with "git rebase --continue" or "git rebase --abort" first.')
-  if (operation?.type === 'cherry-pick') return fatal(state, CHERRY_PICKING)
+  if (operation?.type === 'merge' && hasUnmerged(repo)) return unresolvedConflict(state, 'Merging')
+  const blocked = blockedBy(state, 'merge')
+  if (blocked) return blocked
 
   let name = positionals[0]
   if (!name) {

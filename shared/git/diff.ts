@@ -12,7 +12,8 @@ export interface Hunk {
 
 /** Splits content into lines that keep their '\n', so a missing final newline stays visible. */
 export function splitLines(content: string): string[] {
-  if (content === '') return []
+  // a non-string is a value inherited from Object.prototype (a file named toString, …): treat it as no content
+  if (typeof content !== 'string' || content === '') return []
   const lines = content.split('\n').map(line => `${line}\n`)
   const last = lines.length - 1
   if (lines[last] === '\n') lines.pop()

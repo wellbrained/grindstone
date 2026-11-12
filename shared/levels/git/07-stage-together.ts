@@ -1,7 +1,7 @@
 // Basics 1.2: two unrelated changes, two commits. The approved sample text of ADR 0006 (preview basics-preview.html).
 import { headCommit, isWorkingTreeClean, repo, resolve } from '../../git'
 import type { Scenario } from '../types'
-import { changedIn } from './checks'
+import { changedIn, sameList } from './checks'
 
 const README_TYPO = [
   '# Corner Bakery website',
@@ -60,7 +60,7 @@ export const stageTogether: Scenario = {
     {
       id: 'typo-commit',
       label: 'The newest-but-one commit changes only README.md',
-      check: ({ state }) => resolve(state, 'HEAD~1') !== null && JSON.stringify(changedIn(state, 'HEAD~1')) === JSON.stringify(['README.md'])
+      check: ({ state }) => resolve(state, 'HEAD~1') !== null && sameList(changedIn(state, 'HEAD~1'), ['README.md'])
     },
     {
       id: 'prices-commit',

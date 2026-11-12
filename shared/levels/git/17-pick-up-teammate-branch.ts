@@ -5,6 +5,7 @@ import { commitsOf, currentBranch, isAncestor, remoteBranchHead, upstreamOf } fr
 import type { GitState } from '../../git'
 import type { Scenario } from '../types'
 import { INDEX, bakerySite, text } from './bakery'
+import { once } from './checks'
 
 const BRANCH = 'feature/newsletter'
 
@@ -25,12 +26,13 @@ const setup = () => bakerySite()
   .teammate('Jonas', 'Link the newsletter from the home page', { 'index.html': INDEX_LINKED }, { branch: BRANCH })
   .build()
 
-const JONAS = remoteBranchHead(setup(), BRANCH)!
+const start = once(setup)
+const JONAS = () => remoteBranchHead(start(), BRANCH)!
 
 /** The local branch has a commit on top of Jonas's work that adds thanks.html. */
 function thanksAdded(state: GitState): boolean {
   const [tip] = commitsOf(state, BRANCH)
-  return !!tip && tip.id !== JONAS && isAncestor(state, JONAS, BRANCH) && !!tip.tree['thanks.html']
+  return !!tip && tip.id !== JONAS() && isAncestor(state, JONAS(), BRANCH) && !!tip.tree['thanks.html']
 }
 
 export const pickUpTeammateBranch: Scenario = {
@@ -51,7 +53,7 @@ export const pickUpTeammateBranch: Scenario = {
       label: `You are on ${BRANCH}, tracking origin/${BRANCH}`,
       check: ({ state }) => currentBranch(state) === BRANCH && upstreamOf(state, BRANCH) === `origin/${BRANCH}`
     },
-    { id: 'jonas', label: 'It has Jonas\'s two commits', check: ({ state }) => isAncestor(state, JONAS, BRANCH) },
+    { id: 'jonas', label: 'It has Jonas\'s two commits', check: ({ state }) => isAncestor(state, JONAS(), BRANCH) },
     { id: 'thanks', label: 'Your commit on top of his adds thanks.html', check: ({ state }) => thanksAdded(state) },
     {
       id: 'pushed',

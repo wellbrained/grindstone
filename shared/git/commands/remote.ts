@@ -6,10 +6,11 @@ import { shortId } from '../objects/hash'
 import { done, err, fail, hint, out, ref } from '../output'
 import { tagNames, trackingRef } from '../refs'
 import { own, without } from '../state'
+import { hasUnmerged } from '../worktree'
 import type { Command, CommandResult, GitState, OutputLine, Remote, Repo } from '../types'
 import { activeBranch, trackingLine } from './branch'
 import { unresolvedConflict } from './commit'
-import { CHERRY_PICKING, fatal, notARepo, withRepo } from './common'
+import { blockedBy, fatal, notARepo, withRepo } from './common'
 import { mergeInto } from './merge'
 import { startRebase } from './rebase'
 
@@ -62,7 +63,7 @@ export function fetchOrigin(state: GitState, only?: string): { state: GitState, 
 
   const tags = { ...repo.tags }
   for (const name of newTags) {
-    tags[name] = origin.tags![name]!
+    tags[name] = origin.tags[name]!
     output.push(refLine('*', '[new tag]', name, name, width))
   }
 
@@ -127,12 +128,9 @@ export const pull: Command = (state, argv) => {
     ])
   }
   if (!state.origin || remote !== 'origin') return noRemote(state, remote)
-  if (Object.keys(repo.unmerged).length) return unresolvedConflict(state, 'Pulling')
-  if (repo.operation?.type === 'merge') {
-    return fatal(state, 'fatal: You have not concluded your merge (MERGE_HEAD exists).\nPlease, commit your changes before merging.')
-  }
-  if (repo.operation?.type === 'rebase') return fatal(state, 'fatal: You are in the middle of a rebase; finish it with "git rebase --continue" or "git rebase --abort" first.')
-  if (repo.operation?.type === 'cherry-pick') return fatal(state, CHERRY_PICKING.replace('before you merge', 'before merging'))
+  if (hasUnmerged(repo)) return unresolvedConflict(state, 'Pulling')
+  const blocked = blockedBy(state, 'pull')
+  if (blocked) return blocked
 
   const current = activeBranch(repo)
   const branch = named ?? (current ? own(repo.upstream, current) : undefined)
@@ -206,7 +204,7 @@ function pushTags(state: GitState, names: string[], force: boolean): CommandResu
   const lines: OutputLine[] = []
   const rejected: string[] = []
   for (const name of names) {
-    const local = repo.tags![name]!
+    const local = repo.tags[name]!
     const there = own(tags, name)
     const target = (tag: typeof local) => tag.annotation?.id ?? tag.commit
     if (there && target(there) === target(local)) continue

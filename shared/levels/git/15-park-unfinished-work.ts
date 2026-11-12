@@ -3,9 +3,9 @@
 import { currentBranch, repo, resolve, stashEntries } from '../../git'
 import type { GitState } from '../../git'
 import type { Scenario } from '../types'
-import { changedIn } from './checks'
+import { text } from './bakery'
+import { changedIn, once, sameList, treeOf } from './checks'
 
-const text = (...lines: string[]) => `${lines.join('\n')}\n`
 const BRANCH = 'feature/gift-cards'
 
 const hours = (saturday: string) => text(
@@ -43,20 +43,16 @@ const setup = () => repo()
   .file('src/cart.js', CART_WIP)
   .build()
 
-const MAIN = resolve(setup(), 'main')!
-const FEATURE = resolve(setup(), BRANCH)!
-
-const mainTree = (state: GitState) => {
-  const tip = state.repo?.branches.main
-  return tip ? state.repo!.commits[tip]!.tree : {}
-}
+const start = once(setup)
+const MAIN = () => resolve(start(), 'main')!
+const FEATURE = () => resolve(start(), BRANCH)!
 
 /** main has one new commit on top of where it started, changing only src/hours.js to the new Saturday hours. */
 function hoursFixed(state: GitState): boolean {
   const tip = state.repo?.branches.main
-  const hoursFile = mainTree(state)['src/hours.js'] ?? ''
-  return !!tip && state.repo!.commits[tip]!.parents[0] === MAIN && hoursFile.includes('8:00-14:00') && !hoursFile.includes('18:00')
-    && JSON.stringify(changedIn(state, 'main')) === JSON.stringify(['src/hours.js'])
+  const hoursFile = treeOf(state, 'main')?.['src/hours.js'] ?? ''
+  return !!tip && state.repo!.commits[tip]!.parents[0] === MAIN() && hoursFile.includes('8:00-14:00') && !hoursFile.includes('18:00')
+    && sameList(changedIn(state, 'main'), ['src/hours.js'])
 }
 
 export const parkUnfinishedWork: Scenario = {
@@ -77,7 +73,7 @@ export const parkUnfinishedWork: Scenario = {
     {
       id: 'back',
       label: `Back on ${BRANCH} with your unfinished work in your files, not in a commit`,
-      check: ({ state }) => hoursFixed(state) && currentBranch(state) === BRANCH && resolve(state, BRANCH) === FEATURE
+      check: ({ state }) => hoursFixed(state) && currentBranch(state) === BRANCH && resolve(state, BRANCH) === FEATURE()
         && state.workdir['src/products.js'] === PRODUCTS_WIP && state.workdir['src/cart.js'] === CART_WIP
     },
     { id: 'stash-empty', label: 'Nothing left in the stash', check: ({ state }) => hoursFixed(state) && stashEntries(state).length === 0 }

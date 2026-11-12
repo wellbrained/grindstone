@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { fileName as fileNameOf } from '#shared/git'
 import type { EditorWait } from '#shared/git'
+import { editorHelpKey, isCoarsePointer } from '~/utils/play-layout'
 
 // The file git opened in the editor during `git rebase -i` (docs/features/ui.md, "The file git waits for"): the todo list
 // or a commit message. A bar with the file name, Cancel (git rebase --abort) and the primary action (Start rebase /
@@ -16,12 +18,12 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-const fileName = computed(() => props.wait.path.slice(props.wait.path.lastIndexOf('/') + 1))
+const fileName = computed(() => fileNameOf(props.wait.path))
 const todo = computed(() => props.wait.kind === 'todo')
 
 const code = useTemplateRef<{ focus: () => void }>('code')
 // phones: do not pop up the keyboard unasked
-const autofocus = import.meta.client && !window.matchMedia('(pointer: coarse)').matches
+const autofocus = import.meta.client && !isCoarsePointer()
 
 defineExpose({ focus: () => code.value?.focus() })
 </script>
@@ -42,7 +44,7 @@ defineExpose({ focus: () => code.value?.focus() })
           {{ fileName }}
         </p>
         <p class="text-xs text-muted">
-          {{ todo ? t('gitEditor.todoHelp') : t('gitEditor.messageHelp') }}
+          {{ t(editorHelpKey(wait)) }}
         </p>
       </div>
       <div class="flex shrink-0 items-center gap-2">

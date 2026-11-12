@@ -1,6 +1,7 @@
 <script setup lang="ts">
+import { levelIntro } from '#shared/levels'
 import type { Level, LevelPlace } from '#shared/levels'
-import { timeLabel } from '~/utils/track-view'
+import { timeText } from '~/utils/track-view'
 
 // Left column of the play page. A scenario: breadcrumb, title, story, the live goal checklist, Hint and Reset, the
 // solved card with Show debrief and Next level. A practice task is the compact variant (preview "Stage only app.js"):
@@ -30,13 +31,10 @@ const { t } = useI18n()
 const { entryItems } = useProgressActions()
 
 const practice = computed(() => props.level.kind === 'practice' ? props.level : null)
-const paragraphs = computed(() => props.level.kind === 'scenario' ? props.level.story.split(/\n{2,}/) : [props.level.task])
+const paragraphs = computed(() => levelIntro(props.level).split(/\n{2,}/))
 const metCount = computed(() => props.goals.filter(goal => goal.met).length)
 const hintsTotal = computed(() => props.level.hints.length)
-const time = computed(() => {
-  const { value, unit } = timeLabel(props.level.minutes)
-  return t(`track.time.${unit}`, { n: value })
-})
+const time = computed(() => timeText(t, props.level.minutes))
 // Play again restarts this page; Mark as not solved restarts it too (useProgress restarts open play pages)
 const menu = computed(() => entryItems(props.place, { onPlayAgain: () => emit('again') }))
 </script>

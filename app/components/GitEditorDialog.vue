@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { fileName } from '#shared/git'
 import type { EditorWait } from '#shared/git'
+import { editorHelpKey } from '~/utils/play-layout'
 
 // The Terminal layout's view of the file git waits for (`git rebase -i`), like the editor panel `edit <file>` opens:
 // GitEditor in a modal. It closes only through its buttons (or once git stops waiting): no close button, and
@@ -16,8 +18,6 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-const fileName = (path: string) => path.slice(path.lastIndexOf('/') + 1)
-
 // the dialog would hand the focus back to the element that had it; the page decides instead (back to the terminal)
 function onCloseAutoFocus(event: Event) {
   event.preventDefault()
@@ -29,7 +29,7 @@ function onCloseAutoFocus(event: Event) {
   <UModal
     :open="wait !== null"
     :title="wait ? t('gitEditor.dialogTitle', { file: fileName(wait.path) }) : ''"
-    :description="wait?.kind === 'todo' ? t('gitEditor.todoHelp') : t('gitEditor.messageHelp')"
+    :description="t(editorHelpKey(wait))"
     :close="false"
     :dismissible="false"
     :ui="{ content: 'sm:max-w-3xl', header: 'sr-only', body: 'p-0 sm:p-0' }"

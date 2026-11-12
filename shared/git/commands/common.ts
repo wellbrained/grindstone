@@ -2,10 +2,11 @@
 import { countChanges } from '../diff'
 import { range } from '../objects/graph'
 import { err, fail, hint, out, plural, ref } from '../output'
+import { logBranch, logHead } from '../reflog'
 import { trackingRef } from '../refs'
 import { headId, headTree, own, withEntry } from '../state'
-import { changedPaths } from '../worktree'
-import type { Commit, CommandResult, GitState, OutputLine, Repo, Snapshot, Tree } from '../types'
+import { changedPaths, treesEqual, union } from '../worktree'
+import type { Commit, CommandResult, GitState, Operation, OutputLine, Repo, Snapshot, Tree } from '../types'
 
 export const notARepo = (state: GitState) =>
   fail(state, [err('fatal: not a git repository (or any of the parent directories): .git')], 128)
@@ -13,8 +14,78 @@ export const notARepo = (state: GitState) =>
 export const fatal = (state: GitState, message: string, code = 128) =>
   fail(state, message.split('\n').map(text => err(text)), code)
 
-/** What merge (and, worded for itself, pull and rebase) say while a cherry-pick is in progress. */
-export const CHERRY_PICKING = 'fatal: You have not concluded your cherry-pick (CHERRY_PICK_HEAD exists).\nPlease, commit your changes before you merge.'
+/** The last line of git's conflict hints. */
+export const ADVICE_OFF = 'hint: Disable this message with "git config set advice.mergeConflict false"'
+
+/** The commands that refuse to start while a merge, rebase or cherry-pick is in progress. */
+export type BlockedCommand = 'merge' | 'pull' | 'rebase' | 'revert' | 'cherry-pick' | 'switch'
+
+const REBASING = 'fatal: You are in the middle of a rebase; finish it with "git rebase --continue" or "git rebase --abort" first.'
+
+const ALREADY_REBASING = [
+  'fatal: It seems that there is already a rebase-merge directory, and',
+  'I wonder if you are in the middle of another rebase.  If that is the',
+  'case, please try',
+  '\tgit rebase (--continue | --abort | --skip)'
+].join('\n')
+
+const SWITCHING: Record<Operation['type'], string> = { 'merge': 'merging', 'rebase': 'rebasing', 'cherry-pick': 'cherry-picking' }
+
+/** `You have not concluded your merge (MERGE_HEAD exists).`, with merge's and pull's own request to commit first. */
+function notConcluded(what: string, command: BlockedCommand): string {
+  const ask = command === 'merge' ? '\nPlease, commit your changes before you merge.' : command === 'pull' ? '\nPlease, commit your changes before merging.' : ''
+  return `fatal: You have not concluded your ${what}.${ask}`
+}
+
+/** git's refusal of `command` while an operation is in progress (in its words for that command), or null when none is. */
+export function blockedBy(state: GitState, command: BlockedCommand): CommandResult | null {
+  const operation = state.repo?.operation
+  if (!operation) return null
+  if (command === 'switch') {
+    return fatal(state, `fatal: cannot switch branch while ${SWITCHING[operation.type]}\nConsider "git ${operation.type} --quit" or "git worktree add".`)
+  }
+  if (operation.type === 'merge') return fatal(state, notConcluded('merge (MERGE_HEAD exists)', command))
+  if (operation.type === 'rebase') return fatal(state, command === 'rebase' ? ALREADY_REBASING : REBASING)
+  if (command === 'revert' || command === 'cherry-pick') {
+    return fail(state, [err('error: cherry-pick is already in progress'), hint('hint: try "git cherry-pick (--continue | --abort | --quit)"'), err(`fatal: ${command} failed`)], 128)
+  }
+  return fatal(state, notConcluded('cherry-pick (CHERRY_PICK_HEAD exists)', command))
+}
+
+/** cherry-pick's and revert's refusal while the index differs from HEAD, or null. */
+export function refuseDirtyIndex(state: GitState, command: 'cherry-pick' | 'revert'): CommandResult | null {
+  const repo = state.repo!
+  if (treesEqual(headTree(repo), repo.index)) return null
+  return fail(state, [
+    err(`error: your local changes would be overwritten by ${command}.`),
+    hint('hint: commit your changes or stash them to proceed.'),
+    err(`fatal: ${command} failed`)
+  ], 128)
+}
+
+/** The options part of the usage text revert and cherry-pick share. */
+export const SEQUENCER_OPTIONS = [
+  '',
+  '    --quit                end revert or cherry-pick sequence',
+  '    --continue            resume revert or cherry-pick sequence',
+  '    --abort               cancel revert or cherry-pick sequence',
+  '    --skip                skip current commit and continue',
+  '    --[no-]cleanup <mode> how to strip spaces and #comments from message',
+  '    -n, --no-commit       don\'t automatically commit',
+  '    --commit              opposite of --no-commit',
+  '    -e, --[no-]edit       edit the commit message',
+  '    -s, --[no-]signoff    add a Signed-off-by trailer',
+  '    -m, --[no-]mainline <parent-number>',
+  '                          select mainline parent',
+  '    --[no-]rerere-autoupdate',
+  '                          update the index with reused conflict resolution if possible',
+  '    --[no-]strategy <strategy>',
+  '                          merge strategy',
+  '    -X, --[no-]strategy-option <option>',
+  '                          option for merge strategy',
+  '    -S, --[no-]gpg-sign[=<key-id>]',
+  '                          GPG sign commit'
+]
 
 /**
  * The working tree after an aborted operation, like git's `reset --merge`: every file the operation could have touched
@@ -28,16 +99,38 @@ export function restoreTracked(repo: Repo, workdir: Tree, before: Snapshot): Tre
   return restored
 }
 
+/**
+ * The working tree with every tracked file (in the index, unmerged, or in HEAD) as HEAD has it, like `reset --hard`
+ * leaves it; untracked files stay.
+ */
+export function resetWorkdirToHead(repo: Repo, workdir: Tree): Tree {
+  const tree = headTree(repo)
+  return union(repo.index, repo.unmerged, tree).reduce((files, path) => withEntry(files, path, tree[path]), workdir)
+}
+
+/** The tree of a commit's first parent (empty for a root commit): what its change is measured against. */
+export const parentTree = (repo: Repo, commit: Commit): Tree => commit.parents[0] ? repo.commits[commit.parents[0]]!.tree : {}
+
 export const withRepo = (state: GitState, repo: Repo): GitState => ({ ...state, repo })
 
 export function storeCommit(repo: Repo, commit: Commit): Repo {
   return { ...repo, commits: { ...repo.commits, [commit.id]: commit } }
 }
 
-/** Points HEAD (its branch, or the detached HEAD) at `id`. */
-export function moveHead(repo: Repo, id: string): Repo {
-  if (repo.head.type === 'branch') return { ...repo, branches: { ...repo.branches, [repo.head.name]: id } }
-  return { ...repo, head: { type: 'detached', commit: id } }
+/** What moveRef moves: HEAD (through its branch when it is on one), HEAD detached at the commit, or one branch. */
+export type RefTarget = 'HEAD' | 'detached' | { branch: string }
+
+/**
+ * Points `target` at `id` and records the move in the reflog as `log`: HEAD's log, and the branch's too when the move
+ * goes through it (like git's symref update); a branch target only gets its own. `origHead` also sets ORIG_HEAD.
+ */
+export function moveRef(repo: Repo, target: RefTarget, id: string, options: { log: string, origHead?: string | null }): Repo {
+  const base = options.origHead ? { ...repo, origHead: options.origHead } : repo
+  if (typeof target === 'object') return logBranch({ ...base, branches: { ...base.branches, [target.branch]: id } }, target.branch, options.log)
+  const moved: Repo = target === 'HEAD' && repo.head.type === 'branch'
+    ? { ...base, branches: { ...base.branches, [repo.head.name]: id } }
+    : { ...base, head: { type: 'detached', commit: id } }
+  return logHead(moved, options.log)
 }
 
 /** " 2 files changed, 3 insertions(+), 1 deletion(-)" plus the create/delete mode lines. */
@@ -47,7 +140,7 @@ export function summary(from: Tree, to: Tree): OutputLine[] {
   let insertions = 0
   let deletions = 0
   for (const path of paths) {
-    const counts = countChanges(from[path], to[path])
+    const counts = countChanges(own(from, path), own(to, path))
     insertions += counts.insertions
     deletions += counts.deletions
   }

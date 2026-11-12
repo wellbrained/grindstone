@@ -3,6 +3,7 @@ import { ignoreRules, ignoredAs } from '../ignore'
 import { done, err, fail, hint } from '../output'
 import { normalizePath, withEntry, without } from '../state'
 import type { Command, Repo, Tree } from '../types'
+import { union } from '../worktree'
 import { fatal, notARepo, withRepo } from './common'
 
 /** Paths matched by a pathspec: exact file, directory prefix, '.' for everything, or a simple * glob. */
@@ -43,7 +44,7 @@ export const add: Command = (state, argv) => {
     ])
   }
 
-  const known = [...new Set([...Object.keys(state.workdir), ...Object.keys(repo.index), ...Object.keys(repo.unmerged)])].sort()
+  const known = union(state.workdir, repo.index, repo.unmerged)
   // untracked paths a .gitignore names: skipped, and refused when you name them yourself (unless -f)
   const rules = force ? [] : ignoreRules(state.workdir)
   const ignoredAt = (path: string) => repo.index[path] !== undefined || repo.unmerged[path] !== undefined ? null : ignoredAs(rules, path)

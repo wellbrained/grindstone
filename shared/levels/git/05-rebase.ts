@@ -1,6 +1,7 @@
 // Rewriting history 4.1 (v0.1's "Rebase", retitled): replay a feature branch on top of main with rebase, keeping history linear.
 import { commitsOf, currentBranch, hasMergeCommits, isAncestor, operationInProgress, repo } from '../../git'
 import type { Scenario } from '../types'
+import { sameList } from './checks'
 
 const YOUR_COMMITS = ['Highlight matches', 'Add a search box']
 
@@ -37,7 +38,7 @@ export const rebase: Scenario = {
       id: 'linear',
       label: 'Only your two commits on top of main, no merge commits',
       check: ({ state }) => !hasMergeCommits(state, 'main..feature/search')
-        && JSON.stringify(commitsOf(state, 'main..feature/search').map(commit => commit.message)) === JSON.stringify(YOUR_COMMITS)
+        && sameList(commitsOf(state, 'main..feature/search').map(commit => commit.message), YOUR_COMMITS)
     },
     { id: 'on-branch', label: 'You are on feature/search, no rebase in progress', check: ({ state }) => currentBranch(state) === 'feature/search' && !operationInProgress(state) }
   ],

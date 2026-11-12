@@ -54,7 +54,7 @@ export function resolveRev(repo: Repo, rev: string): string | null {
 }
 
 /** Tag names, sorted like git (byte order: v1.10 before v1.9). */
-export const tagNames = (tags: Record<string, unknown> | undefined) => Object.keys(tags ?? {}).sort((a, b) => a < b ? -1 : a > b ? 1 : 0)
+export const tagNames = (tags: Record<string, unknown>) => Object.keys(tags).sort((a, b) => a < b ? -1 : a > b ? 1 : 0)
 
 /**
  * The ` (HEAD -> main, tag: v1.0, origin/main, feature)` part of a log line, or nothing. Tags are plain text (no branch
@@ -65,7 +65,7 @@ export function decorations(repo: Repo, id: string): Part[] {
   const current = repo.head.type === 'branch' ? repo.head.name : null
   if (headId(repo) === id) parts.push(current ? [ref('HEAD'), ' -> ', ref(current)] : [ref('HEAD')])
   for (const name of tagNames(repo.tags).reverse()) {
-    if (repo.tags![name]!.commit === id) parts.push([`tag: ${name}`])
+    if (repo.tags[name]!.commit === id) parts.push([`tag: ${name}`])
   }
   for (const name of Object.keys(repo.remoteBranches).sort().reverse()) {
     if (repo.remoteBranches[name] === id) parts.push([ref(trackingRef(name))])

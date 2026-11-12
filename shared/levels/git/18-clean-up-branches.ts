@@ -4,6 +4,7 @@
 import { branchExists, resolve } from '../../git'
 import type { Scenario } from '../types'
 import { STYLE, bakerySite, text } from './bakery'
+import { once } from './checks'
 
 const DONE = 'feature/opening-hours'
 const EXPERIMENT = 'experiment/parallax'
@@ -46,8 +47,9 @@ const setup = () => bakerySite()
   .switch('main')
   .build()
 
-const MAIN = resolve(setup(), 'main')!
-const GALLERY_TIP = resolve(setup(), TYPO)!
+const start = once(setup)
+const MAIN = () => resolve(start(), 'main')!
+const GALLERY_TIP = () => resolve(start(), TYPO)!
 
 export const cleanUpBranches: Scenario = {
   id: 'git-18-clean-up-branches',
@@ -66,12 +68,12 @@ export const cleanUpBranches: Scenario = {
     {
       id: 'experiment-gone',
       label: `${EXPERIMENT} is deleted, and none of it landed on main`,
-      check: ({ state }) => !branchExists(state, EXPERIMENT) && resolve(state, 'main') === MAIN
+      check: ({ state }) => !branchExists(state, EXPERIMENT) && resolve(state, 'main') === MAIN()
     },
     {
       id: 'renamed',
       label: `${TYPO} is now ${FIXED}, with the same commit`,
-      check: ({ state }) => !branchExists(state, TYPO) && resolve(state, FIXED) === GALLERY_TIP
+      check: ({ state }) => !branchExists(state, TYPO) && resolve(state, FIXED) === GALLERY_TIP()
     }
   ],
   hints: [

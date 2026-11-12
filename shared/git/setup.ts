@@ -7,6 +7,7 @@ import { runArgv, run as runLine } from './run'
 import { DEFAULT_BRANCH, DEFAULT_ORIGIN_URL, createState, normalizePath, without, writeFile } from './state'
 import type { StateOptions } from './state'
 import { teammateCommit } from './teammate'
+import { hasUnmerged } from './worktree'
 import type { Author, CommandResult, GitState } from './types'
 
 /** Files written by the builder end with a newline, like files written by an editor. */
@@ -63,7 +64,7 @@ export class SetupBuilder {
   merge(rev: string, options: { conflicts?: boolean } = {}) {
     if (!options.conflicts) return this.git('merge', rev)
     const result = runArgv(this.state, ['git', 'merge', rev])
-    if (result.state.repo?.operation?.type !== 'merge' || !Object.keys(result.state.repo.unmerged).length) {
+    if (result.state.repo?.operation?.type !== 'merge' || !hasUnmerged(result.state.repo)) {
       throw new Error(`setup step "git merge ${rev}" was expected to stop with conflicts:\n${result.output.map(line => line.text).join('\n')}`)
     }
     this.state = result.state
@@ -74,7 +75,7 @@ export class SetupBuilder {
   rebase(upstream: string, options: { conflicts?: boolean } = {}) {
     if (!options.conflicts) return this.git('rebase', upstream)
     const result = runArgv(this.state, ['git', 'rebase', upstream])
-    if (result.state.repo?.operation?.type !== 'rebase' || !Object.keys(result.state.repo.unmerged).length) {
+    if (result.state.repo?.operation?.type !== 'rebase' || !hasUnmerged(result.state.repo)) {
       throw new Error(`setup step "git rebase ${upstream}" was expected to stop with conflicts:\n${result.output.map(line => line.text).join('\n')}`)
     }
     this.state = result.state
@@ -93,7 +94,7 @@ export class SetupBuilder {
     const current = repo.head.type === 'branch' ? repo.head.name : DEFAULT_BRANCH
     this.state = {
       ...this.state,
-      origin: { name: 'origin', url: options.url ?? DEFAULT_ORIGIN_URL, commits, branches, defaultBranch: current, ...(repo.tags ? { tags } : {}) },
+      origin: { name: 'origin', url: options.url ?? DEFAULT_ORIGIN_URL, commits, branches, defaultBranch: current, tags },
       repo: { ...repo, remoteBranches: { ...branches }, upstream: { ...repo.upstream, ...upstream } }
     }
     return this

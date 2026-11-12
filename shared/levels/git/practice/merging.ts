@@ -2,9 +2,8 @@
 // (docs/features/levels.md). "Keep their version of a conflicted file" is the approved sample of the chapter preview.
 import { currentBranch, isAncestor, operationInProgress, resolve } from '../../../git'
 import type { GitState } from '../../../git'
-import type { PracticeTask } from '../../types'
 import { INDEX, MENU, STYLE, bakerySite, text } from '../bakery'
-import { conflictFullyResolved, isMergeOf, ran, treeOf } from '../checks'
+import { conflictFullyResolved, isMergeOf, practice, ran, treeOf } from '../checks'
 
 // 3.1 Merge a finished branch
 
@@ -18,13 +17,9 @@ const noFfSetup = () => bakerySite()
 const NO_FF_MAIN = resolve(noFfSetup(), 'main')!
 const NO_FF_FIX = resolve(noFfSetup(), PRICE_FIX)!
 
-export const mergeNoFf: PracticeTask = {
+export const mergeNoFf = practice({
   id: 'git-practice-merge-no-ff',
-  track: 'git',
-  kind: 'practice',
   practises: 'git-03-merge',
-  difficulty: 1,
-  minutes: 0.5,
   title: 'Merge with a merge commit anyway',
   task: `Maya's \`${PRICE_FIX}\` is done and main hasn't moved since. Merge it into main with a merge commit anyway, so the history shows it was a branch.`,
   setup: noFfSetup,
@@ -36,7 +31,7 @@ export const mergeNoFf: PracticeTask = {
   hints: [`\`git merge --no-ff ${PRICE_FIX}\``],
   why: '`--no-ff` makes a merge commit even when git could just move main forward, so the branch stays visible in the history.',
   solution: [`git merge --no-ff ${PRICE_FIX}`]
-}
+})
 
 // 3.2 Both sides moved on
 
@@ -49,13 +44,9 @@ const ffOnlySetup = () => bakerySite()
   .build()
 const FF_NEWSLETTER = resolve(ffOnlySetup(), NEWSLETTER)!
 
-export const mergeFfOnly: PracticeTask = {
+export const mergeFfOnly = practice({
   id: 'git-practice-merge-ff-only',
-  track: 'git',
-  kind: 'practice',
   practises: 'git-20-both-sides-moved-on',
-  difficulty: 1,
-  minutes: 0.5,
   title: 'Merge only if it\'s a fast-forward',
   task: `Merge Jonas's \`${NEWSLETTER}\` into main, but only as a fast-forward: if main had moved on, git should stop instead of making a merge commit.`,
   setup: ffOnlySetup,
@@ -66,7 +57,7 @@ export const mergeFfOnly: PracticeTask = {
   hints: [`\`git merge --ff-only ${NEWSLETTER}\``],
   why: 'With `--ff-only`, git either moves main forward or stops with "Not possible to fast-forward", so it never makes a merge commit you didn\'t want.',
   solution: [`git merge --ff-only ${NEWSLETTER}`]
-}
+})
 
 // 3.3 Merge conflict (the approved sample)
 
@@ -94,13 +85,9 @@ const theirsSetup = () => bakerySite()
 const THEIRS_MAIN = resolve(theirsSetup(), 'main')!
 const THEIRS_PRICES = resolve(theirsSetup(), PRICES)!
 
-export const keepTheirVersion: PracticeTask = {
+export const keepTheirVersion = practice({
   id: 'git-practice-keep-their-version',
-  track: 'git',
-  kind: 'practice',
   practises: 'git-04-merge-conflict',
-  difficulty: 1,
-  minutes: 0.5,
   title: 'Keep their version of a conflicted file',
   task: `Merging \`${PRICES}\` into main stopped on a conflict in \`prices.json\`. Maya's version on \`${PRICES}\` is the right one. Take it as it is and finish the merge.`,
   setup: theirsSetup,
@@ -113,7 +100,7 @@ export const keepTheirVersion: PracticeTask = {
   hints: ['`git checkout --theirs prices.json`, then `git add` and `git commit`.'],
   why: 'In a merge, "ours" is the branch you\'re on and "theirs" is the one you merge in.',
   solution: ['git checkout --theirs prices.json', 'git add prices.json', 'git commit']
-}
+})
 
 // 3.4 Back out of a merge
 
@@ -131,13 +118,9 @@ const listSetup = () => bakerySite()
   .merge(SUMMER, { conflicts: true })
   .build()
 
-export const listConflicts: PracticeTask = {
+export const listConflicts = practice({
   id: 'git-practice-list-conflicts',
-  track: 'git',
-  kind: 'practice',
   practises: 'git-21-back-out-of-a-merge',
-  difficulty: 1,
-  minutes: 0.5,
   title: 'List the files with conflicts',
   task: `Your merge of \`${SUMMER}\` into main just stopped. Before you open anything, list which files have conflicts.`,
   setup: listSetup,
@@ -145,7 +128,7 @@ export const listConflicts: PracticeTask = {
   hints: ['`git status`: the files under "Unmerged paths" have conflicts.'],
   why: 'During a merge, `git status` lists conflicted files under "Unmerged paths" (`UU` with `-s`); the ones under "Changes to be committed" merged cleanly.',
   solution: ['git status']
-}
+})
 
 // 3.5 Catch up with main
 
@@ -164,13 +147,9 @@ const IN_GIFT = resolve(mainInSetup(), GIFT)!
 
 const mainMergedIn = (state: GitState) => currentBranch(state) === GIFT && isMergeOf(state, GIFT, IN_GIFT, IN_MAIN) && operationInProgress(state) === null
 
-export const mergeMainIn: PracticeTask = {
+export const mergeMainIn = practice({
   id: 'git-practice-merge-main-in',
-  track: 'git',
-  kind: 'practice',
   practises: 'git-22-catch-up-with-main',
-  difficulty: 1,
-  minutes: 0.5,
   title: 'Merge main into your branch',
   task: `Since you started \`${GIFT}\`, Maya added "Closed on Mondays" on main. Merge main into your branch, so you test with the latest site, and stay on your branch.`,
   setup: mainInSetup,
@@ -182,4 +161,4 @@ export const mergeMainIn: PracticeTask = {
   hints: ['On your branch, `git merge main`.'],
   why: '`git merge` always merges into the branch you\'re on: main\'s new commits come to you, and main stays where it is.',
   solution: ['git merge main']
-}
+})

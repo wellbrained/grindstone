@@ -1,5 +1,5 @@
 // What the terminal shows around a command: the prompt, and the names Tab completion knows. Pure.
-import { currentBranch, headCommit, operationInProgress, shortId } from '../../shared/git'
+import { currentBranch, headCommit, operationInProgress, shortId, tagNames } from '../../shared/git'
 import type { GitState } from '../../shared/git'
 import type { CompletionContext } from './completion'
 
@@ -29,11 +29,6 @@ export function branchNames(state: GitState): string[] {
   return [...new Set([...Object.keys(state.repo.branches), ...remote.map(name => `origin/${name}`), ...remote])]
 }
 
-/** Tag names, for completion wherever a revision goes. */
-export function tagNames(state: GitState): string[] {
-  return Object.keys(state.repo?.tags ?? {}).sort()
-}
-
 export function fileNames(state: GitState): string[] {
   return Object.keys(state.workdir).sort()
 }
@@ -42,5 +37,6 @@ export function completionContextOf(
   state: GitState,
   commands: Pick<CompletionContext, 'trainerCommands' | 'gitCommands' | 'shellCommands'>
 ): CompletionContext {
-  return { ...commands, branches: branchNames(state), tags: tagNames(state), files: fileNames(state) }
+  // tags go wherever a revision goes
+  return { ...commands, branches: branchNames(state), tags: state.repo ? tagNames(state.repo.tags) : [], files: fileNames(state) }
 }

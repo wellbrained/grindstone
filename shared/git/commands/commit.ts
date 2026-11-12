@@ -2,12 +2,11 @@ import { parseArgs } from '../args'
 import { createCommit, subject } from '../objects/commit'
 import { shortId } from '../objects/hash'
 import { err, fail, hint, out } from '../output'
-import { logHead } from '../reflog'
 import { headId, headTree } from '../state'
-import { treesEqual } from '../worktree'
+import { hasUnmerged, treesEqual, unmergedOf } from '../worktree'
 import type { Author, Command, CommandResult, GitState, OutputLine } from '../types'
 import { stage } from './add'
-import { fatal, headLabel, moveHead, notARepo, storeCommit, summary, withRepo } from './common'
+import { fatal, headLabel, moveRef, notARepo, parentTree, storeCommit, summary, withRepo } from './common'
 import { statusLines } from './status'
 
 /** `git commit` also lists the unmerged paths first (`U\t<path>`); the other commands only say so. */
@@ -47,19 +46,15 @@ export function commitIndex(state: GitState, options: CommitOptions): { state: G
 
   const created = createCommit(state, { parents, tree: repo.index, message: options.message, author: options.author })
   const commit = created.commit
-  let next = moveHead(storeCommit(repo, commit), commit.id)
-  if (merging) next = { ...next, operation: null, unmerged: {} }
-  if (picking) next = { ...next, operation: picking.todo.length ? { ...picking, current: null } : null, unmerged: {} }
   const amend = !!options.amend && !!previous
   const reflog = picking && !amend ? `commit (cherry-pick): ${subject(commit)}` : commitReflog(subject(commit), { amend, initial: parents.length === 0, merge: !!merging })
-  next = logHead(next, options.reflog ?? reflog)
+  let next = moveRef(storeCommit(repo, commit), 'HEAD', commit.id, { log: options.reflog ?? reflog })
+  if (merging) next = { ...next, operation: null, unmerged: {} }
+  if (picking) next = { ...next, operation: picking.todo.length ? { ...picking, current: null } : null, unmerged: {} }
 
   const root = parents.length === 0 ? ' (root-commit)' : ''
   const output = [out('[', headLabel(repo), `${root} ${shortId(commit.id)}] ${subject(commit)}`)]
-  if (parents.length < 2) {
-    const parentTree = parents[0] ? repo.commits[parents[0]]!.tree : {}
-    output.push(...summary(parentTree, commit.tree))
-  }
+  if (parents.length < 2) output.push(...summary(parentTree(repo, commit), commit.tree))
   return { state: withRepo(created.state, next), output }
 }
 
@@ -75,7 +70,7 @@ export const commit: Command = (state, argv) => {
   const { flags, values, positionals } = parsed.args
   if (positionals.length) return fail(state, [err(`git commit: committing only some paths ('${positionals[0]}') is not in this trainer yet`)])
 
-  if (Object.keys(repo.unmerged).length) return unresolvedConflict(state, 'Committing', Object.keys(repo.unmerged).sort())
+  if (hasUnmerged(repo)) return unresolvedConflict(state, 'Committing', unmergedOf(repo))
 
   const amend = flags.has('--amend')
   const head = headId(repo)

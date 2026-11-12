@@ -15,10 +15,12 @@ export { teammateCommit, teammateMerge } from './teammate'
 export { blobId, shortId } from './objects/hash'
 export { formatDate } from './commands/log'
 export { ignoreMatcher } from './ignore'
-export { MESSAGE_PATH, TODO_PATH, submitEditor } from './commands/rebase'
+export { tagNames } from './refs'
+export { MESSAGE_PATH, TODO_PATH, fileName, submitEditor } from './commands/rebase'
 export {
   aheadBehind,
   branchExists,
+  commitAt,
   commitsOf,
   conflictsInProgress,
   currentBranch,

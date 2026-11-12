@@ -9,10 +9,10 @@ import { shortId } from '../objects/hash'
 import { done, err, fail, out } from '../output'
 import { mergeTrees } from '../merge3'
 import { logHead } from '../reflog'
-import { headId, withEntry, without } from '../state'
-import { moveTrees, treesEqual, union } from '../worktree'
+import { headId, without } from '../state'
+import { hasUnmerged, moveTrees, treesEqual, unmergedOf } from '../worktree'
 import type { Command, CommandResult, GitState, OutputLine, Repo, StashEntry, Tree } from '../types'
-import { notARepo, withRepo } from './common'
+import { notARepo, resetWorkdirToHead, withRepo } from './common'
 import { statusLines } from './status'
 
 const branchLabel = (repo: Repo) => repo.head.type === 'branch' ? repo.head.name : '(no branch)'
@@ -40,7 +40,7 @@ const push = (state: GitState, repo: Repo, argv: string[]): CommandResult => {
   const { flags, values, positionals } = parsed.args
   if (positionals.length) return fail(state, [err('git stash push: stashing only some paths is not in this trainer yet')])
 
-  const unmerged = Object.keys(repo.unmerged).sort()
+  const unmerged = unmergedOf(repo)
   if (unmerged.length) {
     return fail(state, [...unmerged.map(path => err(`${path}: needs merge`)), err('error: could not write index')])
   }
@@ -61,9 +61,7 @@ const push = (state: GitState, repo: Repo, argv: string[]): CommandResult => {
   const entry: StashEntry = { id: created.commit.id, base: head, message, index: repo.index, workdir: tracked, untracked }
 
   // back to HEAD: tracked files as committed, staged new files gone, the untracked ones taken along removed
-  let workdir = state.workdir
-  for (const path of union(repo.index, headCommit.tree)) workdir = withEntry(workdir, path, headCommit.tree[path])
-  for (const path of Object.keys(untracked)) workdir = without(workdir, path)
+  const workdir = Object.keys(untracked).reduce(without, resetWorkdirToHead(repo, state.workdir))
   // git resets the working tree to HEAD for this, and the reflog says so
   const reset: Repo = { ...repo, index: headCommit.tree, unmerged: {}, operation: afterReset(repo.operation), stash: [entry, ...repo.stash] }
   const next: Repo = logHead(reset, 'reset: moving to HEAD')
@@ -99,7 +97,7 @@ const apply = (state: GitState, repo: Repo, argv: string[], pop: boolean): Comma
   const entry = repo.stash[picked.index]!
   const kept: OutputLine[] = pop ? [err('The stash entry is kept in case you need it again.')] : []
 
-  if (Object.keys(repo.unmerged).length || repo.operation?.type === 'merge') {
+  if (hasUnmerged(repo) || repo.operation?.type === 'merge') {
     return fail(state, [err('error: cannot apply a stash in the middle of a merge'), ...kept])
   }
   const existing = Object.keys(entry.untracked).filter(path => state.workdir[path] !== undefined)
@@ -117,8 +115,7 @@ const apply = (state: GitState, repo: Repo, argv: string[], pop: boolean): Comma
   if (!moved.ok) return fail(state, [...moved.output, ...statusLines(repo, state.workdir), ...kept])
 
   // the index stays as it was, except that new files come back staged (git without --index)
-  let index = repo.index
-  for (const path of Object.keys(merged.index)) if (index[path] === undefined) index = { ...index, [path]: merged.index[path]! }
+  const index = { ...merged.index, ...repo.index }
   const workdir = { ...moved.workdir, ...entry.untracked }
   const stash = pop ? repo.stash.filter((_, i) => i !== picked.index) : repo.stash
   const next: Repo = { ...repo, index, stash }

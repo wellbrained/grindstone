@@ -7,7 +7,7 @@ import { currentBranch, isAncestor, remoteCommitsOf, resolve } from '../../git'
 import type { Commit, GitState } from '../../git'
 import type { Scenario } from '../types'
 import { bakerySite, text } from './bakery'
-import { committedOn } from './checks'
+import { committedOn, once } from './checks'
 
 const FEATURE = 'feature/gift-cards'
 const HOTFIX = 'hotfix/christmas-eve'
@@ -43,8 +43,9 @@ const setup = () => bakerySite()
   .file('gift-cards.html', GIFT_WIP)
   .build()
 
-const MAIN = resolve(setup(), 'main')!
-const FEATURE_TIP = resolve(setup(), FEATURE)!
+const start = once(setup)
+const MAIN = () => resolve(start(), 'main')!
+const FEATURE_TIP = () => resolve(start(), FEATURE)!
 
 const isFixed = (commit: Commit) => /Open 7:00-12:00 on 24 December/.test(commit.tree['banner.html'] ?? '')
 
@@ -82,7 +83,7 @@ export const hotfixMidFeature: Scenario = {
       label: `The fix is committed on ${HOTFIX}, which starts from main`,
       check: ({ state }) => {
         const fix = fixOnOrigin(state)
-        return !!fix && fix.parents[0] === MAIN && committedOn(state, fix.id, HOTFIX)
+        return !!fix && fix.parents[0] === MAIN() && committedOn(state, fix.id, HOTFIX)
       }
     },
     { id: 'shipped', label: 'origin\'s main has the fixed banner, and none of your gift card work', check: ({ state }) => shipped(state) },
@@ -97,7 +98,7 @@ export const hotfixMidFeature: Scenario = {
       label: `${FEATURE} has the fix too, and still has the commit Jonas pulled`,
       check: ({ state }) => {
         const fix = fixOnOrigin(state)
-        return !!fix && isAncestor(state, fix.id, FEATURE) && isAncestor(state, FEATURE_TIP, FEATURE)
+        return !!fix && isAncestor(state, fix.id, FEATURE) && isAncestor(state, FEATURE_TIP(), FEATURE)
       }
     }
   ],

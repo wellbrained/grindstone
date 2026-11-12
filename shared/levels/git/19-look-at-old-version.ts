@@ -33,10 +33,11 @@ const setup = () => bakerySite()
   .commit('Open on Sundays', { author: 'Maya' })
   .build()
 
-const MAIN = resolve(setup(), 'main')!
+const START = setup()
+const MAIN = resolve(START, 'main')!
 /** The last commit before the redesign. */
 const BEFORE_REDESIGN = (() => {
-  const history = commitsOf(setup(), 'main')
+  const history = commitsOf(START, 'main')
   return history[history.findIndex(commit => commit.message === REDESIGN) + 1]!.id
 })()
 

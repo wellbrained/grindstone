@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { placeName } from '#shared/levels'
-import type { LevelRowView, RowLanes } from '~/utils/track-view'
-import { timeLabel } from '~/utils/track-view'
+import type { LaneDraw, LevelRowView, RowLanes } from '~/utils/track-view'
+import { timeText } from '~/utils/track-view'
 
 // One entry on the track page; the whole row is the link, the ⋯ menu sits beside it (outside the link).
 // A scenario: commit dot on the chapter's main line, number (1.2), title with the commands it practises, difficulty and
@@ -11,7 +11,7 @@ import { timeLabel } from '~/utils/track-view'
 // just solved); the step says when, so neighbouring rows draw as one line.
 const props = defineProps<{
   row: LevelRowView
-  draw?: Partial<Record<keyof RowLanes, number>>
+  draw?: LaneDraw
 }>()
 
 const { t } = useI18n()
@@ -20,8 +20,7 @@ const { entryItems } = useProgressActions()
 const practice = computed(() => props.row.place.level.kind === 'practice')
 const best = computed(() => props.row.state === 'solved' ? props.row.progress?.best ?? null : null)
 const flagged = computed(() => props.row.progress?.practiseAgain === true)
-const time = computed(() => timeLabel(props.row.place.level.minutes))
-const timeText = computed(() => t(`track.time.${time.value.unit}`, { n: time.value.value }))
+const time = computed(() => timeText(t, props.row.place.level.minutes))
 const difficulty = computed(() => props.row.place.level.difficulty)
 
 const status = computed(() => t(`track.status.${props.row.state}`))
@@ -29,12 +28,12 @@ const label = computed(() => {
   const { place } = props.row
   const parts = [
     practice.value && place.scenario
-      ? t('track.practiceName', { scenario: `${place.scenario.number} ${place.scenario.level.title}`, title: place.level.title })
+      ? t('track.practiceName', { scenario: placeName(place.scenario), title: place.level.title })
       : placeName(place),
     best.value ? t('track.statusBest', { status: status.value, n: best.value.commands }) : status.value
   ]
   if (flagged.value) parts.push(t('track.flagged'))
-  const spoken = t(`track.timeLong.${time.value.unit}`, { n: time.value.value })
+  const spoken = timeText(t, place.level.minutes, 'long')
   const meta = practice.value
     ? t('track.aboutTime', { time: spoken })
     : t('track.difficultyTime', { n: difficulty.value, time: spoken })
@@ -196,7 +195,7 @@ const laneClass = (part: keyof RowLanes) => [{ 'opacity-35': props.row.lane[part
               :class="n <= difficulty ? 'bg-current text-toned' : 'text-dimmed'"
             />
           </span>
-          <span class="whitespace-nowrap">{{ timeText }}</span>
+          <span class="whitespace-nowrap">{{ time }}</span>
         </span>
       </span>
     </NuxtLink>

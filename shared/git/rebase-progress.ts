@@ -10,8 +10,7 @@ const line = (repo: Repo, step: RebaseStep) => `   ${step.action} ${shortId(step
 
 /** The commands the rebase has run, then the ones it still has to run, in git's words (plain text, no `# ` prefix). */
 export function rebaseProgress(repo: Repo, operation: RebaseOperation): string[] {
-  const done = operation.done ?? []
-  const todo = operation.todo
+  const { done, todo } = operation
   // git's rebase always runs through the sequencer, so even a plain rebase says "interactive"
   const lines = [`interactive rebase in progress; onto ${shortId(operation.onto)}`]
   if (done.length) {

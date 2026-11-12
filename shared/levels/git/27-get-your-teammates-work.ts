@@ -5,7 +5,7 @@
 import { remoteBranchHead, resolve, trackingBranchHead } from '../../git'
 import type { CommandRecord, Scenario } from '../types'
 import { INDEX, MENU, bakerySite } from './bakery'
-import { gitInvocations, logRevisions } from './checks'
+import { gitInvocations, logRevisions, once } from './checks'
 
 const FOOTER = `${INDEX}<footer>Open Tuesday to Saturday 7:00-18:00, Sunday 8:00-12:00</footer>\n`
 const BRUNCH = MENU.replace('</ul>', '  <li>Sunday brunch rolls, 0.80</li>\n</ul>')
@@ -16,7 +16,8 @@ const setup = () => bakerySite()
   .teammate('Maya', 'Add the Sunday brunch rolls to the menu', { 'menu.html': BRUNCH })
   .build()
 
-const THEIRS = remoteBranchHead(setup(), 'main')!
+const start = once(setup)
+const THEIRS = () => remoteBranchHead(start(), 'main')!
 
 /** `git status`, or a `git log` that shows origin/main (`main..origin/main`, `origin/main`, `--all`). */
 const looks = (args: string[]) => args[0] === 'status'
@@ -43,13 +44,13 @@ export const getYourTeammatesWork: Scenario = {
   ].join('\n\n'),
   setup,
   goals: [
-    { id: 'fetched', label: 'origin/main has Jonas\'s and Maya\'s commits', check: ({ state }) => trackingBranchHead(state, 'main') === THEIRS },
+    { id: 'fetched', label: 'origin/main has Jonas\'s and Maya\'s commits', check: ({ state }) => trackingBranchHead(state, 'main') === THEIRS() },
     {
       id: 'looked',
       label: 'After downloading their work, you checked what came in before bringing it into main',
       check: ({ history }) => lookedFirst(history)
     },
-    { id: 'pulled', label: 'Your main has both of their commits', check: ({ state }) => resolve(state, 'main') === THEIRS }
+    { id: 'pulled', label: 'Your main has both of their commits', check: ({ state }) => resolve(state, 'main') === THEIRS() }
   ],
   hints: [
     'Your repository only learns what\'s on origin when it asks. `git fetch` asks, and changes nothing but origin/main, your copy of origin\'s main.',

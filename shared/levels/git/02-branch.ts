@@ -2,7 +2,7 @@
 import { currentBranch, resolve } from '../../git'
 import type { Scenario } from '../types'
 import { bakerySite } from './bakery'
-import { treeOf } from './checks'
+import { once, treeOf } from './checks'
 
 const BRANCH = 'feature/welcome-line'
 
@@ -13,8 +13,8 @@ const setup = () => bakerySite()
   .build()
 
 /** Where main points at the start (setups are deterministic, so this is the same id every time). */
-let startMain: string | undefined
-const mainAtStart = () => startMain ??= setup().repo!.branches.main!
+const start = once(setup)
+const mainAtStart = () => start().repo!.branches.main!
 
 export const branch: Scenario = {
   id: 'git-02-branch',

@@ -1,6 +1,7 @@
 // Line-based three-way merge (diff3 style) for files and flat trees.
 import { matchLines, splitLines } from './diff'
 import type { Tree, UnmergedKind } from './types'
+import { union } from './worktree'
 
 export interface MergeLabels {
   ours: string
@@ -95,7 +96,7 @@ export interface TreeMergeResult {
 
 /** Three-way merge of flat trees, path by path. */
 export function mergeTrees(base: Tree, ours: Tree, theirs: Tree, labels: MergeLabels): TreeMergeResult {
-  const paths = [...new Set([...Object.keys(base), ...Object.keys(ours), ...Object.keys(theirs)])].sort()
+  const paths = union(base, ours, theirs)
   const tree: Tree = {}
   const index: Tree = {}
   const conflicts: TreeConflict[] = []

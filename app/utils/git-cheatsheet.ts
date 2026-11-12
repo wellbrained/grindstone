@@ -1,7 +1,7 @@
 // Structure of the git cheat sheet (/git/cheat-sheet): groups, command names and example lines (data, not translated),
 // plus the link to the levels that use a command, derived from the level solutions so it never goes stale. Every
 // visible text lives in the i18n locales under `cheat.*`; the key helpers below say where. Supported forms: docs/features/git-model.md.
-import { gitLevels, gitSubcommands } from '../../shared/levels'
+import { gitLevels, levelCommands } from '../../shared/levels'
 import type { Level } from '../../shared/levels'
 
 export interface CheatCommand {
@@ -83,5 +83,5 @@ export const noteKey = (command: string, index: number) => `cheat.commands.${com
 
 /** The scenarios whose solution uses this git subcommand, in level order (practice tasks have no number to link by). */
 export function levelsUsing(name: string, levels: readonly Level[] = gitLevels): Level[] {
-  return levels.filter(level => level.kind === 'scenario' && level.solution.some(step => typeof step === 'string' && gitSubcommands(step).includes(name)))
+  return levels.filter(level => level.kind === 'scenario' && levelCommands(level).includes(name))
 }

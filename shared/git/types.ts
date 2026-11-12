@@ -72,19 +72,19 @@ export interface RebaseOperation {
   todo: RebaseStep[]
   /** The step that stopped with a conflict (or an empty commit message), if any. */
   stopped: RebaseStep | null
-  /** Steps already run (the stopped one included), oldest first, for the status. Optional, so older saved states stay valid. */
-  done?: RebaseStep[]
+  /** Steps already run (the stopped one included), oldest first, for the status. */
+  done: RebaseStep[]
   before: Snapshot
-  /** `git rebase -i`. Optional, so states saved before it existed stay valid. */
-  interactive?: boolean
-  /** The squash/fixup chain the current HEAD commit is built from (interactive rebase). */
-  chain?: ChainMessage[]
+  /** `git rebase -i`. */
+  interactive: boolean
+  /** The squash/fixup chain the current HEAD commit is built from (interactive rebase); empty before the first step. */
+  chain: ChainMessage[]
   /** Git waits for the editor to close this file; until then only `git rebase --abort` runs. */
-  editor?: EditorWait | null
-  /** The reflog's name for this rebase (`rebase`, or `pull --rebase` for a pull). Optional; `rebase` when missing. */
-  action?: string
+  editor: EditorWait | null
+  /** The reflog's name for this rebase (`rebase`, or `pull --rebase` for a pull). */
+  action: string
   /** The upstream as typed (`main`, `origin/main`), for the `rebase (start): checkout <upstream>` entry. */
-  upstream?: string
+  upstream: string
 }
 
 /** `git cherry-pick` that stopped: a conflict, or a pick that came out empty. */
@@ -160,20 +160,14 @@ export interface Repo {
   operation: Operation | null
   /** `git stash` entries, newest first (stash@{0} is the first). */
   stash: StashEntry[]
-  /**
-   * Where HEAD was before the last switch or checkout that moved it (git's `@{-1}`, used by `switch -`).
-   * Optional, so states saved before it existed stay valid.
-   */
-  previous?: Head
-  /**
-   * Reflogs, newest entry first: `HEAD` and one per local branch (by name). Optional, so states saved before it
-   * existed stay valid. See docs/features/git-model.md, "Reflog".
-   */
-  reflog?: Record<string, ReflogEntry[]>
-  /** Where HEAD was before the last reset, merge or rebase (git's ORIG_HEAD). Optional, like `reflog`. */
+  /** Where HEAD was before the last switch or checkout that moved it (git's `@{-1}`, used by `switch -`); null before the first. */
+  previous: Head | null
+  /** Reflogs, newest entry first: `HEAD` and one per local branch (by name). See docs/features/git-model.md, "Reflog". */
+  reflog: Record<string, ReflogEntry[]>
+  /** Where HEAD was before the last reset, merge or rebase (git's ORIG_HEAD); missing until the first. */
   origHead?: string
-  /** Tags by name. Optional, so states saved before tags existed stay valid. */
-  tags?: Record<string, Tag>
+  /** Tags by name. */
+  tags: Record<string, Tag>
 }
 
 export interface Remote {
@@ -182,8 +176,8 @@ export interface Remote {
   commits: Record<string, Commit>
   branches: Record<string, string>
   defaultBranch: string
-  /** Tags on origin, by name (optional, like `Repo.tags`). */
-  tags?: Record<string, Tag>
+  /** Tags on origin, by name. */
+  tags: Record<string, Tag>
 }
 
 export interface GitState {

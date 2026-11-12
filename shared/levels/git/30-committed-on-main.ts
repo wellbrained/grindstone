@@ -5,6 +5,7 @@
 import { currentBranch, isWorkingTreeClean, resolve } from '../../git'
 import type { Scenario } from '../types'
 import { INDEX, bakerySite, text } from './bakery'
+import { once } from './checks'
 
 const BRANCH = 'feature/cake-orders'
 
@@ -27,8 +28,9 @@ const setup = () => bakerySite()
   .commit('Link the cake order form from the home page')
   .build()
 
-const TIP = resolve(setup(), 'main')!
-const ORIGIN = resolve(setup(), 'origin/main')!
+const start = once(setup)
+const TIP = () => resolve(start(), 'main')!
+const ORIGIN = () => resolve(start(), 'origin/main')!
 
 export const committedOnMain: Scenario = {
   id: 'git-30-committed-on-main',
@@ -43,8 +45,8 @@ export const committedOnMain: Scenario = {
   ].join('\n\n'),
   setup,
   goals: [
-    { id: 'branch', label: `${BRANCH} has both of your commits`, check: ({ state }) => resolve(state, BRANCH) === TIP },
-    { id: 'main-back', label: 'main is back on origin/main, without your commits', check: ({ state }) => resolve(state, 'main') === ORIGIN },
+    { id: 'branch', label: `${BRANCH} has both of your commits`, check: ({ state }) => resolve(state, BRANCH) === TIP() },
+    { id: 'main-back', label: 'main is back on origin/main, without your commits', check: ({ state }) => resolve(state, 'main') === ORIGIN() },
     {
       id: 'on-branch',
       label: `You're on ${BRANCH}, with nothing left uncommitted`,

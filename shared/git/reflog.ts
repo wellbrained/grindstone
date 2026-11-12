@@ -35,7 +35,7 @@ export function logBranch(repo: Repo, name: string, message: string): Repo {
 
 /** Deleting a branch deletes its log, like git. */
 export function dropLog(repo: Repo, name: string): Repo {
-  if (!repo.reflog || !own(repo.reflog, name)) return repo
+  if (!own(repo.reflog, name)) return repo
   const { [name]: _dropped, ...rest } = repo.reflog
   return { ...repo, reflog: rest }
 }
@@ -44,7 +44,7 @@ export function dropLog(repo: Repo, name: string): Repo {
 export function renameLog(repo: Repo, from: string, to: string): Repo {
   const entries = own(repo.reflog, from)
   if (!entries) return repo
-  const { [from]: _moved, ...rest } = repo.reflog!
+  const { [from]: _moved, ...rest } = repo.reflog
   return { ...repo, reflog: { ...rest, [to]: entries } }
 }
 

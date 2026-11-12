@@ -2,9 +2,9 @@
 // (docs/features/levels.md). They use the Corner Bakery website like the scenarios.
 import { branchExists, commitsOf, currentBranch, isWorkingTreeClean, remoteBranchHead, resolve, stashEntries, tagOf, teammateMerge, trackingBranchHead } from '../../../git'
 import type { GitState } from '../../../git'
-import type { CommandRecord, PracticeTask } from '../../types'
+import type { CommandRecord } from '../../types'
 import { INDEX, MENU, bakerySite, text } from '../bakery'
-import { gitInvocations } from '../checks'
+import { gitInvocations, practice } from '../checks'
 
 // 8.1 The pull request flow
 
@@ -20,12 +20,9 @@ const mergedSetup = () => bakerySite()
   .update(state => teammateMerge(state, { author: 'Jonas', branch: NEWSLETTER, message: `Merge pull request #9 from ${NEWSLETTER}`, deleteBranch: true })!)
   .build()
 
-export const cleanUpAfterMerge: PracticeTask = {
+export const cleanUpAfterMerge = practice({
   id: 'git-practice-clean-up-after-merge',
-  track: 'git',
-  kind: 'practice',
   practises: 'git-35-pull-request-flow',
-  difficulty: 1,
   minutes: 1,
   title: 'Clean up after a merged pull request',
   task: `Jonas merged your pull request for \`${NEWSLETTER}\` on origin and deleted the branch there. You're on main: bring it up to date, then delete \`${NEWSLETTER}\` and its \`origin/\` copy.`,
@@ -38,7 +35,7 @@ export const cleanUpAfterMerge: PracticeTask = {
   hints: [`\`git pull\`, \`git branch -d ${NEWSLETTER}\`, \`git fetch --prune\``],
   why: 'Once main has the merge, `-d` knows the branch is safe to delete; `--prune` drops the `origin/` copy of a branch that is gone on origin.',
   solution: ['git pull', `git branch -d ${NEWSLETTER}`, 'git fetch --prune']
-}
+})
 
 // 8.2 Hotfix in the middle of a feature
 
@@ -55,13 +52,9 @@ const cateringSetup = () => bakerySite()
   .build()
 const CATERING_MAIN = resolve(cateringSetup(), 'main')!
 
-export const stashForHotfix: PracticeTask = {
+export const stashForHotfix = practice({
   id: 'git-practice-stash-for-hotfix',
-  track: 'git',
-  kind: 'practice',
   practises: 'git-36-hotfix-mid-feature',
-  difficulty: 1,
-  minutes: 0.5,
   title: 'Put your work aside for a hotfix',
   task: `Maya needs a quick fix on the live site, and you're on \`${CATERING}\` with unfinished changes. Stash them, then start a branch \`${HOTFIX}\` from main and switch to it.`,
   setup: cateringSetup,
@@ -80,7 +73,7 @@ export const stashForHotfix: PracticeTask = {
   hints: [`\`git stash\`, then \`git switch -c ${HOTFIX} main\``],
   why: 'The stash keeps your changes safe off any branch, and the second name in `git switch -c` is the start point, so the hotfix starts from main, not from your feature.',
   solution: ['git stash', `git switch -c ${HOTFIX} main`]
-}
+})
 
 // 8.3 Bring a fix to the release branch
 
@@ -107,13 +100,9 @@ function pickedFix(state: GitState): string | null {
   return tip.tree['hours.html'] === HOURS('Opening') && tip.tree['christmas.html'] === undefined ? tip.message : null
 }
 
-export const cherryPickCommit: PracticeTask = {
+export const cherryPickCommit = practice({
   id: 'git-practice-cherry-pick-commit',
-  track: 'git',
-  kind: 'practice',
   practises: 'git-37-fix-the-release-branch',
-  difficulty: 1,
-  minutes: 0.5,
   title: 'Cherry-pick one commit',
   task: `You're on \`${PICK_RELEASE}\`. main's newest commit, "${TYPO_FIX}", belongs in the release too: copy just that commit onto it, without the Christmas page below it.`,
   setup: pickSetup,
@@ -121,15 +110,11 @@ export const cherryPickCommit: PracticeTask = {
   hints: ['`git cherry-pick main`'],
   why: '`git cherry-pick` takes any revision: `main` is main\'s newest commit, and only its own change is copied, as a new commit on your branch.',
   solution: ['git cherry-pick main']
-}
+})
 
-export const cherryPickRecordOrigin: PracticeTask = {
+export const cherryPickRecordOrigin = practice({
   id: 'git-practice-cherry-pick-x',
-  track: 'git',
-  kind: 'practice',
   practises: 'git-37-fix-the-release-branch',
-  difficulty: 1,
-  minutes: 0.5,
   title: 'Note where a pick came from',
   task: `You're on \`${PICK_RELEASE}\`. Copy main's newest commit, "${TYPO_FIX}", onto it so that its message also says which commit it was copied from.`,
   setup: pickSetup,
@@ -141,7 +126,7 @@ export const cherryPickRecordOrigin: PracticeTask = {
   hints: ['`git cherry-pick -x main`'],
   why: '`-x` appends the full id of the original commit to the message, so anyone reading the release branch can find where the fix came from.',
   solution: ['git cherry-pick -x main']
-}
+})
 
 // 8.4 Tag a release
 
@@ -155,13 +140,9 @@ const tagSetup = () => bakerySite()
   .build()
 const TAG_HEAD = resolve(tagSetup(), 'HEAD')!
 
-export const annotatedTag: PracticeTask = {
+export const annotatedTag = practice({
   id: 'git-practice-annotated-tag',
-  track: 'git',
-  kind: 'practice',
   practises: 'git-38-tag-a-release',
-  difficulty: 1,
-  minutes: 0.5,
   title: 'Tag the current commit',
   task: 'Version 1.5.0 is the commit you\'re on. Put an annotated tag `v1.5.0` on it, with the message "Version 1.5.0".',
   setup: tagSetup,
@@ -173,7 +154,7 @@ export const annotatedTag: PracticeTask = {
   hints: ['`git tag -a v1.5.0 -m "Version 1.5.0"`'],
   why: 'Without a commit, `git tag` tags HEAD; `-a` (or just `-m`) makes it annotated, with a message, the tagger and the date.',
   solution: ['git tag -a v1.5.0 -m "Version 1.5.0"']
-}
+})
 
 /** A `git tag` that lists: no name to create, or `-l` / `--list` / `-n`. */
 const listsTags = (history: CommandRecord[]) => gitInvocations(history).some(({ args, exitCode }) => exitCode === 0 && args[0] === 'tag'
@@ -187,13 +168,9 @@ const listSetup = () => bakerySite()
   .origin()
   .build()
 
-export const listTags: PracticeTask = {
+export const listTags = practice({
   id: 'git-practice-list-tags',
-  track: 'git',
-  kind: 'practice',
   practises: 'git-38-tag-a-release',
-  difficulty: 1,
-  minutes: 0.5,
   title: 'List your tags',
   task: 'Which versions has the team tagged so far? List the tags.',
   setup: listSetup,
@@ -201,7 +178,7 @@ export const listTags: PracticeTask = {
   hints: ['`git tag` (`git tag -n` adds each tag\'s message)'],
   why: '`git tag` without a name lists the tags; `-l "v1.*"` filters them and `-n` shows the first line of each message.',
   solution: ['git tag']
-}
+})
 
 // 8.5 A release branch, GitFlow style
 
@@ -214,13 +191,9 @@ const flowSetup = () => bakerySite()
   .build()
 const FLOW_DEVELOP = resolve(flowSetup(), 'develop')!
 
-export const releaseFromDevelop: PracticeTask = {
+export const releaseFromDevelop = practice({
   id: 'git-practice-release-from-develop',
-  track: 'git',
-  kind: 'practice',
   practises: 'git-39-gitflow-release',
-  difficulty: 1,
-  minutes: 0.5,
   title: 'Start a release branch from develop',
   task: 'You\'re on main. Start a branch `release/1.6` from develop, the GitFlow way, and switch to it.',
   setup: flowSetup,
@@ -232,4 +205,4 @@ export const releaseFromDevelop: PracticeTask = {
   hints: ['`git switch -c release/1.6 develop`'],
   why: 'The second name is the start point: the branch starts where develop is, whichever branch you\'re on.',
   solution: ['git switch -c release/1.6 develop']
-}
+})

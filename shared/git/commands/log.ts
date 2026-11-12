@@ -136,7 +136,7 @@ export const log: Command = (state, argv) => {
     }
   }
   if (flags.has('--all')) {
-    include.push(...Object.values(repo.branches), ...Object.values(repo.remoteBranches), ...Object.values(repo.tags ?? {}).map(tag => tag.commit))
+    include.push(...Object.values(repo.branches), ...Object.values(repo.remoteBranches), ...Object.values(repo.tags).map(tag => tag.commit))
     const head = headId(repo)
     if (head) include.push(head)
   }

@@ -1,10 +1,10 @@
 // Undo & recovery 6.4: a pushed commit that Jonas already pulled; undo it with `git revert` and push.
 // The approved sample text of the chapter preview (undo-preview.html); the hash in the last hint is the real one.
-import { commitsOf, remoteBranchHead, repo, shortId } from '../../git'
-import type { GitState, Tree } from '../../git'
+import { branchExists, commitsOf, remoteBranchHead, repo, resolve, shortId } from '../../git'
+import type { Tree } from '../../git'
 import type { Scenario } from '../types'
-
-const text = (...lines: string[]) => `${lines.join('\n')}\n`
+import { text } from './bakery'
+import { treeOf } from './checks'
 
 const prices = (sourdough: string, croissant: string, cinnamonRoll: string) => text(
   '// Prices shown on the menu page. Keep two decimals:',
@@ -38,15 +38,12 @@ const setup = () => repo()
   .origin()
   .build()
 
-const BAD = commitsOf(setup(), 'main').find(commit => commit.message === BAD_MESSAGE)!.id
-const TIP = commitsOf(setup(), 'main')[0]!.id
+const START = setup()
+const BAD = commitsOf(START, 'main').find(commit => commit.message === BAD_MESSAGE)!.id
+const TIP = commitsOf(START, 'main')[0]!.id
 
 /** The prices are back to two decimals and Maya's Sunday hours are still there. */
-const undone = (tree: Tree | undefined) => tree?.['prices.js'] === PRICES && tree['hours.html'] === HOURS_SUNDAY
-const tipTree = (state: GitState) => {
-  const tip = state.repo?.branches.main
-  return tip ? state.repo!.commits[tip]!.tree : undefined
-}
+const undone = (tree: Tree | null) => tree?.['prices.js'] === PRICES && tree['hours.html'] === HOURS_SUNDAY
 
 export const undoPushedCommit: Scenario = {
   id: 'git-14-undo-pushed-commit',
@@ -64,7 +61,7 @@ export const undoPushedCommit: Scenario = {
     {
       id: 'reverted',
       label: `A new commit on main undoes "${BAD_MESSAGE}"`,
-      check: ({ state }) => state.repo?.branches.main !== TIP && undone(tipTree(state))
+      check: ({ state }) => branchExists(state, 'main') && resolve(state, 'main') !== TIP && undone(treeOf(state, 'main'))
     },
     { id: 'history', label: 'The original commit is still in the history', check: ({ state }) => commitsOf(state, 'main').some(commit => commit.id === BAD) },
     {

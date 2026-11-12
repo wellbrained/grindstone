@@ -7,6 +7,12 @@ import type { OutputLine, Repo, Tree } from './types'
 /** Every path of the given trees, sorted. */
 export const union = (...trees: Tree[]) => [...new Set(trees.flatMap(tree => Object.keys(tree)))].sort()
 
+/** Whether any path has an unresolved conflict. */
+export const hasUnmerged = (repo: Repo) => Object.keys(repo.unmerged).length > 0
+
+/** The paths with an unresolved conflict, sorted. */
+export const unmergedOf = (repo: Repo) => Object.keys(repo.unmerged).sort()
+
 export function changedPaths(a: Tree, b: Tree): string[] {
   return union(a, b).filter(path => a[path] !== b[path])
 }

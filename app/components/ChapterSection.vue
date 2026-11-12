@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import type { RowLanes, ChapterView } from '~/utils/track-view'
+import type { ChapterView } from '~/utils/track-view'
+import { drawSteps } from '~/utils/track-view'
 
 // One chapter on the track page: heading with its commit dot and count, the chapter ⋯ menu, a one-line description, the
 // rows (scenarios on the main line, practice tasks on side branches). A chapter without levels shows its description
@@ -16,41 +17,10 @@ const { chapterItems } = useProgressActions()
 
 const headingId = computed(() => `${props.view.chapter.id}-heading`)
 
-type Draw = Partial<Record<keyof RowLanes, number>>
-
-// The lane of a just solved entry draws top-down in four steps: into it from above (0), into its dot (1), out of its dot
-// (2), on to the next dot (3). A scenario's line runs on the main lane past its practice tasks; a practice task's on its
-// side branch.
-const draws = computed((): Map<number, Draw> => {
+// a just solved entry's lane draws in once (drawSteps)
+const draws = computed(() => {
   const rows = props.view.rows
-  const at = rows.findIndex(row => row.place.level.id === props.justSolved)
-  const steps = new Map<number, Draw>()
-  if (at === -1) return steps
-  const add = (index: number, draw: Draw) => {
-    if (index >= 0 && index < rows.length) steps.set(index, { ...steps.get(index), ...draw })
-  }
-  const isScenario = (index: number) => rows[index]?.place.level.kind === 'scenario'
-
-  if (!isScenario(at)) {
-    add(at - 1, isScenario(at - 1) ? { fork: 0 } : { sideOut: 0 })
-    add(at, { sideIn: 1, sideOut: 2 })
-    add(at + 1, { sideIn: 3 })
-    return steps
-  }
-  let previous = at - 1
-  while (previous >= 0 && !isScenario(previous)) previous--
-  // the first scenario has nothing above it: start with its own lower half
-  const shift = previous === -1 ? 2 : 0
-  if (previous !== -1) {
-    add(previous, { out: 0 })
-    for (let i = previous + 1; i < at; i++) add(i, { through: 0 })
-    add(at, { in: 1 })
-  }
-  add(at, { out: 2 - shift, fork: 2 - shift })
-  let i = at + 1
-  for (; i < rows.length && !isScenario(i); i++) add(i, i === at + 1 ? { through: 3 - shift, sideIn: 3 - shift } : { through: 3 - shift })
-  add(i, { in: 3 - shift })
-  return steps
+  return drawSteps(rows, rows.findIndex(row => row.place.level.id === props.justSolved))
 })
 </script>
 

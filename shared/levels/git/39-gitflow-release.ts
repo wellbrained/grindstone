@@ -2,11 +2,11 @@
 // the release branch into main would fast-forward: the "merge commit" goal needs `--no-ff`. The version commit is found
 // by its content (version.txt says 1.5.0, on top of develop) and checked in HEAD's reflog to be made on release/1.5, so
 // deleting the release branch at the end (git flow's "finish") is fine. Nothing to push: Ben pushes after a last look.
-import { isAncestor, resolve, tagOf } from '../../git'
+import { commitAt, isAncestor, resolve, tagOf } from '../../git'
 import type { Commit, GitState } from '../../git'
 import type { Scenario } from '../types'
 import { bakerySite, text } from './bakery'
-import { committedOn } from './checks'
+import { committedOn, once } from './checks'
 
 const RELEASE = 'release/1.5'
 const TAG = 'v1.5.0'
@@ -26,20 +26,21 @@ const setup = () => bakerySite()
   .switch('develop')
   .build()
 
-const MAIN = resolve(setup(), 'main')!
-const DEVELOP = resolve(setup(), 'develop')!
+const start = once(setup)
+const MAIN = () => resolve(start(), 'main')!
+const DEVELOP = () => resolve(start(), 'develop')!
 
 /** The release's version commit: version.txt says 1.5.0, it builds on develop, and it was made on release/1.5. */
 function versionCommit(state: GitState): Commit | undefined {
   return Object.values(state.repo?.commits ?? {}).find(commit => commit.tree['version.txt'] === '1.5.0\n'
-    && isAncestor(state, DEVELOP, commit.id) && committedOn(state, commit.id, RELEASE))
+    && isAncestor(state, DEVELOP(), commit.id) && committedOn(state, commit.id, RELEASE))
 }
 
 /** main's newest commit is a merge commit of the old main and the release. */
 function mergedIntoMain(state: GitState): boolean {
   const version = versionCommit(state)
-  const tip = state.repo?.commits[resolve(state, 'main') ?? '']
-  return !!version && !!tip && tip.parents.length === 2 && tip.parents[0] === MAIN && isAncestor(state, version.id, tip.parents[1]!)
+  const tip = commitAt(state, 'main')
+  return !!version && !!tip && tip.parents.length === 2 && tip.parents[0] === MAIN() && isAncestor(state, version.id, tip.parents[1]!)
 }
 
 export const gitflowRelease: Scenario = {
@@ -62,8 +63,8 @@ export const gitflowRelease: Scenario = {
       label: `${TAG} is an annotated tag on main's merge commit`,
       check: ({ state }) => {
         const tag = tagOf(state, TAG)
-        const commit = tag ? state.repo!.commits[tag.commit] : undefined
-        return !!tag?.annotation && tag.commit === resolve(state, 'main') && commit?.parents.length === 2 && commit.parents[0] === MAIN
+        const main = commitAt(state, 'main')
+        return !!tag?.annotation && !!main && tag.commit === main.id && main.parents.length === 2 && main.parents[0] === MAIN()
       }
     },
     {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { defineTrack, emptyProgress, gitLevels, trackById } from '../../../shared/levels'
-import { percent, storyLead, timeLabel, trackCardAction, trackView } from '../../../app/utils/track-view'
+import { drawSteps, percent, storyLead, timeLabel, trackCardAction, trackView } from '../../../app/utils/track-view'
 import { bigTrack, practiceTrack, solvedProgress } from '../levels/fixtures'
 
 const git = trackById('git')!
@@ -108,6 +108,32 @@ describe('chapter lanes', () => {
       ['s3', { in: 'solid', out: null, through: null, fork: 'dim', sideIn: null, sideOut: null }],
       ['p3a', { in: null, out: null, through: null, fork: null, sideIn: 'dim', sideOut: null }]
     ])
+  })
+})
+
+describe('lane draw steps', () => {
+  // a: s1 (p1a, p1b), s2, s3 (p3a)
+  const rows = trackView(practiceTrack(), emptyProgress()).chapters[0]!.rows
+  const steps = (id: string) => Object.fromEntries([...drawSteps(rows, rows.findIndex(row => row.place.level.id === id))]
+    .map(([index, draw]) => [rows[index]!.place.level.id, draw]))
+
+  it('draws nothing when no entry was just solved', () => {
+    expect(drawSteps(rows, -1).size).toBe(0)
+  })
+
+  it('starts the first scenario at its own dot and runs past its practice tasks to the next scenario', () => {
+    expect(steps('s1')).toEqual({ s1: { out: 0, fork: 0 }, p1a: { through: 1, sideIn: 1 }, p1b: { through: 1 }, s2: { in: 1 } })
+  })
+
+  it('draws a later scenario from the scenario above, past the practice tasks in between', () => {
+    expect(steps('s2')).toEqual({ s1: { out: 0 }, p1a: { through: 0 }, p1b: { through: 0 }, s2: { in: 1, out: 2, fork: 2 }, s3: { in: 3 } })
+    expect(steps('s3')).toEqual({ s2: { out: 0 }, s3: { in: 1, out: 2, fork: 2 }, p3a: { through: 3, sideIn: 3 } })
+  })
+
+  it('draws a practice task on its side branch: from the fork or the task above, on to the row below', () => {
+    expect(steps('p1a')).toEqual({ s1: { fork: 0 }, p1a: { sideIn: 1, sideOut: 2 }, p1b: { sideIn: 3 } })
+    expect(steps('p1b')).toEqual({ p1a: { sideOut: 0 }, p1b: { sideIn: 1, sideOut: 2 }, s2: { sideIn: 3 } })
+    expect(steps('p3a')).toEqual({ s3: { fork: 0 }, p3a: { sideIn: 1, sideOut: 2 } })
   })
 })
 

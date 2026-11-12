@@ -3,8 +3,8 @@
 // that it throws away uncommitted work for good (owner decision: --hard stays inside this scenario, no separate one).
 import { commitsOf, repo, resolve } from '../../git'
 import type { Scenario } from '../types'
-
-const text = (...lines: string[]) => `${lines.join('\n')}\n`
+import { text } from './bakery'
+import { once } from './checks'
 
 const CART_HTML = [
   '<!-- The cart page: what you ordered and the button to check out. -->',
@@ -63,7 +63,8 @@ const setup = () => repo()
   .commit(BLINK_MESSAGE)
   .build()
 
-const BASE = resolve(setup(), 'origin/main')!
+const start = once(setup)
+const BASE = () => resolve(start(), 'origin/main')!
 
 export const undoLocalCommit: Scenario = {
   id: 'git-13-undo-local-commit',
@@ -84,7 +85,7 @@ export const undoLocalCommit: Scenario = {
       label: 'The blinking box is gone: not on main, not in style.css',
       check: ({ state }) => state.workdir['style.css'] === STYLE && !commitsOf(state, 'main').some(commit => commit.message === BLINK_MESSAGE)
     },
-    { id: 'back', label: `main is back on "${BASE_MESSAGE}"`, check: ({ state }) => resolve(state, 'main') === BASE },
+    { id: 'back', label: `main is back on "${BASE_MESSAGE}"`, check: ({ state }) => resolve(state, 'main') === BASE() },
     {
       id: 'kept',
       label: 'Your gift wrap changes are still in cart.html and src/cart.js',

@@ -5,7 +5,7 @@ import { commitsOf, hasMergeCommits, isAncestor, remoteBranchHead, resolve } fro
 import type { GitState } from '../../git'
 import type { Scenario } from '../types'
 import { MENU, bakerySite, text } from './bakery'
-import { gitInvocations, isBareForcePush, isLeasePush } from './checks'
+import { gitInvocations, isBareForcePush, isLeasePush, once, sameList } from './checks'
 
 const BRANCH = 'feature/faq'
 const YOUR_COMMITS = ['Answer the gluten-free question', 'Add a FAQ page']
@@ -35,9 +35,10 @@ const setup = () => bakerySite()
   .switch(BRANCH)
   .build()
 
-const MAIN = resolve(setup(), 'main')!
+const start = once(setup)
+const MAIN = () => resolve(start(), 'main')!
 
-const onTopOfMain = (state: GitState) => isAncestor(state, MAIN, BRANCH)
+const onTopOfMain = (state: GitState) => isAncestor(state, MAIN(), BRANCH)
 
 export const pushRebasedBranch: Scenario = {
   id: 'git-24-push-a-rebased-branch',
@@ -56,7 +57,7 @@ export const pushRebasedBranch: Scenario = {
       id: 'on-top',
       label: `${BRANCH} has your two commits on top of main, no merge commits`,
       check: ({ state }) => onTopOfMain(state) && !hasMergeCommits(state, `main..${BRANCH}`)
-        && JSON.stringify(commitsOf(state, `main..${BRANCH}`).map(commit => commit.message)) === JSON.stringify(YOUR_COMMITS)
+        && sameList(commitsOf(state, `main..${BRANCH}`).map(commit => commit.message), YOUR_COMMITS)
     },
     // true at the start (origin has the old branch), so it only counts once your branch is on top of main
     {

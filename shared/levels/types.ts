@@ -7,6 +7,9 @@ import type { GitState, OutputLine } from '../git'
  */
 export type SolutionStep = string | { save: string }
 
+/** A step typed in the terminal (not an editor save). */
+export const isTerminalStep = (step: SolutionStep): step is string => typeof step === 'string'
+
 /** Every track id, live and coming (shared/levels/tracks.ts). */
 export type TrackId = 'git' | 'ai' | 'web' | 'debugging' | 'frameworks'
 

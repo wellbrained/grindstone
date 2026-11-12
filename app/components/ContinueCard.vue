@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { continueTarget, hasProgress, levelIntro, trackLevels } from '#shared/levels'
+import { continueTarget, hasProgress, levelIntro, placeName, trackLevels } from '#shared/levels'
 import type { Track } from '#shared/levels'
 import { relativeTime } from '~/utils/relative-time'
 import { storyLead } from '~/utils/track-view'
@@ -29,7 +29,7 @@ const kind = computed(() => {
 const where = computed(() => {
   const place = target.value?.place
   // a practice task is placed by its scenario: "Basics › 1.1 First commit"
-  const chapter = place?.scenario ? `${place.chapter.title} › ${place.scenario.number} ${place.scenario.level.title}` : place?.chapter.title ?? ''
+  const chapter = place?.scenario ? `${place.chapter.title} › ${placeName(place.scenario)}` : place?.chapter.title ?? ''
   return props.context === 'home' ? `${props.track.title} › ${chapter}` : chapter
 })
 const played = computed(() => target.value?.at ? relativeTime(target.value.at, Date.now()) : null)

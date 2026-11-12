@@ -6,7 +6,7 @@ import { dropLog, logBranch, logHead, renameLog } from '../reflog'
 import { isValidBranchName, resolveRev, trackingRef } from '../refs'
 import { headId, own, withEntry, without } from '../state'
 import type { Command, CommandResult, GitState, OutputLine, Repo } from '../types'
-import { fatal, notARepo, withRepo } from './common'
+import { fatal, moveRef, notARepo, withRepo } from './common'
 
 export const branchExistsError = (state: GitState, name: string) => fatal(state, `fatal: a branch named '${name}' already exists`)
 export const invalidNameError = (state: GitState, name: string) => fatal(state, `fatal: '${name}' is not a valid branch name`)
@@ -158,11 +158,8 @@ export const branch: Command = (state, argv) => {
   const at = resolveRev(repo, start)
   if (!at) return fatal(state, `fatal: not a valid object name: '${start === 'HEAD' && repo.head.type === 'branch' ? repo.head.name : start}'`)
   const upstream = trackedBy(repo, start)
-  const next: Repo = logBranch({
-    ...repo,
-    branches: { ...repo.branches, [name]: at },
-    upstream: upstream ? { ...repo.upstream, [name]: upstream } : repo.upstream
+  const tracked: Repo = upstream ? { ...repo, upstream: { ...repo.upstream, [name]: upstream } } : repo
   // without a start point git names the branch HEAD is on
-  }, name, `branch: Created from ${given === undefined && repo.head.type === 'branch' ? repo.head.name : start}`)
+  const next = moveRef(tracked, { branch: name }, at, { log: `branch: Created from ${given === undefined && repo.head.type === 'branch' ? repo.head.name : start}` })
   return done(withRepo(state, next), upstream ? [trackingLine(name, upstream)] : [])
 }

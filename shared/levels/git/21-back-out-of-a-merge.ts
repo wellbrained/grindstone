@@ -5,7 +5,7 @@ import { currentBranch, isWorkingTreeClean, operationInProgress, resolve } from 
 import type { GitState } from '../../git'
 import type { Scenario } from '../types'
 import { MENU, bakerySite, text } from './bakery'
-import { treeHasConflictMarkers } from './checks'
+import { once, treeHasConflictMarkers } from './checks'
 
 const BRANCH = 'feature/allergens'
 const THEIRS = 'feature/menu-filter'
@@ -57,7 +57,8 @@ const setup = () => bakerySite()
   .merge(THEIRS, { conflicts: true })
   .build()
 
-const TIP = resolve(setup(), BRANCH)!
+const start = once(setup)
+const TIP = () => resolve(start(), BRANCH)!
 
 const noMerge = (state: GitState) => !!state.repo && operationInProgress(state) === null
 
@@ -79,7 +80,7 @@ export const backOutOfAMerge: Scenario = {
     {
       id: 'branch',
       label: `${BRANCH} is where it was before the merge`,
-      check: ({ state }) => noMerge(state) && currentBranch(state) === BRANCH && resolve(state, BRANCH) === TIP
+      check: ({ state }) => noMerge(state) && currentBranch(state) === BRANCH && resolve(state, BRANCH) === TIP()
     },
     {
       id: 'clean',

@@ -104,28 +104,75 @@ const between = (a: Row | undefined, b: Row | undefined): LaneState | null => {
   return a.state === 'solved' && b.state === 'solved' ? 'solid' : 'dim'
 }
 
-function withLanes(rows: Row[]): LevelRowView[] {
-  const isScenario = (row: Row | undefined) => row?.place.level.kind === 'scenario'
-  // the scenario a row belongs to (itself for a scenario) and the next scenario after it
-  const scenarioAt = (i: number) => {
-    let j = i
-    while (j >= 0 && !isScenario(rows[j])) j--
-    return rows[j]
-  }
-  const nextScenarioAfter = (i: number) => rows.slice(i + 1).find(isScenario)
+const isScenario = (row: Pick<Row, 'place'> | undefined) => row?.place.level.kind === 'scenario'
 
+/** Index of the last scenario at or before row i; -1 when there is none. */
+function scenarioAtOrBefore(rows: readonly Pick<Row, 'place'>[], i: number): number {
+  while (i >= 0 && !isScenario(rows[i])) i--
+  return i
+}
+
+/** Index of the first scenario after row i; rows.length when there is none. */
+function scenarioAfter(rows: readonly Pick<Row, 'place'>[], i: number): number {
+  let j = i + 1
+  while (j < rows.length && !isScenario(rows[j])) j++
+  return j
+}
+
+function withLanes(rows: Row[]): LevelRowView[] {
+  // the scenario a row belongs to (itself for a scenario), the one before that, and the next scenario after the row
+  let own: Row | undefined
+  let previous: Row | undefined
+  let next = -1
   return rows.map((row, i): LevelRowView => {
-    const own = scenarioAt(i)
-    const main = between(own, nextScenarioAfter(i))
     if (isScenario(row)) {
-      const previous = [...rows.slice(0, i)].reverse().find(isScenario)
-      const fork = rows[i + 1] && !isScenario(rows[i + 1]) ? between(row, rows[i + 1]) : null
-      return { ...row, lane: { in: between(previous, row), out: main, through: null, fork, sideIn: null, sideOut: null } }
+      previous = own
+      own = row
     }
-    const above = rows[i - 1]
+    if (next <= i) next = scenarioAfter(rows, i)
+    const main = between(own, rows[next])
     const below = rows[i + 1] && !isScenario(rows[i + 1]) ? rows[i + 1] : undefined
-    return { ...row, lane: { in: null, out: null, through: main, fork: null, sideIn: between(above, row), sideOut: between(row, below) } }
+    if (isScenario(row)) {
+      return { ...row, lane: { in: between(previous, row), out: main, through: null, fork: below ? between(row, below) : null, sideIn: null, sideOut: null } }
+    }
+    return { ...row, lane: { in: null, out: null, through: main, fork: null, sideIn: between(rows[i - 1], row), sideOut: between(row, below) } }
   })
+}
+
+/** When each lane part of a row draws in (a step 0...3), for the lane of a just solved entry. */
+export type LaneDraw = Partial<Record<keyof RowLanes, number>>
+
+/**
+ * The lane of the entry at row `at` (just solved) draws top-down in four steps: into it from above (0), into its dot
+ * (1), out of its dot (2), on to the next dot (3). A scenario's line runs on the main lane past its practice tasks; a
+ * practice task's on its side branch. Keyed by row index; empty when `at` is -1.
+ */
+export function drawSteps(rows: readonly Pick<Row, 'place'>[], at: number): Map<number, LaneDraw> {
+  const steps = new Map<number, LaneDraw>()
+  if (at < 0 || at >= rows.length) return steps
+  const add = (index: number, draw: LaneDraw) => {
+    if (index >= 0 && index < rows.length) steps.set(index, { ...steps.get(index), ...draw })
+  }
+
+  if (!isScenario(rows[at])) {
+    add(at - 1, isScenario(rows[at - 1]) ? { fork: 0 } : { sideOut: 0 })
+    add(at, { sideIn: 1, sideOut: 2 })
+    add(at + 1, { sideIn: 3 })
+    return steps
+  }
+  const previous = scenarioAtOrBefore(rows, at - 1)
+  // the first scenario has nothing above it: start with its own lower half
+  const shift = previous === -1 ? 2 : 0
+  if (previous !== -1) {
+    add(previous, { out: 0 })
+    for (let i = previous + 1; i < at; i++) add(i, { through: 0 })
+    add(at, { in: 1 })
+  }
+  add(at, { out: 2 - shift, fork: 2 - shift })
+  const next = scenarioAfter(rows, at)
+  for (let i = at + 1; i < next; i++) add(i, i === at + 1 ? { through: 3 - shift, sideIn: 3 - shift } : { through: 3 - shift })
+  add(next, { in: 3 - shift })
+  return steps
 }
 
 /** What the primary button of a track's home card does. */
@@ -158,4 +205,10 @@ export function storyLead(story: string): string {
 /** The estimated time as a short label: '~30 s' below a minute, else '~5 min'. */
 export function timeLabel(minutes: number): { value: number, unit: 's' | 'min' } {
   return minutes < 1 ? { value: Math.round(minutes * 60), unit: 's' } : { value: Math.round(minutes), unit: 'min' }
+}
+
+/** The estimated time as text through i18n: short for the eye (track.time), long for screen readers (track.timeLong). */
+export function timeText(t: (key: string, named: Record<string, unknown>) => string, minutes: number, form: 'short' | 'long' = 'short'): string {
+  const { value, unit } = timeLabel(minutes)
+  return t(`track.${form === 'short' ? 'time' : 'timeLong'}.${unit}`, { n: value })
 }

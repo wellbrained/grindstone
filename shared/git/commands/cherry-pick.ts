@@ -6,15 +6,14 @@ import { subject } from '../objects/commit'
 import { topoOrder } from '../objects/graph'
 import { shortId } from '../objects/hash'
 import { done, err, fail, hint } from '../output'
-import { mergeTrees } from '../merge3'
 import { logHead } from '../reflog'
 import { resolveRev } from '../refs'
-import { headId, headTree, withEntry } from '../state'
-import { treesEqual } from '../worktree'
+import { headId, headTree } from '../state'
+import { hasUnmerged, treesEqual } from '../worktree'
 import type { CherryPickOperation, Command, CommandResult, Commit, GitState, OutputLine, Repo, Snapshot } from '../types'
 import { commitIndex, unresolvedConflict } from './commit'
-import { fatal, moveHead, notARepo, requireCommit, restoreTracked, withRepo } from './common'
-import { applyMerge, conflictReport } from './merge'
+import { ADVICE_OFF, SEQUENCER_OPTIONS, blockedBy, fatal, moveRef, notARepo, refuseDirtyIndex, requireCommit, resetWorkdirToHead, restoreTracked, withRepo } from './common'
+import { conflictReport, mergeCommit } from './merge'
 import { statusLines } from './status'
 
 const FAILED = 'fatal: cherry-pick failed'
@@ -26,32 +25,11 @@ const noPick = (state: GitState) => fail(state, [err('error: no cherry-pick or r
 /** git's wording for `--skip` without a cherry-pick (it only looks for a pick, not a revert). */
 const noPickToSkip = (state: GitState) => fail(state, [err('error: no cherry-pick in progress'), err(FAILED)], 128)
 
-const ADVICE_OFF = 'hint: Disable this message with "git config set advice.mergeConflict false"'
-
 const USAGE = [
   'usage: git cherry-pick [--edit] [-n] [-m <parent-number>] [-s] [-x] [--ff]',
   '                       [-S[<keyid>]] <commit>...',
   '   or: git cherry-pick (--continue | --skip | --abort | --quit)',
-  '',
-  '    --quit                end revert or cherry-pick sequence',
-  '    --continue            resume revert or cherry-pick sequence',
-  '    --abort               cancel revert or cherry-pick sequence',
-  '    --skip                skip current commit and continue',
-  '    --[no-]cleanup <mode> how to strip spaces and #comments from message',
-  '    -n, --no-commit       don\'t automatically commit',
-  '    --commit              opposite of --no-commit',
-  '    -e, --[no-]edit       edit the commit message',
-  '    -s, --[no-]signoff    add a Signed-off-by trailer',
-  '    -m, --[no-]mainline <parent-number>',
-  '                          select mainline parent',
-  '    --[no-]rerere-autoupdate',
-  '                          update the index with reused conflict resolution if possible',
-  '    --[no-]strategy <strategy>',
-  '                          merge strategy',
-  '    -X, --[no-]strategy-option <option>',
-  '                          option for merge strategy',
-  '    -S, --[no-]gpg-sign[=<key-id>]',
-  '                          GPG sign commit',
+  ...SEQUENCER_OPTIONS,
   '    -x                    append commit name',
   '    --[no-]ff             allow fast-forward',
   '    --[no-]allow-empty    preserve initially empty commits',
@@ -68,12 +46,17 @@ const USAGE = [
 const pickMessage = (commit: Commit, recordOrigin: boolean) =>
   recordOrigin ? `${commit.message}\n\n(cherry picked from commit ${commit.id})` : commit.message
 
-interface Run {
+/** How a cherry-pick command runs its picks (the stopped operation keeps all of it but `noCommit`). */
+interface PickRun {
   recordOrigin: boolean
   noCommit: boolean
   head: string
   before: Snapshot
 }
+
+/** The run a stopped cherry-pick goes on with (`--continue`, `--skip`): never `-n`, that one does not stop as an operation. */
+const runOf = (operation: CherryPickOperation): PickRun =>
+  ({ recordOrigin: operation.recordOrigin, noCommit: false, head: operation.head, before: operation.before })
 
 /** git's text for a pick that changed nothing: the status, then how to go on. */
 function emptyPick(repo: Repo, workdir: GitState['workdir']): OutputLine[] {
@@ -88,7 +71,7 @@ function emptyPick(repo: Repo, workdir: GitState['workdir']): OutputLine[] {
   ]
 }
 
-const stopAt = (repo: Repo, id: string, todo: string[], run: Run): Repo => ({
+const stopAt = (repo: Repo, id: string, todo: string[], run: PickRun): Repo => ({
   ...repo,
   operation: {
     type: 'cherry-pick',
@@ -102,18 +85,14 @@ const stopAt = (repo: Repo, id: string, todo: string[], run: Run): Repo => ({
 })
 
 /** Picks `todo` one by one onto HEAD; stops at the first conflict or empty pick. */
-function replay(start: GitState, todo: string[], run: Run, output: OutputLine[]): CommandResult {
+function replay(start: GitState, todo: string[], run: PickRun, output: OutputLine[]): CommandResult {
   let state = withRepo(start, { ...start.repo!, operation: null })
   for (let i = 0; i < todo.length; i++) {
     const repo = state.repo!
     const commit = repo.commits[todo[i]!]!
     const rest = todo.slice(i + 1)
     // with -n the picks pile up in the index; otherwise every pick starts from the commit before
-    const ours = run.noCommit ? repo.index : headTree(repo)
-    const parentTree = commit.parents[0] ? repo.commits[commit.parents[0]]!.tree : {}
-    const label = `${shortId(commit.id)} (${subject(commit)})`
-    const merged = mergeTrees(parentTree, ours, commit.tree, { ours: 'HEAD', theirs: label })
-    const applied = applyMerge(repo, state.workdir, ours, merged)
+    const { merged, applied } = mergeCommit(repo, state.workdir, commit, run.noCommit ? repo.index : headTree(repo))
     if (!applied.ok) return fail(state, [...output, ...applied.output, err(FAILED)], 128)
 
     if (merged.conflicts.length) {
@@ -176,28 +155,22 @@ function commitsToPick(repo: Repo, revs: string[]): { ids: string[] } | { bad: s
 }
 
 function abort(state: GitState, repo: Repo, operation: CherryPickOperation): CommandResult {
-  const restored: Repo = { ...moveHead(repo, operation.head), index: operation.before.index, unmerged: {}, operation: null }
   // git goes back with `reset --merge <id>`, which writes a reset entry (also when HEAD stays where it is)
-  const next = logHead(restored, `reset: moving to ${operation.head}`)
+  const next = moveRef({ ...repo, index: operation.before.index, unmerged: {}, operation: null }, 'HEAD', operation.head, { log: `reset: moving to ${operation.head}` })
   return done({ ...withRepo(state, next), workdir: restoreTracked(repo, state.workdir, operation.before) })
 }
 
 function skip(state: GitState, repo: Repo, operation: CherryPickOperation): CommandResult {
   // like rebase --skip: every tracked file back to HEAD, then on with the rest
-  const tree = headTree(repo)
-  let workdir = state.workdir
-  for (const path of new Set([...Object.keys(repo.index), ...Object.keys(repo.unmerged), ...Object.keys(tree)])) {
-    workdir = withEntry(workdir, path, tree[path])
-  }
+  const workdir = resetWorkdirToHead(repo, state.workdir)
   // git resets to HEAD first, which shows in the reflog even though HEAD does not move
-  const reset = logHead({ ...repo, index: tree, unmerged: {}, operation: null }, `reset: moving to ${headId(repo)}`)
-  const next = { ...withRepo(state, reset), workdir }
-  return replay(next, operation.todo, { recordOrigin: operation.recordOrigin, noCommit: false, head: operation.head, before: operation.before }, [])
+  const reset = logHead({ ...repo, index: headTree(repo), unmerged: {} }, `reset: moving to ${headId(repo)}`)
+  return replay({ ...withRepo(state, reset), workdir }, operation.todo, runOf(operation), [])
 }
 
 function resume(state: GitState, repo: Repo, operation: CherryPickOperation): CommandResult {
-  if (Object.keys(repo.unmerged).length) return unresolvedConflict(state, 'Committing')
-  const run: Run = { recordOrigin: operation.recordOrigin, noCommit: false, head: operation.head, before: operation.before }
+  if (hasUnmerged(repo)) return unresolvedConflict(state, 'Committing')
+  const run = runOf(operation)
   if (!operation.current) return replay(state, operation.todo, run, [])
   if (treesEqual(repo.index, headTree(repo))) return fail(state, emptyPick(repo, state.workdir))
   const picked = repo.commits[operation.current]!
@@ -221,10 +194,9 @@ export const cherryPick: Command = (state, argv) => {
   if (flags.has('--skip')) return operation ? skip(state, repo, operation) : noPickToSkip(state)
   if (flags.has('--continue')) return operation ? resume(state, repo, operation) : noPick(state)
 
-  if (operation) {
-    return fail(state, [err('error: cherry-pick is already in progress'), hint('hint: try "git cherry-pick (--continue | --abort | --quit)"'), err(FAILED)], 128)
-  }
-  if (Object.keys(repo.unmerged).length) {
+  // a cherry-pick in progress is named first, then unmerged files, then any other operation
+  if (operation) return blockedBy(state, 'cherry-pick')!
+  if (hasUnmerged(repo)) {
     return fail(state, [
       err('error: Cherry-picking is not possible because you have unmerged files.'),
       hint('hint: Fix them up in the work tree, and then use \'git add/rm <file>\''),
@@ -232,8 +204,8 @@ export const cherryPick: Command = (state, argv) => {
       err(FAILED)
     ], 128)
   }
-  if (repo.operation?.type === 'merge') return fatal(state, 'fatal: You have not concluded your merge (MERGE_HEAD exists).')
-  if (repo.operation?.type === 'rebase') return fatal(state, 'fatal: You are in the middle of a rebase; finish it with "git rebase --continue" or "git rebase --abort" first.')
+  const blocked = blockedBy(state, 'cherry-pick')
+  if (blocked) return blocked
   if (!positionals.length) return fail(state, USAGE.map(text => err(text)), 129)
 
   const head = requireCommit(state, repo)
@@ -243,13 +215,8 @@ export const cherryPick: Command = (state, argv) => {
   if ('bad' in picks) return fatal(state, `fatal: bad revision '${picks.bad}'`)
   const merge = picks.ids.find(id => repo.commits[id]!.parents.length > 1)
   if (merge) return fail(state, [err(`error: commit ${merge} is a merge but no -m option was given.`), err(FAILED)], 128)
-  if (!flags.has('-n') && !treesEqual(headTree(repo), repo.index)) {
-    return fail(state, [
-      err('error: your local changes would be overwritten by cherry-pick.'),
-      hint('hint: commit your changes or stash them to proceed.'),
-      err(FAILED)
-    ], 128)
-  }
+  const dirty = flags.has('-n') ? null : refuseDirtyIndex(state, 'cherry-pick')
+  if (dirty) return dirty
 
   return replay(state, picks.ids, { recordOrigin: flags.has('-x'), noCommit: flags.has('-n'), head, before: { index: repo.index, workdir: state.workdir } }, [])
 }

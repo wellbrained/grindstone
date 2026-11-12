@@ -2,15 +2,14 @@
 // Pure and immutable: never mutates a session, never reads the clock; sessions are plain JSON.
 import { gitCommandNames, run, shellCommandNames, submitEditor, tokenize, waitingEditor, writeFile } from '../git'
 import type { GitState, OutputLine } from '../git'
+import { err, hint as hintLine, out } from '../git/output'
+import { isTerminalStep } from './types'
 import type { CommandRecord, Level, Notice, Session, SessionSnapshot, SolutionStep, SubmitResult, TeammateEvent, TerminalLine } from './types'
 
 /** Undo depth; older snapshots are dropped. */
 export const MAX_SNAPSHOTS = 200
 
 export const TRAINER_COMMANDS = ['undo', 'reset', 'hint', 'help', 'clear', 'edit'] as const
-
-const out = (text: string): OutputLine => ({ kind: 'out', text })
-const hintLine = (text: string): OutputLine => ({ kind: 'hint', text })
 
 function goalsOf(level: Level, state: GitState, history: CommandRecord[]): Record<string, boolean> {
   return Object.fromEntries(level.goals.map(goal => [goal.id, goal.check({ state, history })]))
@@ -161,7 +160,7 @@ function trainerCommand(session: Session, level: Level, line: string): SubmitRes
   if (name === 'edit') {
     const tokenized = tokenize(line)
     const args = tokenized.ok ? tokenized.tokens.slice(1) : []
-    if (args.length !== 1 || args[0]!.type !== 'word') return quiet(session, [{ kind: 'err', text: 'usage: edit <file>' }])
+    if (args.length !== 1 || args[0]!.type !== 'word') return quiet(session, [err('usage: edit <file>')])
     return quiet(session, [{ kind: 'edit', path: args[0]!.value }])
   }
   if (rest.length) return null
@@ -191,11 +190,11 @@ export function saveFile(session: Session, level: Level, path: string, content: 
  */
 export function saveEditor(session: Session, level: Level, text: string): SubmitResult {
   const wait = waitingEditor(session.state)
-  if (!wait) return quiet(session, [{ kind: 'err', text: 'error: git is not waiting for a file in the editor' }])
+  if (!wait) return quiet(session, [err('error: git is not waiting for a file in the editor')])
   return counted(session, level, `edit ${wait.path}`, state => submitEditor(state, text))
 }
 
 /** Plays one solution step: a terminal line through `submit`, `{ save }` through `saveEditor`. */
 export function playStep(session: Session, level: Level, step: SolutionStep): SubmitResult {
-  return typeof step === 'string' ? submit(session, level, step) : saveEditor(session, level, step.save)
+  return isTerminalStep(step) ? submit(session, level, step) : saveEditor(session, level, step.save)
 }

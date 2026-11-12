@@ -32,8 +32,9 @@ const setup = () => bakerySite()
   .build()
 
 /** The deleted branch's tip: your newest loyalty card commit. */
-const TIP = Object.values(setup().repo!.commits).find(commit => commit.message === NEWEST)!.id
-const MAIN = resolve(setup(), 'main')!
+const START = setup()
+const TIP = Object.values(START.repo!.commits).find(commit => commit.message === NEWEST)!.id
+const MAIN = resolve(START, 'main')!
 
 export const deletedABranch: Scenario = {
   id: 'git-34-deleted-a-branch',

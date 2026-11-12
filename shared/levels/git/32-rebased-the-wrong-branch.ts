@@ -8,6 +8,7 @@ import { commitsOf, isAncestor, resolve } from '../../git'
 import type { GitState } from '../../git'
 import type { Scenario } from '../types'
 import { INDEX, MENU, STYLE, bakerySite, text } from './bakery'
+import { once } from './checks'
 
 const BRANCH = 'feature/allergen-labels'
 const YOURS = ['Show allergens next to each bake', 'Add the allergen key page']
@@ -45,12 +46,13 @@ const setup = () => bakerySite()
   .build()
 
 /** main before the mistake: Maya's and Jonas's commits, exactly as on origin. */
-const ORIGIN = resolve(setup(), 'origin/main')!
+const start = once(setup)
+const ORIGIN = () => resolve(start(), 'origin/main')!
 
 /** Your two commits sit right on top of main, unchanged in content and order. */
 function onTopOfMain(state: GitState): boolean {
   const messages = commitsOf(state, `main..${BRANCH}`).map(commit => commit.message).reverse()
-  return resolve(state, 'main') === ORIGIN && isAncestor(state, 'main', BRANCH) && messages.join('\n') === YOURS.join('\n')
+  return resolve(state, 'main') === ORIGIN() && isAncestor(state, 'main', BRANCH) && messages.join('\n') === YOURS.join('\n')
 }
 
 export const rebasedTheWrongBranch: Scenario = {
@@ -66,7 +68,7 @@ export const rebasedTheWrongBranch: Scenario = {
   ].join('\n\n'),
   setup,
   goals: [
-    { id: 'main-back', label: 'main is back where it was before the rebase, the same as origin/main', check: ({ state }) => resolve(state, 'main') === ORIGIN },
+    { id: 'main-back', label: 'main is back where it was before the rebase, the same as origin/main', check: ({ state }) => resolve(state, 'main') === ORIGIN() },
     { id: 'on-top', label: `${BRANCH} sits on top of main, with your two commits`, check: ({ state }) => onTopOfMain(state) }
   ],
   hints: [

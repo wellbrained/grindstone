@@ -1,7 +1,7 @@
 // Everything one play page needs: the session of a level, the terminal log, the editor (panel and tabs), the debrief and the graph.
 // The session lives in memory (useState): leaving the page and coming back keeps it, a browser reload starts the level again.
 import { gitCommandNames, shellCommandNames, unmergedPaths, waitingEditor } from '#shared/git'
-import type { OutputLine } from '#shared/git'
+import type { GitState, OutputLine } from '#shared/git'
 import { TRAINER_COMMANDS, nextLevel, saveEditor, saveFile, startLevel, submit } from '#shared/levels'
 import type { Level, Session, SubmitResult } from '#shared/levels'
 import type { Prompt } from '~/utils/terminal'
@@ -45,22 +45,31 @@ export function useLevelPlay(level: Level, options: LevelPlayOptions = {}) {
   const session = computed(() => store.value.session)
   const log = computed(() => store.value.log)
   const prompt = computed(() => promptOf(session.value.state))
-  const completion = computed(() => completionContextOf(session.value.state, {
+  // Every command makes a new state, but one that only prints keeps the repo and the working tree as they were. The
+  // graph, the file tree and the completion are derived from those, so they keep their previous result until they change.
+  const stateRepo = computed(() => session.value.state.repo)
+  const stateOrigin = computed(() => session.value.state.origin)
+  const workdir = computed(() => session.value.state.workdir)
+  /** The state, replaced only when its repo or working tree is (its other fields may be stale: read only those two). */
+  const treeState = computed<GitState>((previous) => {
+    const state = session.value.state
+    return previous && previous.repo === state.repo && previous.workdir === state.workdir ? previous : state
+  })
+  const completion = computed(() => completionContextOf(treeState.value, {
     trainerCommands: TRAINER_COMMANDS,
     gitCommands: gitCommandNames,
     shellCommands: shellCommandNames
   }))
   const conflictedFiles = computed(() => unmergedPaths(session.value.state))
-  const workdir = computed(() => session.value.state.workdir)
-  const fileTree = computed(() => buildFileTree(workdir.value, fileStatuses(session.value.state)))
+  const fileTree = computed(() => buildFileTree(treeState.value.workdir, fileStatuses(treeState.value)))
   const tabs = useEditorTabs(() => workdir.value)
   const hasOrigin = computed(() => session.value.state.origin !== null)
 
   // the file git waits for in the editor (git rebase -i): its draft starts from what git wrote, whenever git opens a new one
   const gitEditor = computed(() => waitingEditor(session.value.state))
   const gitDraft = ref(gitEditor.value?.text ?? '')
-  watch(gitEditor, (wait, previous) => {
-    if (wait && (wait.path !== previous?.path || wait.text !== previous?.text)) gitDraft.value = wait.text
+  watch([() => gitEditor.value?.path, () => gitEditor.value?.text], ([, text]) => {
+    if (text !== undefined) gitDraft.value = text
   })
   const next = nextLevel(level.id)
 
@@ -74,14 +83,15 @@ export function useLevelPlay(level: Level, options: LevelPlayOptions = {}) {
   }))
 
   const graph = computed(() => {
-    const { repo, origin } = session.value.state
+    const repo = stateRepo.value
+    const origin = stateOrigin.value
     if (!repo) return layoutGraph({ commits: {}, branches: {}, remoteBranches: {}, head: { type: 'branch', name: 'main' } })
     return layoutGraph({
       commits: repo.commits,
       branches: repo.branches,
       remoteBranches: repo.remoteBranches,
       head: repo.head,
-      tags: Object.fromEntries(Object.entries(repo.tags ?? {}).map(([name, tag]) => [name, tag.commit])),
+      tags: Object.fromEntries(Object.entries(repo.tags).map(([name, tag]) => [name, tag.commit])),
       origin: showOrigin.value && origin ? { commits: origin.commits, branches: origin.branches } : null
     })
   })
@@ -126,20 +136,20 @@ export function useLevelPlay(level: Level, options: LevelPlayOptions = {}) {
     apply(submit(session.value, level, line))
   }
 
-  /** Writes a file through the engine; counts like a command. */
-  function saveAs(path: string, content: string) {
+  /** A save through the engine that counts like a command: the level is played, the terminal says it was saved. */
+  function counted(path: string, save: () => SubmitResult) {
     markPlayed(level.id)
     push({ type: 'line', line: { kind: 'out', text: t('terminal.saved', { path }) } })
-    apply(saveFile(session.value, level, path, content))
+    apply(save())
   }
 
-  /** Start rebase / Save message: hands the draft to git, which goes on. Counts like a command. */
+  /** Writes a file through the engine. */
+  const saveAs = (path: string, content: string) => counted(path, () => saveFile(session.value, level, path, content))
+
+  /** Start rebase / Save message: hands the draft to git, which goes on. */
   function submitGitEditor() {
     const wait = gitEditor.value
-    if (!wait) return
-    markPlayed(level.id)
-    push({ type: 'line', line: { kind: 'out', text: t('terminal.saved', { path: wait.path }) } })
-    apply(saveEditor(session.value, level, gitDraft.value))
+    if (wait) counted(wait.path, () => saveEditor(session.value, level, gitDraft.value))
   }
 
   /** Cancel in the file git waits for: the rebase is aborted, shown as the command it runs. */

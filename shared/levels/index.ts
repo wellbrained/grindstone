@@ -4,7 +4,7 @@ export type { LastPlayed, LevelProgress, Progress, ProgressSummary, ReadResult, 
 export type { Chapter, ChapterColour, ChapterDefinition, ContinueReason, ContinueTarget, Count, LevelPlace, Track, TrackDefinition, TrackStatus } from './track'
 
 export { MAX_SNAPSHOTS, TRAINER_COMMANDS, playStep, saveEditor, saveFile, startLevel, submit } from './engine'
-export { levelIntro } from './types'
+export { isTerminalStep, levelIntro } from './types'
 export {
   MAX_FUTURE_MS,
   PROGRESS_VERSION,

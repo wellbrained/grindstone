@@ -4,6 +4,7 @@ import { parseArgs } from '../args'
 import { done, err, fail, out } from '../output'
 import { headTree, normalizePath, without } from '../state'
 import type { Command, OutputLine } from '../types'
+import { union } from '../worktree'
 import { matchPathspec } from './add'
 import { fatal, notARepo, withRepo } from './common'
 
@@ -26,7 +27,7 @@ export const rm: Command = (state, argv) => {
   if (!positionals.length) return fatal(state, 'fatal: No pathspec was given. Which files should I remove?')
   const cached = flags.has('--cached')
 
-  const known = [...new Set([...Object.keys(repo.index), ...Object.keys(repo.unmerged)])].sort()
+  const known = union(repo.index, repo.unmerged)
   const paths = new Set<string>()
   for (const spec of positionals) {
     const matched = matchPathspec(spec, known)

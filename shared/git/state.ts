@@ -35,7 +35,10 @@ export function emptyRepo(branch = DEFAULT_BRANCH): Repo {
     remoteBranches: {},
     upstream: {},
     operation: null,
-    stash: []
+    stash: [],
+    previous: null,
+    reflog: {},
+    tags: {}
   }
 }
 

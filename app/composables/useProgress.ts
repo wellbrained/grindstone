@@ -1,8 +1,11 @@
 // Progress per entry, shared by the home page, the track page, the play page and the About page. Persisted in
 // localStorage through the guarded adapter. Resets also drop the in-memory play sessions of the entries they clear, so
 // a level you open afterwards starts fresh (a level page that is open restarts itself, see useLevelPlay).
-import { entryOf, recordPlay, recordSolve, resetEntries, setPractiseAgain } from '#shared/levels'
+import { entryOf, lastPlayed, recordPlay, recordSolve, resetEntries, setPractiseAgain } from '#shared/levels'
 import type { LevelProgress, Progress, Session } from '#shared/levels'
+
+/** The level already last played stores its time again at most this often, not on every command. */
+const PLAYED_EVERY_MS = 60_000
 
 /** Restart callbacks of the play pages that are open now, by level id (registered by useLevelPlay). */
 const openPlays = new Map<string, () => void>()
@@ -55,8 +58,13 @@ export function useProgress() {
     return id
   }
 
-  /** Marks the level as the one you last played (for Continue) and stores it. */
+  /**
+   * Marks the level as the one you last played (for Continue) and stores it. While it already is the last played one,
+   * only its time changes (Continue opens it either way), so that is stored at most once a minute.
+   */
   function markPlayed(levelId: string, at = Date.now()) {
+    const last = lastPlayed(progress.value)
+    if (last?.levelId === levelId && at >= last.at && at - last.at < PLAYED_EVERY_MS) return
     commit(recordPlay(progress.value, levelId, at))
   }
 

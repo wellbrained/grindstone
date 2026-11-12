@@ -42,11 +42,12 @@ const setup = () => bakerySite()
   .origin()
   .build()
 
-const RELEASE_TIP = resolve(setup(), RELEASE)!
+const START = setup()
+const RELEASE_TIP = resolve(START, RELEASE)!
 /** Jonas's fix on main, the commit to pick. */
-const RELEASE_FIX = resolve(setup(), 'main~1')!
+const RELEASE_FIX = resolve(START, 'main~1')!
 /** What release/1.4 should hold afterwards: what it had, plus the fixed order form. */
-const EXPECTED = { ...treeOf(setup(), RELEASE)!, 'order.html': orderForm(12) }
+const EXPECTED = { ...treeOf(START, RELEASE)!, 'order.html': orderForm(12) }
 
 /** The release branch's newest commit is a copy of Jonas's fix, right on top of what the release had. */
 function picked(state: GitState): boolean {

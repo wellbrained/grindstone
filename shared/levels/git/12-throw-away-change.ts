@@ -1,9 +1,8 @@
 // Undo & recovery 6.2: before a commit, throw away a broken experiment (`git restore`) and unstage a draft (`git restore --staged`).
-import { headCommit, repo } from '../../git'
-import type { GitState } from '../../git'
+import { repo } from '../../git'
 import type { Scenario } from '../types'
-
-const text = (...lines: string[]) => `${lines.join('\n')}\n`
+import { text } from './bakery'
+import { committedFile, stagedFile } from './checks'
 
 const MENU = text(
   '<!-- The weekly menu. Maya updates it every Monday morning. -->',
@@ -60,9 +59,6 @@ const setup = () => repo()
   .file('menu.html', MENU_EXPERIMENT)
   .build()
 
-const staged = (state: GitState, path: string) => state.repo?.index[path]
-const committed = (state: GitState, path: string) => headCommit(state)?.tree[path]
-
 export const throwAwayChange: Scenario = {
   id: 'git-12-throw-away-change',
   track: 'git',
@@ -79,14 +75,14 @@ export const throwAwayChange: Scenario = {
     {
       id: 'menu',
       label: 'menu.html is back to the last committed version',
-      check: ({ state }) => state.workdir['menu.html'] === MENU && staged(state, 'menu.html') === MENU
+      check: ({ state }) => state.workdir['menu.html'] === MENU && stagedFile(state, 'menu.html') === MENU
     },
     {
       id: 'prices',
       label: 'prices.js is no longer staged, and your draft is still in the file',
-      check: ({ state }) => staged(state, 'prices.js') === committed(state, 'prices.js') && state.workdir['prices.js'] === PRICES_DRAFT
+      check: ({ state }) => stagedFile(state, 'prices.js') === committedFile(state, 'prices.js') && state.workdir['prices.js'] === PRICES_DRAFT
     },
-    { id: 'hours', label: 'hours.html is still staged', check: ({ state }) => staged(state, 'hours.html') === HOURS_SUNDAY && committed(state, 'hours.html') === HOURS }
+    { id: 'hours', label: 'hours.html is still staged', check: ({ state }) => stagedFile(state, 'hours.html') === HOURS_SUNDAY && committedFile(state, 'hours.html') === HOURS }
   ],
   hints: [
     '`git status` tells you how to undo each kind of change: look at the lines in brackets under each heading.',

@@ -20,6 +20,12 @@ export function resolve(state: GitState, rev: string): string | null {
   return state.repo ? resolveRev(state.repo, rev) : null
 }
 
+/** The commit a revision resolves to in the local repository, or null. */
+export function commitAt(state: GitState, rev: string): Commit | null {
+  const id = resolve(state, rev)
+  return id ? state.repo!.commits[id]! : null
+}
+
 export function branchExists(state: GitState, name: string): boolean {
   return own(state.repo?.branches, name) !== undefined
 }
@@ -85,7 +91,7 @@ export function operationInProgress(state: GitState): Operation['type'] | null {
 
 /** The file git waits for in the editor during `git rebase -i` (the todo list or a commit message), or null. */
 export function waitingEditor(state: GitState): EditorWait | null {
-  return state.repo?.operation?.type === 'rebase' ? state.repo.operation.editor ?? null : null
+  return state.repo?.operation?.type === 'rebase' ? state.repo.operation.editor : null
 }
 
 /** No staged, unstaged, untracked or conflicted files. */

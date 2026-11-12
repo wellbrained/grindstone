@@ -3,6 +3,7 @@ import type { LevelPlace } from '#shared/levels'
 import type { LevelPlay } from '~/composables/useLevelPlay'
 import { fileStatuses } from '~/utils/file-tree'
 import type { PlayLayout } from '~/utils/play-layout'
+import { isCoarsePointer, revealIfStacked } from '~/utils/play-layout'
 
 // The play area of both layouts (docs/adr/0004-editor-layouts.md, docs/features/ui.md). One skeleton for Terminal and IDE:
 // level panel left, terminal centre, commit graph right. IDE only opens two panels in place: Files below the level panel and
@@ -31,13 +32,9 @@ const editorArea = useTemplateRef<{ focus: () => void, $el: HTMLElement }>('edit
 /** A file was opened in the IDE (explorer, `edit <file>`, the conflicted-files list): bring the editor into view and focus it. */
 function showEditor() {
   nextTick(() => {
-    // stacked layouts (below lg): the editor may be out of view
-    if (!window.matchMedia('(min-width: 64rem)').matches) {
-      const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches
-      editorArea.value?.$el?.scrollIntoView({ block: 'nearest', behavior: smooth ? 'smooth' : 'auto' })
-    }
+    revealIfStacked(editorArea.value?.$el)
     // phones: do not pop up the keyboard unasked
-    if (!window.matchMedia('(pointer: coarse)').matches) editorArea.value?.focus()
+    if (!isCoarsePointer()) editorArea.value?.focus()
   })
 }
 
@@ -51,14 +48,7 @@ function openFile(path: string) {
 // the focus goes back to the terminal input.
 const gitPane = useTemplateRef<{ $el: HTMLElement }>('gitPane')
 watch(() => gitEditor.value?.path ?? null, (path, previous) => {
-  if (path && !previous && ide.value) {
-    nextTick(() => {
-      if (!window.matchMedia('(min-width: 64rem)').matches) {
-        const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches
-        gitPane.value?.$el?.scrollIntoView({ block: 'nearest', behavior: smooth ? 'smooth' : 'auto' })
-      }
-    })
-  }
+  if (path && !previous && ide.value) nextTick(() => revealIfStacked(gitPane.value?.$el))
   if (!path && previous) nextTick(() => terminal.value?.focus())
 })
 

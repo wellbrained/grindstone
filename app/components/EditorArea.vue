@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { fileName } from '#shared/git'
 import type { EditorTabs } from '~/composables/useEditorTabs'
 import { isDirty } from '~/utils/editor-tabs'
 import type { FileStatus } from '~/utils/file-tree'
@@ -23,8 +24,6 @@ const discarding = ref<string | null>(null)
 
 const code = useTemplateRef<{ focus: () => void, forget: (path: string) => void }>('code')
 const wantFocus = ref(false)
-
-const fileName = (path: string) => path.slice(path.lastIndexOf('/') + 1)
 
 function focus() {
   if (code.value) code.value.focus()

@@ -1,7 +1,20 @@
-// Reusable checks for git level goals.
-import { hasConflictMarkers, operationInProgress, resolve, tokenize, unmergedPaths } from '../../git'
+// Reusable checks for git level goals, and the helpers git levels are written with.
+import { hasConflictMarkers, headCommit, operationInProgress, resolve, tokenize, unmergedPaths } from '../../git'
 import type { GitState, Tree } from '../../git'
-import type { CommandRecord } from '../types'
+import type { CommandRecord, PracticeTask } from '../types'
+
+/** A git practice task: difficulty 1 and about half a minute unless it says otherwise. */
+export const practice = (task: Omit<PracticeTask, 'track' | 'kind' | 'difficulty' | 'minutes'> & Partial<Pick<PracticeTask, 'difficulty' | 'minutes'>>): PracticeTask =>
+  ({ track: 'git', kind: 'practice', difficulty: 1, minutes: 0.5, ...task })
+
+/**
+ * `make()` on the first call, the same value after that: for ids read from a level's setup, built on first use instead
+ * of at import (setups are deterministic, so the ids are the same every time).
+ */
+export function once<T>(make: () => T): () => T {
+  let made: { value: T } | undefined
+  return () => (made ??= { value: make() }).value
+}
 
 export const treeHasConflictMarkers = (tree: Tree) => Object.values(tree).some(hasConflictMarkers)
 
@@ -11,6 +24,17 @@ export function sameTree(a: Tree | null | undefined, b: Tree | null | undefined)
   const paths = Object.keys(a)
   return paths.length === Object.keys(b).length && paths.every(path => a[path] === b[path])
 }
+
+/** Two lists hold the same items in the same order; false when `a` is missing. */
+export function sameList<T>(a: readonly T[] | null | undefined, b: readonly T[]): boolean {
+  return !!a && a.length === b.length && a.every((item, i) => item === b[i])
+}
+
+/** A file as HEAD's commit has it, or undefined. */
+export const committedFile = (state: GitState, path: string) => headCommit(state)?.tree[path]
+
+/** A file as the staging area has it, or undefined. */
+export const stagedFile = (state: GitState, path: string) => state.repo?.index[path]
 
 /** The tree of a local revision, or null. */
 export function treeOf(state: GitState, rev: string): Tree | null {
@@ -129,7 +153,7 @@ export function logsOnlyOn(args: string[], on: string[], notOn: string[]): boole
  * to <branch>` before the commit's entry. Still works once the branch is deleted (HEAD's reflog keeps it, like git's).
  */
 export function committedOn(state: GitState, id: string, branch: string): boolean {
-  const log = state.repo?.reflog?.HEAD ?? []
+  const log = state.repo?.reflog.HEAD ?? []
   const at = log.findIndex(entry => entry.id === id && entry.message.startsWith('commit'))
   if (at === -1) return false
   const checkout = log.slice(at + 1).find(entry => entry.message.startsWith('checkout: moving from '))

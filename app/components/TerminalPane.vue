@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { CompletionContext } from '~/utils/completion'
 import type { LogEntry } from '~/composables/useLevelPlay'
+import { isCoarsePointer } from '~/utils/play-layout'
 import type { Prompt } from '~/utils/terminal'
 
 // The terminal: output lines, one input line with history and Tab completion. Own component, no xterm.js (docs/adr/0001-plan.md).
@@ -107,7 +108,7 @@ onMounted(() => {
   if (scroller.value) resizeObserver.observe(scroller.value)
   scrollToEnd()
   // phones: do not open the keyboard unasked
-  if (!window.matchMedia('(pointer: coarse)').matches) focus()
+  if (!isCoarsePointer()) focus()
 })
 
 defineExpose({ focus })

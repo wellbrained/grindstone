@@ -6,6 +6,7 @@ import { remoteTagOf, resolve, tagOf } from '../../git'
 import type { GitState } from '../../git'
 import type { Scenario } from '../types'
 import { bakerySite, text } from './bakery'
+import { once } from './checks'
 
 const TAG = 'v1.4.0'
 const MESSAGE = 'Version 1.4.0: online orders'
@@ -23,11 +24,12 @@ const setup = () => bakerySite()
   .build()
 
 /** The commit that went live. */
-const LIVE = resolve(setup(), 'HEAD~1')!
+const start = once(setup)
+const LIVE = () => resolve(start(), 'HEAD~1')!
 
 function tagged(state: GitState): boolean {
   const tag = tagOf(state, TAG)
-  return tag?.commit === LIVE && tag.annotation?.message === MESSAGE
+  return tag?.commit === LIVE() && tag.annotation?.message === MESSAGE
 }
 
 export const tagARelease: Scenario = {

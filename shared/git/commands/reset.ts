@@ -4,13 +4,12 @@ import { parseArgs } from '../args'
 import { subject } from '../objects/commit'
 import { shortId } from '../objects/hash'
 import { done, err, fail, out } from '../output'
-import { logHead } from '../reflog'
 import { resolveRev } from '../refs'
 import { headId, headTree, withEntry, without } from '../state'
 import { union } from '../worktree'
 import type { Command, CommandResult, GitState, OutputLine, Repo, Tree } from '../types'
 import { matchPathspec } from './add'
-import { fatal, moveHead, notARepo, withRepo } from './common'
+import { fatal, moveRef, notARepo, withRepo } from './common'
 
 const MODES = ['--soft', '--mixed', '--hard'] as const
 type Mode = typeof MODES[number]
@@ -87,7 +86,7 @@ export const reset: Command = (state, argv) => {
 
   if (repo.operation?.type === 'merge' && mode === '--soft') return fatal(state, 'fatal: Cannot do a soft reset in the middle of a merge.')
   // a real move (not the unborn plain reset) is recorded in the reflog and sets ORIG_HEAD, like git
-  const moved = id ? logHead({ ...moveHead(repo, id), ...(head ? { origHead: head } : {}) }, `reset: moving to ${rev}`) : repo
+  const moved = id ? moveRef(repo, 'HEAD', id, { log: `reset: moving to ${rev}`, origHead: head }) : repo
   if (mode === '--soft') return done(withRepo(state, moved))
 
   // mixed and hard reset the index (and end a merge, like git)

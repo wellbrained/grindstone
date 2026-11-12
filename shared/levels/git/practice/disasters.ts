@@ -1,8 +1,8 @@
 // The practice tasks of chapter 7 (Disasters), listed in the chapter right after the scenario they train
 // (docs/features/levels.md). They use the Corner Bakery website like the scenarios.
 import { headCommit, isWorkingTreeClean, resolve } from '../../../git'
-import type { PracticeTask } from '../../types'
 import { INDEX, MENU, bakerySite, text } from '../bakery'
+import { practice } from '../checks'
 
 // 7.1 Committed on main by mistake
 
@@ -15,13 +15,9 @@ const glutenFree = () => bakerySite()
 const GLUTEN_FREE_TIP = resolve(glutenFree(), 'main')!
 const GLUTEN_FREE_BASE = resolve(glutenFree(), 'origin/main')!
 
-export const moveCommitToBranch: PracticeTask = {
+export const moveCommitToBranch = practice({
   id: 'git-practice-move-commit-to-branch',
-  track: 'git',
-  kind: 'practice',
   practises: 'git-30-committed-on-main',
-  difficulty: 1,
-  minutes: 0.5,
   title: 'Move your last commit to a new branch',
   task: 'Your last commit on main, "Mark the gluten-free bakes on the menu", isn\'t pushed and belongs on its own branch. Move it to a new branch `feature/gluten-free` and put main back on origin/main; you can stay on main.',
   setup: glutenFree,
@@ -36,7 +32,7 @@ export const moveCommitToBranch: PracticeTask = {
   hints: ['`git branch feature/gluten-free` keeps the commit, then `git reset --hard HEAD~1` takes main back.'],
   why: 'The new branch holds on to the commit, so moving main back with `reset --hard` loses nothing.',
   solution: ['git branch feature/gluten-free', 'git reset --hard HEAD~1']
-}
+})
 
 // 7.2 Lost commits after a reset
 
@@ -55,13 +51,9 @@ const droppedDrinks = () => bakerySite()
   .build()
 const DRINKS_COMMIT = resolve(droppedDrinks(), 'HEAD@{1}')!
 
-export const findLostCommit: PracticeTask = {
+export const findLostCommit = practice({
   id: 'git-practice-find-lost-commit',
-  track: 'git',
-  kind: 'practice',
   practises: 'git-31-lost-commits-after-reset',
-  difficulty: 1,
-  minutes: 0.5,
   title: 'Find a lost commit in the reflog',
   task: 'A minute ago, `git reset --hard HEAD~1` dropped your commit "Add the hot drinks page" from main. Find it in the reflog and put main back on it, with drinks.html back on your disk.',
   setup: droppedDrinks,
@@ -75,7 +67,7 @@ export const findLostCommit: PracticeTask = {
   hints: ['`git reflog` shows the commit as `HEAD@{1}`, one move before the reset; `git reset --hard HEAD@{1}` goes back there.'],
   why: 'A reset only moved the name main; the commit was still there, and `HEAD@{1}` is where HEAD was one move ago.',
   solution: ['git reflog', 'git reset --hard HEAD@{1}']
-}
+})
 
 // 7.3 Rebased the wrong branch
 
@@ -97,13 +89,9 @@ const rebasedBanner = () => bakerySite()
 /** The branch before the rebase: still in the reflog, right below the rebase start. */
 const BANNER_BEFORE = resolve(rebasedBanner(), 'HEAD@{3}')!
 
-export const undoRebase: PracticeTask = {
+export const undoRebase = practice({
   id: 'git-practice-undo-rebase',
-  track: 'git',
-  kind: 'practice',
   practises: 'git-32-rebased-the-wrong-branch',
-  difficulty: 1,
-  minutes: 0.5,
   title: 'Undo the last rebase',
   task: 'You just rebased `feature/holiday-banner` onto main, and you\'d rather wait for Maya\'s review first. Put the branch back exactly where it was before the rebase.',
   setup: rebasedBanner,
@@ -117,7 +105,7 @@ export const undoRebase: PracticeTask = {
   hints: ['After a rebase, `ORIG_HEAD` is where your branch was before it: `git reset --hard ORIG_HEAD`. The reflog has it too, right below `rebase (start)`.'],
   why: 'The rebase made new copies of your commits; the old ones were still there, and `ORIG_HEAD` pointed at them.',
   solution: ['git reset --hard ORIG_HEAD']
-}
+})
 
 // 7.4 Committed a secret
 
@@ -127,13 +115,9 @@ const NEWSLETTER = text(
   '<form id="newsletter"><input name="email" type="email" required> <button>Sign up</button></form>'
 )
 
-export const untrackFile: PracticeTask = {
+export const untrackFile = practice({
   id: 'git-practice-untrack-file',
-  track: 'git',
-  kind: 'practice',
   practises: 'git-33-committed-a-secret',
-  difficulty: 1,
-  minutes: 0.5,
   title: 'Stop tracking a file but keep it',
   task: 'Your last commit took `.vscode/settings.json` along, your own editor settings. Stop tracking it and commit that, but keep the file on your disk.',
   setup: () => bakerySite()
@@ -154,7 +138,7 @@ export const untrackFile: PracticeTask = {
   hints: ['`git rm --cached .vscode/settings.json` untracks it and keeps it on your disk; then commit.'],
   why: '`--cached` only changes the staging area: the next commit leaves the file out, and your disk keeps it.',
   solution: ['git rm --cached .vscode/settings.json', 'git commit -m "Stop tracking my editor settings"']
-}
+})
 
 const SUMMER = text(
   '<!-- Summer special: ice cream from the freezer by the door, June to August. -->',
@@ -162,13 +146,9 @@ const SUMMER = text(
   '<p>Vanilla, strawberry and lemon sorbet, 1.80 a scoop.</p>'
 )
 
-export const removeFile: PracticeTask = {
+export const removeFile = practice({
   id: 'git-practice-remove-file',
-  track: 'git',
-  kind: 'practice',
   practises: 'git-33-committed-a-secret',
-  difficulty: 1,
-  minutes: 0.5,
   title: 'Delete a file with git rm',
   task: 'Summer is over: delete `summer.html` from the website and commit the deletion.',
   setup: () => bakerySite()
@@ -186,7 +166,7 @@ export const removeFile: PracticeTask = {
   hints: ['`git rm summer.html` deletes the file and stages the deletion; then commit.'],
   why: '`git rm` is `rm` and `git add` of the deletion in one step, so the commit has something to record.',
   solution: ['git rm summer.html', 'git commit -m "Remove the summer ice cream page"']
-}
+})
 
 // 7.5 Deleted a branch with unmerged work
 
@@ -201,13 +181,9 @@ const deletedFix = () => bakerySite()
 /** The deleted branch's tip, as git printed it ("was <id>"): the commit HEAD left for main. */
 const FIX_TIP = resolve(deletedFix(), 'HEAD@{1}')!
 
-export const restoreBranch: PracticeTask = {
+export const restoreBranch = practice({
   id: 'git-practice-restore-branch',
-  track: 'git',
-  kind: 'practice',
   practises: 'git-34-deleted-a-branch',
-  difficulty: 1,
-  minutes: 0.5,
   title: 'Restore a deleted branch',
   task: `You just deleted \`fix/price-typo\` with \`git branch -D\`, and git said "Deleted branch fix/price-typo (was ${FIX_TIP.slice(0, 7)})." It wasn't merged yet: bring the branch back.`,
   setup: deletedFix,
@@ -215,4 +191,4 @@ export const restoreBranch: PracticeTask = {
   hints: [`\`git branch fix/price-typo ${FIX_TIP.slice(0, 7)}\``],
   why: 'Deleting a branch deletes the name; the commit stays, and `git branch <name> <id>` names it again.',
   solution: [`git branch fix/price-typo ${FIX_TIP.slice(0, 7)}`]
-}
+})

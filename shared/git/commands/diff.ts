@@ -3,7 +3,7 @@ import { diffLines, hunks, splitLines } from '../diff'
 import { blobId, shortId } from '../objects/hash'
 import { done, err, fail, out, toned } from '../output'
 import { resolveRev } from '../refs'
-import { headTree } from '../state'
+import { headTree, own } from '../state'
 import { changedPaths } from '../worktree'
 import type { Command, OutputLine, Tree } from '../types'
 import { matchPathspec } from './add'
@@ -58,5 +58,5 @@ export const diff: Command = (state, argv) => {
     const wanted = new Set(positionals.flatMap(spec => matchPathspec(spec, paths)))
     paths = paths.filter(path => wanted.has(path))
   }
-  return done(state, paths.flatMap(path => fileDiff(path, before[path], after[path])))
+  return done(state, paths.flatMap(path => fileDiff(path, own(before, path), own(after, path))))
 }

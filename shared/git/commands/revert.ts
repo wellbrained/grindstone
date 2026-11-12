@@ -7,35 +7,16 @@ import { done, err, fail, hint } from '../output'
 import { mergeTrees } from '../merge3'
 import { resolveRev } from '../refs'
 import { headTree } from '../state'
-import { moveTrees, treesEqual } from '../worktree'
+import { hasUnmerged, moveTrees, treesEqual } from '../worktree'
 import type { Command } from '../types'
 import { commitIndex } from './commit'
-import { fatal, notARepo, requireCommit, withRepo } from './common'
+import { SEQUENCER_OPTIONS, blockedBy, fatal, notARepo, parentTree, refuseDirtyIndex, requireCommit, withRepo } from './common'
 import { statusLines } from './status'
 
 const USAGE = [
   'usage: git revert [--[no-]edit] [-n] [-m <parent-number>] [-s] [-S[<keyid>]] <commit>...',
   '   or: git revert (--continue | --skip | --abort | --quit)',
-  '',
-  '    --quit                end revert or cherry-pick sequence',
-  '    --continue            resume revert or cherry-pick sequence',
-  '    --abort               cancel revert or cherry-pick sequence',
-  '    --skip                skip current commit and continue',
-  '    --[no-]cleanup <mode> how to strip spaces and #comments from message',
-  '    -n, --no-commit       don\'t automatically commit',
-  '    --commit              opposite of --no-commit',
-  '    -e, --[no-]edit       edit the commit message',
-  '    -s, --[no-]signoff    add a Signed-off-by trailer',
-  '    -m, --[no-]mainline <parent-number>',
-  '                          select mainline parent',
-  '    --[no-]rerere-autoupdate',
-  '                          update the index with reused conflict resolution if possible',
-  '    --[no-]strategy <strategy>',
-  '                          merge strategy',
-  '    -X, --[no-]strategy-option <option>',
-  '                          option for merge strategy',
-  '    -S, --[no-]gpg-sign[=<key-id>]',
-  '                          GPG sign commit',
+  ...SEQUENCER_OPTIONS,
   '    --[no-]reference      use the \'reference\' format to refer to commits',
   ''
 ]
@@ -49,7 +30,7 @@ export const revert: Command = (state, argv) => {
   if (!positionals.length) return fail(state, USAGE.map(text => err(text)), 129)
   if (positionals.length > 1) return fail(state, [err('git revert: reverting several commits at once is not in this trainer yet')])
 
-  if (Object.keys(repo.unmerged).length) {
+  if (hasUnmerged(repo)) {
     return fail(state, [
       err('error: Reverting is not possible because you have unmerged files.'),
       hint('hint: Fix them up in the work tree, and then use \'git add/rm <file>\''),
@@ -57,11 +38,8 @@ export const revert: Command = (state, argv) => {
       err('fatal: revert failed')
     ], 128)
   }
-  if (repo.operation?.type === 'merge') return fatal(state, 'fatal: You have not concluded your merge (MERGE_HEAD exists).')
-  if (repo.operation?.type === 'rebase') return fatal(state, 'fatal: You are in the middle of a rebase; finish it with "git rebase --continue" or "git rebase --abort" first.')
-  if (repo.operation?.type === 'cherry-pick') {
-    return fail(state, [err('error: cherry-pick is already in progress'), hint('hint: try "git cherry-pick (--continue | --abort | --quit)"'), err('fatal: revert failed')], 128)
-  }
+  const blocked = blockedBy(state, 'revert')
+  if (blocked) return blocked
 
   const head = requireCommit(state, repo)
   if (typeof head !== 'string') return head
@@ -73,19 +51,13 @@ export const revert: Command = (state, argv) => {
     return fail(state, [err(`error: commit ${id} is a merge but no -m option was given.`), err('fatal: revert failed')], 128)
   }
 
-  const ours = headTree(repo)
-  if (!treesEqual(ours, repo.index)) {
-    return fail(state, [
-      err('error: your local changes would be overwritten by revert.'),
-      hint('hint: commit your changes or stash them to proceed.'),
-      err('fatal: revert failed')
-    ], 128)
-  }
+  const dirty = refuseDirtyIndex(state, 'revert')
+  if (dirty) return dirty
 
   // the change from the commit back to its parent, applied on top of HEAD
-  const parentTree = commit.parents[0] ? repo.commits[commit.parents[0]]!.tree : {}
+  const ours = headTree(repo)
   const label = `${shortId(id)}... ${subject(commit)}`
-  const merged = mergeTrees(commit.tree, ours, parentTree, { ours: 'HEAD', theirs: `parent of ${label}` })
+  const merged = mergeTrees(commit.tree, ours, parentTree(repo, commit), { ours: 'HEAD', theirs: `parent of ${label}` })
   if (merged.conflicts.length) {
     return fail(state, [
       err(`error: could not revert ${label}`),

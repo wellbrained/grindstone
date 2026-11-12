@@ -7,7 +7,7 @@ import { commitsOf, remoteBranchHead, resolve, trackingBranchHead } from '../../
 import type { GitState } from '../../git'
 import type { Scenario } from '../types'
 import { INDEX, MENU, STYLE, bakerySite } from './bakery'
-import { logsOnlyOn, ranBefore } from './checks'
+import { logsOnlyOn, once, ranBefore } from './checks'
 
 const YOURS = ['Add the rye loaf to the menu', 'Make the menu readable on phones']
 const SYNC = ['pull', 'merge', 'rebase', 'reset', 'push']
@@ -27,12 +27,13 @@ const setup = () => bakerySite()
   .fetch()
   .build()
 
-const MAYA = trackingBranchHead(setup(), 'main')!
+const start = once(setup)
+const MAYA = () => trackingBranchHead(start(), 'main')!
 
 /** origin's main is your main, with Maya's commit and both of yours. */
 function synced(state: GitState): boolean {
   const messages = commitsOf(state, 'main').map(commit => commit.message)
-  return remoteBranchHead(state, 'main') === resolve(state, 'main') && commitsOf(state, 'main').some(commit => commit.id === MAYA)
+  return remoteBranchHead(state, 'main') === resolve(state, 'main') && commitsOf(state, 'main').some(commit => commit.id === MAYA())
     && YOURS.every(message => messages.includes(message))
 }
 

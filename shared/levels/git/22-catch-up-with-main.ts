@@ -4,7 +4,7 @@ import { isAncestor, resolve } from '../../git'
 import type { GitState } from '../../git'
 import type { Scenario } from '../types'
 import { INDEX, STYLE, bakerySite, text } from './bakery'
-import { conflictFullyResolved, isMergeOf, treeOf } from './checks'
+import { conflictFullyResolved, isMergeOf, once, treeOf } from './checks'
 
 const BRANCH = 'feature/order-pickup'
 
@@ -39,11 +39,12 @@ const setup = () => bakerySite()
   .switch(BRANCH)
   .build()
 
-const MAIN = resolve(setup(), 'main')!
-const FEATURE = resolve(setup(), BRANCH)!
+const start = once(setup)
+const MAIN = () => resolve(start(), 'main')!
+const FEATURE = () => resolve(start(), BRANCH)!
 
 /** Your branch ends in a merge commit of main (yours first, main second). */
-const mergedMainIn = (state: GitState) => isMergeOf(state, BRANCH, FEATURE, MAIN)
+const mergedMainIn = (state: GitState) => isMergeOf(state, BRANCH, FEATURE(), MAIN())
 
 export const catchUpWithMain: Scenario = {
   id: 'git-22-catch-up-with-main',
@@ -58,7 +59,7 @@ export const catchUpWithMain: Scenario = {
   ].join('\n\n'),
   setup,
   goals: [
-    { id: 'merged', label: `${BRANCH} has everything that is on main`, check: ({ state }) => isAncestor(state, MAIN, BRANCH) },
+    { id: 'merged', label: `${BRANCH} has everything that is on main`, check: ({ state }) => isAncestor(state, MAIN(), BRANCH) },
     {
       id: 'resolved',
       label: 'The conflict is settled in a merge commit on your branch, no markers left',
@@ -76,7 +77,7 @@ export const catchUpWithMain: Scenario = {
     {
       id: 'main-unchanged',
       label: 'main is unchanged',
-      check: ({ state }) => isAncestor(state, MAIN, BRANCH) && resolve(state, 'main') === MAIN
+      check: ({ state }) => isAncestor(state, MAIN(), BRANCH) && resolve(state, 'main') === MAIN()
     }
   ],
   hints: [

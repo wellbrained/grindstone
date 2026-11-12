@@ -4,7 +4,7 @@
 import { isAncestor, resolve } from '../../git'
 import type { Scenario } from '../types'
 import { INDEX, MENU, STYLE, bakerySite, text } from './bakery'
-import { isMergeOf, ranAfter } from './checks'
+import { isMergeOf, once, ranAfter } from './checks'
 
 const BRANCH = 'feature/weekly-specials'
 
@@ -32,8 +32,9 @@ const setup = () => bakerySite()
   .switch(BRANCH)
   .build()
 
-const MAIN = resolve(setup(), 'main')!
-const FEATURE = resolve(setup(), BRANCH)!
+const start = once(setup)
+const MAIN = () => resolve(start(), 'main')!
+const FEATURE = () => resolve(start(), BRANCH)!
 
 export const bothSidesMovedOn: Scenario = {
   id: 'git-20-both-sides-moved-on',
@@ -48,16 +49,16 @@ export const bothSidesMovedOn: Scenario = {
   ].join('\n\n'),
   setup,
   goals: [
-    { id: 'merged', label: `main contains ${BRANCH}`, check: ({ state }) => isAncestor(state, FEATURE, 'main') },
+    { id: 'merged', label: `main contains ${BRANCH}`, check: ({ state }) => isAncestor(state, FEATURE(), 'main') },
     {
       id: 'merge-commit',
       label: 'main ends in a merge commit whose parents are Maya\'s commit and yours',
-      check: ({ state }) => isMergeOf(state, 'main', MAIN, FEATURE)
+      check: ({ state }) => isMergeOf(state, 'main', MAIN(), FEATURE())
     },
     {
       id: 'looked',
       label: 'You looked at the merge with `git log --graph`',
-      check: ({ state, history }) => isMergeOf(state, 'main', MAIN, FEATURE) && ranAfter(history, 'log', 'merge', args => args.includes('--graph'))
+      check: ({ state, history }) => isMergeOf(state, 'main', MAIN(), FEATURE()) && ranAfter(history, 'log', 'merge', args => args.includes('--graph'))
     }
   ],
   hints: [

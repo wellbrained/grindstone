@@ -33,38 +33,20 @@ export function useProgressActions() {
     })
   }
 
-  function askResetChapter(chapter: Chapter) {
-    const ids = chapter.levels.map(level => level.id)
+  /** Asks before clearing these entries; `names` fills the scope's texts (reset.chapter, reset.track, reset.all). */
+  function askResetMany(scope: 'chapter' | 'track' | 'all', ids: readonly string[], names: Record<string, string> = {}) {
     ask({
-      title: t('reset.chapter.title', { chapter: chapter.title }),
-      text: t('reset.chapter.text', { solved: t('reset.solved', solvedIn(ids)), chapter: chapter.title }),
-      confirmLabel: t('reset.chapter.confirm'),
+      title: t(`reset.${scope}.title`, names),
+      text: t(`reset.${scope}.text`, { ...names, solved: t('reset.solved', solvedIn(ids)) }),
+      confirmLabel: t(`reset.${scope}.confirm`),
       danger: true,
       onConfirm: () => reset(ids)
     })
   }
 
-  function askResetTrack(track: Track) {
-    const ids = trackLevels(track).map(level => level.id)
-    ask({
-      title: t('reset.track.title', { track: track.title }),
-      text: t('reset.track.text', { solved: t('reset.solved', solvedIn(ids)), track: track.title }),
-      confirmLabel: t('reset.track.confirm'),
-      danger: true,
-      onConfirm: () => reset(ids)
-    })
-  }
-
-  function askResetAll() {
-    const ids = Object.keys(progress.value.levels)
-    ask({
-      title: t('reset.all.title'),
-      text: t('reset.all.text', { solved: t('reset.solved', solvedIn(ids)) }),
-      confirmLabel: t('reset.all.confirm'),
-      danger: true,
-      onConfirm: () => reset(ids)
-    })
-  }
+  const askResetChapter = (chapter: Chapter) => askResetMany('chapter', chapter.levels.map(level => level.id), { chapter: chapter.title })
+  const askResetTrack = (track: Track) => askResetMany('track', trackLevels(track).map(level => level.id), { track: track.title })
+  const askResetAll = () => askResetMany('all', Object.keys(progress.value.levels))
 
   /** The entry menu: Play again, Mark "practise again" (a solved entry only), Mark as not solved. */
   function entryItems(place: Pick<LevelPlace, 'number' | 'level'>, options: { onPlayAgain?: () => void, onReset?: () => void } = {}): DropdownMenuItem[][] {

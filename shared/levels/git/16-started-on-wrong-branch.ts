@@ -5,7 +5,7 @@ import { branchExists, currentBranch, isWorkingTreeClean, resolve } from '../../
 import type { GitState } from '../../git'
 import type { Scenario } from '../types'
 import { CONTACT_FORM, bakerySite } from './bakery'
-import { treeOf } from './checks'
+import { once, treeOf } from './checks'
 
 const BRANCH = 'feature/contact-form'
 
@@ -13,7 +13,8 @@ const setup = () => bakerySite()
   .file('contact.html', CONTACT_FORM)
   .build()
 
-const MAIN = resolve(setup(), 'main')!
+const start = once(setup)
+const MAIN = () => resolve(start(), 'main')!
 
 /** The newest commit on the branch adds contact.html: its parent has none. */
 function addsContactForm(state: GitState): boolean {
@@ -38,7 +39,7 @@ export const startedOnWrongBranch: Scenario = {
     { id: 'on-branch', label: `You are on ${BRANCH}`, check: ({ state }) => currentBranch(state) === BRANCH },
     { id: 'committed', label: 'Its newest commit adds contact.html', check: ({ state }) => addsContactForm(state) },
     // only counts once the branch exists: at the start main is untouched anyway
-    { id: 'main-unchanged', label: 'main is unchanged', check: ({ state }) => branchExists(state, BRANCH) && resolve(state, 'main') === MAIN },
+    { id: 'main-unchanged', label: 'main is unchanged', check: ({ state }) => branchExists(state, BRANCH) && resolve(state, 'main') === MAIN() },
     { id: 'clean', label: 'Working tree clean', check: ({ state }) => isWorkingTreeClean(state) }
   ],
   hints: [

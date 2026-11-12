@@ -123,8 +123,22 @@ export function trackLevels(track: Track): Level[] {
   return track.chapters.flatMap(chapter => chapter.levels)
 }
 
-/** Every level of the track with its place, in play order. */
-export function trackPlaces(track: Track): LevelPlace[] {
+/** Places and the place of each level id, worked out once per track (tracks do not change after defineTrack). */
+const placesCache = new WeakMap<Track, { places: readonly LevelPlace[], byId: ReadonlyMap<string, LevelPlace> }>()
+
+function placesOf(track: Track) {
+  let cached = placesCache.get(track)
+  if (!cached) {
+    const places = buildPlaces(track)
+    const byId = new Map<string, LevelPlace>()
+    for (const place of places) if (!byId.has(place.level.id)) byId.set(place.level.id, place)
+    cached = { places, byId }
+    placesCache.set(track, cached)
+  }
+  return cached
+}
+
+function buildPlaces(track: Track): LevelPlace[] {
   let index = 0
   return track.chapters.flatMap((chapter) => {
     let scenarios = 0
@@ -139,14 +153,18 @@ export function trackPlaces(track: Track): LevelPlace[] {
   })
 }
 
+/** Every level of the track with its place, in play order. */
+export const trackPlaces = (track: Track): readonly LevelPlace[] => placesOf(track).places
+
 /** How a place is named in text: "3.2 Merge conflict" for a scenario, the title alone for a practice task. */
 export const placeName = (place: Pick<LevelPlace, 'number' | 'level'>) => place.number ? `${place.number} ${place.level.title}` : place.level.title
 
 export function placeIn(track: Track, levelId: string): LevelPlace | null {
-  return trackPlaces(track).find(place => place.level.id === levelId) ?? null
+  return placesOf(track).byId.get(levelId) ?? null
 }
 
 const isSolvedIn = (progress: Progress, levelId: string) => entryOf(progress, levelId)?.solved === true
+const isFlagged = (progress: Progress, levelId: string) => entryOf(progress, levelId)?.practiseAgain === true
 
 function count(levels: readonly Level[], progress: Progress): Count {
   return { solved: levels.filter(level => isSolvedIn(progress, level.id)).length, total: levels.length }
@@ -169,7 +187,7 @@ export function nextUp(track: Track, progress: Progress): LevelPlace | null {
 
 /** The first entry of the chapter flagged "practise again", in play order; null when none is. */
 export function practiseAgainIn(chapter: Chapter, progress: Progress): Level | null {
-  return chapter.levels.find(level => entryOf(progress, level.id)?.practiseAgain === true) ?? null
+  return chapter.levels.find(level => isFlagged(progress, level.id)) ?? null
 }
 
 /** resume: the entry you last played, still unsolved; next: next up; practise: nothing unsolved left, a flagged entry. */
@@ -194,6 +212,6 @@ export function continueTarget(track: Track, progress: Progress): ContinueTarget
   }
   const next = nextUp(track, progress)
   if (next) return { place: next, reason: 'next', at: null }
-  const flagged = trackPlaces(track).find(place => entryOf(progress, place.level.id)?.practiseAgain === true)
+  const flagged = trackPlaces(track).find(place => isFlagged(progress, place.level.id))
   return flagged ? { place: flagged, reason: 'practise', at: null } : null
 }

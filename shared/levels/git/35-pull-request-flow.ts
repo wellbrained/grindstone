@@ -8,6 +8,7 @@ import { branchExists, commitsOf, remoteBranchHead, remoteCommitsOf, resolve, te
 import type { Commit, GitState } from '../../git'
 import type { Scenario } from '../types'
 import { MENU, bakerySite } from './bakery'
+import { once } from './checks'
 
 const BRANCH = 'feature/sunday-hours'
 const MESSAGE = 'Add the Sunday opening hours'
@@ -24,7 +25,8 @@ const teammatePushed = (state: GitState) => teammateCommit(state, {
 })
 
 /** Jonas's commit: what a fresh main starts from. */
-const JONAS = remoteBranchHead(setup(), 'main')!
+const start = once(setup)
+const JONAS = () => remoteBranchHead(start(), 'main')!
 
 const mergePullRequest = (state: GitState) =>
   teammateMerge(state, { author: 'Maya', branch: BRANCH, message: MERGE, deleteBranch: true })
@@ -64,7 +66,7 @@ export const pullRequestFlow: Scenario = {
     {
       id: 'merged',
       label: 'origin\'s main has your Sunday hours, on top of Jonas\'s commit',
-      check: ({ state }) => yoursOnOrigin(state)?.parents[0] === JONAS
+      check: ({ state }) => yoursOnOrigin(state)?.parents[0] === JONAS()
     },
     {
       id: 'pulled',
