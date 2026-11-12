@@ -1,7 +1,7 @@
 import { parseArgs } from '../args'
 import { ignoreRules, ignoredAs } from '../ignore'
 import { done, err, fail, hint } from '../output'
-import { normalizePath, withEntry, without } from '../state'
+import { normalizePath, own, withEntry, without } from '../state'
 import type { Command, Repo, Tree } from '../types'
 import { union } from '../worktree'
 import { fatal, notARepo, withRepo } from './common'
@@ -22,7 +22,7 @@ export function stage(repo: Repo, workdir: Tree, paths: string[]): Repo {
   let index = repo.index
   let unmerged = repo.unmerged
   for (const path of paths) {
-    index = withEntry(index, path, workdir[path])
+    index = withEntry(index, path, own(workdir, path))
     unmerged = without(unmerged, path)
   }
   return { ...repo, index, unmerged }
@@ -47,7 +47,7 @@ export const add: Command = (state, argv) => {
   const known = union(state.workdir, repo.index, repo.unmerged)
   // untracked paths a .gitignore names: skipped, and refused when you name them yourself (unless -f)
   const rules = force ? [] : ignoreRules(state.workdir)
-  const ignoredAt = (path: string) => repo.index[path] !== undefined || repo.unmerged[path] !== undefined ? null : ignoredAs(rules, path)
+  const ignoredAt = (path: string) => own(repo.index, path) !== undefined || own(repo.unmerged, path) !== undefined ? null : ignoredAs(rules, path)
   const paths = new Set<string>()
   const refused = new Set<string>()
   for (const spec of specs) {

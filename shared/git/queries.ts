@@ -108,7 +108,7 @@ export function isIgnored(state: GitState, path: string): boolean {
 }
 
 export function fileContent(state: GitState, path: string): string | undefined {
-  return state.workdir[path]
+  return own(state.workdir, path)
 }
 
 export function hasConflictMarkers(content: string): boolean {

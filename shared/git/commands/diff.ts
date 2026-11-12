@@ -42,7 +42,7 @@ export const diff: Command = (state, argv) => {
   if (!parsed.ok) return fail(state, [err(parsed.error)])
   const { flags, positionals, separator } = parsed.args
 
-  if (!separator && positionals[0] && resolveRev(repo, positionals[0]) && state.workdir[positionals[0]] === undefined) {
+  if (!separator && positionals[0] && resolveRev(repo, positionals[0]) && own(state.workdir, positionals[0]) === undefined) {
     return fail(state, [err('git diff: comparing commits is not in this trainer yet (try git diff or git diff --staged)')])
   }
 
@@ -51,7 +51,7 @@ export const diff: Command = (state, argv) => {
   // unstaged changes only cover tracked files
   const after: Tree = staged
     ? repo.index
-    : Object.fromEntries(Object.keys(repo.index).flatMap(path => state.workdir[path] === undefined ? [] : [[path, state.workdir[path]!]]))
+    : Object.fromEntries(Object.keys(repo.index).flatMap(path => own(state.workdir, path) === undefined ? [] : [[path, own(state.workdir, path)!]]))
 
   let paths = changedPaths(before, after)
   if (positionals.length) {

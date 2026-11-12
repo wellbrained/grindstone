@@ -2,7 +2,7 @@
 // During a conflict, --ours / --theirs write one side of an unmerged file (shared with `git checkout --ours|--theirs`).
 import { parseArgs } from '../args'
 import { done, err, fail } from '../output'
-import { headTree, normalizePath, withEntry, without } from '../state'
+import { headTree, normalizePath, own, withEntry, without } from '../state'
 import type { Command, Repo } from '../types'
 import { matchPathspec } from './add'
 import { fatal, notARepo, withRepo } from './common'
@@ -29,7 +29,7 @@ export function conflictSide(repo: Repo, path: string, side: ConflictSide): stri
   const commit = operation?.type === 'merge'
     ? operation.theirs
     : operation?.type === 'rebase' ? operation.stopped?.commit ?? null : operation?.type === 'cherry-pick' ? operation.current : null
-  return commit ? repo.commits[commit]!.tree[path] : undefined
+  return commit ? own(repo.commits[commit]!.tree, path) : undefined
 }
 
 export const restore: Command = (state, argv) => {
@@ -60,7 +60,7 @@ export const restore: Command = (state, argv) => {
     for (const path of matched) paths.add(path)
   }
   if (!staged && !side) {
-    const unmerged = [...paths].find(path => repo.unmerged[path] !== undefined)
+    const unmerged = [...paths].find(path => own(repo.unmerged, path) !== undefined)
     if (unmerged) return fail(state, [err(`error: path '${unmerged}' is unmerged`)])
   }
 
@@ -69,11 +69,11 @@ export const restore: Command = (state, argv) => {
   let workdir = state.workdir
   for (const path of paths) {
     if (staged) {
-      index = withEntry(index, path, head[path])
+      index = withEntry(index, path, own(head, path))
       unmerged = without(unmerged, path)
     }
     // like git, a side that deleted the file removes it (`git checkout --ours` refuses instead)
-    if (side && repo.unmerged[path]) workdir = withEntry(workdir, path, conflictSide(repo, path, side))
+    if (side && own(repo.unmerged, path)) workdir = withEntry(workdir, path, conflictSide(repo, path, side))
     else if (worktree) workdir = withEntry(workdir, path, source[path])
   }
   return done({ ...withRepo(state, { ...repo, index, unmerged }), workdir })

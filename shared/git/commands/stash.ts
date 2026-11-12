@@ -9,7 +9,7 @@ import { shortId } from '../objects/hash'
 import { done, err, fail, out } from '../output'
 import { mergeTrees } from '../merge3'
 import { logHead } from '../reflog'
-import { headId, without } from '../state'
+import { headId, own, without } from '../state'
 import { hasUnmerged, moveTrees, treesEqual, unmergedOf } from '../worktree'
 import type { Command, CommandResult, GitState, OutputLine, Repo, StashEntry, Tree } from '../types'
 import { notARepo, resetWorkdirToHead, withRepo } from './common'
@@ -20,7 +20,7 @@ const branchLabel = (repo: Repo) => repo.head.type === 'branch' ? repo.head.name
 /** Untracked files that no .gitignore names (what `git stash -u` takes along). */
 function untrackedFiles(repo: Repo, workdir: Tree): Tree {
   const ignored = ignoreMatcher(workdir)
-  return Object.fromEntries(Object.entries(workdir).filter(([path]) => repo.index[path] === undefined && !ignored(path)))
+  return Object.fromEntries(Object.entries(workdir).filter(([path]) => own(repo.index, path) === undefined && !ignored(path)))
 }
 
 /**
@@ -48,7 +48,7 @@ const push = (state: GitState, repo: Repo, argv: string[]): CommandResult => {
   if (!head) return fail(state, [err('You do not have the initial commit yet')])
   const headCommit = repo.commits[head]!
 
-  const tracked: Tree = Object.fromEntries(Object.keys(repo.index).flatMap(path => state.workdir[path] === undefined ? [] : [[path, state.workdir[path]!]]))
+  const tracked: Tree = Object.fromEntries(Object.keys(repo.index).flatMap(path => own(state.workdir, path) === undefined ? [] : [[path, own(state.workdir, path)!]]))
   const untracked = flags.has('-u') ? untrackedFiles(repo, state.workdir) : {}
   const changed = !treesEqual(headCommit.tree, repo.index) || !treesEqual(repo.index, tracked) || Object.keys(untracked).length > 0
   if (!changed) return done(state, [out('No local changes to save')])
@@ -100,7 +100,7 @@ const apply = (state: GitState, repo: Repo, argv: string[], pop: boolean): Comma
   if (hasUnmerged(repo) || repo.operation?.type === 'merge') {
     return fail(state, [err('error: cannot apply a stash in the middle of a merge'), ...kept])
   }
-  const existing = Object.keys(entry.untracked).filter(path => state.workdir[path] !== undefined)
+  const existing = Object.keys(entry.untracked).filter(path => own(state.workdir, path) !== undefined)
   if (existing.length) {
     return fail(state, [...existing.map(path => err(`${path} already exists, no checkout`)), err('error: could not restore untracked files from stash'), ...kept])
   }

@@ -21,7 +21,7 @@ export function applyMerge(repo: Repo, workdir: Tree, from: Tree, merged: TreeMe
   const unmerged: Record<string, UnmergedKind> = {}
   for (const conflict of merged.conflicts) {
     unmerged[conflict.path] = conflict.kind
-    index = withEntry(index, conflict.path, merged.index[conflict.path])
+    index = withEntry(index, conflict.path, own(merged.index, conflict.path))
   }
   return { ...moved, index, unmerged }
 }

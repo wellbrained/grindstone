@@ -1,7 +1,7 @@
 // Working tree and index bookkeeping shared by checkout, merge, rebase and status.
 import { ignoreMatcher } from './ignore'
 import { err, out } from './output'
-import { headTree, withEntry } from './state'
+import { headTree, own, withEntry } from './state'
 import type { OutputLine, Repo, Tree } from './types'
 
 /** Every path of the given trees, sorted. */
@@ -29,7 +29,7 @@ export function localChanges(repo: Repo, workdir: Tree): LocalChanges {
   const head = headTree(repo)
   return {
     staged: !treesEqual(head, repo.index),
-    unstaged: Object.keys(repo.index).some(path => workdir[path] !== repo.index[path])
+    unstaged: Object.keys(repo.index).some(path => own(workdir, path) !== own(repo.index, path))
   }
 }
 
@@ -48,16 +48,16 @@ export function moveTrees(repo: Repo, workdir: Tree, from: Tree, to: Tree, verb:
   const untracked: string[] = []
 
   for (const path of union(from, to, repo.index)) {
-    if (from[path] === to[path]) continue
-    const tracked = repo.index[path] !== undefined || from[path] !== undefined
+    if (own(from, path) === own(to, path)) continue
+    const tracked = own(repo.index, path) !== undefined || own(from, path) !== undefined
     if (!tracked) {
-      if (workdir[path] !== undefined && workdir[path] !== to[path]) untracked.push(path)
+      if (own(workdir, path) !== undefined && own(workdir, path) !== own(to, path)) untracked.push(path)
     } else {
-      const dirty = repo.index[path] !== from[path] || workdir[path] !== repo.index[path]
-      if (dirty && !(repo.index[path] === to[path] && workdir[path] === to[path])) overwritten.push(path)
+      const dirty = own(repo.index, path) !== own(from, path) || own(workdir, path) !== own(repo.index, path)
+      if (dirty && !(own(repo.index, path) === own(to, path) && own(workdir, path) === own(to, path))) overwritten.push(path)
     }
-    index = withEntry(index, path, to[path])
-    files = withEntry(files, path, to[path])
+    index = withEntry(index, path, own(to, path))
+    files = withEntry(files, path, own(to, path))
   }
 
   if (overwritten.length || untracked.length) {
@@ -79,8 +79,8 @@ export function moveTrees(repo: Repo, workdir: Tree, from: Tree, to: Tree, verb:
 
   // like git, list the local changes that were carried over: M, A or D per path
   const carried = union(to, index)
-    .filter(path => index[path] !== to[path] || (index[path] !== undefined && files[path] !== index[path]))
-    .map(path => out(`${files[path] === undefined ? 'D' : to[path] === undefined ? 'A' : 'M'}\t${path}`))
+    .filter(path => own(index, path) !== own(to, path) || (own(index, path) !== undefined && own(files, path) !== own(index, path)))
+    .map(path => out(`${own(files, path) === undefined ? 'D' : own(to, path) === undefined ? 'A' : 'M'}\t${path}`))
   return { ok: true, index, workdir: files, carried }
 }
 
@@ -99,23 +99,23 @@ export interface Status {
 
 export function computeStatus(repo: Repo, workdir: Tree): Status {
   const head = headTree(repo)
-  const conflicted = (path: string) => repo.unmerged[path] !== undefined
+  const conflicted = (path: string) => own(repo.unmerged, path) !== undefined
 
   const staged = changedPaths(head, repo.index).filter(path => !conflicted(path)).map(path => ({
     path,
-    label: head[path] === undefined ? 'new file' : repo.index[path] === undefined ? 'deleted' : 'modified'
+    label: own(head, path) === undefined ? 'new file' : own(repo.index, path) === undefined ? 'deleted' : 'modified'
   }))
   const unstaged = Object.keys(repo.index).sort()
-    .filter(path => !conflicted(path) && workdir[path] !== repo.index[path])
-    .map(path => ({ path, label: workdir[path] === undefined ? 'deleted' : 'modified' }))
-  const unmerged = Object.keys(repo.unmerged).sort().map(path => ({ path, label: repo.unmerged[path]! }))
+    .filter(path => !conflicted(path) && own(workdir, path) !== own(repo.index, path))
+    .map(path => ({ path, label: own(workdir, path) === undefined ? 'deleted' : 'modified' }))
+  const unmerged = Object.keys(repo.unmerged).sort().map(path => ({ path, label: own(repo.unmerged, path)! }))
 
   // untracked directories collapse to "dir/" when nothing inside is tracked
   const tracked = [...Object.keys(repo.index), ...Object.keys(repo.unmerged)]
   const untracked = new Set<string>()
   const ignored = ignoreMatcher(workdir)
   for (const path of Object.keys(workdir)) {
-    if (repo.index[path] !== undefined || conflicted(path) || ignored(path)) continue
+    if (own(repo.index, path) !== undefined || conflicted(path) || ignored(path)) continue
     const parts = path.split('/')
     let shown = path
     for (let depth = 1; depth < parts.length; depth++) {

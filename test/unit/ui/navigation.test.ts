@@ -3,7 +3,7 @@ import { defineTrack, gitTrack, tracks } from '../../../shared/levels'
 import { firstCommit } from '../../../shared/levels/git/01-first-commit'
 import { comingTracks, liveTracks, navigationItems } from '../../../app/utils/navigation'
 
-const labels = { home: 'Tracks', about: 'About' }
+const labels = { home: 'Tracks', about: 'About', levels: 'Levels', cheat: 'Cheat sheet' }
 
 // a second live track, as data only: it must reach the nav and the home page without page edits
 const web = defineTrack({
@@ -23,6 +23,18 @@ describe('navigation', () => {
       ['Git', '/git', false],
       ['About', '/about', false]
     ])
+  })
+
+  it('gives a live track a menu: Levels, plus the cheat sheet only when the track has one', () => {
+    const git = navigationItems('/', tracks, labels).find(item => item.to === '/git')
+    expect(git?.children).toEqual([
+      { label: 'Levels', to: '/git' },
+      { label: 'Cheat sheet', to: '/git/cheat-sheet' }
+    ])
+    // the fixture track has no cheat sheet; home and About are plain links
+    const items = navigationItems('/', withWeb, labels)
+    expect(items.find(item => item.to === '/web')?.children).toEqual([{ label: 'Levels', to: '/web' }])
+    expect(items.filter(item => item.to === '/' || item.to === '/about').every(item => item.children === undefined)).toBe(true)
   })
 
   it('marks a track active on its page, its levels and its cheat sheet', () => {

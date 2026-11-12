@@ -105,7 +105,7 @@ export function restoreTracked(repo: Repo, workdir: Tree, before: Snapshot): Tre
  */
 export function resetWorkdirToHead(repo: Repo, workdir: Tree): Tree {
   const tree = headTree(repo)
-  return union(repo.index, repo.unmerged, tree).reduce((files, path) => withEntry(files, path, tree[path]), workdir)
+  return union(repo.index, repo.unmerged, tree).reduce((files, path) => withEntry(files, path, own(tree, path)), workdir)
 }
 
 /** The tree of a commit's first parent (empty for a root commit): what its change is measured against. */
@@ -150,8 +150,8 @@ export function summary(from: Tree, to: Tree): OutputLine[] {
   return [
     out(text),
     ...paths.flatMap((path) => {
-      if (from[path] === undefined) return [out(` create mode 100644 ${path}`)]
-      if (to[path] === undefined) return [out(` delete mode 100644 ${path}`)]
+      if (own(from, path) === undefined) return [out(` create mode 100644 ${path}`)]
+      if (own(to, path) === undefined) return [out(` delete mode 100644 ${path}`)]
       return []
     })
   ]
@@ -160,7 +160,7 @@ export function summary(from: Tree, to: Tree): OutputLine[] {
 /** Per-file diffstat (" app.txt | 2 +-") followed by the summary, as merge and pull print it. */
 export function diffstat(from: Tree, to: Tree): OutputLine[] {
   const paths = changedPaths(from, to)
-  const counts = paths.map(path => countChanges(from[path], to[path]))
+  const counts = paths.map(path => countChanges(own(from, path), own(to, path)))
   const width = Math.max(0, ...paths.map(path => path.length))
   const digits = Math.max(1, ...counts.map(count => String(count.insertions + count.deletions).length))
   const biggest = Math.max(0, ...counts.map(count => count.insertions + count.deletions))

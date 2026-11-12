@@ -2,7 +2,7 @@ import { parseArgs } from '../args'
 import { createCommit, subject } from '../objects/commit'
 import { shortId } from '../objects/hash'
 import { err, fail, hint, out } from '../output'
-import { headId, headTree } from '../state'
+import { headId, headTree, own } from '../state'
 import { hasUnmerged, treesEqual, unmergedOf } from '../worktree'
 import type { Author, Command, CommandResult, GitState, OutputLine } from '../types'
 import { stage } from './add'
@@ -78,7 +78,7 @@ export const commit: Command = (state, argv) => {
   if (amend && repo.operation?.type === 'merge') return fatal(state, 'fatal: You are in the middle of a merge -- cannot amend.')
 
   if (flags.has('-a')) {
-    const tracked = Object.keys(repo.index).filter(path => state.workdir[path] !== repo!.index[path])
+    const tracked = Object.keys(repo.index).filter(path => own(state.workdir, path) !== own(repo!.index, path))
     repo = stage(repo, state.workdir, tracked)
   }
 

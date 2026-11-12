@@ -2,7 +2,7 @@
 // Refuses, like git, when that would lose changes git has nowhere else (docs/features/git-model.md, "git rm").
 import { parseArgs } from '../args'
 import { done, err, fail, out } from '../output'
-import { headTree, normalizePath, without } from '../state'
+import { headTree, normalizePath, own, without } from '../state'
 import type { Command, OutputLine } from '../types'
 import { union } from '../worktree'
 import { matchPathspec } from './add'
@@ -48,9 +48,9 @@ export const rm: Command = (state, argv) => {
     const staged: string[] = []
     const local: string[] = []
     for (const path of sorted) {
-      if (repo.unmerged[path] !== undefined) continue
-      const isStaged = head[path] === undefined || head[path] !== repo.index[path]
-      const isLocal = state.workdir[path] !== undefined && state.workdir[path] !== repo.index[path]
+      if (own(repo.unmerged, path) !== undefined) continue
+      const isStaged = own(head, path) === undefined || own(head, path) !== own(repo.index, path)
+      const isLocal = own(state.workdir, path) !== undefined && own(state.workdir, path) !== own(repo.index, path)
       if (isStaged && isLocal) both.push(path)
       else if (!cached) {
         if (isStaged) staged.push(path)

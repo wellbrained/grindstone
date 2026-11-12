@@ -5,7 +5,7 @@ import { subject } from '../objects/commit'
 import { shortId } from '../objects/hash'
 import { done, err, fail, out } from '../output'
 import { resolveRev } from '../refs'
-import { headId, headTree, withEntry, without } from '../state'
+import { headId, headTree, own, withEntry, without } from '../state'
 import { union } from '../worktree'
 import type { Command, CommandResult, GitState, OutputLine, Repo, Tree } from '../types'
 import { matchPathspec } from './add'
@@ -23,8 +23,8 @@ const ambiguous = (state: GitState, arg: string) => fatal(state, [
 /** "Unstaged changes after reset:" and an M or D line per tracked file that differs from the new index. */
 function unstagedAfterReset(index: Tree, workdir: Tree): OutputLine[] {
   const rows = Object.keys(index).sort()
-    .filter(path => workdir[path] !== index[path])
-    .map(path => out(`${workdir[path] === undefined ? 'D' : 'M'}\t${path}`))
+    .filter(path => own(workdir, path) !== own(index, path))
+    .map(path => out(`${own(workdir, path) === undefined ? 'D' : 'M'}\t${path}`))
   return rows.length ? [out('Unstaged changes after reset:'), ...rows] : []
 }
 

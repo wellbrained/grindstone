@@ -6,9 +6,17 @@ const { site } = useAppConfig()
 const { t } = useI18n()
 const route = useRoute()
 
-// One list for the header, the mobile menu and the footer: Tracks, one entry per live track (from the registry), About.
+// One list for the header, the mobile menu and the footer: Tracks, one entry per live track (from the registry, a Levels / Cheat sheet menu), About.
 // A track's entry is active on its page, its levels and its cheat sheet.
-const navigation = computed(() => navigationItems(route.path, tracks, { home: t('layout.nav.tracks'), about: t('layout.nav.about') }))
+const navigation = computed(() => navigationItems(route.path, tracks, {
+  home: t('layout.nav.tracks'),
+  about: t('layout.nav.about'),
+  levels: t('layout.nav.levels'),
+  cheat: t('layout.nav.cheat')
+}))
+// A track entry is a menu trigger (a button), so the header and the mobile menu get it without a link of its own; its Levels
+// child is the track page. The footer keeps the plain links.
+const menuItems = computed(() => navigation.value.map(item => item.children ? { ...item, to: undefined } : item))
 </script>
 
 <template>
@@ -24,7 +32,8 @@ const navigation = computed(() => navigationItems(route.path, tracks, { home: t(
       </template>
 
       <UNavigationMenu
-        :items="navigation"
+        :items="menuItems"
+        :ui="{ childList: 'grid w-44 grid-cols-1 gap-0' }"
         :aria-label="t('layout.nav.label')"
       />
 
@@ -34,7 +43,7 @@ const navigation = computed(() => navigationItems(route.path, tracks, { home: t(
 
       <template #body>
         <UNavigationMenu
-          :items="navigation"
+          :items="menuItems"
           orientation="vertical"
           :aria-label="t('layout.nav.label')"
           class="-mx-2.5"

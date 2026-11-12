@@ -17,7 +17,14 @@ export default defineNuxtConfig({
   app: {
     head: {
       // Default document language; useHead() calls (e.g. from layers/i18n) override it
-      htmlAttrs: { lang: 'en' }
+      htmlAttrs: { lang: 'en' },
+      // Visit stats: self-hosted Umami (cookieless, no personal data), counted only on the live domain (docs/analytics.md)
+      script: [{
+        'src': 'https://stats.dkiessling.de/script.js',
+        'defer': true,
+        'data-website-id': 'ce3b559e-bed9-4d11-826b-85aa0c5eae7d',
+        'data-domains': 'grindstone.dkiessling.de'
+      }]
     }
   },
 

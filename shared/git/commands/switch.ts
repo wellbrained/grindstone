@@ -197,7 +197,7 @@ function restorePaths(state: GitState, repo: Repo, specs: string[], side: Confli
     if (!matched.length) return fail(state, [err(`error: pathspec '${normalizePath(spec) || spec}' did not match any file(s) known to git`)])
     for (const path of matched) paths.add(path)
   }
-  const unmerged = [...paths].filter(path => repo.unmerged[path] !== undefined)
+  const unmerged = [...paths].filter(path => own(repo.unmerged, path) !== undefined)
   const errors = side
     ? unmerged.filter(path => conflictSide(repo, path, side) === undefined).map(path => err(`error: path '${path}' does not have ${side === 'ours' ? 'our' : 'their'} version`))
     : unmerged.map(path => err(`error: path '${path}' is unmerged`))
@@ -206,9 +206,9 @@ function restorePaths(state: GitState, repo: Repo, specs: string[], side: Confli
   let workdir = state.workdir
   let updated = 0
   for (const path of paths) {
-    const content = side && repo.unmerged[path] ? conflictSide(repo, path, side) : repo.index[path]
+    const content = side && own(repo.unmerged, path) ? conflictSide(repo, path, side) : own(repo.index, path)
     // git always writes (and counts) a side of an unmerged file; other files only when they differ
-    if (!(side && repo.unmerged[path]) && workdir[path] === content) continue
+    if (!(side && own(repo.unmerged, path)) && own(workdir, path) === content) continue
     workdir = withEntry(workdir, path, content)
     updated++
   }

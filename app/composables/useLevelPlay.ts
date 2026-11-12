@@ -107,8 +107,17 @@ export function useLevelPlay(level: Level, options: LevelPlayOptions = {}) {
 
   const edit = (path: string) => (options.onEdit ?? openEditor)(path)
 
+  // stats: the first command of a visit to this level counts as a start (docs/analytics.md)
+  let started = false
+
   function apply(result: SubmitResult) {
+    const hintsBefore = session.value.hintsUsed
     store.value.session = result.session
+    if (!started && result.session.commandCount > 0) {
+      started = true
+      trackEvent('level-start', { level: level.id })
+    }
+    if (result.session.hintsUsed > hintsBefore) trackEvent('hint', { level: level.id, hint: result.session.hintsUsed })
     for (const line of result.output) {
       if (line.kind === 'clear') store.value.log = []
       else if (line.kind === 'edit') edit(line.path)
@@ -118,6 +127,7 @@ export function useLevelPlay(level: Level, options: LevelPlayOptions = {}) {
     if (result.solvedNow) {
       push({ type: 'solved' })
       record(level.id, result.session)
+      trackEvent('level-solved', { level: level.id, commands: result.session.commandCount, hints: result.session.hintsUsed })
       sparkKey.value++
       // a practice task has no debrief: its panel shows why it works, with Next and Again
       if (level.kind === 'practice') return
