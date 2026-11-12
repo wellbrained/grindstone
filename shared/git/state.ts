@@ -34,7 +34,8 @@ export function emptyRepo(branch = DEFAULT_BRANCH): Repo {
     unmerged: {},
     remoteBranches: {},
     upstream: {},
-    operation: null
+    operation: null,
+    stash: []
   }
 }
 

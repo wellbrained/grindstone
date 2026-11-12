@@ -32,6 +32,7 @@ export {
   remoteBranchHead,
   remoteCommitsOf,
   resolve,
+  stashEntries,
   trackingBranchHead,
   unmergedPaths,
   upstreamOf

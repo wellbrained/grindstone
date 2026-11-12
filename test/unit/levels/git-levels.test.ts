@@ -40,7 +40,19 @@ const initialGoals: Record<string, Record<string, boolean>> = {
   'git-03-merge': { 'on-main': false, 'merged': false },
   'git-04-merge-conflict': { 'merged': false, 'resolved': false, 'merge-commit': false },
   'git-05-rebase': { 'contains-main': false, 'linear': true, 'on-branch': true },
-  'git-06-teammate-sync': { 'pushed': false, 'up-to-date': true, 'linear': true, 'resolved': true, 'lease': false }
+  'git-06-teammate-sync': { 'pushed': false, 'up-to-date': true, 'linear': true, 'resolved': true, 'lease': false },
+  'git-11-fix-last-commit': { 'message': false, 'files': false, 'one-commit': true, 'clean': false },
+  'git-practice-amend-no-edit': { amended: false, clean: false },
+  'git-12-throw-away-change': { menu: false, prices: false, hours: true },
+  'git-practice-unstage-file': { unstaged: false, app: true },
+  'git-practice-discard-file': { discarded: false, kept: true },
+  'git-13-undo-local-commit': { 'blink-gone': false, 'back': false, 'kept': true },
+  'git-practice-reset-soft': { undone: false, staged: false },
+  'git-practice-reset-hard': { dropped: false, files: false },
+  'git-14-undo-pushed-commit': { reverted: false, history: true, pushed: false },
+  'git-practice-revert-before-last': { reverted: false },
+  'git-15-park-unfinished-work': { 'fixed': false, 'back': false, 'stash-empty': false },
+  'git-practice-stash-untracked': { stashed: false }
 }
 
 describe('level list', () => {
@@ -50,7 +62,8 @@ describe('level list', () => {
     expect(nextLevel('git-01-first-commit')?.id).toBe('git-practice-stage-one-file')
     expect(nextLevel('git-practice-commit-all')?.id).toBe('git-07-stage-together')
     expect(nextLevel('git-practice-ignore-logs')?.id).toBe('git-02-branch')
-    expect(nextLevel('git-06-teammate-sync')).toBeNull()
+    expect(nextLevel('git-06-teammate-sync')?.id).toBe('git-11-fix-last-commit')
+    expect(nextLevel('git-practice-stash-untracked')).toBeNull()
     expect(levelById('nope')).toBeNull()
   })
 })
@@ -126,7 +139,40 @@ const wrongPaths: [id: string, why: string, lines: string[], failing: string[]][
   ['git-10-ignore-build-files', 'commits the build output and .env', ['git add .', 'git commit -m "Build"'], ['gitignore', 'not-committed']],
   ['git-10-ignore-build-files', 'deletes the files instead of ignoring them', ['rm -r dist .env'], ['gitignore', 'kept']],
   ['git-10-ignore-build-files', 'writes the .gitignore but does not commit it', ['echo "dist/" > .gitignore', 'echo ".env" >> .gitignore'], ['gitignore', 'clean']],
-  ['git-practice-ignore-logs', 'replaces the .gitignore with >', ['echo "*.log" > .gitignore', 'git commit -am "Ignore log files"'], ['kept']]
+  ['git-practice-ignore-logs', 'replaces the .gitignore with >', ['echo "*.log" > .gitignore', 'git commit -am "Ignore log files"'], ['kept']],
+  ['git-11-fix-last-commit', 'adds the file in a second commit', ['git add src/streak.css', 'git commit -m "Add streak counter"'], ['one-commit']],
+  ['git-11-fix-last-commit', 'fixes the message but forgets the file', ['git commit --amend -m "Add streak counter"'], ['files', 'clean']],
+  ['git-practice-amend-no-edit', 'makes a new commit', ['git add src/reminders.css', 'git commit -m "Add reminder styles"'], ['amended']],
+  ['git-12-throw-away-change', 'unstages everything', ['git restore menu.html', 'git restore --staged .'], ['hours']],
+  ['git-12-throw-away-change', 'throws everything away with reset --hard', ['git reset --hard'], ['prices', 'hours']],
+  ['git-12-throw-away-change', 'restores prices.js instead of unstaging it', ['git restore menu.html prices.js'], ['prices']],
+  ['git-practice-unstage-file', 'unstages both files', ['git restore --staged .'], ['app']],
+  ['git-practice-discard-file', 'discards every change', ['git restore .'], ['kept']],
+  ['git-13-undo-local-commit', 'takes back both commits with --hard', ['git reset --hard HEAD~2'], ['kept']],
+  ['git-13-undo-local-commit', 'takes back both commits, the blink stays in style.css', ['git reset HEAD~2'], ['blink-gone']],
+  ['git-13-undo-local-commit', 'reverts the blink commit instead', ['git revert HEAD'], ['blink-gone', 'back']],
+  ['git-practice-reset-soft', 'unstages the changes with a mixed reset', ['git reset HEAD~1'], ['staged']],
+  ['git-practice-reset-hard', 'keeps the files with a mixed reset', ['git reset HEAD~2'], ['files']],
+  ['git-14-undo-pushed-commit', 'rewrites history with reset and a force push', ['git reset --hard HEAD~2', 'git push --force'], ['reverted', 'history', 'pushed']],
+  ['git-14-undo-pushed-commit', 'reverts but does not push', ['git revert HEAD~1'], ['pushed']],
+  ['git-14-undo-pushed-commit', 'reverts the newest commit instead', ['git revert HEAD', 'git push'], ['reverted', 'pushed']],
+  ['git-practice-revert-before-last', 'reverts the newest commit', ['git revert HEAD'], ['reverted']],
+  ['git-15-park-unfinished-work', 'commits the unfinished work to switch', [
+    'git commit -am "WIP gift cards"',
+    'git switch main',
+    'echo "export const saturday = \'8:00-14:00\'" > src/hours.js',
+    'git commit -am "Close at 14:00 on Saturdays"',
+    'git switch feature/gift-cards'
+  ], ['back']],
+  ['git-15-park-unfinished-work', 'applies the stash but leaves it there', [
+    'git stash',
+    'git switch main',
+    'echo "export const saturday = \'8:00-14:00\'" > src/hours.js',
+    'git commit -am "Close at 14:00 on Saturdays"',
+    'git switch feature/gift-cards',
+    'git stash apply'
+  ], ['stash-empty']],
+  ['git-practice-stash-untracked', 'leaves the new file behind', ['git stash'], ['stashed']]
 ]
 
 describe.each(wrongPaths)('%s: %s', (id, _why, lines, failing) => {
@@ -134,6 +180,23 @@ describe.each(wrongPaths)('%s: %s', (id, _why, lines, failing) => {
     const { session } = play(level(id), lines)
     expect(session.solved).toBe(false)
     expect(Object.entries(session.goalsMet).filter(([, met]) => !met).map(([goal]) => goal).sort()).toEqual([...failing].sort())
+  })
+})
+
+describe('git-14-undo-pushed-commit', () => {
+  it('names the real id of the bad commit in its last hint', () => {
+    const item = level('git-14-undo-pushed-commit')
+    const bad = commitsOf(startLevel(item).state, 'main').find(commit => commit.message === 'Round prices to whole euros')!.id
+    expect(item.hints[2]).toContain(`git revert ${bad.slice(0, 7)}`)
+  })
+})
+
+describe('git-15-park-unfinished-work', () => {
+  it('refuses the switch before the stash, and lists the entry after it', () => {
+    const { steps } = play(level('git-15-park-unfinished-work'), ['git switch main', 'git stash', 'git stash list'])
+    const text = (i: number) => steps[i]!.output.map(line => 'text' in line ? line.text : '').join('\n')
+    expect(text(0)).toContain('Please commit your changes or stash them before you switch branches.')
+    expect(text(2)).toMatch(/^stash@\{0\}: WIP on feature\/gift-cards: [0-9a-f]{7} Add a 25 euro gift card$/)
   })
 })
 

@@ -53,6 +53,22 @@ export interface RebaseOperation {
 
 export type Operation = MergeOperation | RebaseOperation
 
+/** One `git stash` entry: what index and working tree held, saved against the commit HEAD was on. */
+export interface StashEntry {
+  /** Deterministic 40-hex id (shown by `stash pop` and `stash drop`). */
+  id: string
+  /** The commit HEAD pointed at when the entry was made. */
+  base: string
+  /** `WIP on main: 1a2b3c4 <subject>`, or `On main: <message>` with `-m`. */
+  message: string
+  /** The staged snapshot. */
+  index: Tree
+  /** The tracked files of the working tree (a deleted file is missing). */
+  workdir: Tree
+  /** Untracked files taken along with `-u` (empty otherwise). */
+  untracked: Tree
+}
+
 export interface Repo {
   commits: Record<string, Commit>
   /** Local branches: name -> commit id. */
@@ -67,6 +83,8 @@ export interface Repo {
   /** Upstream config: local branch -> branch name on origin. */
   upstream: Record<string, string>
   operation: Operation | null
+  /** `git stash` entries, newest first (stash@{0} is the first). */
+  stash: StashEntry[]
 }
 
 export interface Remote {

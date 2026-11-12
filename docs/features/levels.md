@@ -40,7 +40,7 @@ The scenario engine (`shared/levels/`) and the git track's levels (`shared/level
 
 - **Track**: `{ id, title, scope (one line), tagline (one line for its home card, may be empty), description (the home card's pitch), status: 'live' | 'coming', cheatSheet (its path, or null), chapters }`. Everything the home page, the nav and the track page show about a track comes from here, so a new live track needs data only. `tracks` lists them in home page order: Git (live), then Working with AI, Web fundamentals, Debugging, Framework deep dives (coming: no chapters, no levels, not playable). `defineTrack` numbers the chapters and throws for a level of another track, a level listed twice, a coming track with levels, or a practice task that does not follow its scenario.
 - **Chapter**: `{ id (unique in its track, also the section anchor: /git#merging), trackId, number, title, description (one line), colour (a slot of the branch palette, 0-7), levels }`. `levels` is the play order: each scenario followed by its practice tasks. A chapter without levels is *coming*: shown with its description only.
-- **Git chapters**: 1 Basics (5 scenarios, 6 practice tasks), 2 Branching (Branch), 3 Merging (Merge, Merge conflict), 4 Rewriting history (Rebase), 5 Teamwork & remotes (Teammate sync), 6 Undo & recovery, 7 Disasters, 8 Workflows (6-8 coming). Colours: slot = chapter number - 1; slot 7 exists only for chapters, so branch colours in the graph did not move.
+- **Git chapters**: 1 Basics (5 scenarios, 6 practice tasks), 2 Branching (Branch), 3 Merging (Merge, Merge conflict), 4 Rewriting history (Rebase), 5 Teamwork & remotes (Teammate sync), 6 Undo & recovery (5 scenarios, 7 practice tasks), 7 Disasters, 8 Workflows (7-8 coming). Colours: slot = chapter number - 1; slot 7 exists only for chapters, so branch colours in the graph did not move.
 - **Numbers**: a scenario is `chapter.position` counting scenarios only, e.g. `1.2` for Stage only what belongs together, `3.2` for Merge conflict (`levelNumber`, `LevelPlace.number`). A practice task has no number (`number: null`); `LevelPlace.scenario` names its scenario and that scenario's number. `placeName(place)` is the text form: "3.2 Merge conflict", or the title alone for a practice task. The ids and URLs (`git-04-merge-conflict`, `/git/04-merge-conflict`, `/git/practice-stage-one-file`) never change when a level moves or gets renumbered.
 - **Counting both kinds**: "n of N solved" for a chapter and a track, **next up** and **Continue** count scenarios and practice tasks alike: a practice task is a level you solve like any other, so leaving one out would make the counts lie.
 - **Next up**: the first unsolved entry in play order (`nextUp`), a scenario or a practice task. **Continue** (`continueTarget`, `{ place, reason, at }`): the entry you last played while it is unsolved (`reason: 'resume'`, with the time), else next up (`'next'`); once nothing in the track is unsolved, the first entry flagged "practise again" in play order (`'practise'`); null when everything is solved and nothing is flagged. `practiseAgainIn(chapter, progress)` is the chapter menu's "Practise again". `trackToContinue` picks the track for the home page: the live track of the last played entry, else the first live track with a solve.
@@ -136,6 +136,23 @@ Chapter 1, Basics (ADR 0006, batch 1; difficulty and minutes):
 | | Last three commits, one line each: `git log --oneline -3` | practice | 1 | ~30 s |
 | 1.5 | **Ignore build files**: dist/ and a .env with a fake key appear; write and commit a .gitignore, keep the files, clean tree | scenario | 2 | ~6 min |
 | | Ignore every log file: append `*.log` with `>>` (a `>` that drops `dist/` does not count) and commit | practice | 1 | ~30 s |
+
+Chapter 6, Undo & recovery (ADR 0006, batch 2; preview `.impeccable/mocks/previews/undo-preview.html`):
+
+| | Entry | Kind | Difficulty | Time |
+| --- | --- | --- | --- | --- |
+| 6.1 | **Fix the last commit**: "Add strak counter" with `src/streak.css` left untracked, not pushed; `git commit --amend` to one commit "Add streak counter" | scenario | 1 | ~4 min |
+| | Add a forgotten file to the last commit: `git commit --amend --no-edit` | practice | 1 | ~30 s |
+| 6.2 | **Throw away a change**: `git restore menu.html` (a broken grid experiment), `git restore --staged prices.js` (a draft staged by `git add .`), hours.html stays staged | scenario | 1 | ~4 min |
+| | Unstage one file: `git restore --staged style.css` | practice | 1 | ~30 s |
+| | Discard your changes in one file: `git restore src/beds.js` | practice | 1 | ~30 s |
+| 6.3 | **Undo a local commit**: two unpushed commits; `git reset --hard HEAD~1` drops the blink commit, `git reset HEAD~1` takes back the gift wrap commit and keeps its changes; story, hint and debrief warn that `--hard` throws away uncommitted work for good | scenario | 2 | ~6 min |
+| | Undo the last commit, keep its changes staged: `git reset --soft HEAD~1` | practice | 1 | ~30 s |
+| | Drop the last two commits completely: `git reset --hard HEAD~2` (on a clean tree) | practice | 1 | ~30 s |
+| 6.4 | **Undo a pushed commit**: Jonas pulled "Round prices to whole euros"; `git revert <id>` and `git push` (the approved sample text; the last hint names the real id) | scenario | 2 | ~5 min |
+| | Revert the commit before last: `git revert HEAD~1` | practice | 1 | ~30 s |
+| 6.5 | **Park unfinished work**: on `feature/gift-cards` with staged and unstaged work, `git switch main` refuses; `git stash`, fix Saturday hours on main, commit, switch back, `git stash pop`; the stash ends empty | scenario | 2 | ~6 min |
+| | Stash including new files: `git stash -u` | practice | 1 | ~30 s |
 
 Chapters 2-5 (v0.1):
 

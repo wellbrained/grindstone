@@ -69,9 +69,10 @@ export const cheatGroups: CheatGroup[] = [
     id: 'undo',
     title: 'Undo',
     commands: [
-      { name: 'reset', comingSoon: true, summary: 'Move the branch back, keeping or dropping the changes.', examples: [{ line: 'git reset --soft HEAD~1', note: 'Undo the last commit, keep its changes staged' }] },
-      { name: 'revert', comingSoon: true, summary: 'Add a new commit that undoes an old one; safe on shared branches.', examples: [{ line: 'git revert a1b2c3d', note: 'Undo a pushed commit' }] },
-      { name: 'stash', comingSoon: true, summary: 'Put unfinished changes aside and get them back later.', examples: [{ line: 'git stash', note: 'Park your changes' }, { line: 'git stash pop', note: 'Bring them back' }] },
+      { name: 'restore', summary: 'Throw away changes in a file, or take it out of the staging area.', examples: [{ line: 'git restore app.js', note: 'Throw away unstaged changes, for good' }, { line: 'git restore --staged app.js', note: 'Unstage a file, keep your edits' }] },
+      { name: 'reset', summary: 'Move the branch back, keeping or dropping the changes.', examples: [{ line: 'git reset --soft HEAD~1', note: 'Undo the last commit, keep its changes staged' }, { line: 'git reset HEAD~1', note: 'Undo the last commit, keep its changes in your files' }, { line: 'git reset --hard HEAD~1', note: 'Drop the last commit and all uncommitted work' }] },
+      { name: 'revert', summary: 'Add a new commit that undoes an old one; safe on shared branches.', examples: [{ line: 'git revert a1b2c3d', note: 'Undo a pushed commit' }, { line: 'git revert HEAD~1', note: 'Undo the commit before last' }] },
+      { name: 'stash', summary: 'Put unfinished changes aside and get them back later.', examples: [{ line: 'git stash', note: 'Park your changes' }, { line: 'git stash -u', note: 'Park new files too' }, { line: 'git stash list', note: 'What is parked?' }, { line: 'git stash pop', note: 'Bring the newest back' }] },
       { name: 'cherry-pick', comingSoon: true, summary: 'Copy one commit from another branch onto yours.', examples: [{ line: 'git cherry-pick a1b2c3d', note: 'Take just that fix' }] }
     ]
   }

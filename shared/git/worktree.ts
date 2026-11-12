@@ -4,7 +4,8 @@ import { err, out } from './output'
 import { headTree, withEntry } from './state'
 import type { OutputLine, Repo, Tree } from './types'
 
-const union = (...trees: Tree[]) => [...new Set(trees.flatMap(tree => Object.keys(tree)))].sort()
+/** Every path of the given trees, sorted. */
+export const union = (...trees: Tree[]) => [...new Set(trees.flatMap(tree => Object.keys(tree)))].sort()
 
 export function changedPaths(a: Tree, b: Tree): string[] {
   return union(a, b).filter(path => a[path] !== b[path])

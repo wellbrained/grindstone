@@ -17,6 +17,7 @@ describe('git cheat sheet', () => {
   it('links commands to the levels that use them', () => {
     expect(levelsUsing('init').map(level => level.id)).toContain('git-01-first-commit')
     expect(levelsUsing('rebase').length).toBeGreaterThan(0)
-    expect(levelsUsing('stash')).toEqual([])
+    expect(levelsUsing('stash').map(level => level.id)).toEqual(['git-15-park-unfinished-work'])
+    expect(levelsUsing('cherry-pick')).toEqual([])
   })
 })

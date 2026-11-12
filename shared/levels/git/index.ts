@@ -13,7 +13,13 @@ import { stageTogether } from './07-stage-together'
 import { whatChanged } from './08-what-changed'
 import { readHistory } from './09-read-history'
 import { ignoreBuildFiles } from './10-ignore-build-files'
+import { fixLastCommit } from './11-fix-last-commit'
+import { throwAwayChange } from './12-throw-away-change'
+import { undoLocalCommit } from './13-undo-local-commit'
+import { undoPushedCommit } from './14-undo-pushed-commit'
+import { parkUnfinishedWork } from './15-park-unfinished-work'
 import { commitAll, diffFile, diffStaged, ignoreLogs, logOneline, stageOneFile } from './practice/basics'
+import { amendNoEdit, discardFile, resetHard, resetSoft, revertBeforeLast, stashUntracked, unstageFile } from './practice/undo'
 
 export const gitTrack = defineTrack({
   id: 'git',
@@ -77,7 +83,20 @@ export const gitTrack = defineTrack({
       title: 'Undo & recovery',
       description: 'Reset, revert and stash: take back a mistake without losing work.',
       colour: 5,
-      levels: []
+      levels: [
+        fixLastCommit,
+        amendNoEdit,
+        throwAwayChange,
+        unstageFile,
+        discardFile,
+        undoLocalCommit,
+        resetSoft,
+        resetHard,
+        undoPushedCommit,
+        revertBeforeLast,
+        parkUnfinishedWork,
+        stashUntracked
+      ]
     },
     {
       id: 'disasters',

@@ -4,7 +4,7 @@ Grindstone's own git simulation (`shared/git/`, decision in `docs/adr/0002-git-m
 
 ## How it works
 
-- **State** (`types.ts`): `GitState` holds the working tree (`workdir`, exists before `git init`), the local `repo` (or `null`), the remote `origin` (or `null`), the `user` and a logical `clock`. A `Repo` holds `commits` (id -> commit), `branches`, `head` (branch or detached commit), `index` (staged snapshot), `unmerged` paths, `remoteBranches` (the local `origin/*` refs), `upstream` config and the `operation` in progress (merge or rebase, with a snapshot for `--abort`). Trees are flat maps `path -> content`. Everything is JSON-serialisable; the UI's undo is a stack of states.
+- **State** (`types.ts`): `GitState` holds the working tree (`workdir`, exists before `git init`), the local `repo` (or `null`), the remote `origin` (or `null`), the `user` and a logical `clock`. A `Repo` holds `commits` (id -> commit), `branches`, `head` (branch or detached commit), `index` (staged snapshot), `unmerged` paths, `remoteBranches` (the local `origin/*` refs), `upstream` config, the `operation` in progress (merge or rebase, with a snapshot for `--abort`) and the `stash` entries (newest first: id, base commit, message, index, tracked working tree files, untracked files taken with `-u`). Trees are flat maps `path -> content`. Everything is JSON-serialisable; the UI's undo is a stack of states.
 - **Immutability**: every command returns a new state and never mutates its input (the tests deep-freeze every state they pass in).
 - **Determinism**: no `Date.now` or randomness. Each new commit advances `clock`; its timestamp is 2026-03-02 09:00 UTC plus `clock` minutes. Ids are a 40-hex FNV-based hash over parents, tree, author, timestamp and message, so a replayed level always yields the same ids.
 - **Commands**: `(state, argv) => { state, output, exitCode }`. `run(state, line)` tokenizes the line (quotes, escapes, `>`, `>>`, `&&`, `;`) and dispatches to git or the shell. User errors never throw: they return git-like error lines and a non-zero `exitCode` with the state unchanged.
@@ -18,7 +18,7 @@ Grindstone's own git simulation (`shared/git/`, decision in `docs/adr/0002-git-m
 - Setup: `repo()` / `folder()` return a `SetupBuilder` with `file`, `remove`, `stage`, `commit(message, { author })`, `branch`, `switch(name, { create })`, `merge`, `origin()`, `push(branch?)`, `fetch`, `teammate(author, message, files, { branch })`, `run(line)`, `update(fn)`, `build()`. A failing step throws (levels are author code). `commit` stages everything first; `file` adds a trailing newline.
 - Teammates: `teammateCommit(state, { author, message, files, branch? })` commits onto an origin branch (`null` deletes a file); the local repo sees it only after `fetch`/`pull`.
 - `ignoreMatcher(workdir)`: a `(path) => boolean` check over the .gitignore files of a tree (goals use it on a committed tree); `isIgnored(state, path)` for one path of the state (a tracked path never is).
-- Queries for goals: `currentBranch`, `headCommit`, `resolve`, `branchExists`, `commitsOf(rev | 'a..b')`, `isAncestor`, `hasMergeCommits(rev | 'a..b')`, `aheadBehind`, `remoteBranchHead` (on origin), `remoteCommitsOf`, `trackingBranchHead` (local `origin/x`), `upstreamOf`, `unmergedPaths`, `conflictsInProgress`, `operationInProgress`, `isWorkingTreeClean`, `fileContent`, `hasConflictMarkers`.
+- Queries for goals: `currentBranch`, `headCommit`, `resolve`, `branchExists`, `commitsOf(rev | 'a..b')`, `isAncestor`, `hasMergeCommits(rev | 'a..b')`, `aheadBehind`, `remoteBranchHead` (on origin), `remoteCommitsOf`, `trackingBranchHead` (local `origin/x`), `upstreamOf`, `unmergedPaths`, `conflictsInProgress`, `operationInProgress`, `isWorkingTreeClean`, `fileContent`, `hasConflictMarkers`, `stashEntries` (newest first).
 - Also: `tokenize`, `blobId`, `shortId`, `formatDate`, `gitCommandNames` and `shellCommandNames` (Tab completion), all types.
 
 ## Supported commands
@@ -34,6 +34,10 @@ Grindstone's own git simulation (`shared/git/`, decision in `docs/adr/0002-git-m
 | `branch` | list, `-a`, `-r`, create (with start point), `-d`, `-D`, `-u` / `--set-upstream-to` |
 | `switch` | `<branch>`, `-c <new> [start]`, `--detach <rev>`; creates a tracking branch from `origin/<name>` |
 | `checkout` | `<branch>`, `-b <new> [start]`, `<commit>` (detached HEAD), `-- <paths>` |
+| `restore` | `<paths>` (working tree from the index), `--staged` / `-S` (index from HEAD), `--worktree` / `-W` with `--staged` (both from HEAD); silent on success; unknown paths and unmerged files are refused like git |
+| `reset` | `[--soft \| --mixed \| --hard] [<commit>]` (default mixed, HEAD; hashes, branches, `HEAD~n`, `HEAD^`), `[<commit>] [--] <paths>` (unstage); mixed prints "Unstaged changes after reset:", hard "HEAD is now at ..." |
+| `revert` | `<commit>` (one), `--no-edit`; takes git's default message `Revert "<subject>"` + `This reverts commit <id>.` |
+| `stash` | `[push] [-u] [-m <msg>]`, `list`, `pop [<n>]`, `apply [<n>]`, `drop [<n>]`, `clear`; entries as `stash@{n}` or `n` |
 | `merge` | `<rev>` (or the upstream), fast-forward, `--no-ff`, `--ff-only`, `-m`, `--abort`, `--continue` |
 | `rebase` | `<upstream>` (or the upstream), `--continue`, `--skip`, `--abort` |
 | `fetch` | `[origin [branch]]`, `--prune` |
@@ -73,5 +77,15 @@ Anything else: real git commands answer `git: '<x>' is not in this trainer yet`,
 - `push.default` is effectively `upstream`; no tags, no refspecs `src:dst`, no `--delete`.
 - `log --graph` draws basic lanes (`*`, `|`, `|\`, `|/`), not every case git's renderer handles.
 - Conflict markers are written but there is no `diff --cc`; `git diff` during a conflict compares against our side.
-- No editor: `commit` without `-m` asks for `-m` (except when concluding a merge or with `--amend`).
+- No editor: `commit` without `-m` asks for `-m` (except when concluding a merge or with `--amend`); `revert` always takes git's default message (`--edit` is not supported).
 - `.gitignore` files only: no `.git/info/exclude`, no global excludes file, no `status --ignored`, no `git check-ignore`. The ignored-file message leaves out git's last hint (`git config set advice.addIgnoredFile false`), since there is no `git config`. Switching branches treats ignored files like untracked ones (git would overwrite them).
+
+## Undo commands (`restore`, `reset`, `revert`, `stash`)
+
+Tests in `test/unit/git/undo.test.ts`. Simplifications versus real git:
+
+- **restore**: no `--source`, no `-p`. Without `--staged`, the file comes from the index; `--worktree` only adds something together with `--staged`.
+- **reset**: no `--keep`, `--merge`, `-p` or `-q`. The first argument is a commit when it resolves to one, everything else a path (a name that is both a branch and a file counts as the branch). A path without `--` that matches nothing is git's "ambiguous argument" error; after `--` it is skipped. `--mixed` and `--hard` end a merge in progress (like git); `--soft` during a merge is refused with git's message; any reset during a rebase is refused ("not in this trainer yet": use `rebase --abort` or finish the rebase). Before the first commit only a plain `git reset` (unstage everything) works. There is no reflog, so commits dropped by a reset are gone from the graph and from `log --all` (they stay in the commit map, so a known id still resolves).
+- **revert**: one commit at a time, no `-n`, no `-m` (a merge commit is refused with git's "is a merge but no -m option was given"). A revert that would conflict with later changes is refused and changes nothing (git would stop with conflict markers and `revert --continue`); one that would undo nothing prints the status and fails, like an empty commit. Like git, staged changes are refused, and unstaged changes only when they touch the files the revert changes.
+- **stash**: entries are plain data on the repo, not commits, so they never show in the graph or in `log --all` (git shows `refs/stash`). Their id is a deterministic commit-style id (it advances the logical clock like a commit). No `show`, `branch`, `save`, `-p`, `-k`, `-a`, `--index` or pathspecs. Apply and pop do a three-way merge of the stashed working tree onto the current index (base: the commit the entry was made on); like git without `--index`, staged changes come back unstaged and new files come back staged. A merge that would conflict is refused instead of writing markers ("applying a stash with conflicts is not in this trainer yet"); local changes it would overwrite and untracked files that already exist are refused with git's messages; `pop` then keeps the entry and says so. Stashing with unmerged files is refused (`<path>: needs merge`); during a merge or rebase without conflicts it works as in git and the operation stays.
+- The trainer commands `reset` and `undo` are matched on the whole line, so `git reset` always reaches git.

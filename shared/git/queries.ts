@@ -4,7 +4,7 @@ import { isAncestor as reachableFrom, range } from './objects/graph'
 import { resolveRev } from './refs'
 import { headId } from './state'
 import { computeStatus } from './worktree'
-import type { Commit, GitState } from './types'
+import type { Commit, GitState, StashEntry } from './types'
 
 export function currentBranch(state: GitState): string | null {
   return state.repo?.head.type === 'branch' ? state.repo.head.name : null
@@ -102,4 +102,9 @@ export function fileContent(state: GitState, path: string): string | undefined {
 
 export function hasConflictMarkers(content: string): boolean {
   return /^(<{7}|={7}|>{7})( |$)/m.test(content)
+}
+
+/** The `git stash` entries, newest first (stash@{0} first). */
+export function stashEntries(state: GitState): StashEntry[] {
+  return state.repo?.stash ?? []
 }

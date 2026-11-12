@@ -49,6 +49,14 @@ describe('complete', () => {
     expect(complete('git switch zzz', context)).toEqual({ input: 'git switch zzz', candidates: [] })
   })
 
+  it('completes files for restore and reset, revisions for reset and revert, and the stash subcommands', () => {
+    expect(complete('git restore --staged RE', context).input).toBe('git restore --staged README.md ')
+    expect(complete('git reset src/f', context).input).toBe('git reset src/footer.ts ')
+    expect(complete('git revert ma', context).input).toBe('git revert main ')
+    expect(complete('git stash p', context).candidates).toEqual(['pop', 'push'])
+    expect(complete('git stash pop x', context).candidates).toEqual([])
+  })
+
   it('does not offer branch names for a subcommand that takes none', () => {
     expect(complete('git add ma', context).candidates).toEqual([])
   })

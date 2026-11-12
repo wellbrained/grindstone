@@ -19,9 +19,11 @@ export interface CompletionResult {
 }
 
 /** git subcommands that take a branch (or a revision, or `origin`). */
-const BRANCH_ARGS = new Set(['switch', 'checkout', 'merge', 'rebase', 'branch', 'log', 'push', 'pull', 'fetch', 'diff'])
+const BRANCH_ARGS = new Set(['switch', 'checkout', 'merge', 'rebase', 'branch', 'log', 'push', 'pull', 'fetch', 'diff', 'reset', 'revert'])
 /** git subcommands that take a file. */
-const FILE_ARGS = new Set(['add', 'checkout', 'diff', 'commit'])
+const FILE_ARGS = new Set(['add', 'checkout', 'diff', 'commit', 'restore', 'reset'])
+/** `git stash <subcommand>`. */
+const STASH_SUBCOMMANDS = ['push', 'list', 'pop', 'apply', 'drop', 'clear']
 /** shell and trainer commands that take a file. */
 const FILE_COMMANDS = new Set(['cat', 'edit', 'rm', 'touch', 'ls'])
 const REMOTE_ARGS = new Set(['push', 'pull', 'fetch'])
@@ -41,6 +43,7 @@ function candidatesFor(words: string[], word: string, context: CompletionContext
   if (first === 'git') {
     if (words.length === 1) return [...context.gitCommands]
     if (!second) return []
+    if (second === 'stash') return words.length === 2 ? STASH_SUBCOMMANDS : []
     return [
       ...REMOTE_ARGS.has(second) ? ['origin'] : [],
       ...BRANCH_ARGS.has(second) ? context.branches : [],

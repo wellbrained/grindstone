@@ -9,6 +9,10 @@ import { log } from './log'
 import { merge } from './merge'
 import { rebase } from './rebase'
 import { fetch, pull, push } from './remote'
+import { reset } from './reset'
+import { restore } from './restore'
+import { revert } from './revert'
+import { stash } from './stash'
 import { status } from './status'
 import { checkout, switchCommand } from './switch'
 
@@ -22,6 +26,10 @@ export const GIT_COMMANDS: Record<string, { run: Command, summary: string }> = {
   branch: { run: branch, summary: 'List, create, or delete branches' },
   switch: { run: switchCommand, summary: 'Switch branches' },
   checkout: { run: checkout, summary: 'Switch branches or restore working tree files' },
+  restore: { run: restore, summary: 'Restore working tree files' },
+  reset: { run: reset, summary: 'Reset current HEAD to the specified state' },
+  revert: { run: revert, summary: 'Revert some existing commits' },
+  stash: { run: stash, summary: 'Stash the changes in a dirty working directory away' },
   merge: { run: merge, summary: 'Join two development histories together' },
   rebase: { run: rebase, summary: 'Reapply commits on top of another base tip' },
   fetch: { run: fetch, summary: 'Download objects and refs from origin' },
@@ -33,8 +41,8 @@ export const GIT_COMMANDS: Record<string, { run: Command, summary: string }> = {
 const KNOWN_ELSEWHERE = [
   'am', 'apply', 'archive', 'bisect', 'blame', 'bundle', 'cat-file', 'cherry', 'cherry-pick', 'clean', 'clone',
   'config', 'describe', 'format-patch', 'fsck', 'gc', 'grep', 'gui', 'ls-files', 'ls-remote', 'ls-tree',
-  'maintenance', 'mv', 'notes', 'prune', 'range-diff', 'reflog', 'remote', 'rerere', 'reset', 'restore',
-  'rev-list', 'rev-parse', 'revert', 'rm', 'shortlog', 'show', 'show-branch', 'sparse-checkout', 'stash',
+  'maintenance', 'mv', 'notes', 'prune', 'range-diff', 'reflog', 'remote', 'rerere',
+  'rev-list', 'rev-parse', 'rm', 'shortlog', 'show', 'show-branch', 'sparse-checkout',
   'submodule', 'tag', 'whatchanged', 'worktree'
 ]
 
