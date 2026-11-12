@@ -7,8 +7,10 @@ The scenario engine (`shared/levels/`) and the git track's levels (`shared/level
 - `startLevel(level): Session`: a fresh session on the level's setup.
 - `submit(session, level, line): SubmitResult`: runs one terminal line. Returns `{ session, output, notices, solvedNow }`.
 - `saveFile(session, level, path, content): SubmitResult`: the editor panel's save; counts like a command (`edit <path>` in the history) and can be undone.
-- `levels`, `gitLevels`, `levelById(id)`, `nextLevel(id)`.
-- Progress: `emptyProgress()`, `recordSolve(progress, levelId, session)`, `serializeProgress(progress)`, `parseProgress(text)`, `PROGRESS_VERSION`.
+- Tracks and chapters (see below): `tracks`, `gitTrack`, `trackById(id)`, `defineTrack(definition)`, `trackLevels(track)`, `trackPlaces(track)`, `placeIn(track, id)`, `levelPlace(id)`, `levelNumber(id)`, `chapterOf(id)`, `chapterProgress(chapter, progress)`, `trackProgress(track, progress)`, `nextUp(track, progress)`, `continueTarget(track, progress)`, `hasProgress(progress)`, `trackToContinue(progress)`. The lookups take the registry as an optional last argument, so tests run them on a 58-level fixture (`test/unit/levels/fixtures.ts`).
+- `levels` (every level of every track, in play order), `gitLevels`, `levelById(id)`, `nextLevel(id)` (the next level of the same track, across chapter boundaries; null after the last).
+- `gitSubcommands(line)`, `levelCommands(level)`: the git commands a level practises, from its solution (level rows, cheat sheet).
+- Progress: `emptyProgress()`, `recordSolve(progress, levelId, session)`, `recordPlay(progress, levelId, at)`, `serializeProgress(progress)`, `parseProgress(text)`, `PROGRESS_VERSION`.
 - `MAX_SNAPSHOTS` (undo depth, 200), `TRAINER_COMMANDS`, all types (`Level`, `Goal`, `GoalContext`, `TeammateEvent`, `Session`, `TerminalLine`, `Notice`, ...).
 
 ## Engine rules
@@ -32,9 +34,19 @@ The scenario engine (`shared/levels/`) and the git track's levels (`shared/level
 - **Events** fire once per timeline: `firedEvents` is part of the snapshot, so an undo that rewinds past an event lets it fire again. Each firing returns a `Notice` (`{ eventId, author, text }`).
 - **Counts**: `history` is the current timeline (undo shortens it); `commandCount` is the effort of the attempt and includes undone commands. Progress uses `commandCount`.
 
+## Tracks and chapters
+
+`shared/levels/track.ts` (types and helpers) and `shared/levels/tracks.ts` (the registry). Play order, chapter numbers and level numbers are derived from the chapter lists, never written by hand.
+
+- **Track**: `{ id, title, scope (one line), tagline (one line for its home card, may be empty), description (the home card's pitch), status: 'live' | 'coming', cheatSheet (its path, or null), chapters }`. Everything the home page, the nav and the track page show about a track comes from here, so a new live track needs data only. `tracks` lists them in home page order: Git (live), then Working with AI, Web fundamentals, Debugging, Framework deep dives (coming: no chapters, no levels, not playable). `defineTrack` numbers the chapters and throws for a level of another track, a level listed twice, or a coming track with levels.
+- **Chapter**: `{ id (unique in its track, also the section anchor: /git#merging), trackId, number, title, description (one line), colour (a slot of the branch palette, 0-7), levels }`. A chapter without levels is *coming*: shown with its description only.
+- **Git chapters**: 1 Basics (First commit), 2 Branching (Branch), 3 Merging (Merge, Merge conflict), 4 Rewriting history (Rebase), 5 Teamwork & remotes (Teammate sync), 6 Undo & recovery, 7 Disasters, 8 Workflows (6-8 coming). Colours: slot = chapter number - 1; slot 7 exists only for chapters, so branch colours in the graph did not move.
+- **Level number**: `chapter.position`, e.g. `3.2` for Merge conflict (`levelNumber`, `LevelPlace.number`). The ids and URLs (`git-04-merge-conflict`, `/git/04-merge-conflict`) do not change when a level moves.
+- **Next up**: the first unsolved level in play order (`nextUp`). **Continue** (`continueTarget`): the level you last played while it is unsolved (`resume: true`, with the time), else next up; null when every level of the track is solved. `trackToContinue` picks the track for the home page: the live track of the last played level, else the first live track with a solve.
+
 ## Progress
 
-`Progress = { version: 1, levels: { [id]: { solved, hintsUsed, commands, bestCommands } } }`. `recordSolve` takes hints and commands from the latest solve and keeps the fewest commands in `bestCommands`; an unsolved session leaves progress unchanged. `parseProgress` returns empty progress for missing, broken or other-version data and drops malformed entries. Storage (localStorage) is the UI's adapter.
+`Progress = { version: 2, levels: { [id]: { solved, hintsUsed, commands, bestCommands } }, lastPlayed: { levelId, at } | null }`. `recordSolve` takes hints and commands from the latest solve and keeps the fewest commands in `bestCommands`; an unsolved session leaves progress unchanged. `recordPlay` sets `lastPlayed` (the play page calls it for every line typed and every editor save). `parseProgress` returns empty progress for missing, broken or unknown-version data and drops malformed entries; version 1 data (no `lastPlayed`) is migrated on read: its levels are kept, `lastPlayed` is null. A malformed `lastPlayed` is dropped on its own. Storage (localStorage) is the UI's adapter.
 
 ## Level file format
 
@@ -64,8 +76,8 @@ Conventions:
 ## Adding a level
 
 1. Add a row for it to `initialGoals` in `test/unit/levels/git-levels.test.ts` (goal ids and their value at the start) and any wrong-path tests: red.
-2. Write `shared/levels/<track>/NN-slug.ts` and add it to the ordered list in that track's `index.ts`.
-3. `pnpm test`: the shared tests check shape, a deterministic setup, the start state, and that replaying `solution` solves the level exactly on its last line.
+2. Write `shared/levels/<track>/NN-slug.ts` and add it, in one line, to its chapter's `levels` in that track's `index.ts` (plus the import). Its number (`3.3`), its place in the play order, its row on the track page and its commands follow from that.
+3. `pnpm test`: the shared tests check shape, a deterministic setup, the start state, and that replaying `solution` solves the level exactly on its last line. `test/unit/levels/tracks.test.ts` pins the chapter of every level; add the new id there.
 
 ## The v0.1 git levels
 

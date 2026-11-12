@@ -1,23 +1,11 @@
 // Public API of the level engine (docs/features/levels.md).
-import { gitLevels } from './git'
-import type { Level } from './types'
-
 export type * from './types'
-export type { LevelProgress, Progress } from './progress'
+export type { LastPlayed, LevelProgress, Progress } from './progress'
+export type { Chapter, ChapterColour, ChapterDefinition, ContinueTarget, Count, LevelPlace, Track, TrackDefinition, TrackStatus } from './track'
 
 export { MAX_SNAPSHOTS, TRAINER_COMMANDS, saveFile, startLevel, submit } from './engine'
-export { PROGRESS_VERSION, emptyProgress, parseProgress, recordSolve, serializeProgress } from './progress'
-export { gitLevels }
-
-/** Every level of every track, in play order. */
-export const levels: Level[] = [...gitLevels]
-
-export function levelById(id: string): Level | null {
-  return levels.find(level => level.id === id) ?? null
-}
-
-/** The level after `id` in play order, or null for the last one (or an unknown id). */
-export function nextLevel(id: string): Level | null {
-  const index = levels.findIndex(level => level.id === id)
-  return index === -1 ? null : levels[index + 1] ?? null
-}
+export { PROGRESS_VERSION, emptyProgress, parseProgress, recordPlay, recordSolve, serializeProgress } from './progress'
+export { chapterProgress, continueTarget, defineTrack, nextUp, placeIn, trackLevels, trackPlaces, trackProgress } from './track'
+export { chapterOf, hasProgress, levelById, levelNumber, levelPlace, levels, nextLevel, trackById, trackToContinue, tracks } from './tracks'
+export { gitSubcommands, levelCommands } from './commands'
+export { gitLevels, gitTrack } from './git'

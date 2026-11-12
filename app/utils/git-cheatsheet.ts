@@ -1,6 +1,6 @@
 // Content of the git cheat sheet (/git/cheat-sheet). Pure data plus the link to the levels that use a command,
 // derived from the level solutions so it never goes stale. Supported forms: docs/features/git-model.md.
-import { gitLevels } from '../../shared/levels'
+import { gitLevels, gitSubcommands } from '../../shared/levels'
 import type { Level } from '../../shared/levels'
 
 export interface CheatCommand {
@@ -76,11 +76,6 @@ export const cheatGroups: CheatGroup[] = [
     ]
   }
 ]
-
-/** The git subcommands a command line runs, e.g. 'git add . && git commit -m "x"' gives ['add', 'commit']. */
-export function gitSubcommands(line: string): string[] {
-  return [...line.matchAll(/(?:^|&&|;)\s*git\s+([a-z-]+)/g)].map(match => match[1]!)
-}
 
 /** The levels whose solution uses this git subcommand, in level order. */
 export function levelsUsing(name: string, levels: readonly Level[] = gitLevels): Level[] {

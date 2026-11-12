@@ -16,7 +16,7 @@ const blocked: StorageLike = {
     throw new Error('QuotaExceededError')
   }
 }
-const solved: Progress = { version: 1, levels: { 'git-01-first-commit': { solved: true, hintsUsed: 1, commands: 4, bestCommands: 3 } } }
+const solved: Progress = { version: 2, levels: { 'git-01-first-commit': { solved: true, hintsUsed: 1, commands: 4, bestCommands: 3 } }, lastPlayed: { levelId: 'git-02-branch', at: 1700 } }
 
 describe('progress storage', () => {
   it('round-trips progress', () => {
@@ -31,6 +31,12 @@ describe('progress storage', () => {
     expect(loadProgress(storage)).toEqual(emptyProgress())
     storage.setItem(PROGRESS_KEY, '{nope')
     expect(loadProgress(storage)).toEqual(emptyProgress())
+  })
+
+  it('reads progress stored by an older version', () => {
+    const storage = memory()
+    storage.setItem(PROGRESS_KEY, JSON.stringify({ version: 1, levels: solved.levels }))
+    expect(loadProgress(storage)).toEqual({ ...solved, lastPlayed: null })
   })
 
   it('works with storage that throws or is missing', () => {

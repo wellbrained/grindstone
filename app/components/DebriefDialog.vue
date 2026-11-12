@@ -5,6 +5,8 @@ import type { Level } from '#shared/levels'
 const props = defineProps<{
   level: Level
   next: Level | null
+  /** Where "Back to the track" goes after the last available level. */
+  trackTo: string
   stats: { commands: number, solution: number, hints: number }
 }>()
 
@@ -85,7 +87,7 @@ const verdict = computed(() => {
           v-else
           color="primary"
           variant="solid"
-          to="/"
+          :to="trackTo"
           :label="t('debrief.all')"
         />
       </div>

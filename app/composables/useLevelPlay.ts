@@ -31,7 +31,7 @@ export interface LevelPlayOptions {
 
 export function useLevelPlay(level: Level, options: LevelPlayOptions = {}) {
   const { t } = useI18n()
-  const { record } = useProgress()
+  const { record, markPlayed } = useProgress()
 
   const store = useState<PlayState>(`play:${level.id}`, () => ({
     session: startLevel(level),
@@ -110,14 +110,16 @@ export function useLevelPlay(level: Level, options: LevelPlayOptions = {}) {
     }
   }
 
-  /** One line typed in the terminal. */
+  /** One line typed in the terminal. Typing in a level makes it the one Continue opens. */
   function run(line: string) {
+    markPlayed(level.id)
     push({ type: 'input', text: line, prompt: prompt.value })
     apply(submit(session.value, level, line))
   }
 
   /** Writes a file through the engine; counts like a command. */
   function saveAs(path: string, content: string) {
+    markPlayed(level.id)
     push({ type: 'line', line: { kind: 'out', text: t('terminal.saved', { path }) } })
     apply(saveFile(session.value, level, path, content))
   }

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import type { LevelPlace } from '#shared/levels'
 import type { LevelPlay } from '~/composables/useLevelPlay'
 import { fileStatuses } from '~/utils/file-tree'
 import type { PlayLayout } from '~/utils/play-layout'
@@ -10,8 +11,7 @@ import type { PlayLayout } from '~/utils/play-layout'
 const props = defineProps<{
   play: LevelPlay
   layout: PlayLayout
-  number: number
-  total: number
+  place: LevelPlace
 }>()
 
 const {
@@ -61,8 +61,7 @@ defineExpose({
       <LevelPanel
         class="min-w-0 lg:min-h-0 lg:flex-[1_1_0] lg:overflow-y-auto lg:pr-1"
         :level="level"
-        :number="number"
-        :total="total"
+        :place="place"
         :goals="goals"
         :hints-used="session.hintsUsed"
         :solved="session.solved"

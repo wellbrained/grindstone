@@ -1,7 +1,10 @@
 # Context: Grindstone glossary
 
-- **Track**: one skill area of the app, with its own levels (Git first; later Working with AI, Web fundamentals, Debugging, ...).
-- **Level**: one scenario in a track. Written as one TypeScript file: setup, goals, teammate events, hints, debrief, solution.
+- **Track**: one skill area of the app, with its own page (`/git`) and its levels in chapters. *Live* tracks are playable (Git); *coming* tracks (Working with AI, Web fundamentals, Debugging, Framework deep dives) are listed on the home page but have no levels yet.
+- **Chapter**: an ordered group of levels inside a track, with a number, a one-line description and a colour from the branch palette (Git: Basics, Branching, Merging, Rewriting history, Teamwork & remotes, Undo & recovery, Disasters, Workflows). All chapters are open, nothing is locked. A chapter without levels is *coming*.
+- **Level**: one scenario in a track. Written as one TypeScript file: setup, goals, teammate events, hints, debrief, solution. Its **number** is `chapter.position` (`3.2`), derived from where it is listed.
+- **Next up**: the first unsolved level of a track, in play order (chapter by chapter).
+- **Continue**: the one button back into practice: the level you last played while it is unsolved, else next up. With every level solved there is nothing to continue.
 - **Setup**: the starting state of a level (local repo, `origin`, files, current branch), built with the setup builder.
 - **Goal**: a named check over the state, shown as one line of the live checklist. A level is solved when every goal passes.
 - **Hint**: up to three per level, from a nudge to the exact command.
@@ -13,4 +16,4 @@
 - **Teammate event**: one thing a teammate does (push commits, force-push, leave a review comment), fired by a **trigger**: after N of your commands, or right before a given command.
 - **Shell**: the small fake shell around git (`ls`, `cat`, `echo >`, `echo >>`, `rm`, `touch`, `edit`).
 - **Graph**: the SVG commit graph that redraws after every command; local branches solid, `origin/*` outlined.
-- **Progress**: per level: solved, hints used, commands used versus the solution. Stored in localStorage.
+- **Progress**: per level: solved, hints used, commands used versus the solution; plus the level you last played (for Continue). Stored in localStorage.

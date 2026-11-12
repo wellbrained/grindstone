@@ -8,7 +8,7 @@ export default withNuxt(
   {
     rules: {
       // plain CSS classes of the graph, the spark effect and the IDE's opening panels (component styles and main.css), not Tailwind utilities
-      'better-tailwindcss/no-unknown-classes': ['error', { ignore: ['^cg-', '^spark$', '^reveal(-|$)'] }]
+      'better-tailwindcss/no-unknown-classes': ['error', { ignore: ['^cg-', '^spark$', '^reveal(-|$)', '^lane-draw$'] }]
     },
     settings: {
       'better-tailwindcss': {

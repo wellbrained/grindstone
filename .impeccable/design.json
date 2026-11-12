@@ -1,0 +1,157 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-12T00:00:00.000Z",
+  "title": "Design System: Grindstone",
+  "extensions": {
+    "colorMeta": {
+      "ground": { "role": "neutral", "displayName": "Nord Ground", "canonical": "#232831", "light": "#e9ecf0", "tonalRamp": ["#0f1217", "#1b1f27", "#232831", "#2a303b", "#353c4a", "#434c5e", "#6b7589", "#a7b0c0"] },
+      "surface": { "role": "neutral", "displayName": "Elevated Surface", "canonical": "#2a303b", "light": "#ffffff", "tonalRamp": ["#14171d", "#1f242c", "#2a303b", "#353c4a", "#434c5e", "#5a6479", "#8e97a8", "#c4cad6"] },
+      "terminal": { "role": "neutral", "displayName": "Terminal Well", "canonical": "#1b1f27", "light": "#f6f7f9", "tonalRamp": ["#0a0c10", "#12151b", "#1b1f27", "#232831", "#2f3542", "#434c5e", "#6b7589", "#a7b0c0"] },
+      "text-highlighted": { "role": "neutral", "displayName": "Frost White", "canonical": "#eceff4", "light": "#0b1220", "tonalRamp": ["#5d6b7e", "#8e97a8", "#a7b0c0", "#c4cad6", "#d8dee9", "#e5e9f0", "#eceff4", "#f6f8fb"] },
+      "ember": { "role": "primary", "displayName": "Ember Orange", "canonical": "#ff8a3d", "light": "#b23a08", "tonalRamp": ["#4a1d05", "#7a2f08", "#b23a08", "#e0560f", "#ff8a3d", "#ffa968", "#ffcaa0", "#ffe8d6"] },
+      "violet": { "role": "secondary", "displayName": "Dusk Violet", "canonical": "#bb9af7", "light": "#6d28d9", "tonalRamp": ["#2e1065", "#4c1d95", "#6d28d9", "#8b5cf6", "#bb9af7", "#cdb4f9", "#e0d0fb", "#f1eafd"] },
+      "success-green": { "role": "semantic", "displayName": "Solved Green", "canonical": "#9ece6a", "light": "#1c7437", "tonalRamp": ["#0f3a1c", "#1c7437", "#2f9a4e", "#6db04a", "#9ece6a", "#b6dc8c", "#d0ebb2", "#ecf6dd"] },
+      "warning-amber": { "role": "semantic", "displayName": "Amber Warning", "canonical": "#f0c05a", "light": "#8a5a00", "tonalRamp": ["#3d2800", "#6b4600", "#8a5a00", "#c08a14", "#f0c05a", "#f5d283", "#f9e3ae", "#fcf3d9"] },
+      "info-blue": { "role": "semantic", "displayName": "Teammate Blue", "canonical": "#7fb4ff", "light": "#1d63c9", "tonalRamp": ["#0c2a5c", "#1d63c9", "#3f84e8", "#5c9cf5", "#7fb4ff", "#a3c9ff", "#c8ddff", "#e6f0ff"] },
+      "error-rose": { "role": "semantic", "displayName": "Error Rose", "canonical": "#f7768e", "light": "#be123c", "tonalRamp": ["#4a0a1c", "#8a0f2e", "#be123c", "#dd3a5d", "#f7768e", "#f99bac", "#fbc0cb", "#fde4e8"] },
+      "branch-0": { "role": "branch", "displayName": "Branch Blue (main)", "canonical": "#7fb4ff", "light": "#1d63c9" },
+      "branch-1": { "role": "branch", "displayName": "Branch Green", "canonical": "#8fd16a", "light": "#2a7210" },
+      "branch-2": { "role": "branch", "displayName": "Branch Violet", "canonical": "#c4a2f5", "light": "#7a3fd0" },
+      "branch-3": { "role": "branch", "displayName": "Branch Amber", "canonical": "#f0c05a", "light": "#8a5a00" },
+      "branch-4": { "role": "branch", "displayName": "Branch Teal", "canonical": "#5fd6c6", "light": "#0b756a" },
+      "branch-5": { "role": "branch", "displayName": "Branch Pink", "canonical": "#f78fb3", "light": "#b3204f" },
+      "branch-6": { "role": "branch", "displayName": "Branch Steel", "canonical": "#a9b8d9", "light": "#4a5d80" },
+      "branch-7": { "role": "branch", "displayName": "Branch Orchid (chapters only)", "canonical": "#e394e8", "light": "#9b2fa3" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Home page title only; 1.875rem growing to 3rem at lg." },
+      "headline": { "displayName": "Headline", "purpose": "Track page title in the rail and track card titles." },
+      "title": { "displayName": "Title", "purpose": "Chapter section headings and page section headings." },
+      "body": { "displayName": "Body", "purpose": "Descriptions, meta, level titles; prose capped at 2xl to 3xl measure." },
+      "label": { "displayName": "Label", "purpose": "Mono, tabular: level numbers, n of N counts, command tags." },
+      "terminal": { "displayName": "Terminal", "purpose": "Terminal output, prompt and input; editor text." },
+      "wordmark": { "displayName": "Wordmark", "purpose": "AppLogo only: grind 900, stone 500 in ember." }
+    },
+    "shadows": [
+      { "name": "spark-glow", "value": "0 0 8px var(--ui-primary)", "purpose": "The only glow: ember dots thrown from the terminal when a level is solved." }
+    ],
+    "motion": [
+      { "name": "ease-panel", "value": "cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "Panel reveal, 260ms, grid-template-rows / flex-grow / flex-basis." },
+      { "name": "panel-content-in", "value": "opacity 160ms ease-out 110ms", "purpose": "Content fades in once the box is mostly open; out in 90ms." },
+      { "name": "lane-draw", "value": "180ms linear, delay calc(300ms + step * 180ms)", "purpose": "Chapter lane draws top-down through a newly solved level, once." },
+      { "name": "spark-fly", "value": "0.9s ease-out", "purpose": "Ember dots flying out of the terminal on a solve." },
+      { "name": "spark-ring", "value": "scale 0.6 to 2.6, opacity 0.9 to 0", "purpose": "One ring thrown by a new commit in the graph." },
+      { "name": "reduced-motion", "value": "prefers-reduced-motion: reduce", "purpose": "Disables spark, reveal transitions, lane draw; chapter jumps scroll instantly." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "768px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "xl", "value": "1280px" },
+      { "name": "2xl", "value": "1536px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "custom",
+      "refersTo": "button-primary",
+      "description": "Solid ember action with trailing arrow; one per context (Continue, Start).",
+      "html": "<button class=\"ds-btn-primary\">Continue <svg width=\"16\" height=\"16\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12h14M13 6l6 6-6 6\"/></svg></button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; gap: 8px; height: 40px; padding: 0 16px; border: 0; border-radius: 8px; background: var(--ui-primary, #ff8a3d); color: var(--branch-ink, #1b1f27); font: 500 14px Inter, system-ui, sans-serif; cursor: pointer; transition: background-color 150ms; } .ds-btn-primary:hover { background: color-mix(in oklab, var(--ui-primary, #ff8a3d) 85%, white); } .ds-btn-primary:focus-visible { outline: 2px solid var(--ui-primary, #ff8a3d); outline-offset: 2px; }"
+    },
+    {
+      "name": "Outline Button",
+      "kind": "button",
+      "refersTo": "button-outline",
+      "description": "Default button: transparent with a ring; hover tints and colours the ring.",
+      "html": "<button class=\"ds-btn-outline\">Chapters</button>",
+      "css": ".ds-btn-outline { height: 40px; padding: 0 12px; border-radius: 8px; background: transparent; color: var(--ui-text-highlighted, #eceff4); box-shadow: inset 0 0 0 1px var(--ui-border-accented, #434c5e); border: 0; font: 500 14px Inter, system-ui, sans-serif; cursor: pointer; transition: background-color 150ms; } .ds-btn-outline:hover { background: var(--ui-bg-accented, #353c4a); } .ds-btn-outline:active { background: var(--ui-bg-accented, #353c4a); } .ds-btn-outline:focus-visible { outline: 2px solid var(--ui-primary, #ff8a3d); outline-offset: 2px; }"
+    },
+    {
+      "name": "Continue Card",
+      "kind": "card",
+      "refersTo": "continue-card",
+      "description": "Level heading with mono number, quiet meta line, two-line story and the ember action.",
+      "html": "<section class=\"ds-continue\"><div class=\"ds-continue-body\"><h2><span class=\"ds-continue-num\">3.2</span>Merge conflict</h2><p class=\"ds-continue-meta\">Where you left off in Merging &middot; Last played 2 hours ago</p><p class=\"ds-continue-story\">Anna changed the same line on main. Bring her work in and settle it.</p></div><button class=\"ds-continue-btn\">Continue</button></section>",
+      "css": ".ds-continue { display: flex; align-items: center; gap: 20px; padding: 20px; border: 1px solid var(--ui-border-accented, #434c5e); border-radius: 12px; background: var(--ui-bg-elevated, #2a303b); font-family: Inter, system-ui, sans-serif; } .ds-continue-body { flex: 1; min-width: 0; } .ds-continue h2 { margin: 0; font-size: 18px; font-weight: 600; color: var(--ui-text-highlighted, #eceff4); } .ds-continue-num { margin-right: 6px; font: 400 16px 'JetBrains Mono', monospace; color: var(--ui-text-muted, #a7b0c0); font-variant-numeric: tabular-nums; } .ds-continue-meta { margin: 2px 0 0; font-size: 14px; color: var(--ui-text-muted, #a7b0c0); } .ds-continue-story { margin: 8px 0 0; font-size: 14px; color: var(--ui-text-toned, #d8dee9); } .ds-continue-btn { height: 44px; padding: 0 20px; border: 0; border-radius: 8px; background: var(--ui-primary, #ff8a3d); color: #1b1f27; font: 500 16px Inter, system-ui, sans-serif; cursor: pointer; } .ds-continue-btn:hover { filter: brightness(1.08); } .ds-continue-btn:focus-visible { outline: 2px solid var(--ui-primary, #ff8a3d); outline-offset: 2px; }"
+    },
+    {
+      "name": "Level Row",
+      "kind": "custom",
+      "refersTo": "level-row",
+      "description": "Whole-row link: commit dot, mono number, title, command tags, status text. Next-up row sits on the elevated surface.",
+      "html": "<ul class=\"ds-rows\"><li><a class=\"ds-row\" href=\"#\" style=\"color: #7fb4ff\"><span class=\"ds-dot ds-dot-solved\"></span><span class=\"ds-row-num\">2.1</span><span class=\"ds-row-title\">Branch out</span><span class=\"ds-row-tags\"><code>branch</code><code>switch</code></span><span class=\"ds-row-status ds-ok\">Solved</span></a></li><li><a class=\"ds-row ds-row-next\" href=\"#\" style=\"color: #7fb4ff\"><span class=\"ds-dot ds-dot-next\"></span><span class=\"ds-row-num\">2.2</span><span class=\"ds-row-title\">Merge it back</span><span class=\"ds-row-tags\"><code>merge</code></span><span class=\"ds-row-status ds-next\">Next up</span></a></li></ul>",
+      "css": ".ds-rows { list-style: none; margin: 0; padding: 0; font-family: Inter, system-ui, sans-serif; } .ds-rows li { border-top: 1px solid var(--ui-border-muted, #2f3542); } .ds-row { display: grid; grid-template-columns: 12px 44px minmax(0,1fr) 15rem 6rem; align-items: center; column-gap: 16px; padding: 12px; border-radius: 8px; text-decoration: none; transition: background-color 150ms; } .ds-row:hover, .ds-row-next { background: var(--ui-bg-elevated, #2a303b); } .ds-row:focus-visible { outline: 2px solid var(--ui-primary, #ff8a3d); outline-offset: -2px; } .ds-dot { width: 12px; height: 12px; box-sizing: border-box; border: 2px solid currentColor; border-radius: 50%; background: var(--ui-bg, #232831); } .ds-dot-solved { background: currentColor; } .ds-dot-next { outline: 2px solid var(--ui-primary, #ff8a3d); outline-offset: 2px; } .ds-row-num { font: 400 12px 'JetBrains Mono', monospace; color: var(--ui-text-muted, #a7b0c0); font-variant-numeric: tabular-nums; } .ds-row-title { font-weight: 500; color: var(--ui-text-highlighted, #eceff4); } .ds-row-tags { display: flex; gap: 6px; } .ds-row-tags code { padding: 0 6px; border: 1px solid var(--ui-border, #353c4a); border-radius: 4px; font: 400 12px/20px 'JetBrains Mono', monospace; color: var(--ui-text-muted, #a7b0c0); } .ds-row-status { text-align: right; font-size: 14px; } .ds-ok { color: var(--ui-success, #9ece6a); } .ds-next { color: var(--ui-primary, #ff8a3d); font-weight: 500; }"
+    },
+    {
+      "name": "Chapter Nav Item",
+      "kind": "nav",
+      "refersTo": "chapter-nav-item",
+      "description": "Rail entry: small commit dot, chapter name, mini bar in the chapter colour, mono n/m. Active is elevated.",
+      "html": "<nav class=\"ds-rail\"><a class=\"ds-rail-item ds-rail-active\" href=\"#\" aria-current=\"true\" style=\"color:#8fd16a\"><span class=\"ds-rail-dot\"></span><span class=\"ds-rail-name\">Branching</span><span class=\"ds-rail-bar\"><span style=\"width:50%\"></span></span><span class=\"ds-rail-count\">1/2</span></a><a class=\"ds-rail-item\" href=\"#\" style=\"color:#c4a2f5\"><span class=\"ds-rail-dot\"></span><span class=\"ds-rail-name\">Merging</span><span class=\"ds-rail-bar\"><span style=\"width:0\"></span></span><span class=\"ds-rail-count\">0/2</span></a></nav>",
+      "css": ".ds-rail { display: flex; flex-direction: column; gap: 2px; width: 280px; font-family: Inter, system-ui, sans-serif; } .ds-rail-item { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 8px; font-size: 14px; text-decoration: none; transition: background-color 150ms; } .ds-rail-name { flex: 1; min-width: 0; color: var(--ui-text-toned, #d8dee9); } .ds-rail-item:hover { background: var(--ui-bg-elevated, #2a303b); } .ds-rail-item:hover .ds-rail-name { color: var(--ui-text-highlighted, #eceff4); } .ds-rail-active { background: var(--ui-bg-elevated, #2a303b); } .ds-rail-active .ds-rail-name { font-weight: 500; color: var(--ui-text-highlighted, #eceff4); } .ds-rail-item:focus-visible { outline: 2px solid var(--ui-primary, #ff8a3d); outline-offset: -2px; } .ds-rail-dot { width: 10px; height: 10px; box-sizing: border-box; border: 2px solid currentColor; border-radius: 50%; background: var(--ui-bg, #232831); } .ds-rail-bar { width: 44px; height: 4px; border-radius: 9999px; background: var(--ui-bg-accented, #353c4a); overflow: hidden; } .ds-rail-bar span { display: block; height: 100%; border-radius: 9999px; background: currentColor; } .ds-rail-count { width: 32px; text-align: right; font: 400 12px 'JetBrains Mono', monospace; color: var(--ui-text-muted, #a7b0c0); font-variant-numeric: tabular-nums; }"
+    },
+    {
+      "name": "Command Tag",
+      "kind": "chip",
+      "refersTo": "command-tag",
+      "description": "Mono tag for a command a level practises; also the 'Coming' label in sans.",
+      "html": "<span class=\"ds-tags\"><code class=\"ds-tag\">rebase</code><span class=\"ds-coming\">Coming</span></span>",
+      "css": ".ds-tags { display: inline-flex; gap: 8px; align-items: center; } .ds-tag { padding: 0 6px; border: 1px solid var(--ui-border, #353c4a); border-radius: 4px; font: 400 12px/20px 'JetBrains Mono', monospace; color: var(--ui-text-muted, #a7b0c0); } .ds-coming { padding: 0 6px; border: 1px solid var(--ui-border, #353c4a); border-radius: 4px; font: 400 12px/20px Inter, system-ui, sans-serif; color: var(--ui-text-muted, #a7b0c0); }"
+    },
+    {
+      "name": "Commit Dot and Progress Meter",
+      "kind": "custom",
+      "refersTo": "commit-dot",
+      "description": "The signature: solved filled, open hollow, next up ember-ringed, coming a grey ring; beside a thin currentColor bar.",
+      "html": "<div class=\"ds-dots\" style=\"color:#7fb4ff\"><span class=\"ds-d ds-d-solved\"></span><span class=\"ds-d\"></span><span class=\"ds-d ds-d-next\"></span><span class=\"ds-d ds-d-coming\"></span><span class=\"ds-meter\"><span style=\"width:40%\"></span></span></div>",
+      "css": ".ds-dots { display: flex; align-items: center; gap: 16px; padding: 4px; } .ds-d { width: 12px; height: 12px; box-sizing: border-box; border: 2px solid currentColor; border-radius: 50%; background: var(--ui-bg, #232831); } .ds-d-solved { background: currentColor; } .ds-d-next { outline: 2px solid var(--ui-primary, #ff8a3d); outline-offset: 2px; } .ds-d-coming { color: var(--ui-text-dimmed, #8e97a8); } .ds-meter { width: 120px; height: 6px; border-radius: 9999px; background: var(--ui-bg-accented, #353c4a); overflow: hidden; } .ds-meter span { display: block; height: 100%; border-radius: 9999px; background: var(--ui-primary, #ff8a3d); }"
+    },
+    {
+      "name": "Terminal Pane",
+      "kind": "custom",
+      "refersTo": "terminal-pane",
+      "description": "Mono terminal well with header strip, prompt carrying the branch in its palette colour, and an ember focus ring.",
+      "html": "<section class=\"ds-term\" tabindex=\"0\"><header>Terminal</header><div class=\"ds-term-body\"><div><span class=\"ds-p-user\">you@grindstone</span> <span class=\"ds-p-path\">~/project</span> <span class=\"ds-p-branch\">(main)</span> $ git status</div><div class=\"ds-term-out\">On branch main</div><div class=\"ds-term-err\">error: pathspec 'x' did not match</div></div></section>",
+      "css": ".ds-term { overflow: hidden; border: 1px solid var(--app-terminal-border, #353c4a); border-radius: 8px; background: var(--app-terminal, #1b1f27); font: 400 14px 'JetBrains Mono', ui-monospace, monospace; width: 420px; } .ds-term:focus-within, .ds-term:focus-visible { outline: 2px solid var(--ui-primary, #ff8a3d); outline-offset: 0; } .ds-term header { padding: 6px 12px; border-bottom: 1px solid var(--app-terminal-border, #353c4a); font-size: 12px; color: var(--ui-text-muted, #a7b0c0); } .ds-term-body { padding: 8px 12px; line-height: 1.625; color: var(--ui-text-highlighted, #eceff4); } .ds-p-user { color: var(--ui-success, #9ece6a); } .ds-p-path { color: var(--ui-info, #7fb4ff); } .ds-p-branch { color: var(--branch-0, #7fb4ff); } .ds-term-out { color: var(--ui-text, #e5e9f0); } .ds-term-err { color: var(--ui-error, #f7768e); }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Practice Log",
+    "overview": "Grindstone looks like a terminal session that keeps a branch history of your practice. A cool Nord-grey ground carries quiet text, one ember orange marks the single thing that is active or next, and every chapter owns one colour from a shared branch palette. Progress is not a bar chart bolted onto a menu: a level is a commit dot, a chapter is a lane, and the page reads like `git log --graph` of what you have done.\n\nThe system is dark first with a light theme of equal quality (a cool grey page with white cards). Density is working-tool, not marketing: 14px body, thin hairline dividers, tonal surfaces instead of shadows, mono for anything that is data (numbers, counts, commands, the terminal). The page uses the full header width (1760px max) and lays itself out per page; running text keeps a readable measure.\n\nIt rejects the flat card grid of tracks or levels, locked-level gamification, and anything that signals a demo instead of a tool. State is never colour alone: every dot is decoration beside written text.",
+    "keyCharacteristics": [
+      "Nord-grey tonal ground; depth from surface steps and hairlines, not shadows.",
+      "One ember accent (`--ui-primary`) reserved for active, next up, the primary action and the wordmark's \"stone\".",
+      "Branch palette of 8 slots, one colour per branch or chapter, identical in graph, terminal and track page.",
+      "Commit-dot progress: filled solved, hollow open, ember ring next up.",
+      "Mono for data and the terminal, Inter for reading, Tektur only in the wordmark.",
+      "Motion is rare and authored: ember sparks, a lane drawing in, panels opening in place; all off under reduced motion."
+    ],
+    "rules": [
+      { "name": "The One Ember Rule", "body": "Ember means active or next. Never decorate with it; a screen holds one primary action and one next-up marker.", "section": "colors" },
+      { "name": "The One Colour Per Line Rule", "body": "A branch or chapter has exactly one palette slot everywhere (dot, rail marker, mini bar, lane, graph line, prompt). Never recolour it per surface.", "section": "colors" },
+      { "name": "The Text Beside Colour Rule", "body": "A colour never carries a state alone; the dot, status letter or tint always has written text next to it.", "section": "colors" },
+      { "name": "The Mono Is Data Rule", "body": "Numbers, counts, commands, branch names and terminal output are mono; prose and headings are Inter. Do not set reading text in mono.", "section": "typography" },
+      { "name": "The Wordmark Only Rule", "body": "Tektur appears in the logo and nowhere else.", "section": "typography" },
+      { "name": "The Tonal Step Rule", "body": "To lift something, move it one surface step (ground to elevated) and give it a hairline; do not add a shadow.", "section": "elevation" },
+      { "name": "The Spark Only Rule", "body": "The only glow in the system is the ember spark and its ring; nothing else glows.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do use semantic tokens (`text-muted`, `bg-elevated`, `text-primary`, `border-default`) in components; hex lives only in `app/assets/css/main.css`.",
+      "Do give each chapter or branch its one `--branch-N` slot and draw its level state as a commit dot with the state also written as text.",
+      "Do keep a single ember primary action per context and let the next-up level carry the ember ring.",
+      "Do set numbers, counts, commands and terminal output in JetBrains Mono with tabular numerals.",
+      "Do lift surfaces by a tonal step plus a 1px hairline; keep both themes at AA (4.5:1 for every accent and branch colour).",
+      "Do keep every interactive element keyboard reachable with the 2px ember focus outline, and respect reduced motion."
+    ],
+    "donts": [
+      "Don't replace the chapter rail and sections with a flat grid of cards, and don't lock levels; all levels are open.",
+      "Don't use Tektur outside the wordmark, or ember as decoration.",
+      "Don't add resting shadows, gradients or glows; the ember spark is the only glow.",
+      "Don't encode state in colour alone, or show invented numbers, claims, titles or testimonials.",
+      "Don't reorder panels when the play layout switches; panels open and close in place.",
+      "Don't run a second animation on the track page beyond the one lane draw."
+    ]
+  }
+}

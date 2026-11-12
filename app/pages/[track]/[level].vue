@@ -1,13 +1,15 @@
 <script setup lang="ts">
-import { levels } from '#shared/levels'
+import { levelPlace } from '#shared/levels'
 
 definePageMeta({ key: route => route.fullPath })
 
 const route = useRoute()
 const { t } = useI18n()
 
-const level = levelFromRoute('git', String(route.params.level))
-if (!level) throw createError({ statusCode: 404, statusMessage: 'Level not found', fatal: true })
+// any live track's level: /<track>/<slug> (the play page runs the git engine, the only one so far)
+const level = levelFromRoute(String(route.params.track), String(route.params.level))
+const place = level ? levelPlace(level.id) : null
+if (!level || !place) throw createError({ statusCode: 404, statusMessage: 'Level not found', fatal: true })
 useHead({ title: level.title })
 
 // Terminal (default) / IDE, remembered per viewer (docs/adr/0004-editor-layouts.md)
@@ -28,8 +30,6 @@ function openFile(path: string) {
 
 const play = useLevelPlay(level, { onEdit: openFile })
 const { editor, debriefOpen, stats, next, save } = play
-
-const number = levels.findIndex(candidate => candidate.id === level.id) + 1
 
 // back to typing once a dialog has fully closed (earlier, the dialog would hand the focus back to the button that opened it)
 const focusTerminal = () => workbench.value?.focusTerminal()
@@ -56,8 +56,7 @@ const focusTerminal = () => workbench.value?.focusTerminal()
       ref="workbench"
       :play="play"
       :layout="layout"
-      :number="number"
-      :total="levels.length"
+      :place="place"
     />
 
     <FileEditor
@@ -70,6 +69,7 @@ const focusTerminal = () => workbench.value?.focusTerminal()
       v-model:open="debriefOpen"
       :level="level"
       :next="next"
+      :track-to="trackPath(place.track.id)"
       :stats="stats"
       @closed="focusTerminal"
     />

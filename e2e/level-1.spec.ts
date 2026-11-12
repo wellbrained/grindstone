@@ -4,7 +4,8 @@ import { expect, test } from '@playwright/test'
 test('plays level 1 and sees the debrief', async ({ page }) => {
   await page.goto('/')
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
-  await page.getByTestId('start').click()
+  await expect(page.getByTestId('track-git-primary')).toHaveAttribute('data-action', 'start')
+  await page.getByTestId('track-git-primary').click()
 
   await expect(page).toHaveURL(/\/git\/01-first-commit$/)
   await expect(page.getByRole('heading', { level: 1, name: 'First commit' })).toBeVisible()
@@ -41,7 +42,8 @@ test('plays level 1 and sees the debrief', async ({ page }) => {
   await expect(page.getByRole('img', { name: /Commit graph with 1 commit/ })).toBeVisible()
   await expect(page.getByRole('img', { name: /Commit graph/ })).toContainText('HEAD -> main')
 
-  // progress is stored: the home page shows the level as solved
-  await page.goto('/')
+  // progress is stored: the track page shows the level as solved and the next one as next up
+  await page.goto('/git')
   await expect(page.locator('[data-level="git-01-first-commit"]')).toContainText('Solved')
+  await expect(page.locator('[data-level="git-02-branch"]')).toHaveAttribute('data-state', 'next')
 })

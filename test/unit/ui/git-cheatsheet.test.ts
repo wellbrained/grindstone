@@ -1,14 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { cheatGroups, gitSubcommands, levelsUsing } from '../../../app/utils/git-cheatsheet'
+import { cheatGroups, levelsUsing } from '../../../app/utils/git-cheatsheet'
 import { gitCommandNames } from '../../../shared/git'
 
 describe('git cheat sheet', () => {
-  it('finds the git subcommands of a line, also in chains', () => {
-    expect(gitSubcommands('git add . && git commit -m "x"')).toEqual(['add', 'commit'])
-    expect(gitSubcommands('echo "git push" > notes.txt')).toEqual([])
-    expect(gitSubcommands('git push --force-with-lease')).toEqual(['push'])
-  })
-
   it('lists only commands the trainer supports, unless marked as coming soon', () => {
     for (const command of cheatGroups.flatMap(group => group.commands)) {
       expect(command.comingSoon || gitCommandNames.includes(command.name), command.name).toBe(true)

@@ -59,7 +59,8 @@ export default defineNuxtConfig({
   icon: {
     clientBundle: {
       scan: true,
-      icons: ['simple-icons:github']
+      // the header's menu button (Nuxt UI's own icons are not found by the scan)
+      icons: ['simple-icons:github', 'lucide:menu', 'lucide:x']
     }
   }
 })

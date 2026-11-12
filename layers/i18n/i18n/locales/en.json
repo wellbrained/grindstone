@@ -4,27 +4,28 @@
     "footer": "{name}: practice real developer skills, in the browser.",
     "nav": {
       "label": "Main",
-      "levels": "Levels",
-      "cheat": "Cheat sheet",
+      "footer": "Footer",
+      "tracks": "Tracks",
       "about": "About"
     }
   },
   "home": {
-    "kicker": "Git track",
-    "title": "Practice git until it stops being scary",
-    "pitch": "Short, game-like scenarios in a real-feeling terminal. Every command you type redraws a live commit graph, so you see what branch, merge and rebase actually do.",
-    "teammates": "And you are not alone in the repo: simulated teammates push to origin while you work. Learn to sync, rebase and resolve conflicts the way it happens on a team.",
-    "local": "Runs in your browser. Progress stays on this device.",
-    "start": "Start",
-    "continue": "Continue: {title}",
-    "again": "Play again",
-    "track": "The levels",
-    "solved": "Solved",
-    "best": "best: {n} commands",
-    "open": "Not solved yet"
+    "title": "Practice real developer skills, one short level at a time",
+    "intro": "Each level drops you into a situation you meet at work, and you solve it with real commands, right here in the browser. Git is the first track; more are on the way.",
+    "local": "No account. Your progress stays on this device.",
+    "coming": {
+      "title": "More tracks on the way",
+      "intro": "Not playable yet. They follow the same idea: short levels, real tools, situations you meet at work."
+    },
+    "about": "What makes Grindstone different",
+    "card": {
+      "start": "Start: {number} {title}",
+      "continue": "Continue: {number} {title}",
+      "open": "Open {track} track",
+      "chapters": "See all chapters"
+    }
   },
   "play": {
-    "level": "Level {n} of {total}",
     "hint": "Hint ({used}/{total})",
     "reset": "Reset",
     "solved": "Level solved",
@@ -36,7 +37,8 @@
       "ide": "IDE",
       "terminalHelp": "Terminal layout: goals, terminal and graph; edit and a file name open an editor panel",
       "ideHelp": "IDE layout: adds a file explorer under the goals and editor tabs above the terminal"
-    }
+    },
+    "breadcrumb": "Breadcrumb"
   },
   "goals": {
     "title": "Goals",
@@ -114,7 +116,7 @@
     "verdictMore": "{n} command more than the shortest solution. | {n} commands more than the shortest solution.",
     "stay": "Stay here",
     "next": "Next level",
-    "all": "Back to all levels"
+    "all": "Back to the track"
   },
   "explorer": {
     "title": "Explorer",
@@ -180,6 +182,40 @@
       "portfolio": "Portfolio",
       "code": "Source code",
       "profile": "GitHub profile"
+    }
+  },
+  "track": {
+    "title": "{track} track",
+    "size": "{levels} in {chapters}",
+    "levels": "{n} level | {n} levels",
+    "chapters": "{n} chapter | {n} chapters",
+    "solvedCount": "{solved} of {total} solved",
+    "chaptersLabel": "{track} chapters",
+    "chapterNumber": "Chapter {n}: ",
+    "coming": "Coming",
+    "cheat": "{track} cheat sheet",
+    "rowLabel": "{number} {title}, {status}. Practises {commands}.",
+    "status": {
+      "solved": "Solved",
+      "next": "Next up",
+      "open": "Not solved"
+    }
+  },
+  "continue": {
+    "resume": "Where you left off in {where}",
+    "next": "Next up in {where}",
+    "start": "Start here: {where}",
+    "played": "Last played {when}",
+    "button": {
+      "resume": "Continue",
+      "next": "Start level",
+      "start": "Start"
+    },
+    "done": {
+      "title": "Every {track} level solved",
+      "text": "You solved all {n} levels. New chapters are on the way; until then, replay any level or keep the cheat sheet close.",
+      "track": "See the {track} track",
+      "cheat": "Open the cheat sheet"
     }
   }
 }

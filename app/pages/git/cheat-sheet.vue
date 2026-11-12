@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { levelNumber } from '#shared/levels'
 import { cheatGroups, levelsUsing } from '~/utils/git-cheatsheet'
 
 const { t } = useI18n()
@@ -143,7 +144,7 @@ async function copy(line: string) {
                 <NuxtLink
                   :to="levelPath(level)"
                   class="text-primary hover:underline"
-                >{{ level.title }}</NuxtLink><span v-if="index < levelsUsing(command.name).length - 1"> · </span>
+                >{{ levelNumber(level.id) }} {{ level.title }}</NuxtLink><span v-if="index < levelsUsing(command.name).length - 1"> · </span>
               </template>
             </p>
           </li>

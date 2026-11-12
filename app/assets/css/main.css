@@ -47,6 +47,8 @@
   --branch-4: #0b756a;
   --branch-5: #b3204f;
   --branch-6: #4a5d80;
+  /* slot 7 is only used by chapters (branch names hash to 1-6), so the graph's colours did not move when it was added */
+  --branch-7: #9b2fa3;
   /* text on a filled branch pill */
   --branch-ink: #ffffff;
 }
@@ -82,6 +84,7 @@
   --branch-4: #5fd6c6;
   --branch-5: #f78fb3;
   --branch-6: #a9b8d9;
+  --branch-7: #e394e8;
   --branch-ink: #1b1f27;
 }
 
@@ -104,9 +107,16 @@
 .branch-c-4 { color: var(--branch-4); }
 .branch-c-5 { color: var(--branch-5); }
 .branch-c-6 { color: var(--branch-6); }
+.branch-c-7 { color: var(--branch-7); }
 
 html {
   scrollbar-gutter: stable;
+}
+
+/* selected text in the ember tint, in both themes, instead of the browser's blue */
+::selection {
+  background: color-mix(in oklab, var(--ui-primary) 32%, transparent);
+  color: var(--ui-text-highlighted);
 }
 
 body {
@@ -232,5 +242,28 @@ body {
   .reveal,
   .reveal > * > * {
     transition: none;
+  }
+}
+
+/* the track page's one authored moment (LevelRow.vue): back from a level you just solved, its chapter lane draws through
+   the new dot, top-down, in four chained halves (`--lane-step` 0-3). transform only (the centring is the separate
+   `translate`), once; under reduced motion the lane is simply there. */
+@keyframes lane-draw {
+  from {
+    transform: scaleY(0);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+.lane-draw {
+  transform-origin: top;
+  animation: lane-draw 180ms linear both;
+  animation-delay: calc(300ms + var(--lane-step, 0) * 180ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lane-draw {
+    animation: none;
   }
 }

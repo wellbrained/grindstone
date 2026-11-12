@@ -1,7 +1,8 @@
 // Level and session types for the scenario engine (docs/features/levels.md). Plain, JSON-serialisable data.
 import type { GitState, OutputLine } from '../git'
 
-export type Track = 'git'
+/** Every track id, live and coming (shared/levels/tracks.ts). */
+export type TrackId = 'git' | 'ai' | 'web' | 'debugging' | 'frameworks'
 
 /** One submitted line that reached git or the shell (trainer commands are not recorded). */
 export interface CommandRecord {
@@ -46,7 +47,7 @@ export interface Debrief {
 export interface Level {
   /** '<track>-<nn>-<slug>', e.g. 'git-01-first-commit'. */
   id: string
-  track: Track
+  track: TrackId
   title: string
   /** The situation in second person, one to three short paragraphs. */
   story: string

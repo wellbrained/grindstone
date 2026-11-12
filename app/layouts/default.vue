@@ -1,21 +1,23 @@
 <script setup lang="ts">
+import { tracks } from '#shared/levels'
+import { navigationItems } from '~/utils/navigation'
+
 const { site } = useAppConfig()
 const { t } = useI18n()
+const route = useRoute()
 
-const navigation = computed(() => [
-  { label: t('layout.nav.levels'), to: '/', exact: true },
-  { label: t('layout.nav.cheat'), to: '/git/cheat-sheet' },
-  { label: t('layout.nav.about'), to: '/about' }
-])
+// One list for the header, the mobile menu and the footer: Tracks, one entry per live track (from the registry), About.
+// A track's entry is active on its page, its levels and its cheat sheet.
+const navigation = computed(() => navigationItems(route.path, tracks, { home: t('layout.nav.tracks'), about: t('layout.nav.about') }))
 </script>
 
 <template>
   <div class="flex min-h-dvh flex-col">
+    <!-- the nav sits in the header from md; below md the menu button opens it -->
     <UHeader
       :title="site.name"
       to="/"
-      :toggle="false"
-      :ui="{ container: 'max-w-[110rem]' }"
+      :ui="{ container: 'max-w-[110rem]', center: 'hidden md:flex', toggle: 'md:hidden', content: 'md:hidden', overlay: 'md:hidden' }"
     >
       <template #title>
         <AppLogo class="shrink-0" />
@@ -24,11 +26,19 @@ const navigation = computed(() => [
       <UNavigationMenu
         :items="navigation"
         :aria-label="t('layout.nav.label')"
-        class="hidden sm:flex"
       />
 
       <template #right>
         <UColorModeButton :aria-label="t('layout.colorMode')" />
+      </template>
+
+      <template #body>
+        <UNavigationMenu
+          :items="navigation"
+          orientation="vertical"
+          :aria-label="t('layout.nav.label')"
+          class="-mx-2.5"
+        />
       </template>
     </UHeader>
 
@@ -48,16 +58,19 @@ const navigation = computed(() => [
       </template>
 
       <template #right>
-        <nav
-          class="flex gap-4 text-sm"
-          :aria-label="t('layout.nav.label')"
-        >
-          <NuxtLink
-            v-for="item in navigation"
-            :key="item.to"
-            :to="item.to"
-            class="text-muted hover:text-highlighted"
-          >{{ item.label }}</NuxtLink>
+        <nav :aria-label="t('layout.nav.footer')">
+          <ul class="flex flex-wrap justify-center gap-x-4 gap-y-1 text-sm">
+            <li
+              v-for="item in navigation"
+              :key="item.to"
+            >
+              <NuxtLink
+                :to="item.to"
+                class="rounded-sm text-muted hover:text-highlighted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                :class="{ 'text-highlighted': item.active }"
+              >{{ item.label }}</NuxtLink>
+            </li>
+          </ul>
         </nav>
       </template>
     </UFooter>

@@ -1,108 +1,104 @@
 <script setup lang="ts">
-import { gitLevels } from '#shared/levels'
+import { hasProgress, tracks, trackToContinue } from '#shared/levels'
+import { comingTracks, liveTracks } from '~/utils/navigation'
 
+// Home: every track, from the registry (shared/levels/tracks.ts), so a new track needs data only. A short pitch, Continue
+// once you have progress, each live track as a TrackCard, the coming tracks as a quiet list (docs/features/ui.md, "Home").
 const { t } = useI18n()
-const { isSolved, progress } = useProgress()
+const { progress } = useProgress()
 
-// Start at the first level you have not solved yet; with everything solved, offer the first one again.
-const target = computed(() => gitLevels.find(level => !isSolved(level.id)) ?? gitLevels[0]!)
-const started = computed(() => Object.keys(progress.value.levels).length > 0)
-const allSolved = computed(() => gitLevels.every(level => isSolved(level.id)))
-const points = ['teammates', 'real', 'graph', 'ide'] as const
-const startLabel = computed(() => allSolved.value ? t('home.again') : started.value ? t('home.continue', { title: target.value.title }) : t('home.start'))
+const resumeTrack = computed(() => hasProgress(progress.value) ? trackToContinue(progress.value) : null)
+const live = liveTracks(tracks)
+const coming = comingTracks(tracks)
 </script>
 
 <template>
-  <div class="mx-auto w-full max-w-[110rem] px-4 sm:px-6 lg:px-8 grid gap-x-16 gap-y-12 py-10 sm:py-16 lg:grid-cols-2 lg:items-start 2xl:grid-cols-3">
-    <!-- full page width like the header: pitch | levels | why, from 2xl; why goes below on smaller screens -->
-    <section class="lg:sticky lg:top-24">
-      <p class="font-mono text-sm text-primary">
-        {{ t('home.kicker') }}
-      </p>
-      <h1 class="mt-3 text-3xl font-semibold tracking-tight text-highlighted sm:text-4xl">
-        {{ t('home.title') }}
-      </h1>
-      <div class="mt-5 max-w-2xl space-y-3 text-base text-toned">
-        <p>{{ t('home.pitch') }}</p>
-        <p>{{ t('home.teammates') }}</p>
-      </div>
-
-      <div class="mt-7 flex flex-wrap items-center gap-3">
-        <ClientOnly>
-          <UButton
-            size="xl"
-            color="primary"
-            variant="solid"
-            trailing-icon="i-lucide-arrow-right"
-            :to="levelPath(target)"
-            :label="startLabel"
-            data-testid="start"
+  <div class="mx-auto w-full max-w-[110rem] px-4 py-10 sm:px-6 sm:py-14 lg:px-8">
+    <header
+      class="grid gap-8 lg:items-end lg:gap-16"
+      :class="{ 'lg:grid-cols-[minmax(0,1fr)_minmax(0,36rem)]': resumeTrack }"
+    >
+      <div>
+        <h1 class="max-w-3xl text-3xl font-semibold tracking-tight text-balance text-highlighted sm:text-4xl lg:text-5xl lg:leading-[1.1]">
+          {{ t('home.title') }}
+        </h1>
+        <p class="mt-4 max-w-2xl text-lg text-pretty text-toned">
+          {{ t('home.intro') }}
+        </p>
+        <p class="mt-3 flex items-center gap-2 text-sm text-muted">
+          <UIcon
+            name="i-lucide-hard-drive"
+            class="size-4 shrink-0"
           />
-          <template #fallback>
-            <UButton
-              size="xl"
-              color="primary"
-              variant="solid"
-              trailing-icon="i-lucide-arrow-right"
-              :to="levelPath(gitLevels[0]!)"
-              :label="t('home.start')"
-            />
-          </template>
-        </ClientOnly>
-        <p class="text-sm text-muted">
           {{ t('home.local') }}
         </p>
       </div>
-    </section>
+      <ContinueCard
+        v-if="resumeTrack"
+        :track="resumeTrack"
+        context="home"
+      />
+    </header>
 
-    <section aria-labelledby="levels-heading">
-      <h2
-        id="levels-heading"
-        class="mb-3 font-mono text-sm font-medium text-muted"
-      >
-        {{ t('home.track') }}
-      </h2>
-      <ClientOnly>
-        <LevelList show-progress />
-        <template #fallback>
-          <LevelList :show-progress="false" />
-        </template>
-      </ClientOnly>
-    </section>
+    <!-- every live track carries its own weight; a second one needs data only -->
+    <div class="mt-12 space-y-8 sm:mt-16">
+      <TrackCard
+        v-for="track in live"
+        :key="track.id"
+        :track="track"
+        :continue-track-id="resumeTrack?.id ?? null"
+      />
+    </div>
 
+    <!-- the coming tracks: honest, quiet, one line each -->
     <section
-      class="lg:col-span-2 2xl:col-span-1"
-      aria-labelledby="why-heading"
+      v-if="coming.length"
+      class="mt-14 sm:mt-20"
+      aria-labelledby="coming-heading"
     >
       <h2
-        id="why-heading"
-        class="mb-3 font-mono text-sm font-medium text-muted"
+        id="coming-heading"
+        class="text-xl font-semibold tracking-tight text-highlighted"
       >
-        {{ t('about.differentTitle') }}
+        {{ t('home.coming.title') }}
       </h2>
-      <ul class="grid gap-x-10 gap-y-5 sm:grid-cols-2 2xl:grid-cols-1">
+      <p class="mt-1.5 max-w-2xl text-sm text-pretty text-muted">
+        {{ t('home.coming.intro') }}
+      </p>
+      <ul class="mt-5 grid border-t border-default md:grid-cols-2 md:gap-x-12">
         <li
-          v-for="point in points"
-          :key="point"
+          v-for="track in coming"
+          :key="track.id"
+          class="flex items-start gap-4 border-b border-default py-4"
+          :data-track="track.id"
         >
-          <h3 class="font-semibold text-highlighted">
-            {{ t(`about.different.${point}.title`) }}
-          </h3>
-          <p class="mt-1 text-sm text-toned">
-            {{ t(`about.different.${point}.text`) }}
-          </p>
+          <span
+            aria-hidden="true"
+            class="mt-1.5 inline-block size-2.5 shrink-0 rounded-full border-2 border-current text-dimmed"
+          />
+          <div class="min-w-0 flex-1">
+            <h3 class="flex flex-wrap items-center gap-x-3 gap-y-1 font-medium text-toned">
+              {{ track.title }}
+              <span class="rounded-sm border border-default px-1.5 text-xs leading-5 font-normal text-muted">{{ t('track.coming') }}</span>
+            </h3>
+            <p class="mt-1 text-sm text-muted">
+              {{ track.scope }}
+            </p>
+          </div>
         </li>
       </ul>
-      <div class="mt-5 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-        <NuxtLink
-          to="/git/cheat-sheet"
-          class="text-primary hover:underline"
-        >{{ t('layout.nav.cheat') }} →</NuxtLink>
+      <p class="mt-6 text-sm">
         <NuxtLink
           to="/about"
-          class="text-primary hover:underline"
-        >{{ t('layout.nav.about') }} →</NuxtLink>
-      </div>
+          class="inline-flex items-center gap-1.5 rounded-sm text-primary hover:underline focus-visible:outline-2 focus-visible:outline-primary"
+        >
+          {{ t('home.about') }}
+          <UIcon
+            name="i-lucide-arrow-right"
+            class="size-4"
+          />
+        </NuxtLink>
+      </p>
     </section>
   </div>
 </template>

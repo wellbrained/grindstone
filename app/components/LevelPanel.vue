@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import type { Level } from '#shared/levels'
+import type { Level, LevelPlace } from '#shared/levels'
 
 // Left column of the play page: title, story, the live goal checklist, hints and reset.
 const props = defineProps<{
   level: Level
-  number: number
-  total: number
+  /** Track, chapter and number of the level, for the breadcrumb back to the track page. */
+  place: LevelPlace
   goals: { id: string, label: string, met: boolean }[]
   hintsUsed: number
   solved: boolean
@@ -30,9 +30,34 @@ const hintsTotal = computed(() => props.level.hints.length)
 <template>
   <div class="flex flex-col gap-5">
     <header>
-      <p class="font-mono text-xs text-muted">
-        {{ t('play.level', { n: number, total }) }}
-      </p>
+      <nav :aria-label="t('play.breadcrumb')">
+        <ol class="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs text-muted">
+          <li>
+            <NuxtLink
+              :to="trackPath(place.track.id)"
+              class="rounded-sm hover:text-highlighted hover:underline focus-visible:outline-2 focus-visible:outline-primary"
+              data-testid="crumb-track"
+            >{{ place.track.title }}</NuxtLink>
+          </li>
+          <li class="flex items-center gap-x-1">
+            <UIcon
+              name="i-lucide-chevron-right"
+              class="size-3 shrink-0 text-dimmed"
+            />
+            <NuxtLink
+              :to="trackPath(place.track.id, place.chapter.id)"
+              class="rounded-sm hover:text-highlighted hover:underline focus-visible:outline-2 focus-visible:outline-primary"
+            >{{ place.chapter.title }}</NuxtLink>
+          </li>
+          <li class="flex items-center gap-x-1">
+            <UIcon
+              name="i-lucide-chevron-right"
+              class="size-3 shrink-0 text-dimmed"
+            />
+            <span aria-current="page"><span class="font-mono tabular-nums">{{ place.number }}</span> {{ level.title }}</span>
+          </li>
+        </ol>
+      </nav>
       <h1 class="mt-1 text-2xl font-semibold text-highlighted">
         {{ level.title }}
       </h1>
@@ -149,7 +174,7 @@ const hintsTotal = computed(() => props.level.hints.length)
           v-else
           color="primary"
           variant="solid"
-          to="/"
+          :to="trackPath(place.track.id)"
           :label="t('debrief.all')"
         />
       </div>
