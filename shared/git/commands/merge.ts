@@ -2,7 +2,7 @@ import { parseArgs } from '../args'
 import { createCommit } from '../objects/commit'
 import { isAncestor, mergeBase } from '../objects/graph'
 import { shortId } from '../objects/hash'
-import { done, err, fail, out } from '../output'
+import { done, err, fail, hint, out } from '../output'
 import { mergeTrees } from '../merge3'
 import type { TreeMergeResult } from '../merge3'
 import { logHead } from '../reflog'
@@ -11,7 +11,7 @@ import { headId, headTree, withEntry } from '../state'
 import { moveTrees } from '../worktree'
 import type { Command, CommandResult, GitState, OutputLine, Repo, Tree, UnmergedKind } from '../types'
 import { activeBranch } from './branch'
-import { commit as commitCommand } from './commit'
+import { commit as commitCommand, unresolvedConflict } from './commit'
 import { CHERRY_PICKING, diffstat, fatal, moveHead, notARepo, storeCommit, withRepo } from './common'
 
 /** Applies a tree merge to index and working tree; conflicted paths keep their marker content. */
@@ -70,7 +70,20 @@ export function mergeInto(state: GitState, theirs: string, label: string, option
     const next = logHead({ ...moveHead({ ...repo, index: moved.index }, theirs), ...origHead }, `${action}: Fast-forward`)
     return done({ ...withRepo(state, next), workdir: moved.workdir }, [...lines, out('Fast-forward'), ...diffstat(headTree(repo), theirsTree)])
   }
-  if (options.ffOnly) return fatal(state, 'fatal: Not possible to fast-forward, aborting.')
+  if (options.ffOnly) {
+    return fail(state, [
+      hint('hint: Diverging branches can\'t be fast-forwarded, you need to either:'),
+      hint('hint:'),
+      hint('hint: \tgit merge --no-ff'),
+      hint('hint:'),
+      hint('hint: or:'),
+      hint('hint:'),
+      hint('hint: \tgit rebase'),
+      hint('hint:'),
+      hint('hint: Disable this message with "git config set advice.diverging false"'),
+      err('fatal: Not possible to fast-forward, aborting.')
+    ], 128)
+  }
 
   const base = mergeBase(repo.commits, head, theirs)
   const oursTree = headTree(repo)
@@ -124,6 +137,7 @@ export const merge: Command = (state, argv) => {
     return commitCommand(state, [])
   }
   if (operation?.type === 'merge') {
+    if (Object.keys(repo.unmerged).length) return unresolvedConflict(state, 'Merging')
     return fatal(state, 'fatal: You have not concluded your merge (MERGE_HEAD exists).\nPlease, commit your changes before you merge.')
   }
   if (operation?.type === 'rebase') return fatal(state, 'fatal: You are in the middle of a rebase; finish it with "git rebase --continue" or "git rebase --abort" first.')

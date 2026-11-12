@@ -23,6 +23,47 @@ const pickOf = (repo: Repo): CherryPickOperation | null => repo.operation?.type 
 
 const noPick = (state: GitState) => fail(state, [err('error: no cherry-pick or revert in progress'), err(FAILED)], 128)
 
+/** git's wording for `--skip` without a cherry-pick (it only looks for a pick, not a revert). */
+const noPickToSkip = (state: GitState) => fail(state, [err('error: no cherry-pick in progress'), err(FAILED)], 128)
+
+const ADVICE_OFF = 'hint: Disable this message with "git config set advice.mergeConflict false"'
+
+const USAGE = [
+  'usage: git cherry-pick [--edit] [-n] [-m <parent-number>] [-s] [-x] [--ff]',
+  '                       [-S[<keyid>]] <commit>...',
+  '   or: git cherry-pick (--continue | --skip | --abort | --quit)',
+  '',
+  '    --quit                end revert or cherry-pick sequence',
+  '    --continue            resume revert or cherry-pick sequence',
+  '    --abort               cancel revert or cherry-pick sequence',
+  '    --skip                skip current commit and continue',
+  '    --[no-]cleanup <mode> how to strip spaces and #comments from message',
+  '    -n, --no-commit       don\'t automatically commit',
+  '    --commit              opposite of --no-commit',
+  '    -e, --[no-]edit       edit the commit message',
+  '    -s, --[no-]signoff    add a Signed-off-by trailer',
+  '    -m, --[no-]mainline <parent-number>',
+  '                          select mainline parent',
+  '    --[no-]rerere-autoupdate',
+  '                          update the index with reused conflict resolution if possible',
+  '    --[no-]strategy <strategy>',
+  '                          merge strategy',
+  '    -X, --[no-]strategy-option <option>',
+  '                          option for merge strategy',
+  '    -S, --[no-]gpg-sign[=<key-id>]',
+  '                          GPG sign commit',
+  '    -x                    append commit name',
+  '    --[no-]ff             allow fast-forward',
+  '    --[no-]allow-empty    preserve initially empty commits',
+  '    --[no-]allow-empty-message',
+  '                          allow commits with empty messages',
+  '    --[no-]keep-redundant-commits',
+  '                          deprecated: use --empty=keep instead',
+  '    --empty (stop|drop|keep)',
+  '                          how to handle commits that become empty',
+  ''
+]
+
 /** The commit message of a pick; `-x` adds the line git uses to say where it came from. */
 const pickMessage = (commit: Commit, recordOrigin: boolean) =>
   recordOrigin ? `${commit.message}\n\n(cherry picked from commit ${commit.id})` : commit.message
@@ -83,7 +124,8 @@ function replay(start: GitState, todo: string[], run: Run, output: OutputLine[])
         return fail({ ...withRepo(state, conflicted), workdir: applied.workdir }, [
           ...lines,
           hint('hint: after resolving the conflicts, mark the corrected paths'),
-          hint('hint: with \'git add <paths>\' or \'git rm <paths>\'')
+          hint('hint: with \'git add <paths>\' or \'git rm <paths>\''),
+          hint(ADVICE_OFF)
         ])
       }
       return fail({ ...withRepo(state, stopAt(conflicted, commit.id, rest, run)), workdir: applied.workdir }, [
@@ -93,7 +135,8 @@ function replay(start: GitState, todo: string[], run: Run, output: OutputLine[])
         hint('hint: "git cherry-pick --continue".'),
         hint('hint: You can instead skip this commit with "git cherry-pick --skip".'),
         hint('hint: To abort and get back to the state before "git cherry-pick",'),
-        hint('hint: run "git cherry-pick --abort".')
+        hint('hint: run "git cherry-pick --abort".'),
+        hint(ADVICE_OFF)
       ])
     }
 
@@ -131,10 +174,9 @@ function commitsToPick(repo: Repo, revs: string[]): { ids: string[] } | { bad: s
 }
 
 function abort(state: GitState, repo: Repo, operation: CherryPickOperation): CommandResult {
-  const moved = headId(repo) !== operation.head
   const restored: Repo = { ...moveHead(repo, operation.head), index: operation.before.index, unmerged: {}, operation: null }
-  // git goes back with `reset --merge <id>`, which writes a reset entry
-  const next = moved ? logHead(restored, `reset: moving to ${operation.head}`) : restored
+  // git goes back with `reset --merge <id>`, which writes a reset entry (also when HEAD stays where it is)
+  const next = logHead(restored, `reset: moving to ${operation.head}`)
   return done({ ...withRepo(state, next), workdir: operation.before.workdir })
 }
 
@@ -145,7 +187,9 @@ function skip(state: GitState, repo: Repo, operation: CherryPickOperation): Comm
   for (const path of new Set([...Object.keys(repo.index), ...Object.keys(repo.unmerged), ...Object.keys(tree)])) {
     workdir = withEntry(workdir, path, tree[path])
   }
-  const next = { ...withRepo(state, { ...repo, index: tree, unmerged: {} }), workdir }
+  // git resets to HEAD first, which shows in the reflog even though HEAD does not move
+  const reset = logHead({ ...repo, index: tree, unmerged: {}, operation: null }, `reset: moving to ${headId(repo)}`)
+  const next = { ...withRepo(state, reset), workdir }
   return replay(next, operation.todo, { recordOrigin: operation.recordOrigin, noCommit: false, head: operation.head, before: operation.before }, [])
 }
 
@@ -172,7 +216,7 @@ export const cherryPick: Command = (state, argv) => {
   const operation = pickOf(repo)
 
   if (flags.has('--abort')) return operation ? abort(state, repo, operation) : noPick(state)
-  if (flags.has('--skip')) return operation ? skip(state, repo, operation) : noPick(state)
+  if (flags.has('--skip')) return operation ? skip(state, repo, operation) : noPickToSkip(state)
   if (flags.has('--continue')) return operation ? resume(state, repo, operation) : noPick(state)
 
   if (operation) {
@@ -180,7 +224,7 @@ export const cherryPick: Command = (state, argv) => {
   }
   if (Object.keys(repo.unmerged).length) {
     return fail(state, [
-      err('error: cherry-pick is not possible because you have unmerged files.'),
+      err('error: Cherry-picking is not possible because you have unmerged files.'),
       hint('hint: Fix them up in the work tree, and then use \'git add/rm <file>\''),
       hint('hint: as appropriate to mark resolution and make a commit.'),
       err(FAILED)
@@ -188,7 +232,7 @@ export const cherryPick: Command = (state, argv) => {
   }
   if (repo.operation?.type === 'merge') return fatal(state, 'fatal: You have not concluded your merge (MERGE_HEAD exists).')
   if (repo.operation?.type === 'rebase') return fatal(state, 'fatal: You are in the middle of a rebase; finish it with "git rebase --continue" or "git rebase --abort" first.')
-  if (!positionals.length) return fail(state, [err('usage: git cherry-pick [-n] [-x] <commit>...')], 129)
+  if (!positionals.length) return fail(state, USAGE.map(text => err(text)), 129)
 
   const head = requireCommit(state, repo)
   if (typeof head !== 'string') return head

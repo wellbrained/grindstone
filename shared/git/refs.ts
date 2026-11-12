@@ -55,19 +55,22 @@ export function resolveRev(repo: Repo, rev: string): string | null {
 /** Tag names, sorted like git (byte order: v1.10 before v1.9). */
 export const tagNames = (tags: Record<string, unknown> | undefined) => Object.keys(tags ?? {}).sort((a, b) => a < b ? -1 : a > b ? 1 : 0)
 
-/** The ` (HEAD -> main, tag: v1.0, feature, origin/main)` part of a log line, or nothing. Tags are plain text (no branch colour). */
+/**
+ * The ` (HEAD -> main, tag: v1.0, origin/main, feature)` part of a log line, or nothing. Tags are plain text (no branch
+ * colour). git lists HEAD first, then tags, remote-tracking branches and local branches, each group in reverse name order.
+ */
 export function decorations(repo: Repo, id: string): Part[] {
   const parts: Part[][] = []
   const current = repo.head.type === 'branch' ? repo.head.name : null
   if (headId(repo) === id) parts.push(current ? [ref('HEAD'), ' -> ', ref(current)] : [ref('HEAD')])
-  for (const name of tagNames(repo.tags)) {
+  for (const name of tagNames(repo.tags).reverse()) {
     if (repo.tags![name]!.commit === id) parts.push([`tag: ${name}`])
   }
-  for (const name of Object.keys(repo.branches).sort()) {
-    if (repo.branches[name] === id && !(name === current && headId(repo) === id)) parts.push([ref(name)])
-  }
-  for (const name of Object.keys(repo.remoteBranches).sort()) {
+  for (const name of Object.keys(repo.remoteBranches).sort().reverse()) {
     if (repo.remoteBranches[name] === id) parts.push([ref(trackingRef(name))])
+  }
+  for (const name of Object.keys(repo.branches).sort().reverse()) {
+    if (repo.branches[name] === id && !(name === current && headId(repo) === id)) parts.push([ref(name)])
   }
   if (!parts.length) return []
   return [' (', ...parts.flatMap((part, i) => i ? [', ', ...part] : part), ')']

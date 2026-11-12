@@ -30,7 +30,8 @@ function list(state: GitState, repo: Repo, patterns: string[], annotations: bool
 }
 
 function remove(state: GitState, repo: Repo, names: string[]) {
-  if (!names.length) return fail(state, [err('usage: git tag -d <tagname>...')], 129)
+  // git deletes nothing, silently, when no name is given
+  if (!names.length) return done(state)
   let tags = repo.tags ?? {}
   const output = []
   let exitCode = 0

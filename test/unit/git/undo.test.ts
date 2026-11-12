@@ -260,7 +260,7 @@ describe('git revert', () => {
 
   it('reports bad revisions and a missing argument', () => {
     expect(exec(pushed(), 'git revert nope').text).toBe('fatal: bad revision \'nope\'')
-    expect(exec(pushed(), 'git revert').text).toBe('usage: git revert [--no-edit] <commit>')
+    expect(exec(pushed(), 'git revert').text.split('\n')[0]).toBe('usage: git revert [--[no-]edit] [-n] [-m <parent-number>] [-s] [-S[<keyid>]] <commit>...')
     expect(exec(pushed(), 'git revert HEAD HEAD~1').text).toBe('git revert: reverting several commits at once is not in this trainer yet')
   })
 })
@@ -384,7 +384,7 @@ describe('git stash', () => {
       expect(last.exitCode).toBe(1)
     }
     const state = ok(busy(), 'git stash')
-    expect(exec(state, 'git stash pop stash@{3}').text).toBe('error: stash@{3} is not a valid reference')
+    expect(exec(state, 'git stash pop stash@{3}').text).toBe('fatal: log for \'stash\' only has 1 entries')
     expect(exec(state, 'git stash list').text).not.toBe('')
     expect(exec(state, 'git stash show').text).toBe('git stash show is not in this trainer yet')
     expect(exec(state, 'git stash push a.txt').text).toBe('git stash push: stashing only some paths is not in this trainer yet')
@@ -400,6 +400,17 @@ describe('git stash', () => {
       '\tb.txt',
       'Please commit your changes or stash them before you merge.',
       'Aborting',
+      'On branch main',
+      'Changes not staged for commit:',
+      '  (use "git add <file>..." to update what will be committed)',
+      '  (use "git restore <file>..." to discard changes in working directory)',
+      '\tmodified:   b.txt',
+      '',
+      'Untracked files:',
+      '  (use "git add <file>..." to include in what will be committed)',
+      '\tu.txt',
+      '',
+      'no changes added to commit (use "git add" and/or "git commit -a")',
       'The stash entry is kept in case you need it again.'
     ].join('\n'))
   })
@@ -426,7 +437,7 @@ describe('git stash', () => {
     const conflicted = repo().file('a.txt', 'a').commit('one').switch('topic', { create: true }).file('a.txt', 'theirs').commit('theirs')
       .switch('main').file('a.txt', 'ours').commit('ours').build()
     const merging = exec(conflicted, 'git merge topic').state
-    expect(exec(merging, 'git stash').text).toBe('a.txt: needs merge\nerror: could not save the stash: you have unmerged files')
+    expect(exec(merging, 'git stash').text).toBe('a.txt: needs merge\nerror: could not write index')
     expect(exec(repo().file('a.txt', 'a').stage().build(), 'git stash').text).toBe('You do not have the initial commit yet')
   })
 

@@ -50,13 +50,14 @@ describe('git rebase', () => {
       'hint: "git add/rm <conflicted_files>", then run "git rebase --continue".',
       'hint: You can instead skip this commit: run "git rebase --skip".',
       'hint: To abort and get back to the state before "git rebase", run "git rebase --abort".',
-      `Could not apply ${conflicting.slice(0, 7)}... Change body on feature`
+      'hint: Disable this message with "git config set advice.mergeConflict false"',
+      `Could not apply ${conflicting.slice(0, 7)}... # Change body on feature`
     ].join('\n'))
     expect(stopped.last.exitCode).toBe(1)
     expect(stopped.state.workdir['app.txt']).toBe(`title\n<<<<<<< HEAD\nmain body\n=======\nfeature body\n>>>>>>> ${conflicting.slice(0, 7)} (Change body on feature)\n`)
 
     const status = exec(stopped.state, 'git status').text
-    expect(status).toContain(`rebase in progress; onto ${state.repo!.branches.main!.slice(0, 7)}`)
+    expect(status).toContain(`interactive rebase in progress; onto ${state.repo!.branches.main!.slice(0, 7)}`)
     expect(status).toContain('You are currently rebasing branch \'feature\' on')
     expect(status).toContain('\tboth modified:   app.txt')
 
@@ -82,7 +83,7 @@ describe('git rebase', () => {
     expect(aborted.repo!.unmerged).toEqual({})
     expect(aborted.repo!.operation).toBeNull()
     expect(aborted.workdir).toEqual(state.workdir)
-    expect(exec(state, 'git rebase --abort').text).toBe('fatal: No rebase in progress?')
+    expect(exec(state, 'git rebase --abort').text).toBe('fatal: no rebase in progress')
   })
 
   it('skips the conflicting commit with --skip', () => {

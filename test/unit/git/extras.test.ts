@@ -27,7 +27,7 @@ describe('smaller features', () => {
   })
 
   it('warns about commits left behind on a detached HEAD', () => {
-    const state = ok(published().build(), 'git checkout HEAD', 'echo x > x.txt', 'git add .', 'git commit -m lost')
+    const state = ok(published().build(), 'git checkout --detach', 'echo x > x.txt', 'git add .', 'git commit -m lost')
     const { text } = exec(state, 'git switch main')
     expect(text).toContain('Warning: you are leaving 1 commit behind, not connected to')
     expect(text).toContain('Switched to branch \'main\'')

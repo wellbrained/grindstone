@@ -36,7 +36,11 @@ export const add: Command = (state, argv) => {
   const force = parsed.args.flags.has('-f')
 
   if (!specs.length) {
-    return done(state, [err('Nothing specified, nothing added.'), hint('hint: Maybe you wanted to say \'git add .\'?')])
+    return done(state, [
+      err('Nothing specified, nothing added.'),
+      hint('hint: Maybe you wanted to say \'git add .\'?'),
+      hint('hint: Disable this message with "git config set advice.addEmptyPathspec false"')
+    ])
   }
 
   const known = [...new Set([...Object.keys(state.workdir), ...Object.keys(repo.index), ...Object.keys(repo.unmerged)])].sort()
@@ -60,7 +64,8 @@ export const add: Command = (state, argv) => {
     output: [
       err('The following paths are ignored by one of your .gitignore files:'),
       ...[...refused].sort().map(path => err(path)),
-      hint('hint: Use -f if you really want to add them.')
+      hint('hint: Use -f if you really want to add them.'),
+      hint('hint: Disable this message with "git config set advice.addIgnoredFile false"')
     ],
     exitCode: 1
   }

@@ -81,6 +81,8 @@ export const fetch: Command = (state, argv) => {
   const parsed = parseArgs('fetch', argv, { flags: ['--all', '--prune'], alias: { '-p': '--prune' } })
   if (!parsed.ok) return fail(state, [err(parsed.error)])
   const [remote = 'origin', branch] = parsed.args.positionals
+  // without any remote configured and none named, there is simply nothing to fetch
+  if (!state.origin && parsed.args.positionals.length === 0) return done(state)
   if (!state.origin || remote !== 'origin') return noRemote(state, remote)
   if (branch !== undefined && !state.origin.branches[branch]) return fatal(state, `fatal: couldn't find remote ref ${branch}`)
 
@@ -105,6 +107,25 @@ export const pull: Command = (state, argv) => {
   if (!parsed.ok) return fail(state, [err(parsed.error)])
   const { flags, positionals } = parsed.args
   const [remote = 'origin', named] = positionals
+  if (!state.origin && positionals.length === 0) {
+    const current = activeBranch(repo)
+    return fail(state, [
+      out(current ? 'There is no tracking information for the current branch.' : 'You are not currently on a branch.'),
+      out('Please specify which branch you want to merge with.'),
+      out('See git-pull(1) for details.'),
+      out(''),
+      out('    git pull <remote> <branch>'),
+      ...(current
+        ? [
+            out(''),
+            out('If you wish to set tracking information for this branch you can do so with:'),
+            out(''),
+            out(`    git branch --set-upstream-to=<remote>/<branch> ${current}`),
+            out('')
+          ]
+        : [])
+    ])
+  }
   if (!state.origin || remote !== 'origin') return noRemote(state, remote)
   if (Object.keys(repo.unmerged).length) return unresolvedConflict(state, 'Pulling')
   if (repo.operation?.type === 'merge') {
@@ -127,7 +148,8 @@ export const pull: Command = (state, argv) => {
             out(''),
             out('If you wish to set tracking information for this branch you can do so with:'),
             out(''),
-            out(`    git branch --set-upstream-to=origin/<branch> ${current}`)
+            out(`    git branch --set-upstream-to=origin/<branch> ${current}`),
+            out('')
           ]
         : [])
     ])
@@ -231,7 +253,16 @@ export const push: Command = (state, argv) => {
       err(''),
       err('and then push using the remote name'),
       err(''),
-      err('    git push <name>')
+      err('    git push <name>'),
+      err(''),
+      err('To push to multiple remotes at once, configure a remote group using'),
+      err(''),
+      err('    git config remotes.<groupname> "<remote1> <remote2>"'),
+      err(''),
+      err('and then push using the group name'),
+      err(''),
+      err('    git push <groupname>'),
+      err('')
     ], 128)
   }
   const [remote = 'origin', refspec] = positionals

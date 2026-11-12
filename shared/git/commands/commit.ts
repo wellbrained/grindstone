@@ -10,7 +10,9 @@ import { stage } from './add'
 import { fatal, headLabel, moveHead, notARepo, storeCommit, summary, withRepo } from './common'
 import { statusLines } from './status'
 
-export const unresolvedConflict = (state: GitState, action: string): CommandResult => fail(state, [
+/** `git commit` also lists the unmerged paths first (`U\t<path>`); the other commands only say so. */
+export const unresolvedConflict = (state: GitState, action: string, listed: string[] = []): CommandResult => fail(state, [
+  ...listed.map(path => out(`U\t${path}`)),
   err(`error: ${action} is not possible because you have unmerged files.`),
   hint('hint: Fix them up in the work tree, and then use \'git add/rm <file>\''),
   hint('hint: as appropriate to mark resolution and make a commit.'),
@@ -73,7 +75,7 @@ export const commit: Command = (state, argv) => {
   const { flags, values, positionals } = parsed.args
   if (positionals.length) return fail(state, [err(`git commit: committing only some paths ('${positionals[0]}') is not in this trainer yet`)])
 
-  if (Object.keys(repo.unmerged).length) return unresolvedConflict(state, 'Committing')
+  if (Object.keys(repo.unmerged).length) return unresolvedConflict(state, 'Committing', Object.keys(repo.unmerged).sort())
 
   const amend = flags.has('--amend')
   const head = headId(repo)
