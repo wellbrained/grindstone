@@ -36,3 +36,12 @@ Status: accepted, 2026-11-12 (Nik, grilling + previews).
 ## Cheat sheet (same day)
 
 Cards follow preview B6: the heading is a prompt (`$ git rebase`), examples sit in a small terminal as `# comment` above `$ command`, click to copy. Only the heading's `$` is ember; rail, command prompts and links are neutral.
+
+## Finishing Git v1 (2026-11-12, owner: "finish all the git practices per your recommendation")
+
+The owner approved chapters 6, 2 and 3 from previews, then the chapter 4 preview (`.impeccable/mocks/previews/rewriting-preview.html`, with interactive rebase pulled forward from "later" and the todo list and commit messages opening in the editor pane), and delegated the rest to this plan. Built one chapter at a time, each deployed when done.
+
+- **4 Rewriting history**: 4.1 Put your branch on top of main (existing Rebase, retitled) · 4.2 Conflict during a rebase · 4.3 Push a rebased branch (`--force-with-lease`) · 4.4 Tidy up before review (`rebase -i`). Practice: rebase onto main, give up a rebase, push a rewritten branch safely, fix an old commit message.
+- **5 Teamwork & remotes**: 5.1 Push your first branch (`push -u`) · 5.2 Get your teammates' work (fetch vs pull) · 5.3 Your push was rejected (`pull --rebase`, push) · 5.4 Ahead and behind (`status`, `log origin/main..main`) · 5.5 Teammate sync (existing, the hardest). Practice: push a new branch with upstream, fetch without touching your branch, pull with rebase, see what you haven't pushed, prune branches gone from origin.
+- **7 Disasters** (needs `reflog`, `rm --cached`): 7.1 Committed on main by mistake · 7.2 Lost commits after `reset --hard` (reflog) · 7.3 Rebased the wrong branch · 7.4 Committed a secret (not pushed; untrack it, ignore it, rewrite the commit, rotate the key) · 7.5 Deleted a branch with unmerged work. One or two practice tasks each.
+- **8 Workflows** (needs `cherry-pick`, `tag`): 8.1 The pull request flow · 8.2 Hotfix in the middle of a feature · 8.3 Bring a fix to the release branch (`cherry-pick`) · 8.4 Tag a release · 8.5 A release branch, GitFlow style. One or two practice tasks each.

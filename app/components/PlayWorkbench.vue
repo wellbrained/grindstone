@@ -16,7 +16,8 @@ const props = defineProps<{
 
 const {
   level, session, log, prompt, completion, fileTree, workdir, tabs, goals, conflictedFiles, next, graph, hasOrigin, showOrigin,
-  debriefOpen, sparkKey, run, saveTab, listCandidates, clearTerminal, hint, reset, again, edit
+  debriefOpen, sparkKey, run, saveTab, listCandidates, clearTerminal, hint, reset, again, edit, gitEditor, gitDraft, submitGitEditor,
+  cancelGitEditor
 } = props.play
 
 const ide = computed(() => props.layout === 'ide')
@@ -44,6 +45,22 @@ function openFile(path: string) {
   tabs.open(path)
   showEditor()
 }
+
+// The file git waits for (git rebase -i): in the IDE it takes the editor pane's place (the tabs stay as they were) and is
+// brought into view like an opened file; in the Terminal layout the page shows it in a dialog. Once git stops waiting,
+// the focus goes back to the terminal input.
+const gitPane = useTemplateRef<{ $el: HTMLElement }>('gitPane')
+watch(() => gitEditor.value?.path ?? null, (path, previous) => {
+  if (path && !previous && ide.value) {
+    nextTick(() => {
+      if (!window.matchMedia('(min-width: 64rem)').matches) {
+        const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        gitPane.value?.$el?.scrollIntoView({ block: 'nearest', behavior: smooth ? 'smooth' : 'auto' })
+      }
+    })
+  }
+  if (!path && previous) nextTick(() => terminal.value?.focus())
+})
 
 /** Again: the same entry from the start, and back to typing. */
 function onAgain() {
@@ -104,7 +121,17 @@ defineExpose({
         :inert="!ide || undefined"
       >
         <div>
+          <GitEditor
+            v-if="gitEditor && ide"
+            ref="gitPane"
+            v-model="gitDraft"
+            class="mb-4 scroll-mt-4 max-lg:h-[26rem]"
+            :wait="gitEditor"
+            @submit="submitGitEditor"
+            @cancel="cancelGitEditor"
+          />
           <EditorArea
+            v-show="!(gitEditor && ide)"
             ref="editorArea"
             class="mb-4 scroll-mt-4 max-lg:h-[26rem]"
             :tabs="tabs"

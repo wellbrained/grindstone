@@ -2,14 +2,14 @@
 // Only imported by CodeEditor.vue, which is loaded lazily, so CodeMirror stays out of the first page load.
 // Colours come from the app's CSS tokens (main.css), so one theme serves dark and light.
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
-import { HighlightStyle, bracketMatching, indentOnInput, syntaxHighlighting } from '@codemirror/language'
+import { HighlightStyle, StreamLanguage, bracketMatching, indentOnInput, syntaxHighlighting } from '@codemirror/language'
 import { Compartment, EditorState, StateField } from '@codemirror/state'
 import type { Extension, Range } from '@codemirror/state'
 import {
   Decoration, EditorView, WidgetType, drawSelection, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers
 } from '@codemirror/view'
 import type { DecorationSet } from '@codemirror/view'
-import { tags } from '@lezer/highlight'
+import { Tag, tags } from '@lezer/highlight'
 import { conflictReplacement, parseConflicts } from '~/utils/conflicts'
 import type { ConflictChoice } from '~/utils/conflicts'
 
@@ -99,7 +99,11 @@ const theme = EditorView.theme({
   '.cm-conflict-actions button:focus-visible': { outline: '2px solid var(--ui-primary)', outlineOffset: '1px' }
 })
 
+/** Commit ids in a rebase todo list. */
+const commitHash = Tag.define()
+
 const highlight = HighlightStyle.define([
+  { tag: commitHash, color: 'var(--ui-info)' },
   { tag: [tags.keyword, tags.modifier, tags.controlKeyword, tags.operatorKeyword], color: 'var(--ui-secondary)' },
   { tag: [tags.string, tags.special(tags.string), tags.regexp], color: 'var(--ui-success)' },
   { tag: [tags.number, tags.bool, tags.null, tags.atom], color: 'var(--ui-warning)' },
@@ -117,6 +121,54 @@ const highlight = HighlightStyle.define([
 ])
 
 type LanguageKind = 'javascript' | 'typescript' | 'json' | 'markdown' | null
+
+// The files git opens in the editor during `git rebase -i` (shared/git/commands/rebase.ts): small stream languages, no chunk.
+const TODO_COMMANDS = /^(?:pick|p|reword|r|edit|e|squash|s|fixup|f|exec|x|break|b|drop|d|label|l|reset|t|merge|m|noop|update-ref|u)(?=\s|$)/
+
+/** The todo list: the command word, then the commit id, then the subject (ignored by git); # lines are comments. */
+const rebaseTodo = StreamLanguage.define<{ word: number }>({
+  name: 'git-rebase-todo',
+  startState: () => ({ word: 0 }),
+  token(stream, state) {
+    if (stream.sol()) {
+      state.word = 0
+      if (stream.match(/^\s*#.*/)) return 'comment'
+    }
+    if (stream.eatSpace()) return null
+    state.word++
+    if (state.word === 1) {
+      if (stream.match(TODO_COMMANDS)) return 'keyword'
+      stream.match(/^\S+/)
+      return 'invalid'
+    }
+    if (state.word === 2 && stream.match(/^[0-9a-f]{4,40}(?=\s|$)/)) return 'hash'
+    stream.skipToEnd()
+    return null
+  },
+  tokenTable: { hash: commitHash },
+  languageData: { commentTokens: { line: '#' } }
+})
+
+/** A commit message: lines starting with # are comments git drops. */
+const commitMessage = StreamLanguage.define<null>({
+  name: 'git-commit-message',
+  startState: () => null,
+  token(stream) {
+    if (stream.sol() && stream.peek() === '#') {
+      stream.skipToEnd()
+      return 'comment'
+    }
+    stream.skipToEnd()
+    return null
+  }
+})
+
+/** Languages that need no chunk of their own. */
+function builtInLanguage(path: string): Extension | null {
+  if (path.endsWith('git-rebase-todo')) return rebaseTodo
+  if (path.endsWith('COMMIT_EDITMSG')) return commitMessage
+  return null
+}
 
 function languageOf(path: string): LanguageKind {
   const extension = path.slice(path.lastIndexOf('.') + 1).toLowerCase()
@@ -277,7 +329,7 @@ export function createCodeEditor(options: CodeEditorOptions): CodeEditorHandle {
       doc,
       extensions: [
         ...base,
-        language.of(kind ? languageCache.get(kind) ?? [] : []),
+        language.of(builtInLanguage(path) ?? (kind ? languageCache.get(kind) ?? [] : [])),
         EditorView.contentAttributes.of({ 'aria-label': labels.editorLabel(path), 'spellcheck': 'false', 'autocapitalize': 'off', 'autocorrect': 'off' })
       ]
     })

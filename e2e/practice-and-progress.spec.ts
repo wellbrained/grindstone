@@ -86,7 +86,7 @@ test('marks an entry "practise again" and resets a chapter through the menus', a
   await expect(page.locator('[data-level="git-01-first-commit"]')).toHaveAttribute('data-state', 'next')
   await expect(row).toHaveAttribute('data-state', 'open')
   await expect(row.getByTestId('row-status')).not.toContainText('Practise again')
-  await expect(page.getByTestId('track-progress')).toHaveText('0 of 46 solved')
+  await expect(page.getByTestId('track-progress')).toHaveText('0 of 53 solved')
   // the play session starts fresh too
   await page.goto('/git/practice-stage-one-file')
   await expect(page.getByTestId('practice-solved')).toHaveCount(0)

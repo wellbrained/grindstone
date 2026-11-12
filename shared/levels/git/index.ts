@@ -25,9 +25,13 @@ import { lookAtOldVersion } from './19-look-at-old-version'
 import { bothSidesMovedOn } from './20-both-sides-moved-on'
 import { backOutOfAMerge } from './21-back-out-of-a-merge'
 import { catchUpWithMain } from './22-catch-up-with-main'
+import { conflictDuringRebase } from './23-conflict-during-a-rebase'
+import { pushRebasedBranch } from './24-push-a-rebased-branch'
+import { tidyUpBeforeReview } from './25-tidy-up-before-review'
 import { commitAll, diffFile, diffStaged, ignoreLogs, logOneline, stageOneFile } from './practice/basics'
 import { branchFromCommit, deleteMergedBranch, listBranches, listRemoteBranches, renameBranch, switchBack } from './practice/branching'
 import { keepTheirVersion, listConflicts, mergeFfOnly, mergeMainIn, mergeNoFf } from './practice/merging'
+import { abortRebase, pushWithLease, rebaseOntoMain, rewordOldCommit } from './practice/rewriting'
 import { amendNoEdit, discardFile, resetHard, resetSoft, revertBeforeLast, stashUntracked, unstageFile } from './practice/undo'
 
 export const gitTrack = defineTrack({
@@ -101,7 +105,16 @@ export const gitTrack = defineTrack({
       title: 'Rewriting history',
       description: 'Rebase and tidy your commits before anyone else builds on them.',
       colour: 3,
-      levels: [rebase]
+      levels: [
+        rebase,
+        rebaseOntoMain,
+        conflictDuringRebase,
+        abortRebase,
+        pushRebasedBranch,
+        pushWithLease,
+        tidyUpBeforeReview,
+        rewordOldCommit
+      ]
     },
     {
       id: 'teamwork',

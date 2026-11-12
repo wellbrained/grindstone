@@ -106,7 +106,16 @@ describe('track registry', () => {
         'git-22-catch-up-with-main',
         'git-practice-merge-main-in'
       ],
-      ['git-05-rebase'],
+      [
+        'git-05-rebase',
+        'git-practice-rebase-onto-main',
+        'git-23-conflict-during-a-rebase',
+        'git-practice-abort-rebase',
+        'git-24-push-a-rebased-branch',
+        'git-practice-push-with-lease',
+        'git-25-tidy-up-before-review',
+        'git-practice-reword-old-commit'
+      ],
       ['git-06-teammate-sync'],
       [
         'git-11-fix-last-commit',
@@ -229,6 +238,7 @@ describe('next level', () => {
     expect(nextLevel('git-03-merge')?.id).toBe('git-practice-merge-no-ff')
     expect(nextLevel('git-practice-merge-ff-only')?.id).toBe('git-04-merge-conflict')
     expect(nextLevel('git-practice-merge-main-in')?.id).toBe('git-05-rebase')
+    expect(nextLevel('git-practice-reword-old-commit')?.id).toBe('git-06-teammate-sync')
     expect(nextLevel('git-06-teammate-sync')?.id).toBe('git-11-fix-last-commit')
     expect(nextLevel('git-practice-stash-untracked')).toBeNull()
     expect(nextLevel('nope')).toBeNull()
@@ -285,12 +295,12 @@ describe('next up and continue', () => {
 describe('progress counts', () => {
   it('counts solved entries per track and chapter, both kinds, ignoring unknown ids and unsolved entries', () => {
     const progress = solvedProgress(['git-03-merge', 'git-04-merge-conflict', 'git-01-first-commit', 'git-practice-stage-one-file', 'elsewhere'], { levelId: 'git-02-branch', at: 3 })
-    expect(trackProgress(git, progress)).toEqual({ solved: 4, total: 46 })
+    expect(trackProgress(git, progress)).toEqual({ solved: 4, total: 53 })
     expect(git.chapters.map(chapter => chapterProgress(chapter, progress))).toEqual([
       { solved: 2, total: 11 },
       { solved: 0, total: 11 },
       { solved: 2, total: 10 },
-      { solved: 0, total: 1 },
+      { solved: 0, total: 8 },
       { solved: 0, total: 1 },
       { solved: 0, total: 12 },
       { solved: 0, total: 0 },
@@ -312,6 +322,8 @@ describe('commands a level practises', () => {
     expect(byId('git-01-first-commit')).toEqual(['init', 'add', 'commit'])
     expect(byId('git-04-merge-conflict')).toEqual(['merge', 'add', 'commit'])
     expect(byId('git-06-teammate-sync')).toEqual(['push', 'fetch', 'rebase', 'add'])
+    // editor saves are not commands
+    expect(byId('git-25-tidy-up-before-review')).toEqual(['rebase'])
   })
 })
 

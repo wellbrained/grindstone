@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { commitsOf } from '../../../shared/git'
-import { gitLevels, levelById, levels, nextLevel, startLevel, submit } from '../../../shared/levels'
-import type { Level, Session, SubmitResult } from '../../../shared/levels'
+import { gitLevels, levelById, levels, nextLevel, playStep, startLevel } from '../../../shared/levels'
+import type { Level, Session, SolutionStep, SubmitResult } from '../../../shared/levels'
 import { deepFreeze } from '../git/helpers'
 
-/** Plays lines through the engine; returns the last result and every step. */
-function play(level: Level, lines: string[], from: Session = startLevel(level)) {
+/** Plays lines (and editor saves) through the engine; returns the last result and every step. */
+function play(level: Level, lines: SolutionStep[], from: Session = startLevel(level)) {
   let session = from
   const steps: SubmitResult[] = []
   for (const line of lines) {
-    const result = submit(deepFreeze(session), level, line)
+    const result = playStep(deepFreeze(session), level, line)
     steps.push(result)
     session = result.session
   }
@@ -58,6 +58,13 @@ const initialGoals: Record<string, Record<string, boolean>> = {
   'git-22-catch-up-with-main': { 'merged': false, 'resolved': false, 'both': false, 'main-unchanged': false },
   'git-practice-merge-main-in': { 'merged': false, 'main-unchanged': false },
   'git-05-rebase': { 'contains-main': false, 'linear': true, 'on-branch': true },
+  'git-practice-rebase-onto-main': { 'on-top': false },
+  'git-23-conflict-during-a-rebase': { 'on-top': false, 'resolved': false, 'both': false },
+  'git-practice-abort-rebase': { 'given-up': false },
+  'git-24-push-a-rebased-branch': { 'on-top': false, 'pushed': false, 'lease': false },
+  'git-practice-push-with-lease': { pushed: false, lease: false },
+  'git-25-tidy-up-before-review': { 'one-commit': false, 'message': false, 'changes': false },
+  'git-practice-reword-old-commit': { fixed: false },
   'git-06-teammate-sync': { 'pushed': false, 'up-to-date': true, 'linear': true, 'resolved': true, 'lease': false },
   'git-11-fix-last-commit': { 'message': false, 'files': false, 'one-commit': true, 'clean': false },
   'git-practice-amend-no-edit': { amended: false, clean: false },
@@ -139,8 +146,13 @@ describe.each(gitLevels.map(item => [item.id, item] as const))('%s', (_id, item)
   })
 })
 
+/** 4.2: the resolved index.html, as the solution writes it. */
+const AUTUMN_RESOLVED = level('git-23-conflict-during-a-rebase').solution[1] as string
+/** 4.4: the short ids of your three commits, oldest first. */
+const GIFT = commitsOf(startLevel(level('git-25-tidy-up-before-review')).state, 'main..feature/gift-cards').map(commit => commit.id.slice(0, 7)).reverse()
+
 /** Wrong paths that must not solve an entry: at least one per scenario, and the obvious one per practice task. */
-const wrongPaths: [id: string, why: string, lines: string[], failing: string[]][] = [
+const wrongPaths: [id: string, why: string, lines: SolutionStep[], failing: string[]][] = [
   ['git-01-first-commit', 'commits only one of the two files', ['git init', 'git add README.md', 'git commit -m "First commit"'], ['committed', 'clean']],
   ['git-practice-stage-one-file', 'stages both files', ['git add .'], ['staged']],
   ['git-practice-commit-all', 'stages with git add first', ['git add .', 'git commit -m "Update"'], ['one-go']],
@@ -246,6 +258,28 @@ const wrongPaths: [id: string, why: string, lines: string[], failing: string[]][
   ], ['both']],
   ['git-practice-merge-main-in', 'merges the branch into main instead', ['git switch main', 'git merge feature/gift-boxes'], ['merged', 'main-unchanged']],
   ['git-practice-merge-main-in', 'rebases instead of merging', ['git rebase main'], ['merged']],
+  ['git-05-rebase', 'merges main into the feature branch', ['git merge main'], ['linear']],
+  ['git-practice-rebase-onto-main', 'merges main in instead', ['git merge main'], ['on-top']],
+  ['git-23-conflict-during-a-rebase', 'merges main in instead', ['git merge main', AUTUMN_RESOLVED, 'git add index.html', 'git commit --no-edit'], ['on-top']],
+  ['git-23-conflict-during-a-rebase', 'commits the conflict markers', ['git rebase main', 'git add index.html', 'git rebase --continue'], ['resolved', 'both']],
+  ['git-23-conflict-during-a-rebase', 'skips the clashing commit', ['git rebase main', 'git rebase --skip'], ['on-top', 'both']],
+  ['git-23-conflict-during-a-rebase', 'resolves but never continues', ['git rebase main', AUTUMN_RESOLVED, 'git add index.html'], ['on-top', 'resolved', 'both']],
+  ['git-practice-abort-rebase', 'skips the commit instead', ['git rebase --skip'], ['given-up']],
+  ['git-24-push-a-rebased-branch', 'pushes without force and is rejected', ['git rebase main', 'git push'], ['pushed', 'lease']],
+  ['git-24-push-a-rebased-branch', 'overwrites origin with a bare --force', ['git rebase main', 'git push --force'], ['lease']],
+  ['git-24-push-a-rebased-branch', 'pulls the old commits back in after the rejection', ['git rebase main', 'git push', 'git pull', 'git push'], ['on-top', 'lease']],
+  ['git-24-push-a-rebased-branch', 'merges main in instead of rebasing', ['git merge main', 'git push'], ['on-top', 'lease']],
+  ['git-practice-push-with-lease', 'overwrites origin with a bare --force', ['git push --force'], ['lease']],
+  ['git-practice-push-with-lease', 'pushes without force and is rejected', ['git push'], ['pushed', 'lease']],
+  ['git-25-tidy-up-before-review', 'renames only the newest commit', ['git commit --amend -m "Add gift cards to the shop"'], ['one-commit', 'message', 'changes']],
+  ['git-25-tidy-up-before-review', 'squashes but keeps the old messages, "wip" included', [
+    'git rebase -i main',
+    { save: `pick ${GIFT[0]}\nsquash ${GIFT[1]}\nsquash ${GIFT[2]}\n` },
+    { save: 'Add gift card product page\n\nwip\n\nfix typo\n' }
+  ], ['message']],
+  ['git-25-tidy-up-before-review', 'melds the commits but never writes the new message', ['git rebase -i main', { save: `pick ${GIFT[0]}\nfixup ${GIFT[1]}\nfixup ${GIFT[2]}\n` }], ['message']],
+  ['git-25-tidy-up-before-review', 'drops the two small commits and their changes', ['git rebase -i main', { save: `reword ${GIFT[0]}\n` }, { save: 'Add gift cards to the shop' }], ['changes']],
+  ['git-practice-reword-old-commit', 'amends the newest commit instead', ['git commit --amend -m "Add newsletter form"'], ['fixed']],
   ['git-11-fix-last-commit', 'adds the file in a second commit', ['git add src/streak.css', 'git commit -m "Add streak counter"'], ['one-commit']],
   ['git-11-fix-last-commit', 'fixes the message but forgets the file', ['git commit --amend -m "Add streak counter"'], ['files', 'clean']],
   ['git-practice-amend-no-edit', 'makes a new commit', ['git add src/reminders.css', 'git commit -m "Add reminder styles"'], ['amended']],
@@ -439,7 +473,7 @@ describe('git-05-rebase', () => {
 
 describe('git-06-teammate-sync', () => {
   const item = level('git-06-teammate-sync')
-  const resolve = item.solution.find(line => line.startsWith('echo'))!
+  const resolve = item.solution.find(line => typeof line === 'string' && line.startsWith('echo')) as string
 
   it('has Anna push right before your first push, which still succeeds', () => {
     const { steps, session } = play(item, ['git push -u origin feature/login'])
@@ -560,5 +594,73 @@ describe('git-22-catch-up-with-main', () => {
     expect(text).toContain('CONFLICT (content): Merge conflict in index.html')
     expect(text).toContain('On branch feature/order-pickup')
     expect(session.goalsMet).toEqual({ 'merged': false, 'resolved': false, 'both': false, 'main-unchanged': false })
+  })
+})
+
+describe('git-23-conflict-during-a-rebase', () => {
+  const item = level('git-23-conflict-during-a-rebase')
+
+  it('stops at your second commit, with the first one already replayed and the third still to come', () => {
+    const { text, session } = play(item, ['git rebase main', 'git status'])
+    expect(text).toContain('CONFLICT (content): Merge conflict in index.html')
+    expect(text).toMatch(/Could not apply [0-9a-f]{7}\.\.\. Link the autumn menu from the home page/)
+    expect(text).toContain('You are currently rebasing branch \'feature/autumn-menu\' on')
+    expect(commitsOf(session.state, 'main..HEAD').map(commit => commit.message)).toEqual(['Add the autumn menu page'])
+    expect(session.goalsMet).toEqual({ 'on-top': false, 'resolved': false, 'both': false })
+  })
+
+  it('replays the third commit after --continue', () => {
+    const { steps } = play(item, item.solution)
+    const last = steps.at(-1)!.output.map(line => 'text' in line ? line.text : '').join('\n')
+    expect(last).toMatch(/^\[detached HEAD [0-9a-f]{7}\] Link the autumn menu from the home page\n/)
+    expect(last).toContain('Successfully rebased and updated refs/heads/feature/autumn-menu.')
+  })
+})
+
+describe('git-24-push-a-rebased-branch', () => {
+  const item = level('git-24-push-a-rebased-branch')
+
+  it('rejects a plain push of the rebased branch as non-fast-forward', () => {
+    const { text } = play(item, ['git rebase main', 'git push'])
+    expect(text).toContain(' ! [rejected]        feature/faq -> feature/faq (non-fast-forward)')
+  })
+
+  it('does not count a bare --force, but undo takes it back', () => {
+    const forced = play(item, ['git rebase main', 'git push -f'])
+    expect(play(item, ['git push --force-with-lease'], forced.session).session.solved).toBe(false)
+    expect(play(item, ['undo', 'git push --force-with-lease'], forced.session).session.solved).toBe(true)
+  })
+})
+
+describe('git-25-tidy-up-before-review', () => {
+  const item = level('git-25-tidy-up-before-review')
+
+  it('names the real ids of your commits in its last hint', () => {
+    expect(item.hints[2]).toContain(`\`reword ${GIFT[0]} …\`, \`fixup ${GIFT[1]} …\`, \`fixup ${GIFT[2]} …\``)
+  })
+
+  it('opens the todo list with your three commits, and the message after Start rebase', () => {
+    const { session, text } = play(item, item.solution.slice(0, 2))
+    expect(text).toBe('hint: Waiting for your editor to close the file...\nhint: Waiting for your editor to close the file...')
+    expect(session.state.repo!.operation).toMatchObject({ editor: { kind: 'message', path: '.git/COMMIT_EDITMSG' } })
+    expect(session.history.map(record => record.line)).toEqual(['git rebase -i main', 'edit .git/rebase-merge/git-rebase-todo'])
+    expect(startLevel(item).goalsMet).toEqual(session.goalsMet)
+  })
+
+  it('also counts squash with a new message', () => {
+    const { session } = play(item, ['git rebase -i main', { save: `pick ${GIFT[0]}\nsquash ${GIFT[1]}\ns ${GIFT[2]}\n` }, { save: '# keep it short\nAdd gift cards to the shop\n' }])
+    expect(session.solved).toBe(true)
+  })
+
+  it('undo takes the saved todo list back and the list opens again', () => {
+    const { session } = play(item, [...item.solution.slice(0, 2), 'undo'])
+    expect(session.state.repo!.operation).toMatchObject({ editor: { kind: 'todo' } })
+    expect(play(item, item.solution.slice(1), session).session.solved).toBe(true)
+  })
+
+  it('cancels with git rebase --abort while the list is open', () => {
+    const { session } = play(item, ['git rebase -i main', 'git log', 'git rebase --abort'])
+    expect(session.history.map(record => record.exitCode)).toEqual([0, 1, 0])
+    expect(session.state).toEqual(startLevel(item).state)
   })
 })

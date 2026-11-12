@@ -4,7 +4,7 @@ import { isAncestor as reachableFrom, range } from './objects/graph'
 import { resolveRev } from './refs'
 import { headId } from './state'
 import { computeStatus } from './worktree'
-import type { Commit, GitState, StashEntry } from './types'
+import type { Commit, EditorWait, GitState, StashEntry } from './types'
 
 export function currentBranch(state: GitState): string | null {
   return state.repo?.head.type === 'branch' ? state.repo.head.name : null
@@ -81,6 +81,11 @@ export function conflictsInProgress(state: GitState): boolean {
 
 export function operationInProgress(state: GitState): 'merge' | 'rebase' | null {
   return state.repo?.operation?.type ?? null
+}
+
+/** The file git waits for in the editor during `git rebase -i` (the todo list or a commit message), or null. */
+export function waitingEditor(state: GitState): EditorWait | null {
+  return state.repo?.operation?.type === 'rebase' ? state.repo.operation.editor ?? null : null
 }
 
 /** No staged, unstaged, untracked or conflicted files. */

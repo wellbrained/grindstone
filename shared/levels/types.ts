@@ -1,6 +1,12 @@
 // Level and session types for the scenario engine (docs/features/levels.md). Plain, JSON-serialisable data.
 import type { GitState, OutputLine } from '../git'
 
+/**
+ * One step of a solution: a terminal line, or `{ save }`, saving the file git waits for in the editor (the todo list or
+ * the commit message of `git rebase -i`) with this text; it counts like a command (docs/features/levels.md).
+ */
+export type SolutionStep = string | { save: string }
+
 /** Every track id, live and coming (shared/levels/tracks.ts). */
 export type TrackId = 'git' | 'ai' | 'web' | 'debugging' | 'frameworks'
 
@@ -59,8 +65,8 @@ interface LevelBase {
   setup: () => GitState
   goals: Goal[]
   teammates?: TeammateEvent[]
-  /** Command lines that solve the level; the tests replay them. */
-  solution: string[]
+  /** Steps that solve the level (command lines, editor saves); the tests replay them. */
+  solution: SolutionStep[]
 }
 
 /** A scenario: a short story, goals, three hints, a debrief. Numbered chapter.position (1.2). */

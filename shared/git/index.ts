@@ -15,6 +15,7 @@ export { teammateCommit } from './teammate'
 export { blobId, shortId } from './objects/hash'
 export { formatDate } from './commands/log'
 export { ignoreMatcher } from './ignore'
+export { MESSAGE_PATH, TODO_PATH, submitEditor } from './commands/rebase'
 export {
   aheadBehind,
   branchExists,
@@ -35,7 +36,8 @@ export {
   stashEntries,
   trackingBranchHead,
   unmergedPaths,
-  upstreamOf
+  upstreamOf,
+  waitingEditor
 } from './queries'
 
 /** Names for Tab completion in the terminal. */

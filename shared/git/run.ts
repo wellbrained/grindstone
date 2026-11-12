@@ -1,5 +1,6 @@
 // Entry point: one command line in, new state and output lines out. Never throws on user input.
 import { git } from './commands'
+import { waitingRefusal } from './commands/rebase'
 import { done, err, fail } from './output'
 import { SHELL_COMMANDS, SHELL_ELSEWHERE, redirect } from './shell'
 import { tokenize } from './tokenize'
@@ -10,6 +11,8 @@ import type { CommandResult, GitState, OutputLine } from './types'
 export function runArgv(state: GitState, argv: string[]): CommandResult {
   const [program, ...args] = argv
   if (!program) return done(state)
+  const waiting = waitingRefusal(state, argv)
+  if (waiting) return waiting
   if (program === 'git') return git(state, args)
   const shell = SHELL_COMMANDS[program]
   if (shell) return shell(state, args)

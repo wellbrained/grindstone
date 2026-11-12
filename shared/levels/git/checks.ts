@@ -5,6 +5,13 @@ import type { CommandRecord } from '../types'
 
 export const treeHasConflictMarkers = (tree: Tree) => Object.values(tree).some(hasConflictMarkers)
 
+/** Two trees hold the same files with the same contents. */
+export function sameTree(a: Tree | null | undefined, b: Tree | null | undefined): boolean {
+  if (!a || !b) return false
+  const paths = Object.keys(a)
+  return paths.length === Object.keys(b).length && paths.every(path => a[path] === b[path])
+}
+
 /** The tree of a local revision, or null. */
 export function treeOf(state: GitState, rev: string): Tree | null {
   const id = resolve(state, rev)

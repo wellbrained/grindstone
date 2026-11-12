@@ -8,5 +8,5 @@ export function gitSubcommands(line: string): string[] {
 
 /** Every git subcommand of the level's solution, once each, in order of first use. */
 export function levelCommands(level: Pick<Level, 'solution'>): string[] {
-  return [...new Set(level.solution.flatMap(gitSubcommands))]
+  return [...new Set(level.solution.flatMap(step => typeof step === 'string' ? gitSubcommands(step) : []))]
 }

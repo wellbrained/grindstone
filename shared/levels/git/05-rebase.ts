@@ -1,4 +1,4 @@
-// Level 5: replay a feature branch on top of main with rebase, keeping history linear.
+// Rewriting history 4.1 (v0.1's "Rebase", retitled): replay a feature branch on top of main with rebase, keeping history linear.
 import { commitsOf, currentBranch, hasMergeCommits, isAncestor, operationInProgress, repo } from '../../git'
 import type { Scenario } from '../types'
 
@@ -10,7 +10,7 @@ export const rebase: Scenario = {
   kind: 'scenario',
   difficulty: 2,
   minutes: 5,
-  title: 'Rebase',
+  title: 'Put your branch on top of main',
   story: [
     'You are building search for the recipe app on feature/search. Meanwhile Chris landed two commits on main, a new layout and an updated README.',
     'The team keeps history linear: no merge commits on feature branches. Move your two commits on top of the current main.'

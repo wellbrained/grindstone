@@ -84,6 +84,7 @@ The letter sits next to the name and the status is also in the accessible name (
 - `CommitGraph`: the SVG graph (see below). `SparkBurst`: the ember effect when a level is solved.
 - `FileEditor`: the Terminal layout's editor panel, a modal with `CodeEditor`; Save (Ctrl/Cmd+S, also Ctrl+Enter) calls `saveFile`, Cancel discards. A warning shows while conflict markers are still in the text.
 - `CodeEditor`: CodeMirror for one file at a time; always used as `<LazyCodeEditor>`, so CodeMirror is its own chunk and loads only when an editor shows. Switching `path` keeps each file's undo history and cursor.
+- `GitEditor`: the file git waits for during `git rebase -i` (todo list or commit message): a bar with the file name, a one-line help, **Cancel** and the primary action, CodeMirror below (see "The file git waits for"). `GitEditorDialog`: the same in a modal for the Terminal layout.
 - `EditorArea`: the editor of the IDE layout: a strip of open tabs (name, `●` for unsaved edits, a warning icon when the file changed on disk, close button; closing a tab with unsaved edits asks first), Open file and Save buttons, the changed-on-disk notice, CodeMirror for the active tab.
 - `FileExplorer`, `FilePicker`, `PlayWorkbench`, `LayoutSwitch`: see Play page layouts.
 - `DebriefDialog` (scenarios only): debrief title and paragraphs, stats (this run: commands used / shortest solution, hints used; your best run: commands and hints, this run included), Stay here and Next level (the next level in the track's order, across chapters; after the last available level, Back to the track).
@@ -94,7 +95,7 @@ Composables: `useActiveSection(ids)` (the chapter in view on the track page), `u
 ## Editor
 
 - CodeMirror 6 (`@codemirror/state`, `view`, `commands`, `language`, `@lezer/highlight`): line numbers, undo history, bracket matching, active line, soft line wrapping (no sideways scrolling on phones). Tab is not bound, so keyboard users can leave the editor. Ctrl/Cmd+S saves.
-- Languages by file extension, each loaded as its own chunk the first time such a file opens: JavaScript (`js`, `mjs`, `cjs`, `jsx`), TypeScript (`ts`, `mts`, `cts`, `tsx`), JSON, Markdown; everything else is plain text.
+- Languages by file extension, each loaded as its own chunk the first time such a file opens: JavaScript (`js`, `mjs`, `cjs`, `jsx`), TypeScript (`ts`, `mts`, `cts`, `tsx`), JSON, Markdown; everything else is plain text. The two files git opens during `git rebase -i` get small stream languages without a chunk: `git-rebase-todo` (command word as keyword, an unknown first word as invalid, the commit id in info blue, `#` lines as comments) and `COMMIT_EDITMSG` (`#` lines as comments).
 - Theme from the app's tokens (`EditorView.theme` with `var(--ui-*)` and `--app-terminal*`), so one theme serves dark and light; syntax colours are semantic tokens (keywords secondary, strings success, numbers warning, comments dimmed, functions info, headings primary).
 - **Conflicts** (`app/utils/conflicts.ts`, pure, tested): `parseConflicts(text)` finds complete `<<<<<<<` / optional `|||||||` / `=======` / `>>>>>>>` blocks (exactly seven marker characters at the start of a line; an unclosed block is ignored; a second `<<<<<<<` starts over). Current (ours) lines get the `--app-conflict-current` tint (success), incoming (theirs) `--app-conflict-incoming` (info), the marker lines a stronger tint and a "(current change)" / "(incoming change)" tag. Above each block a bar with **Accept current · Accept incoming · Accept both** (real buttons, accessible name "Conflict n: accept the current change", ...) rewrites the block in the editor buffer (`resolveConflict`; Accept both keeps ours then theirs; a diff3 base section is dropped; a block that ends the file without a line break leaves none). Nothing is saved until Save. Editing the markers by hand keeps working: the decorations follow the text.
 
@@ -109,6 +110,16 @@ The editor shows the engine's working tree (`session.state.workdir`); a tab neve
 - The file was deleted under unsaved edits: the tab is struck through and marked deleted; the notice offers **Close tab** and **Keep mine** (saving brings the file back).
 - `edit <file>` in the IDE opens the file in a tab or focuses its tab (on phones it scrolls the editor into view, without popping up the keyboard); a file that does not exist yet opens as an empty tab and is created on Save. In the Terminal layout `edit <file>` opens the editor panel as before.
 - Save (Ctrl/Cmd+S or the Save button) writes the draft through `saveFile`, prints `Saved <path>.` in the terminal and counts as a command (undoable with `undo`). Saving a tab with a notice is the same as Keep mine plus Save.
+
+## The file git waits for (`git rebase -i`)
+
+Approved in the chapter 4 preview (`.impeccable/mocks/previews/rewriting-preview.html`). Like real git opening your editor:
+
+- `git rebase -i` leaves the git state waiting for a file (`waitingEditor` in the git model); the play page derives the open editor from the session (`useLevelPlay`: `gitEditor`, its `gitDraft`), so `undo`, `reset` and Again open or close it on their own. The terminal shows git's `hint: Waiting for your editor to close the file...`.
+- **IDE layout**: `GitEditor` takes the editor pane's place (the tabs stay hidden but untouched until git stops waiting); on stacked layouts it scrolls into view. **Terminal layout**: `GitEditorDialog`, a modal like the `edit <file>` panel, without a close button; Escape and a click outside do nothing. Switching the layout moves it between the two and keeps the draft.
+- The bar: the file name (`git-rebase-todo`, `COMMIT_EDITMSG`; the full path as tooltip), one line on what to do, **Cancel** (outline, accessible name "Cancel the rebase (git rebase --abort)") and the primary action, **Start rebase** for the todo list, **Save message** for a message (ember, the one primary action). Ctrl/Cmd+S is the primary action; Escape never cancels.
+- Start rebase / Save message: `saveEditor` with the draft (counted, undoable), `Saved <path>.` in the terminal, then git's output. If git opens the next file (a reword's message after the list), the same editor shows it with git's text; a refused list (an unknown command) stays open with your text. Cancel runs `git rebase --abort` as a typed line, so the terminal shows what it did.
+- Focus: the editor gets it when it opens (not on touch devices, so the keyboard does not pop up), and the terminal input gets it back once git stops waiting.
 
 ## Terminal behaviour
 

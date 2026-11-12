@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_SNAPSHOTS, saveFile, startLevel, submit } from '../../../shared/levels'
+import { MAX_SNAPSHOTS, playStep, saveEditor, saveFile, startLevel, submit } from '../../../shared/levels'
 import type { Level, Session, SubmitResult } from '../../../shared/levels'
 import { headCommit, remoteBranchHead, repo, teammateCommit } from '../../../shared/git'
 import { deepFreeze } from '../git/helpers'
@@ -149,6 +149,28 @@ describe('saveFile (editor panel)', () => {
     expect(saved.session.history).toEqual([{ line: 'edit notes.txt', exitCode: 0 }])
     expect(saved.session.goalsMet.written).toBe(true)
     expect(play(saved.session, 'undo').session.state).toEqual(session.state)
+  })
+})
+
+describe('saveEditor (the file git waits for)', () => {
+  const tidy = play(startLevel(fixture), 'git switch -c topic', 'touch notes.txt', 'git add notes.txt', 'git commit -m "notes"', 'git rebase -i main').session
+
+  it('saves the todo list as a counted, undoable command, recorded as edit <path>', () => {
+    const id = headCommit(tidy.state)!.id.slice(0, 7)
+    const saved = saveEditor(deepFreeze(tidy), fixture, `reword ${id}\n`)
+    expect(saved.session.history.at(-1)).toEqual({ line: 'edit .git/rebase-merge/git-rebase-todo', exitCode: 0 })
+    expect(saved.session.commandCount).toBe(tidy.commandCount + 1)
+    expect(saved.output).toEqual([{ kind: 'hint', text: 'hint: Waiting for your editor to close the file...' }])
+    const message = playStep(saved.session, fixture, { save: 'Add the notes' })
+    expect(headCommit(message.session.state)!.message).toBe('Add the notes')
+    expect(play(message.session, 'undo').session.state).toEqual(saved.session.state)
+  })
+
+  it('answers without counting when git waits for nothing', () => {
+    const session = startLevel(fixture)
+    const result = saveEditor(deepFreeze(session), fixture, 'pick abc')
+    expect(result.session).toBe(session)
+    expect(textOf(result)).toBe('error: git is not waiting for a file in the editor')
   })
 })
 

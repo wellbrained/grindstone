@@ -1,8 +1,8 @@
 // The level engine: one submitted line in, a new session out (docs/features/levels.md).
 // Pure and immutable: never mutates a session, never reads the clock; sessions are plain JSON.
-import { gitCommandNames, run, shellCommandNames, tokenize, writeFile } from '../git'
+import { gitCommandNames, run, shellCommandNames, submitEditor, tokenize, waitingEditor, writeFile } from '../git'
 import type { GitState, OutputLine } from '../git'
-import type { CommandRecord, Level, Notice, Session, SessionSnapshot, SubmitResult, TeammateEvent, TerminalLine } from './types'
+import type { CommandRecord, Level, Notice, Session, SessionSnapshot, SolutionStep, SubmitResult, TeammateEvent, TerminalLine } from './types'
 
 /** Undo depth; older snapshots are dropped. */
 export const MAX_SNAPSHOTS = 200
@@ -183,4 +183,19 @@ export function submit(session: Session, level: Level, line: string): SubmitResu
 /** Saves a file from the editor panel; counts like a command (`edit <path>` in the history) and can be undone. */
 export function saveFile(session: Session, level: Level, path: string, content: string): SubmitResult {
   return counted(session, level, `edit ${path}`, state => ({ state: writeFile(state, path, content), output: [], exitCode: 0 }))
+}
+
+/**
+ * Saves the file git waits for in the editor (`git rebase -i`: the todo list or a commit message) and lets git go on.
+ * Counts like a command (`edit <path>` in the history) and can be undone. Nothing waiting: an error, not counted.
+ */
+export function saveEditor(session: Session, level: Level, text: string): SubmitResult {
+  const wait = waitingEditor(session.state)
+  if (!wait) return quiet(session, [{ kind: 'err', text: 'error: git is not waiting for a file in the editor' }])
+  return counted(session, level, `edit ${wait.path}`, state => submitEditor(state, text))
+}
+
+/** Plays one solution step: a terminal line through `submit`, `{ save }` through `saveEditor`. */
+export function playStep(session: Session, level: Level, step: SolutionStep): SubmitResult {
+  return typeof step === 'string' ? submit(session, level, step) : saveEditor(session, level, step.save)
 }

@@ -15,7 +15,7 @@
 - **Goal**: a named check over the state, shown as one line of the live checklist. A level is solved when every goal passes.
 - **Hint**: three per scenario (from a nudge to the exact command), one per practice task.
 - **Debrief**: the short text shown when a scenario is solved, explaining *why* the solution works (a practice task shows a one-line why instead).
-- **Solution**: the command list that solves a level; tests replay it.
+- **Solution**: the steps that solve a level (command lines, and saves of the file git opens in the editor during `git rebase -i`); tests replay them.
 - **Git model**: Grindstone's own simulation of git (objects, refs, HEAD, index, working tree), not real git.
 - **Origin**: the simulated remote repository. Your repo sees it only through `fetch`, `pull` and `push`; teammates write only to it.
 - **Teammate**: a scripted colleague (e.g. Anna) who acts on `origin`.

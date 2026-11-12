@@ -38,17 +38,47 @@ export interface MergeOperation {
   before: Snapshot
 }
 
+/** What an interactive rebase does with one commit (`drop` never reaches the todo: the line is simply left out). */
+export type RebaseAction = 'pick' | 'reword' | 'squash' | 'fixup'
+
+export interface RebaseStep {
+  action: RebaseAction
+  commit: string
+}
+
+/** A file git opened in the editor and waits for (interactive rebase): the todo list or a commit message. */
+export interface EditorWait {
+  kind: 'todo' | 'message'
+  /** `.git/rebase-merge/git-rebase-todo` or `.git/COMMIT_EDITMSG`. */
+  path: string
+  /** What git wrote into the file. */
+  text: string
+}
+
+/** One message of a squash/fixup chain; the first is the commit the others meld into. */
+export interface ChainMessage {
+  message: string
+  /** False for a fixup: its message is dropped. */
+  keep: boolean
+}
+
 export interface RebaseOperation {
   type: 'rebase'
   /** The branch being rebased, or null for a detached HEAD. */
   branch: string | null
   origHead: string
   onto: string
-  /** Commits still to replay, oldest first. */
-  todo: string[]
-  /** The commit that stopped with a conflict, if any. */
-  stopped: string | null
+  /** Steps still to do, oldest first (a plain rebase: all picks). */
+  todo: RebaseStep[]
+  /** The step that stopped with a conflict (or an empty commit message), if any. */
+  stopped: RebaseStep | null
   before: Snapshot
+  /** `git rebase -i`. Optional, so states saved before it existed stay valid. */
+  interactive?: boolean
+  /** The squash/fixup chain the current HEAD commit is built from (interactive rebase). */
+  chain?: ChainMessage[]
+  /** Git waits for the editor to close this file; until then only `git rebase --abort` runs. */
+  editor?: EditorWait | null
 }
 
 export type Operation = MergeOperation | RebaseOperation

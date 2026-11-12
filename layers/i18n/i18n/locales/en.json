@@ -109,6 +109,17 @@
       "both": "Conflict {block}: accept both changes"
     }
   },
+  "gitEditor": {
+    "label": "{file}, opened by git",
+    "dialogTitle": "git opened {file}",
+    "todoHelp": "git waits for this list. Change pick to reword, squash, fixup or drop, or reorder the lines; # lines are ignored.",
+    "messageHelp": "git waits for this commit message. Lines starting with # are ignored; an empty message stops the rebase.",
+    "cancel": "Cancel",
+    "cancelLabel": "Cancel the rebase (git rebase --abort)",
+    "start": "Start rebase",
+    "saveMessage": "Save message",
+    "keys": "Ctrl+S or Cmd+S. Counts as a command."
+  },
   "debrief": {
     "solved": "{title}: solved.",
     "commands": "Commands (shortest solution)",

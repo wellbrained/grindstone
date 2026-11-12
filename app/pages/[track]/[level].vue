@@ -29,7 +29,10 @@ function openFile(path: string) {
 }
 
 const play = useLevelPlay(level, { onEdit: openFile })
-const { editor, debriefOpen, stats, next, save } = play
+const { editor, debriefOpen, stats, next, save, gitEditor, gitDraft, submitGitEditor, cancelGitEditor } = play
+
+// the file git waits for (git rebase -i): a dialog in the Terminal layout, the editor pane in the IDE (PlayWorkbench)
+const gitDialog = computed(() => layout.value === 'terminal' ? gitEditor.value : null)
 
 // back to typing once a dialog has fully closed (earlier, the dialog would hand the focus back to the button that opened it)
 const focusTerminal = () => workbench.value?.focusTerminal()
@@ -63,6 +66,13 @@ const focusTerminal = () => workbench.value?.focusTerminal()
       :editor="editor"
       @save="save"
       @cancel="editor = null"
+      @closed="focusTerminal"
+    />
+    <GitEditorDialog
+      v-model="gitDraft"
+      :wait="gitDialog"
+      @submit="submitGitEditor"
+      @cancel="cancelGitEditor"
       @closed="focusTerminal"
     />
     <DebriefDialog

@@ -17,7 +17,7 @@ export function statusLines(repo: Repo, workdir: Tree): OutputLine[] {
 
   if (operation?.type === 'rebase') {
     const onto = shortId(operation.onto)
-    lines.push(out(`rebase in progress; onto ${onto}`))
+    lines.push(out(`${operation.interactive ? 'interactive ' : ''}rebase in progress; onto ${onto}`))
     lines.push(operation.branch
       ? out('You are currently rebasing branch \'', ref(operation.branch), `' on '${onto}'.`)
       : out(`You are currently rebasing on '${onto}'.`))

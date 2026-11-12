@@ -1,8 +1,8 @@
 // Everything one play page needs: the session of a level, the terminal log, the editor (panel and tabs), the debrief and the graph.
 // The session lives in memory (useState): leaving the page and coming back keeps it, a browser reload starts the level again.
-import { gitCommandNames, shellCommandNames, unmergedPaths } from '#shared/git'
+import { gitCommandNames, shellCommandNames, unmergedPaths, waitingEditor } from '#shared/git'
 import type { OutputLine } from '#shared/git'
-import { TRAINER_COMMANDS, nextLevel, saveFile, startLevel, submit } from '#shared/levels'
+import { TRAINER_COMMANDS, nextLevel, saveEditor, saveFile, startLevel, submit } from '#shared/levels'
 import type { Level, Session, SubmitResult } from '#shared/levels'
 import type { Prompt } from '~/utils/terminal'
 
@@ -55,6 +55,13 @@ export function useLevelPlay(level: Level, options: LevelPlayOptions = {}) {
   const fileTree = computed(() => buildFileTree(workdir.value, fileStatuses(session.value.state)))
   const tabs = useEditorTabs(() => workdir.value)
   const hasOrigin = computed(() => session.value.state.origin !== null)
+
+  // the file git waits for in the editor (git rebase -i): its draft starts from what git wrote, whenever git opens a new one
+  const gitEditor = computed(() => waitingEditor(session.value.state))
+  const gitDraft = ref(gitEditor.value?.text ?? '')
+  watch(gitEditor, (wait, previous) => {
+    if (wait && (wait.path !== previous?.path || wait.text !== previous?.text)) gitDraft.value = wait.text
+  })
   const next = nextLevel(level.id)
 
   const goals = computed(() => level.goals.map(goal => ({ id: goal.id, label: goal.label, met: session.value.goalsMet[goal.id] === true })))
@@ -125,6 +132,18 @@ export function useLevelPlay(level: Level, options: LevelPlayOptions = {}) {
     apply(saveFile(session.value, level, path, content))
   }
 
+  /** Start rebase / Save message: hands the draft to git, which goes on. Counts like a command. */
+  function submitGitEditor() {
+    const wait = gitEditor.value
+    if (!wait) return
+    markPlayed(level.id)
+    push({ type: 'line', line: { kind: 'out', text: t('terminal.saved', { path: wait.path }) } })
+    apply(saveEditor(session.value, level, gitDraft.value))
+  }
+
+  /** Cancel in the file git waits for: the rebase is aborted, shown as the command it runs. */
+  const cancelGitEditor = () => run('git rebase --abort')
+
   /** Save from the editor panel. */
   function save(content: string) {
     if (!editor.value) return
@@ -180,6 +199,10 @@ export function useLevelPlay(level: Level, options: LevelPlayOptions = {}) {
     tabs,
     hasOrigin,
     showOrigin,
+    gitEditor,
+    gitDraft,
+    submitGitEditor,
+    cancelGitEditor,
     next,
     goals,
     stats,

@@ -70,6 +70,17 @@ export class SetupBuilder {
     return this
   }
 
+  /** `git rebase <upstream>`; with `conflicts: true` it must stop with conflicts (for a level that starts inside the rebase). */
+  rebase(upstream: string, options: { conflicts?: boolean } = {}) {
+    if (!options.conflicts) return this.git('rebase', upstream)
+    const result = runArgv(this.state, ['git', 'rebase', upstream])
+    if (result.state.repo?.operation?.type !== 'rebase' || !Object.keys(result.state.repo.unmerged).length) {
+      throw new Error(`setup step "git rebase ${upstream}" was expected to stop with conflicts:\n${result.output.map(line => line.text).join('\n')}`)
+    }
+    this.state = result.state
+    return this
+  }
+
   /** Publishes every local branch to a new origin and tracks it (as if the repo had been cloned). */
   origin(options: { url?: string } = {}) {
     const repo = this.state.repo

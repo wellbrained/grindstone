@@ -45,7 +45,7 @@ export const cheatGroups: CheatGroup[] = [
     title: 'Combine work',
     commands: [
       { name: 'merge', summary: 'Bring another branch into the current one: fast-forward, or a merge commit.', examples: [{ line: 'git merge feature/login', note: 'Merge into the branch you are on' }, { line: 'git merge --no-ff feature/login', note: 'Always make a merge commit, even for a fast-forward' }, { line: 'git merge --ff-only feature/login', note: 'Only move forward, never make a merge commit' }, { line: 'git merge --abort', note: 'Give up a merge with conflicts' }] },
-      { name: 'rebase', summary: 'Replay your commits on top of another branch, for a straight history.', examples: [{ line: 'git rebase main', note: 'Put your branch on top of main' }, { line: 'git rebase --continue', note: 'After fixing a conflict and git add' }, { line: 'git rebase --abort', note: 'Go back to how it was before' }] }
+      { name: 'rebase', summary: 'Replay your commits on top of another branch, for a straight history.', examples: [{ line: 'git rebase main', note: 'Put your branch on top of main' }, { line: 'git rebase --continue', note: 'After fixing a conflict and git add' }, { line: 'git rebase --abort', note: 'Go back to how it was before' }, { line: 'git rebase -i HEAD~3', note: 'Tidy up your last three commits' }, { line: 'git rebase -i main', note: 'Reword, squash or drop every commit on your branch' }] }
     ]
   },
   {
@@ -80,5 +80,5 @@ export const cheatGroups: CheatGroup[] = [
 
 /** The scenarios whose solution uses this git subcommand, in level order (practice tasks have no number to link by). */
 export function levelsUsing(name: string, levels: readonly Level[] = gitLevels): Level[] {
-  return levels.filter(level => level.kind === 'scenario' && level.solution.some(line => gitSubcommands(line).includes(name)))
+  return levels.filter(level => level.kind === 'scenario' && level.solution.some(step => typeof step === 'string' && gitSubcommands(step).includes(name)))
 }

@@ -106,8 +106,4 @@ describe('git rebase', () => {
     const after = ok(state, 'git rebase main')
     expect(after.repo!.branches.feature).toBe(after.repo!.branches.main)
   })
-
-  it('rejects interactive rebase as not in the trainer yet', () => {
-    expect(exec(diverged(), 'git rebase -i main').text).toBe('git rebase: option \'-i\' is not in this trainer yet')
-  })
 })
