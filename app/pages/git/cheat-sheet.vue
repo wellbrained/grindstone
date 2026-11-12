@@ -89,52 +89,56 @@ async function copy(line: string) {
           <li
             v-for="command in group.commands"
             :key="command.name"
-            class="@container rounded-lg border border-default bg-elevated p-5"
+            class="@container overflow-hidden rounded-lg border border-default bg-elevated"
           >
-            <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <h3 class="font-mono text-base font-semibold text-highlighted">
-                git {{ command.name }}
-              </h3>
-              <UBadge
-                v-if="command.comingSoon"
-                :label="t('cheat.soon')"
-                color="neutral"
-                variant="soft"
-                size="sm"
-              />
+            <!-- header: the command, then what it does -->
+            <div class="px-5 pt-4 pb-3.5">
+              <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <h3 class="font-mono text-xl leading-tight font-bold tracking-tight text-highlighted">
+                  <span class="font-medium text-muted">git</span> {{ command.name }}
+                </h3>
+                <UBadge
+                  v-if="command.comingSoon"
+                  :label="t('cheat.soon')"
+                  color="neutral"
+                  variant="soft"
+                  size="sm"
+                />
+              </div>
+              <p class="mt-1.5 text-sm text-toned">
+                {{ command.summary }}
+              </p>
             </div>
-            <p class="mt-1 text-sm text-toned">
-              {{ command.summary }}
-            </p>
-            <!-- command | what it does: two aligned columns when the card is wide enough (container query), stacked below -->
-            <dl class="mt-3 grid grid-cols-1 gap-y-2 @[38rem]:grid-cols-[auto_minmax(0,1fr)] @[38rem]:items-center @[38rem]:gap-x-4">
-              <template
+            <!-- one row per example: command | what it does, two columns when the card is wide enough, stacked below -->
+            <dl class="divide-y divide-default border-t border-default bg-default/40">
+              <div
                 v-for="example in command.examples"
                 :key="example.line"
+                class="grid grid-cols-1 gap-y-1 px-5 py-3 @[38rem]:grid-cols-[auto_minmax(0,1fr)] @[38rem]:items-center @[38rem]:gap-x-4"
               >
                 <dt class="min-w-0">
                   <button
                     type="button"
-                    class="group inline-flex max-w-full cursor-pointer items-center gap-2 rounded-md bg-default px-2 py-1 font-mono text-sm text-highlighted ring-1 ring-default ring-inset hover:bg-accented focus-visible:outline-2 focus-visible:outline-primary"
+                    class="group inline-flex max-w-full cursor-pointer items-center gap-2 rounded-md bg-elevated px-2 py-1 font-mono text-sm text-highlighted ring-1 ring-accented ring-inset hover:bg-accented focus-visible:outline-2 focus-visible:outline-primary"
                     :aria-label="t('cheat.copy', { line: example.line })"
                     @click="copy(example.line)"
                   >
                     <span class="text-left wrap-break-word">{{ example.line }}</span>
                     <UIcon
                       :name="copied === example.line ? 'i-lucide-check' : 'i-lucide-copy'"
-                      class="size-3.5 shrink-0 text-dimmed group-hover:text-toned"
+                      class="size-3.5 shrink-0 text-muted group-hover:text-toned"
                       :class="{ 'text-success group-hover:text-success': copied === example.line }"
                     />
                   </button>
                 </dt>
-                <dd class="-mt-1 mb-1 pl-2 text-sm text-muted @[38rem]:m-0 @[38rem]:pl-0">
+                <dd class="pl-2 text-sm text-muted @[38rem]:pl-0">
                   {{ example.note }}
                 </dd>
-              </template>
+              </div>
             </dl>
             <p
               v-if="levelsUsing(command.name).length"
-              class="mt-3 text-xs text-muted"
+              class="border-t border-default px-5 py-2.5 text-xs text-muted"
             >
               {{ t('cheat.practise') }}
               <template
