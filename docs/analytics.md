@@ -3,7 +3,8 @@
 Self-hosted [Umami](https://umami.is) v3.5.0 on the Hetzner server (ADR 0001: "self-hosted Umami (cookieless)").
 
 - **Tracker**: `https://stats.dkiessling.de/script.js`, loaded from `nuxt.config.ts` (`app.head.script`) with `data-domains="grindstone.dkiessling.de"`, so dev, previews and tests send nothing. The public host serves only `/script.js` and `/api/send`; everything else answers 404.
-- **Dashboard**: `https://umami.dkiessling.de`, tailnet only (Caddy `private_tls`, DNS A record on the tailnet IP). Website "Grindstone", id `ce3b559e-bed9-4d11-826b-85aa0c5eae7d`.
+- **Dashboard**: `https://umami.dkiessling.de`, tailnet only (Caddy `private_tls`, DNS A record on the tailnet IP), behind the CoreHub login (`forward_auth` to CoreHub's `/api/auth/gate`, like the CoreHub-hosted sites). Website "Grindstone", id `ce3b559e-bed9-4d11-826b-85aa0c5eae7d`.
+- **Sign-in**: there is no separate Umami password to remember. After the CoreHub login, `/sso` (`/srv/umami/sso.mjs`, systemd `umami-sso.service`, port 3011) logs into Umami with the admin password stored in `/etc/umami/sso.env` (random, 40 characters, root:umami 640) and puts the token where Umami's login would (`localStorage["umami.auth"]`). Caddy sends Umami's own `/login` to `/sso`, so a logout or an expired token signs you in again. The default `admin`/`umami` password was replaced on setup.
 - **What is counted**: page views (Umami default: path, referrer, browser, country; no cookies, no IP stored) and three events from `app/utils/analytics.ts`, sent in `useLevelPlay`:
   - `level-start` `{ level }`: the first command in a visit to a level;
   - `hint` `{ level, hint }`: a hint was shown (its number);
