@@ -26,7 +26,8 @@ test('goes from home to a level through the track page and back', async ({ page 
   const crumbs = page.getByRole('navigation', { name: 'Breadcrumb' })
   await expect(crumbs).toContainText('Git')
   await expect(crumbs).toContainText('Merging')
-  await expect(crumbs).toContainText('3.2 Merge conflict')
+  await expect(crumbs).not.toContainText('Merge conflict')
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(/3\.2\s*Merge conflict/)
 
   // typing a command makes this the level Continue opens
   const input = page.getByRole('textbox', { name: /Terminal input/ })

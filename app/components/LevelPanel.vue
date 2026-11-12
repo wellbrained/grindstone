@@ -66,6 +66,7 @@ const menu = computed(() => entryItems(props.place, { onPlayAgain: () => emit('a
               class="rounded-sm hover:text-highlighted hover:underline focus-visible:outline-2 focus-visible:outline-primary"
             >{{ place.chapter.title }}</NuxtLink>
           </li>
+          <!-- the trail ends one step above this entry: the heading below names it (and the trail stays on one line) -->
           <li
             v-if="place.scenario"
             class="flex items-center gap-x-1"
@@ -79,25 +80,14 @@ const menu = computed(() => entryItems(props.place, { onPlayAgain: () => emit('a
               class="rounded-sm hover:text-highlighted hover:underline focus-visible:outline-2 focus-visible:outline-primary"
             ><span class="font-mono tabular-nums">{{ place.scenario.number }}</span> {{ place.scenario.level.title }}</NuxtLink>
           </li>
-          <!-- a practice task's trail ends at its scenario (the heading names the task, and it stays on one line) -->
-          <li
-            v-if="!place.scenario"
-            class="flex items-center gap-x-1"
-          >
-            <UIcon
-              name="i-lucide-chevron-right"
-              class="size-3 shrink-0 text-dimmed"
-            />
-            <span aria-current="page"><span
-              v-if="place.number"
-              class="font-mono tabular-nums"
-            >{{ place.number }}</span>{{ place.number ? ' ' : '' }}{{ level.title }}</span>
-          </li>
         </ol>
       </nav>
       <div class="mt-1 flex items-start justify-between gap-2">
         <h1 class="text-2xl font-semibold text-balance text-highlighted">
-          {{ level.title }}
+          <span
+            v-if="place.number"
+            class="mr-2 font-mono font-normal text-muted tabular-nums"
+          >{{ place.number }}</span>{{ level.title }}
         </h1>
         <MoreMenu
           class="-mr-1.5 shrink-0"
