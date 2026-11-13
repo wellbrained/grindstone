@@ -57,7 +57,7 @@ watch(active, (id) => {
 
 <template>
   <div class="mx-auto w-full max-w-[110rem] px-4 pb-16 sm:px-6 lg:grid lg:grid-cols-[17rem_minmax(0,1fr)] lg:gap-x-12 lg:px-8 lg:pb-24 xl:grid-cols-[18.75rem_minmax(0,1fr)] xl:gap-x-14">
-    <aside class="pt-8 sm:pt-10 lg:sticky lg:top-(--ui-header-height) lg:max-h-[calc(100dvh-var(--ui-header-height))] lg:self-start lg:overflow-y-auto lg:pr-1 lg:pb-8">
+    <aside class="pt-8 sm:pt-10 lg:sticky lg:top-(--ui-header-height) lg:max-h-[calc(100dvh-var(--ui-header-height))] lg:self-start lg:overflow-y-auto lg:pr-1 lg:pb-8 lg:[scrollbar-width:thin]">
       <header>
         <div class="flex items-center justify-between gap-3">
           <h1 class="text-3xl font-semibold tracking-tight text-highlighted lg:text-[2.125rem] lg:leading-tight">
@@ -84,7 +84,7 @@ watch(active, (id) => {
       </header>
 
       <SkillRadar
-        class="mx-auto mt-5 w-50 lg:w-57.5"
+        class="mx-auto mt-5 w-50 lg:w-57.5 [@media(min-width:64rem)_and_(max-height:56rem)]:w-48"
         :axes="radar"
         :highlight="highlighted"
         hoverable
