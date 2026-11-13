@@ -1,7 +1,8 @@
 // Progress per entry (scenario or practice task): pure data plus (de)serialisation. The UI owns the storage
 // (localStorage adapter) and the backup file; both go through `readProgress`, so a bad file can never break the app.
-// Version 3 keeps a best and a latest run, a "practise again" flag and when an entry was last played. Versions 1 and 2
-// are migrated on read (docs/features/levels.md, "Progress").
+// Version 3 keeps a best and a latest run, the fewest hints any solve used (for the skill radar), a "practise again" flag
+// and when an entry was last played. Versions 1 and 2 are migrated on read; version 3 data from before `fewestHints`
+// gets it from its runs (docs/features/levels.md, "Progress").
 import type { Session } from './types'
 
 export const PROGRESS_VERSION = 3
@@ -23,6 +24,11 @@ export interface LevelProgress {
   practiseAgain: boolean
   /** When you last typed a command in it (ms since epoch), for Continue. */
   lastPlayed: number | null
+  /**
+   * The fewest hints any solve revealed (not necessarily the best run's): the skill radar counts a level in full once
+   * one solve did without its last hint. Only goes down. Null before the first solve (or unknown).
+   */
+  fewestHints: number | null
 }
 
 export interface Progress {
@@ -45,7 +51,13 @@ export function emptyProgress(): Progress {
 export const entryOf = (progress: Progress, levelId: string): LevelProgress | undefined =>
   Object.hasOwn(progress.levels, levelId) ? progress.levels[levelId] : undefined
 
-const blankEntry = (): LevelProgress => ({ solved: false, best: null, latest: null, practiseAgain: false, lastPlayed: null })
+const blankEntry = (): LevelProgress => ({ solved: false, best: null, latest: null, practiseAgain: false, lastPlayed: null, fewestHints: null })
+
+/** The smallest of these counts, null when there is none. */
+const fewest = (...counts: (number | null | undefined)[]): number | null => {
+  const known = counts.filter((count): count is number => typeof count === 'number')
+  return known.length ? Math.min(...known) : null
+}
 
 const withEntry = (progress: Progress, levelId: string, change: (entry: LevelProgress) => LevelProgress): Progress => ({
   ...progress,
@@ -71,7 +83,8 @@ export function recordSolve(progress: Progress, levelId: string, session: Sessio
     solved: true,
     practiseAgain: false,
     latest: run,
-    best: isBetterRun(run, entry.best) ? run : entry.best
+    best: isBetterRun(run, entry.best) ? run : entry.best,
+    fewestHints: fewest(entry.fewestHints, run.hints)
   }))
 }
 
@@ -126,15 +139,21 @@ const asRun = (value: unknown): Run | null => isObject(value) && isCount(value.c
   ? { commands: value.commands, hints: value.hints }
   : null
 
-/** A version 3 entry; a broken field falls back to its blank value, an entry without `solved` is dropped. */
+/**
+ * A version 3 entry; a broken field falls back to its blank value, an entry without `solved` is dropped. `fewestHints`
+ * (missing in data from before it existed) is never above what the stored runs show, and only a solved entry has one.
+ */
 function readEntry(value: unknown, now: number): LevelProgress | null {
   if (!isObject(value) || typeof value.solved !== 'boolean') return null
+  const best = asRun(value.best)
+  const latest = asRun(value.latest)
   const entry: LevelProgress = {
     solved: value.solved,
-    best: asRun(value.best),
-    latest: asRun(value.latest),
+    best,
+    latest,
     practiseAgain: value.solved && value.practiseAgain === true,
-    lastPlayed: isCount(value.lastPlayed) && value.lastPlayed <= now + MAX_FUTURE_MS ? value.lastPlayed : null
+    lastPlayed: isCount(value.lastPlayed) && value.lastPlayed <= now + MAX_FUTURE_MS ? value.lastPlayed : null,
+    fewestHints: value.solved ? fewest(isCount(value.fewestHints) ? value.fewestHints : null, best?.hints, latest?.hints) : null
   }
   return entry.solved || entry.lastPlayed !== null ? entry : null
 }
@@ -151,7 +170,8 @@ function migrateEntry(value: unknown): LevelProgress | null {
     best: { commands: Math.min(value.bestCommands, value.commands), hints: value.hintsUsed },
     latest: { commands: value.commands, hints: value.hintsUsed },
     practiseAgain: false,
-    lastPlayed: null
+    lastPlayed: null,
+    fewestHints: value.hintsUsed
   }
 }
 

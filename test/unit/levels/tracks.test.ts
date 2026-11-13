@@ -372,7 +372,7 @@ describe('progress on the home page', () => {
   it('has progress once a level is solved or played', () => {
     expect(hasProgress(emptyProgress())).toBe(false)
     const unsolved = emptyProgress()
-    unsolved.levels['git-01-first-commit'] = { solved: false, best: null, latest: null, practiseAgain: false, lastPlayed: null }
+    unsolved.levels['git-01-first-commit'] = { solved: false, best: null, latest: null, practiseAgain: false, lastPlayed: null, fewestHints: null }
     expect(hasProgress(unsolved)).toBe(false)
     expect(hasProgress(solvedProgress(['git-01-first-commit']))).toBe(true)
     expect(hasProgress(solvedProgress([], { levelId: 'git-01-first-commit', at: 1 }))).toBe(true)

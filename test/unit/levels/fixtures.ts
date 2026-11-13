@@ -58,6 +58,7 @@ const solvedEntry = (overrides: Partial<LevelProgress> = {}): LevelProgress => (
   latest: { commands: 3, hints: 0 },
   practiseAgain: false,
   lastPlayed: null,
+  fewestHints: 0,
   ...overrides
 })
 
@@ -65,7 +66,7 @@ const solvedEntry = (overrides: Partial<LevelProgress> = {}): LevelProgress => (
 export function solvedProgress(ids: string[], last: { levelId: string, at: number } | null = null, flagged: string[] = []): Progress {
   const levels: Record<string, LevelProgress> = Object.fromEntries(ids.map(id => [id, solvedEntry({ practiseAgain: flagged.includes(id) })]))
   if (last) {
-    levels[last.levelId] = { ...(levels[last.levelId] ?? { solved: false, best: null, latest: null, practiseAgain: false, lastPlayed: null }), lastPlayed: last.at }
+    levels[last.levelId] = { ...(levels[last.levelId] ?? { solved: false, best: null, latest: null, practiseAgain: false, lastPlayed: null, fewestHints: null }), lastPlayed: last.at }
   }
   return { version: 3, levels }
 }

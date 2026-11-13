@@ -12,6 +12,7 @@ The scenario engine (`shared/levels/`) and the git track's levels (`shared/level
 - Tracks and chapters (see below): `tracks`, `gitTrack`, `trackById(id)`, `defineTrack(definition)`, `trackLevels(track)`, `trackPlaces(track)`, `placeIn(track, id)`, `placeName(place)`, `levelPlace(id)`, `levelNumber(id)`, `chapterOf(id)`, `chapterProgress(chapter, progress)`, `trackProgress(track, progress)`, `nextUp(track, progress)`, `continueTarget(track, progress)`, `practiseAgainIn(chapter, progress)`, `hasProgress(progress)`, `trackToContinue(progress)`. The lookups take the registry as an optional last argument, so tests run them on a 58-level fixture and a small track with practice tasks (`test/unit/levels/fixtures.ts`).
 - `levels` (every level of every track, in play order), `gitLevels`, `levelById(id)`, `nextLevel(id)` (the next level of the same track: a scenario, then its practice tasks, then the next scenario, across chapter boundaries; null after the last), `levelIntro(level)` (a scenario's story or a practice task's task).
 - `gitSubcommands(line)`, `levelCommands(level)`: the git commands a level practises, from its solution (level rows, cheat sheet).
+- Skill radar (see below): `trackRadar(track, progress)`, `levelCredit(level, entry)`, `isRadarEmpty(axes)`, `radarGain(before, after, chapterId)`, `formatCredit(value)`.
 - Progress (see below): `emptyProgress()`, `recordSolve`, `recordPlay`, `setPractiseAgain`, `resetEntries`, `lastPlayed`, `summarizeProgress`, `isBetterRun`, `serializeProgress`, `readProgress(text)` (strict, for the backup upload), `parseProgress(text)` (never fails, for storage), `PROGRESS_VERSION`.
 - `MAX_SNAPSHOTS` (undo depth, 200), `TRAINER_COMMANDS`, all types (`Level`, `Goal`, `GoalContext`, `TeammateEvent`, `Session`, `TerminalLine`, `Notice`, ...).
 
@@ -76,16 +77,28 @@ LevelProgress = {
   best: Run | null,           // fewest commands, ties broken by fewest hints
   latest: Run | null,         // the most recent solve
   practiseAgain: boolean,     // "solved, but I don't own it yet"; only a solved entry can carry it; a new solve clears it
-  lastPlayed: number | null   // ms since epoch, when you last typed a command in it
+  lastPlayed: number | null,  // ms since epoch, when you last typed a command in it
+  fewestHints: number | null  // the fewest hints any solve revealed (for the skill radar); only goes down; null unsolved
 }
 Run = { commands: number, hints: number }
 ```
 
-- `recordSolve` stores the run as `latest` and, when it is better (`isBetterRun`), as `best`; replaying never removes `solved` or the flag. An unsolved session changes nothing. `recordPlay` sets the entry's `lastPlayed` (the play page calls it for every line typed and every editor save); `lastPlayed(progress)` is the newest one, for Continue.
+- `recordSolve` stores the run as `latest` and, when it is better (`isBetterRun`), as `best`, and lowers `fewestHints` when the run used fewer hints; replaying never removes `solved` or the flag. `fewestHints` is kept apart from `best` because the best run is chosen by commands first: a short solve with every hint can become the best run after a longer clean one, and the radar must still count the clean one. An unsolved session changes nothing. `recordPlay` sets the entry's `lastPlayed` (the play page calls it for every line typed and every editor save); `lastPlayed(progress)` is the newest one, for Continue.
 - `setPractiseAgain(progress, id, flag)`; `resetEntries(progress, ids)` drops entries completely (solved, runs, flag, last played): an entry, a chapter, a track or everything.
 - `readProgress(text)` is strict: broken JSON (`json`), not an object with `levels` (`shape`) or an unknown version (`version`) is an error, so the backup upload can say why and change nothing. Inside valid data a malformed entry (no boolean `solved`) is dropped and a broken field falls back to its blank value (a broken run to null, a non-boolean flag to false, a flag on an unsolved entry to false); an unsolved entry is kept only while it has a `lastPlayed`. A `lastPlayed` more than a day ahead of now (`MAX_FUTURE_MS`; `readProgress(text, now)`) is made up and becomes null. `levels` is built without a prototype and `__proto__` is skipped; every lookup by id goes through `entryOf` (own entries only). Ids this version does not know are kept stored (forward compatibility) but never win Continue: `lastPlayed(progress, isKnown)` skips them and `continueTarget` / `trackToContinue` pass the ids of their track(s). `parseProgress(text)` wraps it for storage: anything unreadable is empty progress.
-- **Migration on read**: version 1 and 2 entries `{ solved, hintsUsed, commands, bestCommands }` become `latest: { commands, hints: hintsUsed }` and `best: { commands: bestCommands, hints: hintsUsed }` (the hints of the old best run were never stored, so it takes the latest run's hints); unsolved old entries are dropped; version 2's `lastPlayed: { levelId, at }` moves onto that entry (creating an unsolved one if needed).
+- **`fewestHints` in version 3** (added in 0.2.5, no version bump): data from before has no such field, so `readEntry` takes the fewest hints of the stored best and latest run; a stored value is kept but never above what the runs show; a broken value falls back to the runs; an unsolved entry has none. It needs no level data, so it is exact wherever progress is read (storage, backup upload). Why not version 4: the field is additive and derivable from version 3 data, so backup files stay readable both ways (0.2.4 reads a 0.2.5 file and ignores the field; a version 4 file would be refused there as an unknown version). What 0.2.4 data cannot tell: a clean solve that was neither the best nor the latest run; such an entry counts half until a clean replay.
+- **Migration on read**: version 1 and 2 entries `{ solved, hintsUsed, commands, bestCommands }` become `latest: { commands, hints: hintsUsed }` and `best: { commands: bestCommands, hints: hintsUsed }` (the hints of the old best run were never stored, so it takes the latest run's hints); `fewestHints` is the old `hintsUsed`; unsolved old entries are dropped; version 2's `lastPlayed: { levelId, at }` moves onto that entry (creating an unsolved one if needed).
 - Storage is the UI's adapter (`grindstone:progress` in localStorage); the backup file is the same JSON (`serializeProgress`).
+
+## Skill radar
+
+`shared/levels/radar.ts`, tests in `test/unit/levels/radar.test.ts`; ADR 0007. One radar per track, an axis per chapter in chapter order: `trackRadar(track, progress)` returns `RadarAxis { chapter, value, total, solved, share, coming }`.
+
+- **Credit per level** (`levelCredit`), scenarios and practice tasks alike: 1 once a solve did without the level's last hint (`fewestHints < level.hints.length`: fewer than 3 for a scenario, 0 for a practice task), 0.5 while every solve revealed it (also a solved entry without `fewestHints`, which only broken data has), 0 unsolved. Playing without solving counts nothing.
+- **Axis value** = the sum of its levels' credits; `share` = value / the chapter's level count. Replays can raise it, nothing lowers it (`fewestHints` only goes down). A reset drops the entries and their credit with them.
+- **Coming chapter** (no levels): `coming: true`, value, total and share 0; drawn dashed.
+- `isRadarEmpty(axes)`: nothing solved in the track (the picture shows its outline only). `radarGain(before, after, chapterId)`: the chapter's old and new value, null when it did not change (the debrief's line). `formatCredit(value)`: `4.5`, `5` (never `5.0`).
+- How it is drawn: `docs/features/ui.md`, "Skill radar".
 
 ## Level file format
 

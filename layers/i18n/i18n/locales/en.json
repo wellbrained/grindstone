@@ -132,7 +132,9 @@
     "next": "Next level",
     "all": "Back to the track",
     "best": "Your best run",
-    "bestHints": "· no hints | · {n} hint | · {n} hints"
+    "bestHints": "· no hints | · {n} hint | · {n} hints",
+    "radarGain": "{chapter} {from} → {to} of {total}",
+    "radarGainLong": "Skill radar, {chapter}: {from} to {to} of {total}"
   },
   "explorer": {
     "title": "Explorer",
@@ -518,5 +520,11 @@
       "text": "Loading {file} ({what}) replaces the progress in this browser ({current}). This cannot be undone; download your current progress first if you want to keep it.",
       "confirm": "Replace progress"
     }
+  },
+  "radar": {
+    "label": "Skill radar",
+    "axis": "{chapter}: {solved} of {total} solved",
+    "coming": "{chapter}: coming",
+    "empty": "Solve levels to fill your radar"
   }
 }

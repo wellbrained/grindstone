@@ -33,6 +33,7 @@ const solved = (overrides: Partial<LevelProgress> = {}): LevelProgress => ({
   latest: { commands: 3, hints: 0 },
   practiseAgain: false,
   lastPlayed: null,
+  fewestHints: 0,
   ...overrides
 })
 
@@ -46,7 +47,7 @@ describe('progress v3', () => {
 
   it('keeps the latest run and the best run: fewest commands, ties broken by fewest hints', () => {
     let progress = recordSolve(emptyProgress(), 'a', solve(7, 2))
-    expect(progress.levels.a).toEqual(solved({ best: { commands: 7, hints: 2 }, latest: { commands: 7, hints: 2 } }))
+    expect(progress.levels.a).toEqual(solved({ best: { commands: 7, hints: 2 }, latest: { commands: 7, hints: 2 }, fewestHints: 2 }))
     progress = recordSolve(progress, 'a', solve(4, 3))
     expect(progress.levels.a).toMatchObject({ best: { commands: 4, hints: 3 }, latest: { commands: 4, hints: 3 } })
     // same commands, fewer hints: the new best
@@ -60,6 +61,17 @@ describe('progress v3', () => {
     expect(progress.levels.a!.best).toEqual({ commands: 4, hints: 1 })
   })
 
+  it('remembers the fewest hints any solve used, even when that run is not the best (skill radar)', () => {
+    // a clean solve in many commands, then a short one with every hint: the best run holds the hints, fewestHints does not
+    let progress = recordSolve(emptyProgress(), 'a', solve(9, 0))
+    progress = recordSolve(progress, 'a', solve(3, 3))
+    expect(progress.levels.a).toMatchObject({ best: { commands: 3, hints: 3 }, latest: { commands: 3, hints: 3 }, fewestHints: 0 })
+    // a replay can lower it, never raise it
+    progress = recordSolve(recordSolve(emptyProgress(), 'b', solve(4, 3)), 'b', solve(6, 1))
+    expect(progress.levels.b!.fewestHints).toBe(1)
+    expect(recordSolve(progress, 'b', solve(2, 3)).levels.b!.fewestHints).toBe(1)
+  })
+
   it('ignores a session that is not solved', () => {
     const progress = recordSolve(emptyProgress(), 'a', solve(3, 0))
     expect(recordSolve(progress, 'a', session({ solved: false }))).toBe(progress)
@@ -67,7 +79,7 @@ describe('progress v3', () => {
 
   it('records when an entry was last played, and finds the newest', () => {
     let progress = recordPlay(emptyProgress(), 'b', 42)
-    expect(progress.levels.b).toEqual({ solved: false, best: null, latest: null, practiseAgain: false, lastPlayed: 42 })
+    expect(progress.levels.b).toEqual({ solved: false, best: null, latest: null, practiseAgain: false, lastPlayed: 42, fewestHints: null })
     progress = recordSolve(recordPlay(progress, 'a', 50), 'a', solve(3, 0))
     expect(progress.levels.a).toMatchObject({ solved: true, lastPlayed: 50 })
     expect(lastPlayed(progress)).toEqual({ levelId: 'a', at: 50 })
@@ -135,7 +147,7 @@ describe('reading progress', () => {
         'badRuns': { ...good, best: { commands: -1, hints: 0 }, latest: { commands: 2 } },
         'badFlag': { ...good, practiseAgain: 'yes', lastPlayed: 'now' },
         // a flag needs a solve; an unsolved entry is kept only while it was played
-        'unsolvedFlag': { solved: false, best: null, latest: null, practiseAgain: true, lastPlayed: 3 },
+        'unsolvedFlag': { solved: false, best: null, latest: null, practiseAgain: true, lastPlayed: 3, fewestHints: 0 },
         'unsolvedBlank': { solved: false, best: null, latest: null, practiseAgain: false, lastPlayed: null },
         '': good
       }
@@ -144,8 +156,30 @@ describe('reading progress', () => {
       good,
       badRuns: { ...good, best: null, latest: null },
       badFlag: { ...good, practiseAgain: false, lastPlayed: null },
-      unsolvedFlag: { solved: false, best: null, latest: null, practiseAgain: false, lastPlayed: 3 }
+      unsolvedFlag: { solved: false, best: null, latest: null, practiseAgain: false, lastPlayed: 3, fewestHints: null }
     })
+  })
+
+  it('derives the fewest hints of version 3 data stored before it existed, from the best and latest run', () => {
+    const entry = (fields: Record<string, unknown>) => ({ solved: true, best: null, latest: null, practiseAgain: false, lastPlayed: null, ...fields })
+    const text = JSON.stringify({
+      version: 3,
+      levels: {
+        // 0.2.4 data: no fewestHints; the best run used every hint, the latest none
+        old: entry({ best: { commands: 2, hints: 3 }, latest: { commands: 5, hints: 0 } }),
+        oldHinted: entry({ best: { commands: 2, hints: 3 }, latest: { commands: 2, hints: 3 } }),
+        // a stored value is kept, but never above what the runs show
+        stored: entry({ best: { commands: 2, hints: 3 }, latest: { commands: 2, hints: 3 }, fewestHints: 1 }),
+        tooHigh: entry({ best: { commands: 2, hints: 1 }, latest: { commands: 2, hints: 2 }, fewestHints: 3 }),
+        broken: entry({ best: { commands: 2, hints: 2 }, latest: null, fewestHints: 'x' }),
+        negative: entry({ best: { commands: 2, hints: 2 }, latest: null, fewestHints: -1 }),
+        // solved, but nothing says how: unknown
+        noRuns: entry({}),
+        onlyStored: entry({ fewestHints: 0 })
+      }
+    })
+    const hints = Object.fromEntries(Object.entries(parseProgress(text).levels).map(([id, value]) => [id, value.fewestHints]))
+    expect(hints).toEqual({ old: 0, oldHinted: 3, stored: 1, tooHigh: 1, broken: 2, negative: 2, noRuns: null, onlyStored: 0 })
   })
 
   it('migrates version 2: runs from the old counts, last played onto its entry', () => {
@@ -162,9 +196,9 @@ describe('reading progress', () => {
     expect(parseProgress(text)).toEqual({
       version: 3,
       levels: {
-        'git-01-first-commit': solved({ best: { commands: 4, hints: 1 }, latest: { commands: 6, hints: 1 } }),
+        'git-01-first-commit': solved({ best: { commands: 4, hints: 1 }, latest: { commands: 6, hints: 1 }, fewestHints: 1 }),
         'git-03-merge': solved({ best: { commands: 3, hints: 0 }, latest: { commands: 3, hints: 0 } }),
-        'git-04-merge-conflict': { solved: false, best: null, latest: null, practiseAgain: false, lastPlayed: 1700 }
+        'git-04-merge-conflict': { solved: false, best: null, latest: null, practiseAgain: false, lastPlayed: 1700, fewestHints: null }
       }
     })
     // last played on a solved entry lands on that entry
@@ -183,7 +217,7 @@ describe('reading progress', () => {
     const text = JSON.stringify({ version: 1, levels: { 'git-01-first-commit': { solved: true, hintsUsed: 1, commands: 4, bestCommands: 3 }, 'broken': { solved: 1 } } })
     expect(parseProgress(text)).toEqual({
       version: 3,
-      levels: { 'git-01-first-commit': solved({ best: { commands: 3, hints: 1 }, latest: { commands: 4, hints: 1 } }) }
+      levels: { 'git-01-first-commit': solved({ best: { commands: 3, hints: 1 }, latest: { commands: 4, hints: 1 }, fewestHints: 1 }) }
     })
   })
 })

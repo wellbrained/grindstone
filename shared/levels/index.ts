@@ -1,6 +1,7 @@
 // Public API of the level engine (docs/features/levels.md).
 export type * from './types'
 export type { LastPlayed, LevelProgress, Progress, ProgressSummary, ReadResult, Run } from './progress'
+export type { RadarAxis, RadarGain } from './radar'
 export type { Chapter, ChapterColour, ChapterDefinition, ContinueReason, ContinueTarget, Count, LevelPlace, Track, TrackDefinition, TrackStatus } from './track'
 
 export { MAX_SNAPSHOTS, TRAINER_COMMANDS, playStep, saveEditor, saveFile, startLevel, submit } from './engine'
@@ -22,6 +23,7 @@ export {
   summarizeProgress
 } from './progress'
 export { chapterProgress, continueTarget, defineTrack, nextUp, placeIn, placeName, practiseAgainIn, trackLevels, trackPlaces, trackProgress } from './track'
+export { formatCredit, isRadarEmpty, levelCredit, radarGain, trackRadar } from './radar'
 export { chapterOf, hasProgress, levelById, levelNumber, levelPlace, levels, nextLevel, trackById, trackToContinue, tracks } from './tracks'
 export { gitSubcommands, levelCommands } from './commands'
 export { gitLevels, gitTrack } from './git'

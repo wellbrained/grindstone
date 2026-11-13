@@ -29,7 +29,7 @@ function openFile(path: string) {
 }
 
 const play = useLevelPlay(level, { onEdit: openFile })
-const { editor, debriefOpen, stats, next, save, gitEditor, gitDraft, submitGitEditor, cancelGitEditor } = play
+const { editor, debriefOpen, progressBefore, stats, next, save, gitEditor, gitDraft, submitGitEditor, cancelGitEditor } = play
 
 // the file git waits for (git rebase -i): a dialog in the Terminal layout, the editor pane in the IDE (PlayWorkbench)
 const gitDialog = computed(() => layout.value === 'terminal' ? gitEditor.value : null)
@@ -79,6 +79,8 @@ const focusTerminal = () => workbench.value?.focusTerminal()
       v-if="level.kind === 'scenario'"
       v-model:open="debriefOpen"
       :level="level"
+      :place="place"
+      :progress-before="progressBefore"
       :next="next"
       :track-to="trackPath(place.track.id)"
       :stats="stats"

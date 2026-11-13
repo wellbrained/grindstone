@@ -3,7 +3,7 @@
 import { gitCommandNames, shellCommandNames, unmergedPaths, waitingEditor } from '#shared/git'
 import type { GitState, OutputLine } from '#shared/git'
 import { TRAINER_COMMANDS, nextLevel, saveEditor, saveFile, startLevel, submit } from '#shared/levels'
-import type { Level, Session, SubmitResult } from '#shared/levels'
+import type { Level, Progress, Session, SubmitResult } from '#shared/levels'
 import type { Prompt } from '~/utils/terminal'
 
 export type LogBody
@@ -31,12 +31,18 @@ export interface LevelPlayOptions {
 
 export function useLevelPlay(level: Level, options: LevelPlayOptions = {}) {
   const { t } = useI18n()
-  const { record, markPlayed, levelProgress } = useProgress()
+  const { progress, record, markPlayed, levelProgress } = useProgress()
 
   const fresh = (): PlayState => ({ session: startLevel(level), log: [{ id: 0, type: 'intro' }], nextId: 1 })
   const store = useState<PlayState>(`play:${level.id}`, fresh)
   const editor = ref<{ path: string, content: string } | null>(null)
   const debriefOpen = ref(false)
+  /** The progress right before the last solve on this page: the debrief's radar grows from it. */
+  const progressBefore = shallowRef<Progress | null>(null)
+  // the radar grows once per solve: "Show debrief" later opens it without the growth (ADR 0007)
+  watch(debriefOpen, (open) => {
+    if (!open) progressBefore.value = null
+  })
   const sparkKey = ref(0)
   const showOrigin = ref(false)
   let debriefTimer: ReturnType<typeof setTimeout> | undefined
@@ -126,6 +132,7 @@ export function useLevelPlay(level: Level, options: LevelPlayOptions = {}) {
     for (const notice of result.notices) push({ type: 'notice', author: notice.author, text: notice.text })
     if (result.solvedNow) {
       push({ type: 'solved' })
+      progressBefore.value = progress.value
       record(level.id, result.session)
       trackEvent('level-solved', { level: level.id, commands: result.session.commandCount, hints: result.session.hintsUsed })
       sparkKey.value++
@@ -230,6 +237,7 @@ export function useLevelPlay(level: Level, options: LevelPlayOptions = {}) {
     graph,
     editor,
     debriefOpen,
+    progressBefore,
     sparkKey,
     run,
     save,

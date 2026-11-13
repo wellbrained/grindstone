@@ -27,3 +27,8 @@ Status: accepted, 2026-11-13 (Nik, grilling). Replaces the line in 0001 "no skil
 - **Chapters**: 1 Reading errors (console, stack traces, `undefined is not a function`, typos, wrong imports), 2 Network (failed requests, status codes, payloads, CORS), 3 Elements & CSS, 4 State & async, 5 Breakpoints & stepping, 6 Performance, 7 Incidents (logs, the latest change, rollback). First release: chapter 1 with about five scenarios and their practice tasks; the rest show as coming.
 - **Phones**: playable, panels stacked as tabs (App, Console, Code); designed for desktop first.
 - **Cheat sheet**: none in the first release; a "reading errors" sheet may come with chapter 2.
+
+## Update 2026-11-13 (built as 0.2.5)
+
+- **No names on the radar** (approved preview): the rail is 300px wide, so each axis ends only in its chapter's colour dot and the chapter list below is the legend.
+- **Hint use is stored as `fewestHints`** per level (the fewest hints any solve revealed, only ever lower), not with the best run, which is chosen by commands and may not be the clean solve. Optional field, no progress version 4: 0.2.4 still loads a 0.2.5 backup. Saved data from before takes it from the best and latest run; a clean solve that was neither counts half until replayed (docs/features/levels.md).

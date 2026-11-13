@@ -1,9 +1,10 @@
 <script setup lang="ts">
+import { trackRadar } from '#shared/levels'
 import type { Track } from '#shared/levels'
 import { trackView } from '~/utils/track-view'
 
 // A track page (docs/features/ui.md, "Track page"): the whole track and your place in it at once. From lg a sticky rail
-// (title, scope, overall progress, the chapters) beside the Continue card and the chapter sections; below lg the rail's
+// (title, scope, overall progress, the skill radar, the chapters) beside the Continue card and the chapter sections; below lg the rail's
 // heading scrolls away and its chapters become a horizontal strip that sticks under the header.
 const props = defineProps<{ track: Track }>()
 
@@ -15,6 +16,9 @@ const justSolved = takeJustSolved()
 const motion = usePreferredReducedMotion()
 
 const view = computed(() => trackView(props.track, progress.value))
+const radar = computed(() => trackRadar(props.track, progress.value))
+// the chapter lit in the radar and the list: a hovered or focused row, or the axis hovered in the radar
+const highlighted = ref<string | null>(null)
 const { active, pin } = useActiveSection(() => props.track.chapters.map(chapter => chapter.id))
 
 const size = computed(() => t('track.size', {
@@ -79,12 +83,22 @@ watch(active, (id) => {
         </p>
       </header>
 
+      <SkillRadar
+        class="mx-auto mt-5 w-50 lg:w-57.5"
+        :axes="radar"
+        :highlight="highlighted"
+        hoverable
+        @highlight="highlighted = $event"
+      />
+
       <ChapterNav
-        class="mt-6 hidden lg:block"
+        class="mt-5 hidden lg:block"
         :label="t('track.chaptersLabel', { track: track.title })"
         :chapters="view.chapters"
         :active="active"
+        :highlight="highlighted"
         @jump="jump"
+        @highlight="highlighted = $event"
       />
 
       <NuxtLink

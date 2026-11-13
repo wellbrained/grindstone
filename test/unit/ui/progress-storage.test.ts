@@ -19,8 +19,8 @@ const blocked: StorageLike = {
 const solved: Progress = {
   version: 3,
   levels: {
-    'git-01-first-commit': { solved: true, best: { commands: 3, hints: 1 }, latest: { commands: 4, hints: 1 }, practiseAgain: true, lastPlayed: null },
-    'git-02-branch': { solved: false, best: null, latest: null, practiseAgain: false, lastPlayed: 1700 }
+    'git-01-first-commit': { solved: true, best: { commands: 3, hints: 1 }, latest: { commands: 4, hints: 1 }, practiseAgain: true, lastPlayed: null, fewestHints: 1 },
+    'git-02-branch': { solved: false, best: null, latest: null, practiseAgain: false, lastPlayed: 1700, fewestHints: null }
   }
 }
 
