@@ -1,6 +1,6 @@
 # Context: Grindstone glossary
 
-- **Track**: one skill area of the app, with its own page (`/git`) and its levels in chapters. *Live* tracks are playable (Git); *coming* tracks (Working with AI, Web fundamentals, Debugging, Framework deep dives) are listed on the home page but have no levels yet.
+- **Track**: one skill area of the app, with its own page (`/git`) and its levels in chapters. *Live* tracks are playable (Git; Debugging next, ADR 0007); *coming* tracks (Working with AI, Web fundamentals, Debugging, Framework deep dives) are listed on the home page but have no levels yet.
 - **Chapter**: an ordered group of levels inside a track, with a number, a one-line description and a colour from the branch palette (Git: Basics, Branching, Merging, Rewriting history, Teamwork & remotes, Undo & recovery, Disasters, Workflows). All chapters are open, nothing is locked. A chapter without levels is *coming*.
 - **Level** (also *entry*): one thing to solve in a track, of one of two kinds: a scenario or a practice task. Counts ("n of N solved"), next up and Continue include both kinds.
 - **Scenario**: a level with a short story, goals, three hints and a debrief, written as one TypeScript file (setup, goals, teammate events, hints, debrief, solution). Its **number** is `chapter.position` counting scenarios only (`1.2`, `3.2`), derived from where it is listed.
@@ -8,7 +8,7 @@
 - **Difficulty**: 1 to 3, shown as filled dots; every level also has an estimated **time**.
 - **Next up**: the first unsolved level of a track, in play order (chapter by chapter; a scenario, then its practice tasks).
 - **Continue**: the one button back into practice: the level you last played while it is unsolved, else next up; with nothing unsolved left, a level marked "practise again". Otherwise there is nothing to continue.
-- **Best run**: the fewest commands you solved a level in (ties broken by fewest hints), kept next to your **latest run**; replaying never costs anything.
+- **Best run**: in Git, the fewest commands you solved a level in (ties broken by fewest hints); in Debugging, the fewest hints, then the fewest reloads, kept next to your **latest run**; replaying never costs anything.
 - **Practise again**: a flag you set on a solved level ("solved, but I don't own it yet"); Continue and the chapter menu offer flagged levels once nothing new is left.
 - **Reset**: clears solved, best and latest run, the "practise again" flag and last played for one level ("Mark as not solved"), a chapter, a track or everything, always after a confirmation.
 - **Setup**: the starting state of a level (local repo, `origin`, files, current branch), built with the setup builder.
@@ -24,3 +24,8 @@
 - **Graph**: the SVG commit graph that redraws after every command; local branches solid, `origin/*` outlined.
 - **Progress**: per level: solved, best run, latest run, "practise again", when you last played it (for Continue). Stored in localStorage; the About page downloads it as a backup file and loads it back.
 - **Ignored file**: an untracked file a `.gitignore` names; `status` and `git add .` leave it out.
+- **Skill radar**: one per track, an axis per chapter showing the share of its levels you solved (a solve that needed the last hint counts half). On the track page and in the debrief (ADR 0007).
+- **Sandbox**: in the Debugging track, the sealed iframe in which a level's real app (HTML, CSS, plain JavaScript) runs; Grindstone's panels read from it.
+- **Fake backend**: the scripted answers a Debugging level gives its app's requests (data, errors, delays), so every run is the same.
+- **Console**: the Debugging panel with the app's logs and errors, clickable stack traces and an input line that runs an expression inside the app.
+- **Reload**: restarting a Debugging level's app after an edit; the fewest reloads (after the fewest hints) make the best run there.
