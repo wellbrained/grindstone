@@ -15,6 +15,9 @@ import { LAST_WEEK, OVEN_FULL, SATURDAY_TIMES, THIS_WEEK } from '../../../../sha
 import { DELIVERY_TEXT, PICKUP_TEXT } from '../../../../shared/levels/debugging/24-always-pickup'
 import { WHOLESALE_TOTAL } from '../../../../shared/levels/debugging/25-seventh-item'
 import { BOX_TOTAL } from '../../../../shared/levels/debugging/practice/breakpoints'
+import { CROISSANT_HEADING, RYE_HEADING } from '../../../../shared/levels/debugging/26-request-per-key'
+import { HOURS_TEXT, SPECIALS_TEXT } from '../../../../shared/levels/debugging/29-one-after-another'
+import { BREADS_TEXT, SHORT_VOUCHER_TEXT, STAMPS_TEXT, STANDING_TOTAL, VOUCHER_TEXT } from '../../../../shared/levels/debugging/practice/performance'
 
 export interface ExpectedRun {
   /** Probe values of the check run. */
@@ -44,6 +47,8 @@ export interface ExpectedLevel {
   answerOffTrace?: true
   /** Chapter 5 find tasks whose answer is a line the recording stops on (a step, or a frame of a step's call stack). */
   answerStep?: true
+  /** Chapter 6 find tasks: the answer is a line the Performance panel links for a recorded profile (`before` is what the customer does). */
+  answerProfile?: true
 }
 
 export const expected: Record<string, ExpectedLevel> = {
@@ -357,5 +362,78 @@ export const expected: Record<string, ExpectedLevel> = {
   'debugging-practice-comma-price': {
     start: { probes: { total: 'NaN' }, errors: 0 },
     solved: { probes: { total: BOX_TOTAL }, errors: 0 }
+  },
+  'debugging-26-request-per-key': {
+    start: {
+      probes: { requests: 7, heading: CROISSANT_HEADING, rye: RYE_HEADING },
+      errors: 0,
+      network: ['cro', 'croi', 'crois', 'croiss', 'croissa', 'croissan', 'croissant', 'rye'].map(word => `GET /api/search?q=${word} 200`)
+    },
+    solved: { probes: { requests: 1, heading: CROISSANT_HEADING, rye: RYE_HEADING }, errors: 0, network: ['GET /api/search?q=croissant 200', 'GET /api/search?q=rye 200'] }
+  },
+  'debugging-practice-sends-per-key': {
+    answerProfile: true,
+    before: [{ id: 'customer', steps: [{ keys: '#postcode', value: '1012' }, { settle: true }] }],
+    start: { probes: { customer: null }, errors: 0, network: ['1', '10', '101', '1012'].map(code => `GET /api/delivery?postcode=${code} 200`) }
+  },
+  'debugging-practice-check-once': {
+    start: { probes: { requests: 8, message: VOUCHER_TEXT, short: SHORT_VOUCHER_TEXT }, errors: 0, network: ['S', 'SU', 'SUM', 'SUMM', 'SUMME', 'SUMMER', 'SUMMER1', 'SUMMER10', '', 'C', 'CA', 'CAK', 'CAKE', 'CAKE5'].map(code => `GET /api/vouchers?code=${code} 200`) },
+    solved: { probes: { requests: 1, message: VOUCHER_TEXT, short: SHORT_VOUCHER_TEXT }, errors: 0, network: ['GET /api/vouchers?code=SUMMER10 200', 'GET /api/vouchers?code= 200', 'GET /api/vouchers?code=CAKE5 200'] }
+  },
+  'debugging-27-redraws-menu': {
+    start: { probes: { 'menu-changes': 48, 'basket': 2, 'total': '7.30', 'products': 24 }, errors: 0 },
+    solved: { probes: { 'menu-changes': 0, 'basket': 2, 'total': '7.30', 'products': 24 }, errors: 0 }
+  },
+  'debugging-practice-draws-all-days': {
+    answerOffTrace: true,
+    answerProfile: true,
+    before: [{ id: 'customer', steps: [{ click: '[data-day="Fri"]' }] }],
+    start: { probes: { customer: null }, errors: 0 }
+  },
+  'debugging-practice-only-the-counter': {
+    start: { probes: { 'list-changes': 24, 'badge': '2', 'products': 12 }, errors: 0 },
+    solved: { probes: { 'list-changes': 0, 'badge': '2', 'products': 12 }, errors: 0 }
+  },
+  'debugging-28-formatted-thousands': {
+    start: { probes: { work: 10540, rows: 48, first: '2.40 €', last: '18.50 €' }, errors: 0 },
+    solved: { probes: { work: 293, rows: 48, first: '2.40 €', last: '18.50 €' }, errors: 0 }
+  },
+  'debugging-practice-most-self-work': {
+    answerOffTrace: true,
+    answerProfile: true,
+    start: { probes: {}, errors: 0 }
+  },
+  'debugging-practice-map-lookup': {
+    start: { probes: { work: 1331, total: STANDING_TOTAL }, errors: 0 },
+    solved: { probes: { work: 155, total: STANDING_TOTAL }, errors: 0 }
+  },
+  'debugging-29-one-after-another': {
+    start: { probes: { 'waited': 900, 'menu': 3, 'specials': SPECIALS_TEXT, 'hours': HOURS_TEXT, 'menu-requests': 1, 'specials-requests': 1, 'hours-requests': 1 }, errors: 0, network: ['GET /api/menu 200', 'GET /api/specials 200', 'GET /api/hours 200'] },
+    solved: { probes: { 'waited': 400, 'menu': 3, 'specials': SPECIALS_TEXT, 'hours': HOURS_TEXT, 'menu-requests': 1, 'specials-requests': 1, 'hours-requests': 1 }, errors: 0, network: ['GET /api/menu 200', 'GET /api/specials 200', 'GET /api/hours 200'] }
+  },
+  'debugging-practice-waits-first': {
+    answerProfile: true,
+    start: { probes: {}, errors: 0, network: ['GET /api/cakes 200', 'GET /api/slots 200'] }
+  },
+  'debugging-practice-both-at-once': {
+    start: { probes: { 'waited': 500, 'breads': BREADS_TEXT, 'breads-requests': 1, 'stock-requests': 1 }, errors: 0, network: ['GET /api/breads 200', 'GET /api/stock 200'] },
+    solved: { probes: { 'waited': 300, 'breads': BREADS_TEXT, 'breads-requests': 1, 'stock-requests': 1 }, errors: 0, network: ['GET /api/breads 200', 'GET /api/stock 200'] }
+  },
+  'debugging-30-asks-again': {
+    start: {
+      probes: { 'menu-requests': 3, 'specials-requests': 2, 'menu': 'Butter croissant', 'specials': 'Plum cake' },
+      errors: 0,
+      network: ['GET /api/menu 200', 'GET /api/specials 200', 'GET /api/menu 200', 'GET /api/specials 200', 'GET /api/menu 200', 'GET /api/specials 200']
+    },
+    solved: { probes: { 'menu-requests': 1, 'specials-requests': 1, 'menu': 'Butter croissant', 'specials': 'Plum cake' }, errors: 0, network: ['GET /api/menu 200', 'GET /api/specials 200'] }
+  },
+  'debugging-practice-asks-for-hours-again': {
+    answerProfile: true,
+    before: [{ id: 'customer', steps: [{ click: '#hours-button' }, { click: '#hours-button' }, { click: '#hours-button' }] }],
+    start: { probes: { customer: null }, errors: 0, network: ['GET /api/hours 200', 'GET /api/hours 200', 'GET /api/hours 200'] }
+  },
+  'debugging-practice-keep-the-answer': {
+    start: { probes: { requests: 3, stamps: STAMPS_TEXT }, errors: 0, network: ['GET /api/stamps 200', 'GET /api/stamps 200', 'GET /api/stamps 200'] },
+    solved: { probes: { requests: 1, stamps: STAMPS_TEXT }, errors: 0, network: ['GET /api/stamps 200'] }
   }
 }

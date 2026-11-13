@@ -3,7 +3,7 @@ import { BRIDGE_SOURCE } from '../../../../shared/levels/debugging/bridge'
 import { COMPUTED_PROPERTIES } from '../../../../shared/levels/debugging/elements'
 import { INSPECTOR_SOURCE } from '../../../../shared/levels/debugging/inspector'
 import { RECORDER_SOURCE, RECORD_LIMITS } from '../../../../shared/levels/debugging/recorder'
-import { CHECK_VIEWPORT, SANDBOX_CSP, SHOP_ORIGIN, checkFrames, resolveImport, rewriteImports, sandboxDocument } from '../../../../shared/levels/debugging/sandbox'
+import { CHECK_VIEWPORT, COUNTING_CSP, SANDBOX_CSP, SHOP_ORIGIN, checkFrames, resolveImport, rewriteImports, sandboxDocument } from '../../../../shared/levels/debugging/sandbox'
 
 const files = {
   'index.html': [
@@ -184,6 +184,18 @@ describe('a recorded load (chapter 5)', () => {
 
   it('is off for any other load', () => {
     expect(config(sandboxDocument(files, { token: 't' }).html).record).toBeNull()
+  })
+
+  it('counts in a check run without eval (code made from text would run uncounted), and records the profile with it', () => {
+    const counting = sandboxDocument(files, { token: 't', probes: [], record: { 'app.js': '' }, count: 'check', performance: true }).html
+    expect(counting).toContain(`content="${COUNTING_CSP}"`)
+    expect(COUNTING_CSP).not.toContain('unsafe-eval')
+    expect(COUNTING_CSP).toContain('script-src \'unsafe-inline\' blob:')
+    expect(config(counting)).toMatchObject({ record: { profile: 1 }, perf: { actions: false } })
+    // Record keeps eval (the Console) and reports the customer's actions
+    const profile = sandboxDocument(files, { token: 't', record: { 'app.js': '' }, count: 'profile', performance: true }).html
+    expect(profile).toContain(`content="${SANDBOX_CSP}"`)
+    expect(config(profile)).toMatchObject({ record: { profile: 2 }, perf: { actions: true } })
   })
 
   it('puts the recorder into the bridge, still one line that parses', () => {

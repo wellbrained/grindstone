@@ -7,6 +7,12 @@
 // batches (never a message per step). It stops on its own after RECORD_LIMITS.maxSteps steps, or once reading values has
 // taken RECORD_LIMITS.maxMs in all (a huge object read at every step), and on the page's Stop; the app runs on as usual.
 // A Proxy can't be told from its target, so reading one runs its traps (`instanceof`, keys, descriptors): a known limit.
+// Chapter 6 (the Performance panel) runs the same recorder **counting** (`profile`): no value is read and no step posted;
+// each statement is one unit of work, for the function running it (self) and every function on the stack (total);
+// calls are counted per function, and what the page changed (host.takeDom, a MutationObserver's records) belongs to the
+// statement that ran since the last look. A recorded load (`profile: 2`) groups it all by **action** (the page's load,
+// then each click or typing the bridge reports) and posts the profile once, at Stop or at its cap; a check run
+// (`profile: 1`) only keeps the count for the `work` probes.
 // JavaScript in a string, like the bridge (one line there): block comments only, every statement ends with a semicolon.
 // Tested on Node in test/unit/levels/debugging/instrument.test.ts, in a browser in e2e/debugging-breakpoints.spec.ts.
 
@@ -37,8 +43,29 @@ export const RECORD_LIMITS = {
 
 export type RecordLimits = { -readonly [K in keyof typeof RECORD_LIMITS]: number }
 
-/** Why a recording ended: the page's Stop, the step cap, or values too slow to read. */
-export type RecordEndReason = 'stopped' | 'steps' | 'slow'
+/** How much counting keeps (chapter 6): a counting load's recorder gets these with RECORD_LIMITS, and `profile`. */
+export const PROFILE_LIMITS = {
+  /** Units of work counted in one load: then counting stops ("work"), the app runs on. */
+  maxWork: 1_000_000,
+  /** Actions a recording tells apart (the page's load included); later ones are counted into the last. */
+  maxActions: 100,
+  /** Rows of one table of one action (functions, changed lines, renders); the first ones are kept. */
+  maxRows: 500,
+  /** Requests of one action, and requests whose server time is kept. */
+  maxRequests: 200,
+  /** Milliseconds between two live counts posted while recording. */
+  tickMs: 250
+} as const
+
+export type CountingLimits = RecordLimits & { -readonly [K in keyof typeof PROFILE_LIMITS]: number } & { profile: 1 | 2 }
+
+/** The recorder's limits for a counting load: a check run's (`check`: only the count) or Record's (`profile`). */
+export function countingLimits(mode: 'check' | 'profile'): CountingLimits {
+  return { ...RECORD_LIMITS, ...PROFILE_LIMITS, profile: mode === 'check' ? 1 : 2 }
+}
+
+/** Why a recording ended: the page's Stop, the step cap, values too slow to read, or (counting) the work cap. */
+export type RecordEndReason = 'stopped' | 'steps' | 'slow' | 'work'
 
 /** One call the recorder knows about (the instrumented code holds its token). */
 export interface Invocation {
@@ -61,6 +88,14 @@ export interface RecorderRuntime {
   /** A statement is about to run: its point, its call and readers of the values it can see. */
   s: (point: number, call: Invocation, getters: (() => unknown)[]) => void
   stop: (reason: RecordEndReason) => void
+  /** Counting: the units of work so far (-1 once the cap stopped it). */
+  work: () => number
+  /** Counting: a user action starts (the bridge: a click, typing, Enter); what follows is counted for it. */
+  action: (kind: string, target: string, label: string) => void
+  /** Counting: the page changed outside a look (a MutationObserver's late records), by how many nodes each. */
+  dom: (changes: number[]) => void
+  /** Counting: the app sent this request (the backend's id) during the current action. */
+  request: (id: number) => void
 }
 
 export const RECORDER_SOURCE = String.raw`(function (limits, host) {
@@ -99,7 +134,12 @@ export const RECORDER_SOURCE = String.raw`(function (limits, host) {
   var DomNode = typeof Node === 'function' ? Node : null;
   var global = typeof window !== 'undefined' ? window : globalThis;
 
-  var api = { on: true };
+  /* Whether it records (or counts): kept here, read through a getter, so the app's code can't switch it off; the api is
+     frozen once made, so none of its functions can be replaced either. */
+  var on = true;
+  var api = {};
+  Object.defineProperty(api, 'on', { get: function () { return on; }, enumerable: true });
+  var profiling = limits.profile === 1 || limits.profile === 2;
   var stack = [];
   var calls = 0;
   var resetQueued = false;
@@ -115,7 +155,14 @@ export const RECORDER_SOURCE = String.raw`(function (limits, host) {
 
   /* Once the code that runs now has finished (the JavaScript stack is empty), no call is running any more: a module's
      top level never says it ended, and a call that threw past an await is caught up here. */
-  var reset = function () { resetQueued = false; stack.length = 0; };
+  var reset = function () {
+    resetQueued = false;
+    if (profiling) {
+      flushDom();
+      current = null;
+    }
+    stack.length = 0;
+  };
   var queueReset = function () {
     if (resetQueued) return;
     resetQueued = true;
@@ -129,25 +176,32 @@ export const RECORDER_SOURCE = String.raw`(function (limits, host) {
   };
 
   api.e = function (fn, module) {
-    var call = { id: ++calls, fn: fn, point: -1, parents: null, resumed: false };
-    if (!api.on) return call;
+    var call = { id: ++calls, fn: fn, point: -1, parents: null, resumed: false, rendered: -1 };
+    if (!on) return call;
     if (module) stack.length = 0;
     queueReset();
-    call.parents = frames();
+    if (profiling) row(act.fns, fn, 3)[0] += 1;
+    else call.parents = frames();
     stack.push(call);
     return call;
   };
   api.x = function (call) {
-    if (!api.on) return;
+    if (!on) return;
+    if (profiling) flushDom();
     var at = stack.lastIndexOf(call);
     if (at >= 0) stack.length = at;
+    if (profiling) current = stack.length ? stack[stack.length - 1] : null;
   };
   api.w = function (call, value) {
     api.x(call);
     return value;
   };
   api.r = function (call, value) {
-    if (api.on) {
+    if (on) {
+      if (profiling) {
+        flushDom();
+        current = call;
+      }
       queueReset();
       stack.push(call);
       call.resumed = true;
@@ -164,6 +218,122 @@ export const RECORDER_SOURCE = String.raw`(function (limits, host) {
       stack.push(call);
       call.resumed = true;
     }
+  };
+
+  /* Counting (chapter 6): a unit of work per statement. Tables are objects without a prototype, keyed by a function's
+     or a point's number (anything else is never a key), at most limits.maxRows rows each. */
+  var work = 0;
+  var capped = false;
+  var actions = [];
+  var act = null;
+  /* The call whose statement runs now: what the page changes belongs to it. */
+  var current = null;
+  var seen = Object.create(null);
+  var lastTick = 0;
+  var table = function () { return { rows: Object.create(null), size: 0 }; };
+  var spare = [0, 0, 0];
+  var row = function (made, key, size) {
+    var found = made.rows[key];
+    if (found) return found;
+    if (made.size >= limits.maxRows || typeof key !== 'number' || key < 0 || key !== Math.floor(key)) {
+      spare[0] = spare[1] = spare[2] = 0;
+      return spare;
+    }
+    made.size += 1;
+    found = made.rows[key] = [];
+    for (var i = 0; i < size; i++) found.push(0);
+    return found;
+  };
+  var newAction = function (kind, target, label) {
+    var made = { kind: kind, target: target, label: label, at: host.clock ? host.clock() : 0, work: 0, more: 0, fns: table(), dom: table(), renders: table(), requests: [], index: actions.length };
+    actions.push(made);
+    return made;
+  };
+  if (profiling) act = newAction('load', '', '');
+  /* What the page changed since the last look (nodes per change) belongs to the statement that ran since then. */
+  var landDom = function (changes) {
+    if (!on || !current || current.point < 0 || !changes || !changes.length) return;
+    var nodes = 0;
+    for (var i = 0; i < changes.length; i++) nodes += changes[i];
+    if (!nodes) return;
+    var line = row(act.dom, current.point, 2);
+    line[0] += 1;
+    line[1] += nodes;
+    var made = row(act.renders, current.fn, 2);
+    if (current.rendered !== act.index) {
+      current.rendered = act.index;
+      made[0] += 1;
+    }
+    made[1] += nodes;
+  };
+  var flushDom = function () {
+    if (host.takeDom) landDom(host.takeDom());
+  };
+  var tick = function () {
+    if (limits.profile !== 2) return;
+    var at = now();
+    if (at - lastTick < limits.tickMs) return;
+    lastTick = at;
+    post({ type: 'profileTick', work: work, actions: actions.length });
+  };
+  var countStep = function (point, call) {
+    flushDom();
+    heal(call);
+    call.point = point;
+    current = call;
+    if (work >= limits.maxWork) {
+      capped = true;
+      api.stop('work');
+      return;
+    }
+    work += 1;
+    act.work += 1;
+    row(act.fns, call.fn, 3)[1] += 1;
+    /* every function on the stack has this unit in its total, once (a recursive one too); the 256 innermost calls
+       only, so a very deep recursion costs no more per step (a call below them misses those units in its total) */
+    for (var i = stack.length - 1, n = 0; i >= 0 && n < 256; i--, n++) {
+      var fn = stack[i].fn;
+      if (seen[fn] === work) continue;
+      seen[fn] = work;
+      row(act.fns, fn, 3)[2] += 1;
+    }
+    if ((work & 1023) === 0) tick();
+  };
+  var rowsOf = function (made) {
+    var list = [];
+    for (var key in made.rows) list.push([Number(key)].concat(made.rows[key]));
+    return list;
+  };
+  var profileOf = function (reason) {
+    return {
+      type: 'profile',
+      reason: reason,
+      work: work,
+      actions: actions.map(function (each) {
+        return { kind: each.kind, target: each.target, label: each.label, at: each.at, work: each.work, more: each.more, fns: rowsOf(each.fns), dom: rowsOf(each.dom), renders: rowsOf(each.renders), requests: each.requests };
+      }),
+      requests: host.requests ? host.requests() : []
+    };
+  };
+  /* a check run's count is only a count while it ran to the end: stopped for any reason (its cap, the app's own call of
+     stop), it is no number */
+  api.work = function () { return capped || (limits.profile === 1 && !on) ? -1 : work; };
+  api.action = function (kind, target, label) {
+    if (!profiling || !on) return;
+    flushDom();
+    current = null;
+    if (actions.length >= limits.maxActions) act.more += 1;
+    else act = newAction(String(kind).slice(0, 20), String(target).slice(0, 120), String(label).slice(0, 60));
+    lastTick = 0;
+    tick();
+  };
+  api.dom = function (changes) { if (profiling) landDom(changes); };
+  /* at most maxRequests in all (the bridge keeps the server's times of as many): an id is in one action only */
+  var requested = 0;
+  api.request = function (id) {
+    if (!profiling || !on || requested >= limits.maxRequests || typeof id !== 'number') return;
+    requested += 1;
+    act.requests.push(id);
   };
 
   var cut = function (text, max) { return text.length > max ? text.slice(0, max) : text; };
@@ -303,8 +473,12 @@ export const RECORDER_SOURCE = String.raw`(function (limits, host) {
   };
 
   api.s = function (point, call, getters) {
-    if (!api.on || busy) return;
+    if (!on || busy) return;
     queueReset();
+    if (profiling) {
+      countStep(point, call);
+      return;
+    }
     heal(call);
     call.point = point;
     if (count >= limits.maxSteps) {
@@ -343,12 +517,19 @@ export const RECORDER_SOURCE = String.raw`(function (limits, host) {
   };
 
   api.stop = function (reason) {
-    if (!api.on) return;
-    api.on = false;
+    if (!on) return;
+    if (profiling) {
+      flushDom();
+      on = false;
+      stack.length = 0;
+      if (limits.profile === 2) post(profileOf(reason));
+      return;
+    }
+    on = false;
     stack.length = 0;
     flush();
     post({ type: 'recordEnd', reason: reason, count: count });
   };
 
-  return api;
+  return Object.freeze(api);
 })`

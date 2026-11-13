@@ -1,5 +1,5 @@
-// Other edits a player may make to a Debugging level (State & async, Breakpoints & stepping): real fixes the goals must
-// accept (the ones the debriefs name among them), and tempting non-fixes they must reject. The unit tests check that every edit applies to
+// Other edits a player may make to a Debugging level (State & async, Breakpoints & stepping, Performance): real fixes the
+// goals must accept (the ones the debriefs name among them), and tempting non-fixes they must reject. The unit tests check that every edit applies to
 // the level's files; e2e/debugging-levels.spec.ts runs them in a real browser.
 
 export interface OtherFix {
@@ -184,5 +184,158 @@ export const otherFixes: Record<string, OtherFix[]> = {
   ],
   'debugging-practice-comma-price': [
     { name: 'the price as a string with a point', edits: [{ save: 'pastries.js', replace: ['price: \'3,20\'', 'price: \'3.20\''] }], solves: true }
+  ],
+  'debugging-26-request-per-key': [
+    { name: 'search on change (Enter, or leaving the field)', edits: [{ save: 'search.js', replace: ['field.addEventListener(\'input\', search)', 'field.addEventListener(\'change\', search)'] }], solves: true },
+    { name: 'search when Enter is pressed', edits: [{ save: 'search.js', replace: ['field.addEventListener(\'input\', search)', 'field.addEventListener(\'keydown\', (event) => {\n  if (event.key === \'Enter\') search()\n})'] }], solves: true },
+    { name: 'a debounce shorter than the time between two keys (20 ms)', edits: [{ save: 'search.js', replace: ['field.addEventListener(\'input\', search)\n', 'let timer = null\nfield.addEventListener(\'input\', () => {\n  clearTimeout(timer)\n  timer = setTimeout(search, 20)\n})\n'] }], solves: false },
+    { name: 'search only from nine letters on', edits: [{ save: 'search.js', replace: ['if (words.length < 3) return', 'if (words.length < 9) return'] }], solves: false }
+  ],
+  'debugging-practice-check-once': [
+    { name: 'a debounce', edits: [{ save: 'voucher.js', replace: ['field.addEventListener(\'input\', checkVoucher)', 'let timer = null\nfield.addEventListener(\'input\', () => {\n  clearTimeout(timer)\n  timer = setTimeout(checkVoucher, 300)\n})'] }], solves: true },
+    { name: 'check only from eight letters on', edits: [{ save: 'voucher.js', replace: ['  const code = field.value.trim().toUpperCase()\n', '  const code = field.value.trim().toUpperCase()\n  if (code.length < 8) return\n'] }], solves: false }
+  ],
+  'debugging-27-redraws-menu': [
+    {
+      name: 'draw the menu only when its HTML changed',
+      edits: [
+        { save: 'app.js', replace: ['function renderMenu() {\n  menu.innerHTML = products.map(', 'function renderMenu() {\n  const html = products.map('] },
+        { save: 'app.js', replace: ['    </li>`).join(\'\')\n}\n', '    </li>`).join(\'\')\n  if (menu.innerHTML !== html) menu.innerHTML = html\n}\n'] }
+      ],
+      solves: true
+    },
+    { name: 'render() without the menu (it is never drawn)', edits: [{ save: 'app.js', replace: ['function render() {\n  renderMenu()\n  renderBasket()\n}', 'function render() {\n  renderBasket()\n}'] }], solves: false },
+    { name: 'nothing drawn on Add', edits: [{ save: 'app.js', replace: ['.dataset.id))\n  render()\n', '.dataset.id))\n'] }], solves: false },
+    { name: 'the menu drawn again a moment later (review 2026-11-13)', edits: [{ save: 'app.js', replace: ['function render() {\n  renderMenu()\n', 'function render() {\n  if (menu.children.length) setTimeout(renderMenu, 200)\n  else renderMenu()\n'] }], solves: false }
+  ],
+  'debugging-28-formatted-thousands': [
+    {
+      name: 'the prices formatted once, still looked up with find',
+      edits: [{
+        save: 'prices.js',
+        replace: [
+          'export function priceLabel(id) {\n  const labels = PRICES.map(entry => ({ id: entry.id, label: formatPrice(entry.cents) }))\n',
+          'const labels = PRICES.map(entry => ({ id: entry.id, label: formatPrice(entry.cents) }))\n\nexport function priceLabel(id) {\n'
+        ]
+      }],
+      solves: true
+    },
+    {
+      name: 'a cache inside formatPrice (the loop around it stays)',
+      edits: [
+        { save: 'money.js', replace: ['export function formatPrice(cents) {\n', 'const written = new Map()\n\nexport function formatPrice(cents) {\n  if (written.has(cents)) return written.get(cents)\n'] },
+        { save: 'money.js', replace: ['  return `${euros}.${rest} €`\n', '  written.set(cents, `${euros}.${rest} €`)\n  return written.get(cents)\n'] }
+      ],
+      solves: false
+    },
+    {
+      name: 'the labels made by eval, where nothing counts (review 2026-11-13)',
+      edits: [{ save: 'prices.js', replace: ['  const labels = PRICES.map(entry => ({ id: entry.id, label: formatPrice(entry.cents) }))\n', '  const labels = eval(\'PRICES.map(entry => ({ id: entry.id, label: formatPrice(entry.cents) }))\')\n'] }],
+      solves: false
+    },
+    {
+      name: 'the labels made by new Function, where nothing counts (review 2026-11-13)',
+      edits: [{ save: 'prices.js', replace: ['  const labels = PRICES.map(entry => ({ id: entry.id, label: formatPrice(entry.cents) }))\n', '  const labels = new Function(\'PRICES\', \'formatPrice\', \'return PRICES.map(entry => ({ id: entry.id, label: formatPrice(entry.cents) }))\')(PRICES, formatPrice)\n'] }],
+      solves: false
+    },
+    {
+      name: 'the first label kept for every product',
+      edits: [
+        { save: 'prices.js', replace: ['export function priceLabel(id) {\n', 'let kept = null\n\nexport function priceLabel(id) {\n  if (kept) return kept\n'] },
+        { save: 'prices.js', replace: ['  return labels.find(entry => entry.id === id).label\n', '  kept = labels.find(entry => entry.id === id).label\n  return kept\n'] }
+      ],
+      solves: false
+    }
+  ],
+  'debugging-practice-only-the-counter': [
+    { name: 'the list drawn only on load, the counter not at all', edits: [{ save: 'app.js', replace: ['.dataset.id)\n  renderPage()', '.dataset.id)'] }], solves: false },
+    { name: 'the counter at once, the list drawn again a moment later (review 2026-11-13)', edits: [{ save: 'app.js', replace: ['.dataset.id)\n  renderPage()', '.dataset.id)\n  renderBadge()\n  setTimeout(renderPage, 300)'] }], solves: false }
+  ],
+  'debugging-practice-map-lookup': [
+    { name: 'the lookup made by new Function, where nothing counts (review 2026-11-13)', edits: [{ save: 'total.js', replace: ['    const cents = PRICES.find(entry => entry.id === line.id).cents', '    const cents = new Function(\'PRICES\', \'id\', \'return PRICES.find(entry => entry.id === id).cents\')(PRICES, line.id)'] }], solves: false }
+  ],
+  'debugging-29-one-after-another': [
+    {
+      name: 'every request started first, then each awaited',
+      edits: [{
+        save: 'load.js',
+        replace: [
+          '  const menu = await getJson(\'/api/menu\')\n  const specials = await getJson(\'/api/specials\')\n  const hours = await getJson(\'/api/hours\')\n',
+          '  const menuRequest = getJson(\'/api/menu\')\n  const specialsRequest = getJson(\'/api/specials\')\n  const hoursRequest = getJson(\'/api/hours\')\n  const menu = await menuRequest\n  const specials = await specialsRequest\n  const hours = await hoursRequest\n'
+        ]
+      }],
+      solves: true
+    },
+    {
+      name: 'each part drawn as its answer arrives',
+      edits: [{
+        save: 'load.js',
+        replace: [
+          '  const menu = await getJson(\'/api/menu\')\n  const specials = await getJson(\'/api/specials\')\n  const hours = await getJson(\'/api/hours\')\n  showMenu(menu)\n  showSpecials(specials)\n  showHours(hours)\n',
+          '  getJson(\'/api/menu\').then(showMenu)\n  getJson(\'/api/specials\').then(showSpecials)\n  getJson(\'/api/hours\').then(showHours)\n'
+        ]
+      }],
+      solves: true
+    },
+    {
+      name: 'the menu and the specials together, then the hours',
+      edits: [{ save: 'load.js', replace: ['  const menu = await getJson(\'/api/menu\')\n  const specials = await getJson(\'/api/specials\')\n', '  const [menu, specials] = await Promise.all([getJson(\'/api/menu\'), getJson(\'/api/specials\')])\n'] }],
+      solves: false
+    },
+    {
+      name: 'only the menu asked for, the specials and hours written into the code (review 2026-11-13)',
+      edits: [{
+        save: 'load.js',
+        replace: [
+          '  const specials = await getJson(\'/api/specials\')\n  const hours = await getJson(\'/api/hours\')\n',
+          '  const specials = [{ name: \'Plum cake\', note: \'with the last plums of the season\' }]\n  const hours = { weekdays: \'7:00–18:00\', saturday: \'7:00–13:00\' }\n'
+        ]
+      }],
+      solves: false
+    },
+    {
+      name: 'the hours left out',
+      edits: [{ save: 'load.js', replace: ['  const menu = await getJson(\'/api/menu\')\n  const specials = await getJson(\'/api/specials\')\n  const hours = await getJson(\'/api/hours\')\n  showMenu(menu)\n  showSpecials(specials)\n  showHours(hours)\n', '  const [menu, specials] = await Promise.all([getJson(\'/api/menu\'), getJson(\'/api/specials\')])\n  showMenu(menu)\n  showSpecials(specials)\n'] }],
+      solves: false
+    }
+  ],
+  'debugging-practice-both-at-once': [
+    { name: 'the stock written into the code (review 2026-11-13)', edits: [{ save: 'breads.js', replace: ['  const stock = await getJson(\'/api/stock\')\n', '  const stock = { sourdough: 4, rye: 7 }\n'] }], solves: false },
+    { name: 'the stock first, then the breads', edits: [{ save: 'breads.js', replace: ['  const breads = await getJson(\'/api/breads\')\n  const stock = await getJson(\'/api/stock\')\n', '  const stock = await getJson(\'/api/stock\')\n  const breads = await getJson(\'/api/breads\')\n'] }], solves: false }
+  ],
+  'debugging-30-asks-again': [
+    {
+      name: 'the lists kept (not their promises)',
+      edits: [{
+        save: 'tabs.js',
+        replace: [
+          'async function showTab(name) {\n  const response = await fetch(`/api/${name}`)\n  const items = await response.json()\n',
+          'const lists = {}\n\nasync function showTab(name) {\n  if (!lists[name]) lists[name] = await (await fetch(`/api/${name}`)).json()\n  const items = lists[name]\n'
+        ]
+      }],
+      solves: true
+    },
+    {
+      name: 'one answer kept for both tabs',
+      edits: [{
+        save: 'tabs.js',
+        replace: [
+          'async function showTab(name) {\n  const response = await fetch(`/api/${name}`)\n  const items = await response.json()\n',
+          'let kept = null\n\nasync function showTab(name) {\n  kept ??= await (await fetch(`/api/${name}`)).json()\n  const items = kept\n'
+        ]
+      }],
+      solves: false
+    },
+    {
+      name: 'only the menu kept',
+      edits: [{
+        save: 'tabs.js',
+        replace: [
+          'async function showTab(name) {\n  const response = await fetch(`/api/${name}`)\n  const items = await response.json()\n',
+          'let menu = null\n\nasync function showTab(name) {\n  const items = name === \'menu\' ? (menu ??= await (await fetch(\'/api/menu\')).json()) : await (await fetch(`/api/${name}`)).json()\n'
+        ]
+      }],
+      solves: false
+    }
   ]
 }

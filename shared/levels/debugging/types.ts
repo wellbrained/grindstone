@@ -67,6 +67,32 @@ export type ProbeStep
     | { overflows: string }
   /** The contrast ratio of the first matching element's text against the background behind it (1 to 21, two decimals). */
     | { contrast: string }
+  /**
+   * Types into the first field that matches letter by letter, like a customer: per letter a `keydown`, the letter added
+   * to its value with an `input` event (unless the keydown was prevented), a `keyup`, then `gap` ms (default 80) before
+   * the next. No `change`, and the focus is never taken. Answers are not waited for.
+   */
+    | { keys: string, value: string, gap?: number }
+  /**
+   * Presses a key in the first element that matches: a `keydown` and a `keyup`; Enter in an `<input>` also commits it
+   * (a `change`, unless the keydown was prevented), as in the browser. No form is submitted: the sealed frame has none.
+   */
+    | { press: string, key: string }
+  /**
+   * Performance levels (chapter 6): how many nodes of the page the app changed inside the first element that matches
+   * since this probe started (elements and text added or removed, attributes and texts changed), from a MutationObserver.
+   */
+    | { changes: string }
+  /**
+   * Performance levels whose check run counts work (the code runs instrumented, counting only): the statements the app's
+   * code ran, while it loaded (`'load'`: until the page was quiet, before the first probe) or since this probe started.
+   */
+    | { work: 'load' | 'here' }
+  /**
+   * Performance levels: the server time the customer waited, in the fake backend's scripted delays (a clock that moves
+   * only when an answer arrives): until the loaded page was quiet (`'load'`), or since this probe started.
+   */
+    | { waited: 'load' | 'here' }
 
 /** A scripted look at the app that goals read: steps run in order; its value is what the last read step read. */
 export interface Probe {
@@ -149,6 +175,13 @@ export interface SandboxSpec {
    * stepping, the Scope and the Call stack go through the recorded run. Other levels never run instrumented code.
    */
   debugger?: true
+  /**
+   * The level uses the Performance panel (chapter 6): Record reloads the app with its code instrumented to count (no
+   * values read), and the panel shows how often each function ran and its work, what the code changed on the page, and
+   * the requests over the server's time. Its check runs watch the page's changes and the server's time, and count work
+   * (instrumented, counting only) when a probe reads it.
+   */
+  performance?: true
 }
 
 /** A value a JSON body can hold. */

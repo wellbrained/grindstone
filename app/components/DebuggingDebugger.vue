@@ -75,7 +75,17 @@ useEventListener(window, 'keydown', (event: KeyboardEvent) => {
 const recordButton = useTemplateRef<{ $el: HTMLElement }>('recordButton')
 const stopButton = useTemplateRef<{ $el: HTMLElement }>('stopButton')
 const toolbar = useTemplateRef<HTMLElement>('toolbar')
-defineExpose({ focus: () => (toolbar.value?.querySelector<HTMLElement>('button:not([disabled])') ?? recordButton.value?.$el ?? stopButton.value?.$el)?.focus() })
+const focus = () => (toolbar.value?.querySelector<HTMLElement>('button:not([disabled])') ?? recordButton.value?.$el ?? stopButton.value?.$el)?.focus()
+defineExpose({ focus })
+// Stop (the panel's or the App's) is gone once the recording is in, and the focus with it: it goes to the controls
+// instead (on a phone the Debugger is the tab on screen by then); focus somewhere real, like the app, stays where it is
+watch(recordStatus, (status, was) => {
+  if (status !== 'recorded' || (was !== 'recording' && was !== 'stopping')) return
+  nextTick(() => {
+    const active = document.activeElement
+    if (!active || active === document.body) focus()
+  })
+})
 
 const STEP_BUTTONS = computed(() => [
   { id: 'resume-back', icon: 'i-lucide-skip-back', label: t('debugging.debugger.resumeBack'), run: resumeBack },

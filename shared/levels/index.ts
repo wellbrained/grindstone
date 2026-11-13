@@ -14,7 +14,9 @@ export type { RawFrame, SourceMapping } from './debugging/trace'
 export type { CheckFrame, ElementsConfig, SandboxDocument, SandboxOptions } from './debugging/sandbox'
 export type { CheckRun } from './debugging/engine'
 export type { Breakpoint, ConditionCheck, Hit, RecordedFrame, RecordedObject, RecordedStep, RecordedValue, RecordingMap, ScopeEntries } from './debugging/recording'
-export type { RecordEndReason, RecordLimits } from './debugging/recorder'
+export type { CountingLimits, RecordEndReason, RecordLimits } from './debugging/recorder'
+export type { ActionKind, ChangedLine, FunctionCount, FunctionPlace, FunctionRow, LineChange, Profile, ProfileAction, ProfileEnd, ProfileMap, ProfileSummary, RenderCount, RenderRow, RequestRow, RequestTime } from './debugging/profile'
+export type { ProbeExpectation } from './debugging/checks'
 export type { FunctionInfo, Instrumented, ScopeKind, ScopeView, SkipReason, StepPoint } from './debugging/instrument'
 export type { Action, ActResult, HintShown, Outcome } from './engine'
 export type { Attempt, LastPlayed, LevelProgress, Progress, ProgressSummary, ReadResult, Run, RunCounter, RunMeasure } from './progress'
@@ -63,7 +65,9 @@ export { MAX_CSS_RULES, compareSpecificity, cssRules, isInherited, longhandsOf, 
 export { COMPUTED_PROPERTIES, MAX_DOM_NODES, boxNumber, elementStyles, nodeAtPath, nodeLabel, nodePath, startExpanded, treeMove, treeRows, withAncestors } from './debugging/elements'
 export { DEFAULT_DELAY_MS, STATUS_TEXT, backendConfig } from './debugging/backend'
 export { MAX_PROBE_WAIT_MS } from './debugging/bridge'
-export { RECORD_LIMITS, RECORDER_GLOBAL } from './debugging/recorder'
+export { PROFILE_LIMITS, RECORD_LIMITS, RECORDER_GLOBAL, countingLimits } from './debugging/recorder'
+export { fittingProfile, functionRows, needsCounting, profileLines, profileSummary, readProfile, renderRows, requestRows, timelineEnd, withUncounted } from './debugging/profile'
+export { meets } from './debugging/checks'
 export {
   atBreakpoint,
   fittingSteps,

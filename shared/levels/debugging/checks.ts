@@ -16,18 +16,29 @@ export function probeGoal(id: string, label: string, probe: string, expected: Pr
   return { id, label, check: ({ state }) => state.observed?.finished === true && probeValue(state, probe) === expected }
 }
 
+/** What a probe must read: exactly this value, or a number within a bound (chapter 6: "at most 1 request"). */
+export type ProbeExpectation = ProbeValue | { atMost: number } | { atLeast: number }
+
+/** The value meets the expectation: equal, or a number within its bound (a missing value never does). */
+export function meets(value: ProbeValue | undefined, expected: ProbeExpectation): boolean {
+  if (expected === null || typeof expected !== 'object') return value === expected
+  if (typeof value !== 'number') return false
+  return 'atMost' in expected ? value <= expected.atMost : value >= expected.atLeast
+}
+
 /**
- * Several probes read exactly these after the last reload, in a check run that finished: one goal for what belongs
- * together ("Order can be tapped, and the message above it still shows"), so a guard never passes on its own at the start.
- * `clean`: and nothing red in the Console either (a fix that works but leaves an uncaught error behind does not count).
+ * Several probes read these after the last reload (exactly, or a number within a bound), in a check run that finished:
+ * one goal for what belongs together ("Order can be tapped, and the message above it still shows"), so a guard never
+ * passes on its own at the start. `clean`: and nothing red in the Console either (a fix that works but leaves an
+ * uncaught error behind does not count).
  */
-export function probesGoal(id: string, label: string, expected: Readonly<Record<string, ProbeValue>>, options: { clean?: boolean } = {}): DebugGoal {
+export function probesGoal(id: string, label: string, expected: Readonly<Record<string, ProbeExpectation>>, options: { clean?: boolean } = {}): DebugGoal {
   return {
     id,
     label,
     check: ({ state }) => state.observed?.finished === true
       && (!options.clean || state.observed.errors.length === 0)
-      && Object.entries(expected).every(([probe, value]) => probeValue(state, probe) === value)
+      && Object.entries(expected).every(([probe, value]) => meets(probeValue(state, probe), value))
   }
 }
 

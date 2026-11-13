@@ -1,5 +1,5 @@
-// The Debugging track (ADR 0007): its chapters and their levels, in play order. Chapters 1 to 5 are live; the other
-// two are coming (no levels yet). A practice task goes right after the scenario it trains (`practises`); defineTrack checks it.
+// The Debugging track (ADR 0007): its chapters and their levels, in play order. Chapters 1 to 6 are live; Incidents
+// is coming (no levels yet). A practice task goes right after the scenario it trains (`practises`); defineTrack checks it.
 import { fewestHintsThenReloads } from '../progress'
 import { defineTrack, trackLevels } from '../track'
 import { isDebugLevel } from './types'
@@ -29,6 +29,11 @@ import { missesLastItem } from './22-misses-last-item'
 import { noFreeDelivery } from './23-no-free-delivery'
 import { alwaysPickup } from './24-always-pickup'
 import { seventhItem } from './25-seventh-item'
+import { requestPerKey } from './26-request-per-key'
+import { redrawsMenu } from './27-redraws-menu'
+import { formattedThousands } from './28-formatted-thousands'
+import { oneAfterAnother } from './29-one-after-another'
+import { asksAgain } from './30-asks-again'
 import {
   closeTheBracket,
   frameThatPassed,
@@ -84,13 +89,25 @@ import {
   unroundedCompare,
   wrongSlices
 } from './practice/breakpoints'
+import {
+  asksForHoursAgain,
+  bothAtOnce,
+  checkOnce,
+  drawsAllDays,
+  keepTheAnswer,
+  mapLookup,
+  mostSelfWork,
+  onlyTheCounter,
+  sendsPerKey,
+  waitsFirst
+} from './practice/performance'
 
 export const debuggingTrack = defineTrack({
   id: 'debugging',
   title: 'Debugging',
   scope: 'DevTools and incidents: track a bug down to its cause.',
   tagline: 'Find the bug before your customers do.',
-  description: 'Small real apps with real bugs, from Corner Bakery\'s ordering site: read the Console, the Network and Elements panels, follow the stack trace to the line, step through a recorded run with breakpoints, fix the code and reload until the shop works again. Goals check what the app does, so any fix that works counts.',
+  description: 'Small real apps with real bugs, from Corner Bakery\'s ordering site: read the Console, the Network and Elements panels, follow the stack trace to the line, step through a recorded run with breakpoints, count what a slow page does, fix the code and reload until the shop works again. Goals check what the app does, so any fix that works counts.',
   status: 'live',
   // fewest hints, then fewest reloads (ADR 0007): no commands to count, and no clock
   bestRun: fewestHintsThenReloads,
@@ -205,7 +222,29 @@ export const debuggingTrack = defineTrack({
         commaPrice
       ]
     },
-    { id: 'performance', title: 'Performance', description: 'Slow pages, long tasks and what makes them slow.', colour: 5, levels: [] },
+    {
+      id: 'performance',
+      title: 'Performance',
+      description: 'Slow, not wrong: requests per key, pages drawn again, work in a loop, waterfalls and asking twice.',
+      colour: 5,
+      levels: [
+        requestPerKey,
+        sendsPerKey,
+        checkOnce,
+        redrawsMenu,
+        drawsAllDays,
+        onlyTheCounter,
+        formattedThousands,
+        mostSelfWork,
+        mapLookup,
+        oneAfterAnother,
+        waitsFirst,
+        bothAtOnce,
+        asksAgain,
+        asksForHoursAgain,
+        keepTheAnswer
+      ]
+    },
     { id: 'incidents', title: 'Incidents', description: 'Logs, the latest change and a rollback while customers wait.', colour: 6, levels: [] }
   ]
 })

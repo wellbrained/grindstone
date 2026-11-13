@@ -6,11 +6,18 @@ import type { DebuggingPlaySession } from '~/composables/useDebuggingPlay'
 // a sealed iframe (sandbox="allow-scripts" only: an opaque origin, so it can't read Grindstone's storage, cookies or
 // DOM). Only messages from this iframe reach the play page, which still checks each one (its load's token, its shape).
 // In levels with the Elements panel the header shows the app's width (media queries hold by it), and pick mode says
-// what the next click does. While the Debugger records (chapter 5) a line says so, with Stop.
+// what the next click does. While the Debugger records (chapter 5) or the Performance panel counts (chapter 6) a line
+// says so, with Stop.
 const props = defineProps<{ play: DebuggingPlaySession }>()
 
 const { t } = useI18n()
-const { level, load, checking, stale, hasNetwork, hasElements, picking, setPicking, reloadApp, onFrameMessage, connectFrame, recordStatus, stepCount, stopRecording } = props.play
+const { level, load, checking, stale, hasNetwork, hasElements, picking, setPicking, reloadApp, onFrameMessage, connectFrame, recordStatus, stepCount, stopRecording, profileStatus, profileWork, stopProfile } = props.play
+
+/** A recording is on (the Debugger's steps, or the Performance panel's count), and what its banner counts. */
+const counting = computed(() => profileStatus.value === 'recording' || profileStatus.value === 'stopping')
+const recordingOn = computed(() => counting.value || recordStatus.value === 'recording' || recordStatus.value === 'stopping')
+const stopping = computed(() => recordStatus.value === 'stopping' || profileStatus.value === 'stopping')
+const stopAny = () => counting.value ? stopProfile() : stopRecording()
 
 const frame = useTemplateRef<HTMLIFrameElement>('frame')
 connectFrame(() => frame.value?.contentWindow ?? null)
@@ -87,7 +94,7 @@ const address = `${SHOP_ORIGIN.replace(/^https:\/\//, '').replace(/\/$/, '')}${l
       />
     </p>
     <p
-      v-if="recordStatus === 'recording' || recordStatus === 'stopping'"
+      v-if="recordingOn"
       class="flex items-center justify-between gap-2 border-b border-(--app-terminal-border) bg-error/10 px-3 py-1 text-xs text-highlighted"
       data-testid="record-banner"
     >
@@ -97,15 +104,15 @@ const address = `${SHOP_ORIGIN.replace(/^https:\/\//, '').replace(/\/$/, '')}${l
           aria-hidden="true"
         />
         {{ t('debugging.app.recording') }}
-        <span class="font-mono whitespace-nowrap text-dimmed tabular-nums">{{ t('debugging.debugger.steps', stepCount) }}</span>
+        <span class="font-mono whitespace-nowrap text-dimmed tabular-nums">{{ counting ? t('debugging.performance.units', { n: profileWork.toLocaleString('en') }, profileWork) : t('debugging.debugger.steps', stepCount) }}</span>
       </span>
       <UButton
         size="xs"
         color="error"
         icon="i-lucide-square"
         :label="t('debugging.debugger.stop')"
-        :loading="recordStatus === 'stopping'"
-        @click="stopRecording"
+        :loading="stopping"
+        @click="stopAny"
       />
     </p>
     <p

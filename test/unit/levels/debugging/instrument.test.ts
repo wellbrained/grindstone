@@ -215,6 +215,21 @@ describe('the instrumented code does what the code did', () => {
     `)
   })
 
+  it('keeps empty bodies valid: functions, arrows, methods and static blocks with nothing in them (review 2026-11-13)', async () => {
+    const run = await same(`
+      const noop = () => {}
+      function nothing() {}
+      const object = { method() {}, get value() { return 1 } }
+      class Empty { constructor() {} static {} run() {} }
+      noop()
+      nothing()
+      object.method()
+      new Empty().run()
+      log(noop(), nothing(), object.value)
+    `)
+    expect(withoutInstrumentation(run.meta.modules['app.js']!)).not.toContain('__gs$')
+  })
+
   it('keeps classes: constructors, super, getters and setters, statics, private fields, static blocks and arrow fields', async () => {
     await same(`
       class Cart {

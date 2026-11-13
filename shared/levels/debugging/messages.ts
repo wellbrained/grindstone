@@ -5,6 +5,8 @@
 import { MAX_CSS_RULES } from './css'
 import { MAX_DOM_NODES } from './elements'
 import type { BoxModel, DomNode, Inspected, InspectedLevel, InspectedMatch, ScrollSize, Sides } from './elements'
+import { readProfile } from './profile'
+import type { Profile } from './profile'
 import { readSteps } from './recording'
 import type { RecordedStep } from './recording'
 import type { RecordEndReason } from './recorder'
@@ -48,6 +50,10 @@ export type BridgeMessage
     | { type: 'steps', steps: RecordedStep[] }
   /** The recording ended: the page's Stop, the step cap or values too slow to read; how many steps it posted. */
     | { type: 'recordEnd', reason: RecordEndReason, count: number }
+  /** A recorded profile (chapter 6), at Stop or at its cap: checked by `readProfile`. */
+    | { type: 'profile', profile: Profile }
+  /** While a profile records: the work counted so far and how many actions. */
+    | { type: 'profileTick', work: number, actions: number }
 
 export interface InspectedMessage extends Inspected {
   type: 'inspected'
@@ -94,7 +100,7 @@ const MAX_CHAIN = 64
 const MAX_COMPUTED = 30
 const LEVELS: readonly ConsoleLevel[] = ['log', 'info', 'warn', 'error', 'debug']
 const FAILURES: readonly RequestFailure[] = ['cors', 'network', 'aborted']
-const RECORD_ENDS: readonly RecordEndReason[] = ['stopped', 'steps', 'slow']
+const RECORD_ENDS: readonly RecordEndReason[] = ['stopped', 'steps', 'slow', 'work']
 
 const text = (value: unknown): string | null => typeof value === 'string' ? value.slice(0, MAX_TEXT) : null
 const textOrNull = (value: unknown): string | null | undefined => value === null ? null : text(value) ?? undefined
@@ -327,6 +333,15 @@ export function readBridgeMessage(data: unknown, token: string): BridgeMessage |
     case 'steps': {
       const steps = readSteps(raw.steps)
       return steps ? { type: 'steps', steps } : null
+    }
+    case 'profile': {
+      const profile = readProfile(raw)
+      return profile ? { type: 'profile', profile } : null
+    }
+    case 'profileTick': {
+      const work = whole(raw.work, Number.MAX_SAFE_INTEGER)
+      const actions = whole(raw.actions, Number.MAX_SAFE_INTEGER)
+      return work !== undefined && actions !== undefined ? { type: 'profileTick', work, actions } : null
     }
     case 'recordEnd': {
       const reason = RECORD_ENDS.find(each => each === raw.reason)

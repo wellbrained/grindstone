@@ -9,7 +9,9 @@
 // - keeps the app on its page (links do not navigate),
 // - answers the app's `fetch` with the level's scripted backend (backend.ts) when it has one, inside the frame,
 // - in levels with the Elements panel, answers the panel (inspector.ts): snapshots, matching rules, outline, pick mode,
-// - in a recorded load (chapter 5), runs the recorder (recorder.ts) the instrumented modules report their steps to.
+// - in a recorded load (chapter 5), runs the recorder (recorder.ts) the instrumented modules report their steps to,
+// - in a Performance level (chapter 6), watches what the app changes on the page and keeps the server's clock (answers
+//   move it by their scripted delays); a recorded profile also reports the customer's actions to the counting recorder.
 // It is JavaScript in a string, injected as one line (it never shifts index.html's lines), so it uses no line comments
 // and ends every statement with a semicolon. Tested in a real browser: e2e/debugging-levels.spec.ts.
 import { BACKEND_SOURCE } from './backend'
@@ -84,12 +86,123 @@ const SOURCE = String.raw`(function (config) {
     }
   };
 
-  /* A recorded load (chapter 5): the recorder the instrumented modules call before each statement, set up before any of
-     them runs. It posts the steps in batches and stops on its caps or on the page's Stop. */
+  /* Performance (chapter 6): what the app changes on the page, watched by a MutationObserver from the moment the page is
+     parsed (readyState 'interactive', before any module runs); a change counts the elements and texts it adds or
+     removes, or one attribute or text it sets. And the server's clock: it moves only when an answer arrives, to the time
+     its request went out plus its scripted delay, so the same run reads the same times in every browser. */
+  var perf = config.perf || null;
   var recorder = null;
+  var clock = { now: 0, times: Object.create(null), count: 0, active: 0 };
+  var domLog = [];
+  var domBase = 0;
+  var watcher = null;
+  var lateDom = null;
+  var visibleNode = function (node) { return node.nodeType === 1 || (node.nodeType === 3 && /\S/.test(node.data)); };
+  var countNodes = function (list) {
+    var n = 0;
+    for (var i = 0; i < list.length; i++) if (visibleNode(list[i])) n++;
+    return n;
+  };
+  var logDom = function (records) {
+    var counts = [];
+    for (var i = 0; i < records.length; i++) {
+      var record = records[i];
+      var nodes = record.type === 'childList' ? countNodes(record.addedNodes) + countNodes(record.removedNodes) : 1;
+      if (!nodes) continue;
+      counts.push(nodes);
+      if (config.probes) domLog.push({ target: record.target, added: Array.prototype.slice.call(record.addedNodes, 0, 20), nodes: nodes });
+    }
+    if (domLog.length > 20000) {
+      domBase += domLog.length - 20000;
+      domLog.splice(0, domLog.length - 20000);
+    }
+    return counts;
+  };
+  var takeDom = function () { return watcher ? logDom(watcher.takeRecords()) : []; };
+  /* A look from the bridge's side (a probe): what changed is logged, and counted for the statement that made it. */
+  var takeAll = function () {
+    var counts = takeDom();
+    if (lateDom) lateDom(counts);
+  };
+  if (perf && typeof MutationObserver === 'function') {
+    var watch = function () {
+      if (watcher || document.readyState === 'loading') return;
+      watcher = new MutationObserver(function (records) {
+        var counts = logDom(records);
+        if (lateDom) lateDom(counts);
+      });
+      watcher.observe(document, { childList: true, subtree: true, attributes: true, characterData: true });
+    };
+    watch();
+    document.addEventListener('readystatechange', watch);
+  }
+  var sentAt = function (id, delay) {
+    clock.active = performance.now();
+    if (clock.count < 200) {
+      clock.count += 1;
+      clock.times[id] = [clock.now, -1, delay];
+    }
+    if (recorder && recorder.request) recorder.request(id);
+  };
+  var arrivedAt = function (id) {
+    clock.active = performance.now();
+    var times = clock.times[id];
+    if (!times) return;
+    times[1] = times[0] + times[2];
+    if (times[1] > clock.now) clock.now = times[1];
+  };
+  var abortedAt = function (id) {
+    clock.active = performance.now();
+    var times = clock.times[id];
+    if (times) times[1] = clock.now;
+  };
+  var requestTimes = function () {
+    var list = [];
+    for (var id in clock.times) list.push([Number(id), clock.times[id][0], clock.times[id][1]]);
+    return list;
+  };
+
+  /* A recorded load (chapter 5): the recorder the instrumented modules call before each statement, set up before any of
+     them runs. It posts the steps in batches and stops on its caps or on the page's Stop. Chapter 6 runs it counting. */
   if (config.record) {
-    recorder = (${RECORDER_SOURCE})(config.record, { post: post, now: function () { return performance.now(); }, describe: describe });
+    recorder = (${RECORDER_SOURCE})(config.record, {
+      post: post,
+      now: function () { return performance.now(); },
+      describe: describe,
+      takeDom: perf ? takeDom : null,
+      requests: requestTimes,
+      clock: function () { return clock.now; }
+    });
     try { Object.defineProperty(window, '${RECORDER_GLOBAL}', { value: recorder }); } catch (error) { recorder = null; }
+    if (recorder && perf) lateDom = recorder.dom;
+  }
+  var counting = !!(recorder && config.record.profile);
+  /* The work counted so far: null when this load does not count, -1 once counting stopped at its cap. */
+  var workNow = function () { return counting ? recorder.work() : null; };
+
+  /* A recorded profile (chapter 6): each click, typing, change or Enter starts an action, and what follows is counted
+     for it; the events of one press in one task (a checkbox's click, input and change) are one action. */
+  if (perf && perf.actions && counting) {
+    var acting = false;
+    var actionLabel = function (type, target) {
+      if (type === 'keydown') return 'Enter';
+      var tag = target.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+        if (target.type === 'checkbox' || target.type === 'radio') return target.checked ? 'checked' : 'unchecked';
+        return String(target.value || '').slice(0, 40);
+      }
+      return (target.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 40);
+    };
+    var onAction = function (event) {
+      if (acting || !recorder.on) return;
+      if (event.type === 'keydown' && event.key !== 'Enter') return;
+      var target = event.target && event.target.nodeType === 1 ? event.target : null;
+      if (target && event.type === 'click' && target.closest) target = target.closest('button, a, label, summary, [role="button"]') || target;
+      acting = true;
+      setTimeout(function () { acting = false; }, 0);
+      recorder.action(event.type, target ? describe(target) : '', target ? actionLabel(event.type, target) : '');
+    };
+    ['click', 'input', 'change', 'keydown', 'submit'].forEach(function (type) { window.addEventListener(type, onAction, true); });
   }
 
   /* The level's modules: blob URLs made here, and an import map from each file's name (and ./name) to its URL. */
@@ -163,14 +276,25 @@ const SOURCE = String.raw`(function (config) {
   /* The fake backend (ADR 0007, chapter 2): a level with one gets every fetch answered here, from its scripted routes;
      it posts each request and answer (the Network panel) and the browser's lines for failed ones. Without one, requests
      go on to the network, which the frame's Content-Security-Policy refuses (connect-src 'none'). */
-  var backend = config.backend ? (${BACKEND_SOURCE})(config.backend, { post: post, now: function () { return performance.now(); } }) : null;
+  var backend = config.backend
+    ? (${BACKEND_SOURCE})(config.backend, {
+        post: post,
+        now: function () { return performance.now(); },
+        sent: perf ? sentAt : null,
+        arrived: perf ? arrivedAt : null,
+        aborted: perf ? abortedAt : null
+      })
+    : null;
   var realFetch = window.fetch;
   window.fetch = function fetch(input, init) {
     return backend ? backend.fetch(input, init) : realFetch.apply(window, arguments);
   };
-  /* Until the backend has answered everything the app asked (at most 3 s): a check run reads the page after that. */
+  /* Until the backend has answered everything the app asked (at most 3 s): a check run reads the page after that. In
+     chapter 6 also 50 ms without a request sent or answered, so a page that loads one request after another is not
+     taken for quiet in the moment between an answer and the next request (reading it takes a slow machine a while). */
   var idle = function (left) {
-    if (!backend || backend.pending() === 0 || left <= 0) return Promise.resolve();
+    if (!backend || left <= 0) return Promise.resolve();
+    if (backend.pending() === 0 && (!perf || performance.now() - clock.active >= 50)) return Promise.resolve();
     return wait(10).then(function () { return idle(left - 10); });
   };
   var settle = function (ms) {
@@ -326,14 +450,80 @@ const SOURCE = String.raw`(function (config) {
     field.dispatchEvent(input);
     field.dispatchEvent(new Event('change', { bubbles: true }));
   };
+  /* A key event (true: nothing prevented it). */
+  var keyEvent = function (target, type, key) {
+    return target.dispatchEvent(new KeyboardEvent(type, { key: key, bubbles: true, cancelable: true }));
+  };
+  /* One letter as a customer types it: keydown, the letter in the field with an input event (unless the keydown was
+     prevented), keyup. Never the focus, never a change. */
+  var typeLetter = function (field, letter) {
+    if (keyEvent(field, 'keydown', letter)) {
+      field.value = (typeof field.value === 'string' ? field.value : '') + letter;
+      var input;
+      try { input = new InputEvent('input', { bubbles: true, inputType: 'insertText', data: letter }); } catch (error) { input = new Event('input', { bubbles: true }); }
+      field.dispatchEvent(input);
+    }
+    keyEvent(field, 'keyup', letter);
+  };
   var LOOKS = { style: 1, visible: 1, hit: 1, overflows: 1, contrast: 1 };
   var runProbe = function (probe) {
     var value = null;
     var problem = null;
     var steps = probe.steps.slice();
+    takeAll();
+    /* where the page's changes, the server's clock and the work were when this probe started */
+    var start = { dom: domBase + domLog.length, clock: clock.now, work: workNow() };
     var next = function () {
       if (problem !== null || !steps.length) return Promise.resolve();
       var step = steps.shift();
+      if (typeof step.keys === 'string') {
+        var typed = find(step.keys);
+        if (!typed) { problem = 'Nothing on the page matches ' + step.keys; return Promise.resolve(); }
+        var letters = String(step.value).split('');
+        var gap = Math.min(Math.max(typeof step.gap === 'number' ? step.gap : 80, 0), ${MAX_PROBE_WAIT_MS});
+        var typeOn = function () {
+          if (!letters.length) return next();
+          typeLetter(typed, letters.shift());
+          return wait(gap).then(typeOn);
+        };
+        return typeOn();
+      }
+      if (typeof step.press === 'string') {
+        var pressed = find(step.press);
+        if (!pressed) { problem = 'Nothing on the page matches ' + step.press; return Promise.resolve(); }
+        /* Enter in a text field commits it, as in the browser: a change (no form is submitted in a sealed frame) */
+        if (keyEvent(pressed, 'keydown', String(step.key)) && step.key === 'Enter' && pressed.tagName === 'INPUT') pressed.dispatchEvent(new Event('change', { bubbles: true }));
+        keyEvent(pressed, 'keyup', String(step.key));
+        return wait(20).then(next);
+      }
+      if (typeof step.changes === 'string') {
+        if (!perf) { problem = 'The page is not watched in this run'; return Promise.resolve(); }
+        takeAll();
+        var area = find(step.changes);
+        if (!area) { problem = 'Nothing on the page matches ' + step.changes; return Promise.resolve(); }
+        var changed = 0;
+        var holds = function (node) { return node.contains(area); };
+        for (var at = Math.max(start.dom - domBase, 0); at < domLog.length; at++) {
+          var entry = domLog[at];
+          if (area.contains(entry.target) || entry.added.some(holds)) changed += entry.nodes;
+        }
+        value = changed;
+        return next();
+      }
+      if (typeof step.work === 'string') {
+        var counted = workNow();
+        var from = step.work === 'load' ? 0 : start.work;
+        var upTo = step.work === 'load' ? loadWork : counted;
+        if (counted === null) problem = 'The app\'s work is not counted in this run';
+        else if (counted < 0 || from < 0 || upTo < 0) problem = 'The app did more work than is counted: counting stopped';
+        else value = upTo - from;
+        return next();
+      }
+      if (typeof step.waited === 'string') {
+        if (!perf) { problem = 'The server\'s time is not kept in this run'; return Promise.resolve(); }
+        value = step.waited === 'load' ? loadClock : clock.now - start.clock;
+        return next();
+      }
       if (typeof step.click === 'string') {
         var target = find(step.click);
         if (!target) { problem = 'Nothing on the page matches ' + step.click; return Promise.resolve(); }
@@ -391,8 +581,13 @@ const SOURCE = String.raw`(function (config) {
       post({ type: 'probe', id: probe.id, ok: problem === null, value: problem === null ? value : null, error: problem });
     });
   };
+  /* What loading cost (chapter 6): the work counted and the server's time once the loaded page is quiet. */
+  var loadWork = null;
+  var loadClock = 0;
   window.addEventListener('load', function () {
     settle(30).then(function () {
+      loadWork = workNow();
+      loadClock = clock.now;
       post({ type: 'ready' });
       if (inspector) inspector.snapshot();
       if (!config.probes) return null;

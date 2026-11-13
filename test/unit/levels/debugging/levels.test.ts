@@ -92,7 +92,22 @@ const POINTED_AT: Record<string, [path: string, line: number, contains: string][
   'debugging-practice-compare-the-day': [['hours.js', 3, 'if (day = \'Sunday\')']],
   'debugging-25-seventh-item': [['wholesale.js', 9, 'total += price'], ['breads.js', 10, 'name: \'Rye loaf\', grams: 0.75']],
   'debugging-practice-wrong-slices': [['cakes.js', 11, 'name: \'Plum cake\', slices: 80'], ['party.js', 7, 'total += cake.slices'], ['cakes.js', 9, 'name: \'Sheet cake\', slices: 16']],
-  'debugging-practice-comma-price': [['box.js', 7, 'total += Number(pastry.price)'], ['pastries.js', 13, 'price: \'3,20\'']]
+  'debugging-practice-comma-price': [['box.js', 7, 'total += Number(pastry.price)'], ['pastries.js', 13, 'price: \'3,20\'']],
+  'debugging-26-request-per-key': [['search.js', 27, 'field.addEventListener(\'input\', search)'], ['search.js', 22, 'await fetch(']],
+  'debugging-practice-sends-per-key': [['postcode.js', 7, 'await fetch('], ['postcode.js', 12, 'addEventListener(\'input\''], ['postcode.js', 5, 'async function checkPostcode'], ['postcode.js', 9, 'answer.textContent'], ['postcode.js', 6, 'field.value.trim()']],
+  'debugging-practice-check-once': [['voucher.js', 12, 'addEventListener(\'input\', checkVoucher)']],
+  'debugging-27-redraws-menu': [['app.js', 11, 'function renderMenu()'], ['app.js', 35, '  render()']],
+  'debugging-practice-draws-all-days': [['days.js', 7, 'function drawDays()'], ['days.js', 8, 'box.innerHTML'], ['days.js', 11, 'function showChosen()'], ['days.js', 12, 'chosenText.textContent'], ['days.js', 19, 'drawDays()'], ['days.js', 15, 'box.addEventListener(\'click\'']],
+  'debugging-practice-only-the-counter': [['app.js', 21, 'renderPage()']],
+  'debugging-28-formatted-thousands': [['prices.js', 5, 'export function priceLabel(id)'], ['prices.js', 6, 'formatPrice(entry.cents)'], ['prices.js', 7, 'labels.find(']],
+  'debugging-practice-most-self-work': [['allergens.js', 5, 'ALLERGENS.filter(row => row.product === id)'], ['allergens.js', 4, 'export function allergensOf'], ['app.js', 1, '// The allergen list'], ['app.js', 5, 'products.map(product =>'], ['app.js', 7, 'allergensOf(product.id)']],
+  'debugging-practice-map-lookup': [['total.js', 11, 'PRICES.find(']],
+  'debugging-29-one-after-another': [['load.js', 11, 'await getJson(\'/api/menu\')'], ['load.js', 13, 'await getJson(\'/api/hours\')']],
+  'debugging-practice-waits-first': [['cakes.js', 3, 'fetch(\'/api/cakes\')'], ['cakes.js', 4, 'fetch(\'/api/slots\')'], ['cakes.js', 5, 'querySelector(\'#cakes\')']],
+  'debugging-practice-both-at-once': [['breads.js', 8, 'await getJson(\'/api/breads\')'], ['breads.js', 9, 'await getJson(\'/api/stock\')']],
+  'debugging-30-asks-again': [['tabs.js', 10, 'async function showTab(name)'], ['tabs.js', 11, 'await fetch('], ['tabs.js', 12, 'await response.json()']],
+  'debugging-practice-asks-for-hours-again': [['hours.js', 5, 'fetch(\'/api/hours\')'], ['hours.js', 10, 'addEventListener(\'click\', toggleHours)'], ['hours.js', 6, 'box.textContent'], ['hours.js', 4, 'async function toggleHours']],
+  'debugging-practice-keep-the-answer': [['stamps.js', 6, 'card = await']]
 }
 
 describe('the Debugging levels', () => {
@@ -167,6 +182,16 @@ describe('the Debugging levels', () => {
           expect(lines(level, path!).length, `${path}:${line}`).toBeGreaterThanOrEqual(Number(line))
         }
       }
+    })
+
+    it('reads the page\'s changes, the work and the server\'s time only in a Performance level', () => {
+      const reads = level.sandbox.probes.flatMap(probe => probe.steps).some(step => 'changes' in step || 'work' in step || 'waited' in step)
+      if (reads) expect(level.sandbox.performance).toBe(true)
+      if (!level.sandbox.performance) return
+      expect(level.sandbox.elements).toBeUndefined()
+      expect(level.sandbox.debugger).toBeUndefined()
+      // a find task's answer is a line the panel links (the e2e records each app to check it)
+      if (find) expect(table.answerProfile).toBe(true)
     })
 
     if (level.sandbox.elements) {

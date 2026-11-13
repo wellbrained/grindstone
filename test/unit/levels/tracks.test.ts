@@ -66,7 +66,7 @@ describe('track registry', () => {
     }
   })
 
-  it('gives Debugging its seven chapters (ADR 0007): Reading errors, Network, Elements & CSS, State & async and Breakpoints & stepping live, the other two coming', () => {
+  it('gives Debugging its seven chapters (ADR 0007): Reading errors to Performance live, Incidents coming', () => {
     const debugging = trackById('debugging')!
     expect(debugging).toMatchObject({ title: 'Debugging', tagline: 'Find the bug before your customers do.', cheatSheet: null, bestRun: ['hints', 'reloads'] })
     expect(debugging.chapters.map(chapter => [chapter.number, chapter.title, chapter.levels.length])).toEqual([
@@ -75,7 +75,7 @@ describe('track registry', () => {
       [3, 'Elements & CSS', 15],
       [4, 'State & async', 15],
       [5, 'Breakpoints & stepping', 15],
-      [6, 'Performance', 0],
+      [6, 'Performance', 15],
       [7, 'Incidents', 0]
     ])
     expect(new Set(debugging.chapters.map(chapter => chapter.colour)).size).toBe(7)
@@ -163,7 +163,25 @@ describe('track registry', () => {
     ])
     expect(nextLevel('debugging-practice-long-address')).toBe(levelById('debugging-16-object-promise'))
     expect(nextLevel('debugging-practice-catch-the-rejection')).toBe(levelById('debugging-21-discount-twice'))
-    expect(nextLevel('debugging-practice-comma-price')).toBeNull()
+    expect(debugging.chapters[5]!.levels.map(level => [levelNumber(level.id), level.id])).toEqual([
+      ['6.1', 'debugging-26-request-per-key'],
+      [null, 'debugging-practice-sends-per-key'],
+      [null, 'debugging-practice-check-once'],
+      ['6.2', 'debugging-27-redraws-menu'],
+      [null, 'debugging-practice-draws-all-days'],
+      [null, 'debugging-practice-only-the-counter'],
+      ['6.3', 'debugging-28-formatted-thousands'],
+      [null, 'debugging-practice-most-self-work'],
+      [null, 'debugging-practice-map-lookup'],
+      ['6.4', 'debugging-29-one-after-another'],
+      [null, 'debugging-practice-waits-first'],
+      [null, 'debugging-practice-both-at-once'],
+      ['6.5', 'debugging-30-asks-again'],
+      [null, 'debugging-practice-asks-for-hours-again'],
+      [null, 'debugging-practice-keep-the-answer']
+    ])
+    expect(nextLevel('debugging-practice-comma-price')).toBe(levelById('debugging-26-request-per-key'))
+    expect(nextLevel('debugging-practice-keep-the-answer')).toBeNull()
     expect(nextLevel('git-practice-release-from-develop')).toBeNull()
   })
 

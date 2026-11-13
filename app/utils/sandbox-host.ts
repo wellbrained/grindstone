@@ -1,8 +1,8 @@
 // The page's side of the sealed frame (docs/features/ui.md, "Sandbox and bridge"): every load of a level's app gets a
 // fresh token, and a reload's check run happens in a hidden frame of its own, so the probes' clicks never touch the app
 // you see. Both get the level's scripted backend, each its own (a sequence of answers starts over with every load). What the frames post is read with the pure code in shared/levels/debugging (messages.ts).
-import { checkFrames, mergeObservations, observe, readBridgeMessage, sandboxDocument } from '../../shared/levels'
-import type { BackendSpec, BridgeMessage, CheckFrame, Observation, Probe, SandboxDocument } from '../../shared/levels'
+import { checkFrames, mergeObservations, observe, readBridgeMessage, sandboxDocument, withUncounted } from '../../shared/levels'
+import type { BackendSpec, BridgeMessage, CheckFrame, Instrumented, Observation, Probe, SandboxDocument } from '../../shared/levels'
 
 /** The only sandbox flag a level's app gets: scripts run, but in an opaque origin (no storage, no cookies, no parent). */
 export const SANDBOX_FLAGS = 'allow-scripts'
@@ -36,13 +36,35 @@ export interface AppLoad extends SandboxDocument {
   recorded: boolean
 }
 
-/**
- * A load of the app you see, with the level's scripted backend (if it has one): its requests feed the Network panel.
- * `record`: the modules as instrumented for a recorded load (chapter 5).
- */
-export function appLoad(files: Readonly<Record<string, string>>, backend?: BackendSpec, elements = false, record?: Readonly<Record<string, string>>): AppLoad {
+/** How a load of the app you see runs. */
+export interface LoadOptions {
+  /** The level's scripted backend: its requests feed the Network panel. */
+  backend?: BackendSpec
+  /** The Elements panel's inspector. */
+  elements?: boolean
+  /** The modules as instrumented for a recorded load (Record, chapters 5 and 6). */
+  record?: Readonly<Record<string, string>>
+  /** Chapter 6's Record: the instrumented code counts (the profile), the page's changes and the server's clock are kept. */
+  profile?: boolean
+}
+
+/** A load of the app you see. */
+export function appLoad(files: Readonly<Record<string, string>>, options: LoadOptions = {}): AppLoad {
   const token = newToken()
-  return { ...sandboxDocument(files, { token, backend, elements, record }), token, files, recorded: record !== undefined }
+  const { backend, elements, record, profile } = options
+  const document_ = sandboxDocument(files, { token, backend, elements, record, ...(profile && record ? { count: 'profile' as const, performance: true } : {}) })
+  return { ...document_, token, files, recorded: record !== undefined }
+}
+
+/** What a check run needs besides the files and probes. */
+export interface CheckOptions {
+  /** The level's scripted backend (a fresh one per frame). */
+  backend?: BackendSpec
+  /** A Performance level (chapter 6): the page's changes are watched and the server's clock kept. */
+  performance?: boolean
+  /** The files instrumented to count, when a probe reads the work (chapter 6); a file it skipped leaves those probes without a value. */
+  counted?: Instrumented
+  timeoutMs?: number
 }
 
 /**
@@ -51,17 +73,19 @@ export function appLoad(files: Readonly<Record<string, string>>, backend?: Backe
  * frame of that width after it (checkFrames); their observations are put together. Resolves when every frame is done
  * (each one when the bridge says so, or after the timeout with `finished: false`).
  */
-export async function runCheck(files: Readonly<Record<string, string>>, probes: readonly Probe[], backend?: BackendSpec, timeoutMs = CHECK_TIMEOUT_MS): Promise<Observation> {
+export async function runCheck(files: Readonly<Record<string, string>>, probes: readonly Probe[], options: CheckOptions = {}): Promise<Observation> {
   const observations: Observation[] = []
-  for (const frame of checkFrames(probes)) observations.push(await runFrame(files, frame, backend, timeoutMs))
-  return mergeObservations(observations)
+  for (const frame of checkFrames(probes)) observations.push(await runFrame(files, frame, options))
+  const merged = mergeObservations(observations)
+  return options.counted ? withUncounted(merged, probes, options.counted.skipped) : merged
 }
 
 /** One frame of a check run, at its width. */
-function runFrame(files: Readonly<Record<string, string>>, { width, height, probes }: CheckFrame, backend: BackendSpec | undefined, timeoutMs: number): Promise<Observation> {
+function runFrame(files: Readonly<Record<string, string>>, { width, height, probes }: CheckFrame, options: CheckOptions): Promise<Observation> {
+  const { backend, performance, counted, timeoutMs = CHECK_TIMEOUT_MS } = options
   return new Promise((resolve) => {
     const token = newToken()
-    const document_ = sandboxDocument(files, { token, probes, backend })
+    const document_ = sandboxDocument(files, { token, probes, backend, performance, ...(counted ? { record: counted.modules, count: 'check' as const } : {}) })
     const frame = document.createElement('iframe')
     frame.setAttribute('sandbox', SANDBOX_FLAGS)
     frame.setAttribute('aria-hidden', 'true')

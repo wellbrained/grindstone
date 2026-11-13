@@ -52,6 +52,8 @@ export interface FunctionInfo {
   name: string
   path: string
   line: number
+  /** A file's top level (it runs as the file loads). */
+  module?: true
 }
 
 export type SkipReason = 'syntax' | 'size' | 'nesting' | 'names' | 'points' | 'clash'
@@ -204,7 +206,7 @@ function instrumentFile(path: string, source: string, points: StepPoint[], funct
   const firstFunction = functions.length
 
   const newFunction = (name: string, line: number, arrow: boolean, module: boolean): Fn => {
-    functions.push({ name, path, line })
+    functions.push(module ? { name, path, line, module: true } : { name, path, line })
     return { id: functions.length - 1, name, arrow, module, token: module ? `${g}m` : `${g}f` }
   }
 
@@ -317,6 +319,19 @@ function instrumentFile(path: string, source: string, points: StepPoint[], funct
     insert(node.end, ')', depth - 0.5, true)
   }
 
+  /**
+   * A body's opening and closing text. An empty body (`{}`) has both at one place, where closing text would go first
+   * (insertions are sorted so), so there they go in as one text, the opening first.
+   */
+  function wrapBody(start: number, end: number, open: string, close: string, depth: number) {
+    if (start === end) {
+      insert(start, open + close, depth)
+      return
+    }
+    insert(start, open, depth)
+    insert(end, close, depth, true)
+  }
+
   function blockScope(fn: Fn, names: Set<string>): Scope {
     return { kind: 'block', fn, names }
   }
@@ -339,9 +354,8 @@ function instrumentFile(path: string, source: string, points: StepPoint[], funct
       checkHoisting(list, vars)
       for (const name of vars) names.add(name)
       lexicalNames(list, names)
-      insert(bodyNode.start + 1, prologue, depth)
+      wrapBody(bodyNode.start + 1, bodyNode.end - 1, prologue, epilogue, depth)
       statements(list, inner, fn, depth + 1)
-      insert(bodyNode.end - 1, epilogue, depth, true)
       return
     }
     // an expression body becomes a block that returns it: `x => x * 2` → `x => {…try{step;return (x * 2)}finally{…}}`
@@ -391,9 +405,8 @@ function instrumentFile(path: string, source: string, points: StepPoint[], funct
         checkHoisting(list, names)
         lexicalNames(list, names)
         const open = source.indexOf('{', node.start) + 1
-        insert(open, `const ${own.token}=${g}.e(${own.id},0);try{`, depth)
+        wrapBody(open, node.end - 1, `const ${own.token}=${g}.e(${own.id},0);try{`, `}finally{${g}.x(${own.token})}`, depth)
         statements(list, [...chain, { kind: 'function', fn: own, names }], own, depth + 1)
-        insert(node.end - 1, `}finally{${g}.x(${own.token})}`, depth, true)
         return
       }
       case 'BlockStatement': {

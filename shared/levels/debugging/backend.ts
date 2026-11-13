@@ -130,6 +130,8 @@ export function backendConfig(spec: BackendSpec, shop: string): BackendConfig {
 
 // Runs inside the frame as part of the bridge (one line, so no line comments, every statement ends in a semicolon), and
 // in the unit tests. `hooks.post` posts a message to the page, `hooks.now` is the clock for the Network panel's times.
+// Chapter 6 (the server's clock, see the bridge): `hooks.sent(id, delay)` when a request goes out, `hooks.arrived(id)`
+// when its answer (or failure) arrives, before the app sees it, `hooks.aborted(id)` when it is cancelled; all optional.
 export const BACKEND_SOURCE = String.raw`(function (config, hooks) {
   'use strict';
   var origin = config.origin;
@@ -255,6 +257,7 @@ export const BACKEND_SOURCE = String.raw`(function (config, hooks) {
     sent.push({ place: placeOf(method, url), body: body });
     hooks.post({ type: 'request', id: id, method: method, url: href, headers: headers, body: body, stack: stack });
     var answer = answerFor(method, url, body);
+    if (hooks.sent) hooks.sent(id, answer.delay);
     var started = hooks.now();
     var signal = init && init.signal ? init.signal : null;
     pending += 1;
@@ -270,6 +273,7 @@ export const BACKEND_SOURCE = String.raw`(function (config, hooks) {
       var netlog = function (text, at) { hooks.post({ type: 'netlog', text: text, stack: at }); };
       var onAbort = function () {
         if (!close()) return;
+        if (hooks.aborted) hooks.aborted(id);
         report({ status: null, statusText: '', headers: [], body: null, failure: 'aborted' });
         reject(signal.reason !== undefined ? signal.reason : new DOMException('signal is aborted without reason', 'AbortError'));
       };
@@ -283,6 +287,7 @@ export const BACKEND_SOURCE = String.raw`(function (config, hooks) {
       };
       var arrive = function () {
         if (!close()) return;
+        if (hooks.arrived) hooks.arrived(id);
         if (answer.fail) {
           netlog(method + ' ' + href + ' ' + answer.error, stack);
           report({ status: null, statusText: '', headers: [], body: null, failure: 'network' });

@@ -9,7 +9,7 @@ import { attribute, isStylesheetLink, pageFile, resolveImport } from './paths'
 import { BRIDGE_SOURCE } from './bridge'
 import { cssRules, styleTags } from './css'
 import { COMPUTED_PROPERTIES } from './elements'
-import { RECORD_LIMITS } from './recorder'
+import { RECORD_LIMITS, countingLimits } from './recorder'
 import type { BackendSpec, Probe } from './types'
 
 export { resolveImport }
@@ -32,6 +32,13 @@ export const SANDBOX_CSP = [
   'form-action \'none\''
 ].join('; ')
 
+/**
+ * A counting check run's policy (chapter 6): no eval, no `new Function`, no string timers. Code made from text at
+ * runtime would run without counting, so it can't run at all there (the goals then fail on what it didn't do); the
+ * Console, which needs eval, belongs to the app you see.
+ */
+export const COUNTING_CSP = SANDBOX_CSP.replace(' \'unsafe-eval\'', '')
+
 export interface SandboxOptions {
   /** A fresh random token per load: the page ignores messages that do not carry it (an older load, anything else). */
   token: string
@@ -47,6 +54,13 @@ export interface SandboxOptions {
    * e2e, which checks that instrumented code does what the code does.
    */
   record?: Readonly<Record<string, string>>
+  /**
+   * Chapter 6: the instrumented modules (`record`) count instead of recording steps: `check` for a check run whose
+   * probes read the work, `profile` for Record (the customer's actions, the profile posted at Stop).
+   */
+  count?: 'check' | 'profile'
+  /** A Performance level's load (chapter 6): the page's changes are watched and the server's clock kept (probes, Record). */
+  performance?: boolean
 }
 
 /** What the bridge needs for the Elements panel: the page's rules (to test which match), the linked stylesheets' names, what to read. */
@@ -148,9 +162,10 @@ export function sandboxDocument(files: Readonly<Record<string, string>>, options
   // the config is JSON inside a <script>: no raw "<", so no text in it can close the script or open a comment
   const backend = options.backend ? backendConfig(options.backend, SHOP_ORIGIN) : null
   const elements = options.elements && !options.probes ? elementsConfig(files) : null
-  const record = recording ? RECORD_LIMITS : null
-  const config = JSON.stringify({ token: options.token, modules, probes: options.probes ?? null, backend, elements, record }).replace(/</g, '\\u003c')
-  const injected = `<base href="${SHOP_ORIGIN}"><meta http-equiv="Content-Security-Policy" content="${SANDBOX_CSP}"><script>${BRIDGE_SOURCE}(${config});</script>`
+  const record = recording ? options.count ? countingLimits(options.count) : RECORD_LIMITS : null
+  const perf = options.performance ? { actions: recording !== null && options.count === 'profile' } : null
+  const config = JSON.stringify({ token: options.token, modules, probes: options.probes ?? null, backend, elements, record, perf }).replace(/</g, '\\u003c')
+  const injected = `<base href="${SHOP_ORIGIN}"><meta http-equiv="Content-Security-Policy" content="${options.count === 'check' ? COUNTING_CSP : SANDBOX_CSP}"><script>${BRIDGE_SOURCE}(${config});</script>`
 
   const page = rewriteStylesheets(rewriteScripts(files['index.html'] ?? '', files), files)
   const head = /<head\b[^>]*>/i.exec(page)

@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test'
-import { debuggingLevels, editedText, playSolution, reload, startDebugLevel } from '../shared/levels'
+import type { Page } from '@playwright/test'
+import { debuggingLevels, editedText, needsCounting, playSolution, profileLines, reload, startDebugLevel, withUncounted } from '../shared/levels'
+import type { DebugLevel, Probe } from '../shared/levels'
 import { instrumentFiles } from '../shared/levels/debugging/instrument'
 import { withoutInstrumentation } from '../shared/levels/debugging/recording'
 import { expected } from '../test/unit/levels/debugging/expected'
@@ -13,14 +15,25 @@ import { runCheck } from './helpers/sandbox'
 // table says, before and after the fix. Throwing away a file the fix edits is no fix; other real fixes pass and tempting
 // non-fixes do not (test/unit/levels/debugging/fixes.ts). Chapter 5 (the Debugger): the app run instrumented, as Record
 // runs it, does exactly what it does as written (the same probe values and errors), and a find task's answer is a line
-// the recording stops on. No dev server needed: the apps run in a blank page.
+// the recording stops on. Chapter 6 (Performance): every check run watches the page and keeps the server's clock, and
+// counts the work (instrumented, counting only) when a probe reads it, as the play page does; counted, the app does what
+// it does as written, and a find task's answer is a line the Performance panel links for a recorded profile. No dev
+// server needed: the apps run in a blank page.
 const where = (line: { path: string, line: number } | null | undefined) => line ? `${line.path}:${line.line}` : null
+
+/** A check run as the play page runs it: a Performance level's watches the page, and counts when a probe reads the work. */
+async function checkRun(page: Page, level: DebugLevel, files: Readonly<Record<string, string>>, probes: readonly Probe[]) {
+  if (!level.sandbox.performance) return runCheck(page, files, probes, level.sandbox.backend)
+  const map = needsCounting(probes) ? instrumentFiles(files) : null
+  const result = await runCheck(page, files, probes, level.sandbox.backend, { performance: true, ...(map ? { record: map.modules, count: 'check' as const } : {}) })
+  return map ? { ...result, observation: withUncounted(result.observation, probes, map.skipped) } : result
+}
 
 for (const level of debuggingLevels) {
   test(`${level.id}: fails as written, and its solution works`, async ({ page }) => {
     await page.setContent('<!doctype html><title>check</title>')
     const table = expected[level.id]!
-    const run = (files: Readonly<Record<string, string>>) => runCheck(page, files, [...(table.before ?? []), ...level.sandbox.probes], level.sandbox.backend)
+    const run = (files: Readonly<Record<string, string>>) => checkRun(page, level, files, [...(table.before ?? []), ...level.sandbox.probes])
 
     // the starting files, reloaded: what the table says, and every goal fails
     const start = await run(startDebugLevel(level).state.files)
@@ -38,7 +51,7 @@ for (const level of debuggingLevels) {
       // recorded (instrumented) the app does what it does as written, and the recording has steps
       const map = instrumentFiles(startDebugLevel(level).state.files)
       expect(map.skipped).toEqual([])
-      const recorded = await runCheck(page, startDebugLevel(level).state.files, [...(table.before ?? []), ...level.sandbox.probes], level.sandbox.backend, map.modules)
+      const recorded = await runCheck(page, startDebugLevel(level).state.files, [...(table.before ?? []), ...level.sandbox.probes], level.sandbox.backend, { record: map.modules })
       expect(recorded.observation.probes).toEqual(start.observation.probes)
       expect(recorded.observation.errors.map(error => ({ ...error, text: withoutInstrumentation(error.text) }))).toEqual(start.observation.errors)
       expect(recorded.steps.length).toBeGreaterThan(0)
@@ -47,6 +60,29 @@ for (const level of debuggingLevels) {
         const answer = level.sandbox.find!
         const lines = recorded.steps.flatMap(step => step.frames.map(frame => map.points[frame.point]).filter(point => point !== undefined).map(point => `${point.path}:${point.line}`))
         expect(lines, level.id).toContain(`${answer.path}:${answer.lines[0]}`)
+      }
+    }
+
+    if (level.sandbox.performance) {
+      // counted (instrumented, counting only), the app does what it does as written: the same values but the work, the same
+      // errors and requests
+      const probes = [...(table.before ?? []), ...level.sandbox.probes]
+      const files = startDebugLevel(level).state.files
+      const map = instrumentFiles(files)
+      expect(map.skipped).toEqual([])
+      const plain = await runCheck(page, files, probes, level.sandbox.backend, { performance: true })
+      const counted = await runCheck(page, files, probes, level.sandbox.backend, { performance: true, record: map.modules, count: 'check' })
+      const counting = new Set(probes.filter(probe => probe.steps.some(step => 'work' in step)).map(probe => probe.id))
+      const values = (observation: typeof plain.observation) => Object.entries(observation.probes).filter(([id]) => !counting.has(id))
+      expect(values(counted.observation)).toEqual(values(plain.observation))
+      expect(counted.observation.errors).toEqual(plain.observation.errors)
+      expect(counted.network).toEqual(plain.network)
+      if (table.answerProfile) {
+        // the answer is a line the Performance panel links after recording what the customer does (Record, then Stop)
+        const profiled = await runCheck(page, files, table.before ?? [], level.sandbox.backend, { performance: true, record: map.modules, count: 'profile' })
+        expect(profiled.profile, level.id).not.toBeNull()
+        const answer = level.sandbox.find!
+        expect(profileLines(profiled.profile!, map, profiled.requests), level.id).toContain(`${answer.path}:${answer.lines[0]}`)
       }
     }
 

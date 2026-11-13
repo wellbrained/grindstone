@@ -9,7 +9,8 @@ import type { DebugLevel } from '../shared/levels'
 // recording (Stop gets the focus back, no stepping keys behind it, its title clear of the close button on a phone). A
 // conditional breakpoint finds the one bad round of a loop, and the keys that stay the browser's (Shift+F8, Shift+F10,
 // F11) do nothing; a find task is answered at a recorded step; on a phone, recording goes to the App and back to the
-// Debugger. Run in Chromium, Firefox and WebKit.
+// Debugger; after Stop (in the panel or the App) the focus goes to the stepping controls. Run in Chromium, Firefox and
+// WebKit.
 
 const lineNumber = (page: Page, line: number) => page.locator('.cm-lineNumbers .cm-gutterElement').filter({ hasText: new RegExp(`^${line}$`) })
 const frames = (page: Page) => page.getByTestId('debugger-stack').locator('[data-frame]')
@@ -206,6 +207,19 @@ test('on a phone: Record goes to the App, Stop back to the Debugger, nothing scr
   await page.getByTestId('debugger-toggle-here').click()
   await expect(page.locator('[data-breakpoint]')).toHaveCount(1)
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+})
+
+test('after Stop (in the panel or in the App) the focus goes to the stepping controls', async ({ page }) => {
+  await page.goto('/debugging/21-discount-twice')
+  await page.getByTestId('debugger-record').click()
+  await expect(page.getByTestId('record-banner')).toBeVisible()
+  await page.frameLocator('[data-testid="app-frame"]').locator('[data-id="croissant"] .add').click()
+  await page.getByTestId('debugger-stop').click()
+  await expect(page.getByTestId('debugger-resume-back')).toBeFocused()
+  await page.getByTestId('debugger-record').click()
+  await expect(page.getByTestId('record-banner')).toBeVisible()
+  await page.getByTestId('record-banner').getByRole('button', { name: 'Stop' }).press('Enter')
+  await expect(page.getByTestId('debugger-resume-back')).toBeFocused()
 })
 
 test('a level without the Debugger has none, and runs its code as written', async ({ page }) => {

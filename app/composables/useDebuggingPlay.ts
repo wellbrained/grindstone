@@ -1,17 +1,17 @@
 // The Debugging play page on top of usePlaySession (docs/features/ui.md, "Debugging play page"): the app in its sealed
 // frame, the Console, the Network panel (levels with a backend), the Elements panel (levels that use it), the Debugger
-// (chapter 5: a recorded run, its breakpoints and stepping), the code with its drafts, Reload with its check run, and find
-// tasks' clicks. The session, goals, recording of the solve, stats events and debrief are shared.
+// (chapter 5: a recorded run, its breakpoints and stepping), the Performance panel (chapter 6: a counted run, its
+// profile), the code with its drafts, Reload with its check run, and find tasks' clicks. The session, goals, recording of the solve, stats events and debrief are shared.
 // The session, the drafts, the open file and the last click live in the play state (they survive leaving the page); the
 // app you see, its Console, its requests, its DOM and the marked line live as long as the page (coming back loads the
 // app again).
 import {
-  RECORD_LIMITS, consoleEntry, cssRules, fittingSteps, frameStep, hitCounts, nextHit, nodeAtPath, nodePath, pickLine, previousHit, readBridgeMessage, reload,
+  RECORD_LIMITS, consoleEntry, cssRules, fittingProfile, fittingSteps, needsCounting, frameStep, hitCounts, nextHit, nodeAtPath, nodePath, pickLine, previousHit, readBridgeMessage, reload,
   requestEntry, restart, saveDebugFile, scopeAt, scopeValues, startDebugLevel, startExpanded, stepBack, stepInto, stepLine, stepOut, stepOver, takeHint,
   withAncestors, withResponse, withoutInstrumentation
 } from '#shared/levels'
 import type {
-  Breakpoint, ConsoleEntryBody, CssRule, DebugLevel, DebugResult, DebugSession, DomNode, Inspected, Instrumented, NetworkEntry, PickVerdict, RecordEndReason,
+  Breakpoint, ConsoleEntryBody, CssRule, DebugLevel, DebugResult, DebugSession, DomNode, Inspected, Instrumented, NetworkEntry, PickVerdict, Profile, RecordEndReason,
   RecordedStep, ScopeEntries, SourceLine, SourceMapping
 } from '#shared/levels'
 import type { CompiledCondition } from '#shared/levels/debugging/condition'
@@ -52,6 +52,16 @@ export interface Recording {
   files: Readonly<Record<string, string>>
   steps: RecordedStep[]
   ended: RecordEndReason | null
+}
+
+/** A counted run (chapter 6): the code it ran (instrumented), the files it ran, its profile (once Stop has it) and its requests. */
+export interface ProfileRecording {
+  map: Instrumented
+  files: Readonly<Record<string, string>>
+  /** null until the profile arrives (and when it never did: nothing was counted). */
+  profile: Profile | null
+  /** The requests of the recorded load (the Network panel's entries; Clear there does not touch these). */
+  requests: NetworkEntry[]
 }
 
 /** One frame of the call stack at the current step, as the Debugger lists it. */
@@ -100,6 +110,8 @@ export function useDebuggingPlay(level: DebugLevel) {
   const hasElements = level.sandbox.elements === true
   /** The level uses the Debugger (chapter 5). */
   const hasDebugger = level.sandbox.debugger === true
+  /** The level uses the Performance panel (chapter 6). */
+  const hasPerformance = level.sandbox.performance === true
   const files = computed(() => fileOrder(Object.keys(session.value.state.files)))
   const unsaved = computed(() => files.value.filter(path => store.value.drafts[path] !== session.value.state.files[path]))
   const reloads = computed(() => session.value.reloads ?? 0)
@@ -183,10 +195,14 @@ export function useDebuggingPlay(level: DebugLevel) {
 
   /**
    * Starts the app you see on these files (not counted: Reload counts, a page visit or Reset does not); with `recorded`
-   * (Record), its modules run instrumented and report their steps. Any other start ends the recording.
+   * (Record), its modules run instrumented and report their steps, or (`profile`, chapter 6) count. Any other start
+   * ends the recording.
    */
-  function startApp(files: Readonly<Record<string, string>>, recorded?: Readonly<Record<string, string>>) {
-    if (!recorded) dropRecording()
+  function startApp(files: Readonly<Record<string, string>>, recorded?: Readonly<Record<string, string>>, profile = false) {
+    if (!recorded) {
+      dropRecording()
+      dropProfile()
+    }
     entries.value = []
     requests.value = []
     queue = []
@@ -199,7 +215,7 @@ export function useDebuggingPlay(level: DebugLevel) {
     hovered.value = null
     awaitingDom = hasElements
     mapping.value = { urls: {}, bridgeLine: 0 }
-    load.value = appLoad(files, backend, hasElements, recorded)
+    load.value = appLoad(files, { backend, elements: hasElements, record: recorded, profile })
     mapping.value = { urls: {}, bridgeLine: load.value.bridgeLine }
   }
 
@@ -287,10 +303,20 @@ export function useDebuggingPlay(level: DebugLevel) {
       if (!current || (recordStatus.value !== 'recording' && recordStatus.value !== 'stopping')) return
       recording.value = { ...current, ended: message.reason }
       finishRecording()
+    } else if (message.type === 'profileTick') {
+      if (profileStatus.value === 'recording') profileWork.value = message.work
+    } else if (message.type === 'profile') {
+      takeProfile(message.profile)
     } else if (message.type === 'request') {
-      if (requests.value.length < MAX_REQUESTS) requests.value = [...requests.value, requestEntry(message, mapping.value)]
-    } else if (message.type === 'response') requests.value = withResponse(requests.value, message)
-    else {
+      const entry = requestEntry(message, mapping.value)
+      if (requests.value.length < MAX_REQUESTS) requests.value = [...requests.value, entry]
+      const counted = profiling.value
+      if (counted && current.recorded && counted.requests.length < MAX_REQUESTS) profiling.value = { ...counted, requests: [...counted.requests, entry] }
+    } else if (message.type === 'response') {
+      requests.value = withResponse(requests.value, message)
+      const counted = profiling.value
+      if (counted && current.recorded) profiling.value = { ...counted, requests: withResponse(counted.requests, message) }
+    } else {
       // past the cap the app's output is dropped before it is even read
       if (message.type !== 'result' && appMessages >= MAX_APP_MESSAGES) return
       const found = consoleEntry(message, mapping.value)
@@ -530,6 +556,74 @@ export function useDebuggingPlay(level: DebugLevel) {
     if (line && recordStatus.value === 'recorded') openFile(line.path)
   })
 
+  // --- the Performance panel (chapter 6): a counted run and its profile ----------------------------------------------
+
+  /** Where the Performance panel is: nothing recorded, recording, waiting for the profile after Stop, or a profile to read. */
+  const profileStatus = ref<RecordStatus>('idle')
+  /** The counted run (never deep-reactive). */
+  const profiling = shallowRef<ProfileRecording | null>(null)
+  /** The work counted so far (live while recording, the total once recorded). */
+  const profileWork = ref(0)
+  let profileTimer: ReturnType<typeof setTimeout> | null = null
+
+  function dropProfile() {
+    if (profileTimer) clearTimeout(profileTimer)
+    profileTimer = null
+    profiling.value = null
+    profileStatus.value = 'idle'
+    profileWork.value = 0
+  }
+
+  /** Record: the app reloads from the saved files with its code instrumented to count; using it is profiled, until Stop. */
+  async function recordProfile() {
+    if (!hasPerformance || checking.value || profileStatus.value === 'recording' || profileStatus.value === 'stopping') return
+    play.markPlayed()
+    const loaded = await ensureTools()
+    if (!loaded || disposed || checking.value) return
+    const saved = session.value.state.files
+    const map = loaded.instrumentFiles(saved)
+    startApp(saved, map.modules, true)
+    profiling.value = { map, files: saved, profile: null, requests: [] }
+    profileWork.value = 0
+    profileStatus.value = 'recording'
+  }
+
+  /** Stop: the recorder posts its profile and stops counting; the app runs on. */
+  function stopProfile() {
+    if (profileStatus.value !== 'recording') return
+    profileStatus.value = 'stopping'
+    toFrame({ type: 'recordStop' })
+    profileTimer = setTimeout(finishProfile, STOP_WAIT_MS)
+  }
+
+  /** The profile arrived (at Stop, or at the work cap): only the rows that fit the counted code are kept. */
+  function takeProfile(profile: Profile) {
+    const counted = profiling.value
+    if (!counted || (profileStatus.value !== 'recording' && profileStatus.value !== 'stopping')) return
+    profiling.value = { ...counted, profile: fittingProfile(profile, counted.map) }
+    profileWork.value = profile.work
+    finishProfile()
+  }
+
+  function finishProfile() {
+    if (profileTimer) clearTimeout(profileTimer)
+    profileTimer = null
+    if (profileStatus.value === 'recording' || profileStatus.value === 'stopping') profileStatus.value = 'recorded'
+  }
+
+  /** The files the profile counted differ from the code in the editor (its lines may have moved). */
+  const profileOutdated = computed(() => profiling.value !== null && Object.entries(profiling.value.files).some(([path, text]) => store.value.drafts[path] !== text))
+
+  /** A line the Performance panel links (a function, a line that changed the page, Sent from): Code shows it; in a find task it is the answer. */
+  function profileLine(line: SourceLine) {
+    if (find) {
+      openFile(line.path)
+      pick(line)
+      return
+    }
+    revealLine(line)
+  }
+
   /** AppPanel tells where its frame is, for Console input. */
   function connectFrame(getWindow: () => Window | null) {
     frameWindow = getWindow
@@ -576,7 +670,13 @@ export function useDebuggingPlay(level: DebugLevel) {
     const startedIn = attempt
     startApp(saved)
     checking.value = true
-    const observation = await runCheck(saved, level.sandbox.probes, backend)
+    // chapter 6: probes that read the work need the code instrumented to count (the tools load once)
+    let counted: Instrumented | undefined
+    if (hasPerformance && needsCounting(level.sandbox.probes)) {
+      counted = (await ensureTools())?.instrumentFiles(saved)
+      if (disposed || startedIn !== attempt) return
+    }
+    const observation = await runCheck(saved, level.sandbox.probes, { backend, performance: hasPerformance, counted })
     // a Reset or Again while the check ran started a new attempt: this result belongs to the old one
     if (disposed || startedIn !== attempt) return
     checking.value = false
@@ -653,6 +753,7 @@ export function useDebuggingPlay(level: DebugLevel) {
     hasNetwork,
     hasElements,
     hasDebugger,
+    hasPerformance,
     session,
     store,
     files,
@@ -728,7 +829,14 @@ export function useDebuggingPlay(level: DebugLevel) {
     toggleBreakpoint,
     removeBreakpoint,
     setCondition,
-    answerStep
+    answerStep,
+    profileStatus,
+    profiling,
+    profileWork,
+    profileOutdated,
+    recordProfile,
+    stopProfile,
+    profileLine
   }
 }
 

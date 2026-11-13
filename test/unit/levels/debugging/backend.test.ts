@@ -379,4 +379,33 @@ describe('the fake backend', () => {
     await answer(backend.fetch('/api/orders', { method: 'POST', body: '{"quantity":3}' }))
     expect(backend.sent('POST /api/orders', 'quantity')).toBe(3)
   })
+
+  it('tells the server clock (chapter 6) when each request goes out with its delay, and when it arrives or is cancelled, before the app sees it', async () => {
+    const heard: string[] = []
+    const backend = create(backendConfig({
+      routes: [
+        { path: '/api/menu', respond: { status: 200, json: MENU, delay: 300 } },
+        { path: '/api/hours', respond: { status: 503, text: 'busy', delay: 100 } },
+        { path: '/api/down', respond: { fail: 'network', delay: 50 } }
+      ]
+    }, SHOP_ORIGIN), {
+      post: () => {},
+      now: () => Date.now(),
+      sent: (id: number, delay: number) => heard.push(`sent ${id} ${delay}`),
+      arrived: (id: number) => heard.push(`arrived ${id}`),
+      aborted: (id: number) => heard.push(`aborted ${id}`)
+    })
+    const controller = new AbortController()
+    const menu = backend.fetch('/api/menu').then(() => heard.push('app: menu'))
+    const hours = backend.fetch('/api/hours').then(() => heard.push('app: hours'))
+    const down = backend.fetch('/api/down').catch(() => heard.push('app: down failed'))
+    const slow = backend.fetch('/api/menu', { signal: controller.signal }).catch(() => heard.push('app: cancelled'))
+    controller.abort()
+    await vi.advanceTimersByTimeAsync(400)
+    await Promise.all([menu, hours, down, slow])
+    expect(heard).toEqual([
+      'sent 1 300', 'sent 2 100', 'sent 3 50', 'sent 4 300', 'aborted 4',
+      'app: cancelled', 'arrived 3', 'app: down failed', 'arrived 2', 'app: hours', 'arrived 1', 'app: menu'
+    ])
+  })
 })
