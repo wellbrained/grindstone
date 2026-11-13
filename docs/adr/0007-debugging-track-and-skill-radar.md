@@ -58,3 +58,17 @@ Built from the approved preview (`.impeccable/mocks/previews/debugging-preview.h
 - **Texts quote Chrome's error wording** where the hints need it; Firefox and Safari word errors differently but point at the same file and line (checked). Safari gives no location for a missing named export (1.2's practice task), so there the Console shows the message without a source link.
 - **Deviations from the preview's sample**: 1.1's bug is on `cart.js:17` (the preview showed 14) and the app logs "3 products" (the preview: 6). "Which file and line? Read a three-frame trace" asks for the frame that handled your click (the bottom one), so it teaches the order of frames rather than repeating the task before it. The preview's footer line "Its requests go to a scripted bakery backend" says "it can't reach Grindstone or your progress, and its requests are blocked" until chapter 2 brings the backend. Not "the network": the CSP blocks requests, but the frame can still navigate itself to an outside page (still sandboxed, still unable to reach Grindstone); review 2026-11-13.
 - **Known limit**: the app runs in Grindstone's tab, so an endless loop in a learner's code freezes the page like a real tab; the check run gives up after 5 s and counts as not finished.
+
+## Finishing the Debugging track (2026-11-13)
+
+Nik delegated chapters 2–7 to Claude's plan ("go with your recommendations"), without previews, as with Git v1 (0006).
+
+- **Order**: 2 Network → 3 Elements & CSS → 4 State & async → 5 Breakpoints & stepping → 6 Performance → 7 Incidents. One chapter at a time, each with an Opus review and deployed as a patch. About five scenarios per chapter plus find / quick-fix practice tasks, all in Corner Bakery's shop, written to the same rules as chapter 1.
+- **Panels arrive with the chapter that needs them**, as tabs next to the Console, and a level shows only the panels it uses:
+  - **Network** (ch 2): the scripted fake backend answers the app's `fetch` inside the frame (data, status codes, delays, CORS refusals as the browser would report them); the panel lists each request (method, URL, status, time) with its request and response body.
+  - **Elements** (ch 3): the app's DOM tree; selecting an element shows its box and the styles that apply, with where each comes from. Read-only: fixes happen in the code.
+  - **State & async** (ch 4) needs no new panel: Network delays and the Console are enough to show races, stale values and missing `await`.
+  - **Breakpoints** (ch 5): no live pausing (a sandboxed frame can't be paused safely). The code is instrumented and one run is **recorded**; you set breakpoints on lines and step forward and back through the recording, seeing each variable's value at that moment. Recorded, not live, and the UI says so.
+  - **Performance** (ch 6): from the same instrumentation, how often functions ran and renders happened, and the requests over time.
+  - **Incidents** (ch 7): a **Logs** panel with the backend's log lines and a **Deploys** list (the last changes with their diffs and a Roll back); colleague events during play come back here.
+- **Cheat sheet**: one Debugging sheet after chapter 7, covering every panel and the error types from the levels.
