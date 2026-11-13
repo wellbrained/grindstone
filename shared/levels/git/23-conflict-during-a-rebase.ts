@@ -3,7 +3,7 @@
 // the third commit is replayed after it (commit by commit, unlike a merge).
 import { commitsOf, currentBranch, hasMergeCommits, isAncestor, resolve } from '../../git'
 import type { GitState } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { INDEX, STYLE, bakerySite, text } from './bakery'
 import { conflictFullyResolved, once, sameList, treeOf } from './checks'
 
@@ -46,7 +46,7 @@ const MAIN = () => resolve(start(), 'main')!
 /** Main's newest commit is part of your branch (the rebase got past it). */
 const onMain = (state: GitState) => isAncestor(state, MAIN(), BRANCH)
 
-export const conflictDuringRebase: Scenario = {
+export const conflictDuringRebase: GitScenario = {
   id: 'git-23-conflict-during-a-rebase',
   track: 'git',
   kind: 'scenario',

@@ -4,7 +4,7 @@
 // from the last release is in the setup, so `git tag` and `git log` show how it looks.
 import { remoteTagOf, resolve, tagOf } from '../../git'
 import type { GitState } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { bakerySite, text } from './bakery'
 import { once } from './checks'
 
@@ -32,7 +32,7 @@ function tagged(state: GitState): boolean {
   return tag?.commit === LIVE() && tag.annotation?.message === MESSAGE
 }
 
-export const tagARelease: Scenario = {
+export const tagARelease: GitScenario = {
   id: 'git-38-tag-a-release',
   track: 'git',
   kind: 'scenario',

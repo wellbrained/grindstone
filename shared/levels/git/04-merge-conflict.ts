@@ -1,7 +1,7 @@
 // Level 4: a merge where both sides changed the same line; resolve it and conclude with a merge commit.
 import { currentBranch, isAncestor, repo, resolve } from '../../git'
 import type { GitState } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { conflictFullyResolved } from './checks'
 
 const mergeCommitOnMain = (state: GitState) => {
@@ -11,7 +11,7 @@ const mergeCommitOnMain = (state: GitState) => {
   return parents.length === 2 && !!feature && parents.includes(feature)
 }
 
-export const mergeConflict: Scenario = {
+export const mergeConflict: GitScenario = {
   id: 'git-04-merge-conflict',
   track: 'git',
   kind: 'scenario',

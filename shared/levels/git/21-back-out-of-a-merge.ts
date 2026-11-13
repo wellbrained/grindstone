@@ -3,7 +3,7 @@
 // setup runs it), so every goal starts unticked; `git merge --abort` brings branch, index and files back.
 import { currentBranch, isWorkingTreeClean, operationInProgress, resolve } from '../../git'
 import type { GitState } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { MENU, bakerySite, text } from './bakery'
 import { once, treeHasConflictMarkers } from './checks'
 
@@ -62,7 +62,7 @@ const TIP = () => resolve(start(), BRANCH)!
 
 const noMerge = (state: GitState) => !!state.repo && operationInProgress(state) === null
 
-export const backOutOfAMerge: Scenario = {
+export const backOutOfAMerge: GitScenario = {
   id: 'git-21-back-out-of-a-merge',
   track: 'git',
   kind: 'scenario',

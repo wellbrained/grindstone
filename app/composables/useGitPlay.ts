@@ -1,9 +1,9 @@
-// Everything one play page needs: the session of a level, the terminal log, the editor (panel and tabs), the debrief and the graph.
-// The session lives in memory (useState): leaving the page and coming back keeps it, a browser reload starts the level again.
+// The git play page on top of usePlaySession: the terminal log, the editor (panel and tabs), the file tree, the file git
+// waits for (git rebase -i) and the commit graph. The session, goals, recording, stats events and debrief are shared.
 import { gitCommandNames, shellCommandNames, unmergedPaths, waitingEditor } from '#shared/git'
 import type { GitState, OutputLine } from '#shared/git'
-import { TRAINER_COMMANDS, nextLevel, saveEditor, saveFile, startLevel, submit } from '#shared/levels'
-import type { Level, Progress, Session, SubmitResult } from '#shared/levels'
+import { TRAINER_COMMANDS, saveEditor, saveFile, startLevel, submit } from '#shared/levels'
+import type { GitLevel, GitSession, SubmitResult } from '#shared/levels'
 import type { Prompt } from '~/utils/terminal'
 
 export type LogBody
@@ -16,39 +16,30 @@ export type LogBody
 export type LogEntry = LogBody & { id: number }
 
 interface PlayState {
-  session: Session
+  session: GitSession
   log: LogEntry[]
   nextId: number
 }
 
-/** The spark effect runs about this long before the debrief opens. */
-const DEBRIEF_DELAY_MS = 900
-
-export interface LevelPlayOptions {
+export interface GitPlayOptions {
   /** Where `edit <file>` and the conflicted-files list open a file; default: the editor panel. */
   onEdit?: (path: string) => void
 }
 
-export function useLevelPlay(level: Level, options: LevelPlayOptions = {}) {
+export function useGitPlay(level: GitLevel, options: GitPlayOptions = {}) {
   const { t } = useI18n()
-  const { progress, record, markPlayed, levelProgress } = useProgress()
 
-  const fresh = (): PlayState => ({ session: startLevel(level), log: [{ id: 0, type: 'intro' }], nextId: 1 })
-  const store = useState<PlayState>(`play:${level.id}`, fresh)
   const editor = ref<{ path: string, content: string } | null>(null)
-  const debriefOpen = ref(false)
-  /** The progress right before the last solve on this page: the debrief's radar grows from it. */
-  const progressBefore = shallowRef<Progress | null>(null)
-  // the radar grows once per solve: "Show debrief" later opens it without the growth (ADR 0007)
-  watch(debriefOpen, (open) => {
-    if (!open) progressBefore.value = null
+  const fresh = (): PlayState => ({ session: startLevel(level), log: [{ id: 0, type: 'intro' }], nextId: 1 })
+  const play = usePlaySession(level, {
+    fresh,
+    onRestart: () => {
+      editor.value = null
+    }
   })
-  const sparkKey = ref(0)
+  const { store, session, next, goals, best, debriefOpen, progressBefore, sparkKey, again } = play
   const showOrigin = ref(false)
-  let debriefTimer: ReturnType<typeof setTimeout> | undefined
-  onScopeDispose(() => clearTimeout(debriefTimer))
 
-  const session = computed(() => store.value.session)
   const log = computed(() => store.value.log)
   const prompt = computed(() => promptOf(session.value.state))
   // Every command makes a new state, but one that only prints keeps the repo and the working tree as they were. The
@@ -77,15 +68,13 @@ export function useLevelPlay(level: Level, options: LevelPlayOptions = {}) {
   watch([() => gitEditor.value?.path, () => gitEditor.value?.text], ([, text]) => {
     if (text !== undefined) gitDraft.value = text
   })
-  const next = nextLevel(level.id)
 
-  const goals = computed(() => level.goals.map(goal => ({ id: goal.id, label: goal.label, met: session.value.goalsMet[goal.id] === true })))
   const stats = computed(() => ({
     commands: session.value.commandCount,
     solution: level.solution.length,
     hints: session.value.hintsUsed,
     // the best run so far (this one included, once it is recorded)
-    best: levelProgress(level.id)?.best ?? null
+    best: best.value
   }))
 
   const graph = computed(() => {
@@ -113,17 +102,8 @@ export function useLevelPlay(level: Level, options: LevelPlayOptions = {}) {
 
   const edit = (path: string) => (options.onEdit ?? openEditor)(path)
 
-  // stats: the first command of a visit to this level counts as a start (docs/analytics.md)
-  let started = false
-
   function apply(result: SubmitResult) {
-    const hintsBefore = session.value.hintsUsed
-    store.value.session = result.session
-    if (!started && result.session.commandCount > 0) {
-      started = true
-      trackEvent('level-start', { level: level.id })
-    }
-    if (result.session.hintsUsed > hintsBefore) trackEvent('hint', { level: level.id, hint: result.session.hintsUsed })
+    play.update(result.session)
     for (const line of result.output) {
       if (line.kind === 'clear') store.value.log = []
       else if (line.kind === 'edit') edit(line.path)
@@ -132,30 +112,20 @@ export function useLevelPlay(level: Level, options: LevelPlayOptions = {}) {
     for (const notice of result.notices) push({ type: 'notice', author: notice.author, text: notice.text })
     if (result.solvedNow) {
       push({ type: 'solved' })
-      progressBefore.value = progress.value
-      record(level.id, result.session)
-      trackEvent('level-solved', { level: level.id, commands: result.session.commandCount, hints: result.session.hintsUsed })
-      sparkKey.value++
-      // a practice task has no debrief: its panel shows why it works, with Next and Again
-      if (level.kind === 'practice') return
-      // let the spark play before the dialog covers it
-      clearTimeout(debriefTimer)
-      debriefTimer = setTimeout(() => {
-        debriefOpen.value = true
-      }, DEBRIEF_DELAY_MS)
+      play.solved(result.session)
     }
   }
 
   /** One line typed in the terminal. Typing in a level makes it the one Continue opens. */
   function run(line: string) {
-    markPlayed(level.id)
+    play.markPlayed()
     push({ type: 'input', text: line, prompt: prompt.value })
     apply(submit(session.value, level, line))
   }
 
   /** A save through the engine that counts like a command: the level is played, the terminal says it was saved. */
   function counted(path: string, save: () => SubmitResult) {
-    markPlayed(level.id)
+    play.markPlayed()
     push({ type: 'line', line: { kind: 'out', text: t('terminal.saved', { path }) } })
     apply(save())
   }
@@ -204,17 +174,6 @@ export function useLevelPlay(level: Level, options: LevelPlayOptions = {}) {
     run('reset')
   }
 
-  /** Again / Play again: the same entry from its start, as a new attempt (hints and commands from zero). */
-  function again() {
-    clearTimeout(debriefTimer)
-    debriefOpen.value = false
-    editor.value = null
-    store.value = fresh()
-  }
-
-  // a reset or a loaded backup restarts this page in place (useProgress)
-  onScopeDispose(registerPlay(level.id, again))
-
   return {
     level,
     session,
@@ -252,4 +211,4 @@ export function useLevelPlay(level: Level, options: LevelPlayOptions = {}) {
   }
 }
 
-export type LevelPlay = ReturnType<typeof useLevelPlay>
+export type GitPlaySession = ReturnType<typeof useGitPlay>

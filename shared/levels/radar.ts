@@ -4,7 +4,6 @@
 import { entryOf } from './progress'
 import type { LevelProgress, Progress } from './progress'
 import type { Chapter, Track } from './track'
-import type { Level } from './types'
 
 export interface RadarAxis {
   chapter: Chapter
@@ -21,7 +20,7 @@ export interface RadarAxis {
 }
 
 /** What one level adds to its axis: 1, 0.5 (every solve needed the last hint, or unknown how) or 0 (unsolved). */
-export function levelCredit(level: Level, entry: LevelProgress | null | undefined): 0 | 0.5 | 1 {
+export function levelCredit(level: { hints: readonly string[] }, entry: LevelProgress | null | undefined): 0 | 0.5 | 1 {
   if (entry?.solved !== true) return 0
   return entry.fewestHints !== null && entry.fewestHints < level.hints.length ? 1 : 0.5
 }

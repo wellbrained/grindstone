@@ -1,7 +1,7 @@
 // Basics 1.5: build output and a local .env show up as untracked; ignore them with a committed .gitignore.
 import { commitsOf, headCommit, ignoreMatcher, isWorkingTreeClean, repo } from '../../git'
 import type { GitState } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 
 /** The generated and local files the .gitignore has to cover. */
 const KEPT_OUT = ['dist/app.js', 'dist/app.css', '.env']
@@ -30,7 +30,7 @@ function committedIgnore(state: GitState) {
   return text === undefined ? null : ignoreMatcher({ '.gitignore': text })
 }
 
-export const ignoreBuildFiles: Scenario = {
+export const ignoreBuildFiles: GitScenario = {
   id: 'git-10-ignore-build-files',
   track: 'git',
   kind: 'scenario',

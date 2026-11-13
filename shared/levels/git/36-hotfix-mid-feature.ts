@@ -5,7 +5,7 @@
 // so deleting it after the merge is fine. "Back" only counts once the fix is on origin, so nothing ticks at the start.
 import { currentBranch, isAncestor, remoteCommitsOf, resolve } from '../../git'
 import type { Commit, GitState } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { bakerySite, text } from './bakery'
 import { committedOn, once } from './checks'
 
@@ -64,7 +64,7 @@ function shipped(state: GitState): boolean {
   return !!tip && isFixed(tip) && tip.tree['gift-cards.html'] === undefined
 }
 
-export const hotfixMidFeature: Scenario = {
+export const hotfixMidFeature: GitScenario = {
   id: 'git-36-hotfix-mid-feature',
   track: 'git',
   kind: 'scenario',

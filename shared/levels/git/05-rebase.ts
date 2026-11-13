@@ -1,11 +1,11 @@
 // Rewriting history 4.1 (v0.1's "Rebase", retitled): replay a feature branch on top of main with rebase, keeping history linear.
 import { commitsOf, currentBranch, hasMergeCommits, isAncestor, operationInProgress, repo } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { sameList } from './checks'
 
 const YOUR_COMMITS = ['Highlight matches', 'Add a search box']
 
-export const rebase: Scenario = {
+export const rebase: GitScenario = {
   id: 'git-05-rebase',
   track: 'git',
   kind: 'scenario',

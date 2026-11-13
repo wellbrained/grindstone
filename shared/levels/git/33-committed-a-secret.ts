@@ -3,7 +3,7 @@
 // leaves the key in the history; plain `git rm` deletes your local file. The debrief covers the pushed case: rotate.
 import { commitsOf, headCommit, ignoreMatcher, isIgnored, isWorkingTreeClean } from '../../git'
 import type { GitState } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { bakerySite, text } from './bakery'
 
 const ENV = text('# Your local settings for the shop. Never commit this file.', 'PAYMENT_API_KEY=test-key-not-real-0000')
@@ -37,7 +37,7 @@ function committedIgnoreCoversEnv(state: GitState): boolean {
   return ignored('.env') && ignored('dist/app.js')
 }
 
-export const committedASecret: Scenario = {
+export const committedASecret: GitScenario = {
   id: 'git-33-committed-a-secret',
   track: 'git',
   kind: 'scenario',

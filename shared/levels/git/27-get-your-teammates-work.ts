@@ -3,7 +3,7 @@
 // `git log main..origin/main` lists them), then `git pull` fast-forwards main. The look is read from the history: it
 // counts after a fetch and before the first pull or merge.
 import { remoteBranchHead, resolve, trackingBranchHead } from '../../git'
-import type { CommandRecord, Scenario } from '../types'
+import type { CommandRecord, GitScenario } from './types'
 import { INDEX, MENU, bakerySite } from './bakery'
 import { gitInvocations, logRevisions, once } from './checks'
 
@@ -31,7 +31,7 @@ function lookedFirst(history: CommandRecord[]): boolean {
   return fetched !== -1 && calls.some((call, i) => i > fetched && (taken === -1 || i < taken) && looks(call.args))
 }
 
-export const getYourTeammatesWork: Scenario = {
+export const getYourTeammatesWork: GitScenario = {
   id: 'git-27-get-your-teammates-work',
   track: 'git',
   kind: 'scenario',

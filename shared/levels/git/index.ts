@@ -1,8 +1,10 @@
 // The git track: its chapters and their levels, in play order. Adding a level: one entry in its chapter's `levels`
 // (plus the import); its number ("3.2") and its place in the play order follow from that (docs/features/levels.md).
 // A practice task goes right after the scenario it trains (`practises`); defineTrack checks the placement.
+import { fewestCommands } from '../progress'
 import { defineTrack, trackLevels } from '../track'
-import type { Level } from '../types'
+import { isGitLevel } from './types'
+import type { GitLevel } from './types'
 import { firstCommit } from './01-first-commit'
 import { branch } from './02-branch'
 import { merge } from './03-merge'
@@ -59,6 +61,7 @@ export const gitTrack = defineTrack({
   status: 'live',
   tagline: 'Practice git until it stops being scary.',
   cheatSheet: '/git/cheat-sheet',
+  bestRun: fewestCommands,
   chapters: [
     {
       id: 'basics',
@@ -214,4 +217,4 @@ export const gitTrack = defineTrack({
 })
 
 /** The git track's levels in play order. */
-export const gitLevels: Level[] = trackLevels(gitTrack)
+export const gitLevels: GitLevel[] = trackLevels(gitTrack).filter(isGitLevel)

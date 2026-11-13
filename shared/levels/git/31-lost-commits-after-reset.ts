@@ -3,7 +3,7 @@
 // commits and the reset. You look in `git reflog` (the goal is about the command: it changes nothing) and reset back to
 // HEAD@{1}. A mixed reset brings the branch back without the files; HEAD@{2} only the first commit.
 import { isWorkingTreeClean, resolve } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { STYLE, bakerySite, text } from './bakery'
 import { ran } from './checks'
 
@@ -40,7 +40,7 @@ const setup = () => bakerySite()
 /** Your newest commit, one move back in the reflog. */
 const LOST = resolve(setup(), 'HEAD@{1}')!
 
-export const lostCommitsAfterReset: Scenario = {
+export const lostCommitsAfterReset: GitScenario = {
   id: 'git-31-lost-commits-after-reset',
   track: 'git',
   kind: 'scenario',

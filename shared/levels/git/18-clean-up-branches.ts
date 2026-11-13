@@ -2,7 +2,7 @@
 // unmerged experiment (which `-D` then deletes), and `git branch -m` fixes a typo in a branch name. Merging the
 // experiment to make `-d` work is the shortcut the main goal rules out.
 import { branchExists, resolve } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { STYLE, bakerySite, text } from './bakery'
 import { once } from './checks'
 
@@ -51,7 +51,7 @@ const start = once(setup)
 const MAIN = () => resolve(start(), 'main')!
 const GALLERY_TIP = () => resolve(start(), TYPO)!
 
-export const cleanUpBranches: Scenario = {
+export const cleanUpBranches: GitScenario = {
   id: 'git-18-clean-up-branches',
   track: 'git',
   kind: 'scenario',

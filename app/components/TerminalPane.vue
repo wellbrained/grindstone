@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { CompletionContext } from '~/utils/completion'
-import type { LogEntry } from '~/composables/useLevelPlay'
+import type { LogEntry } from '~/composables/useGitPlay'
 import { isCoarsePointer } from '~/utils/play-layout'
 import type { Prompt } from '~/utils/terminal'
 

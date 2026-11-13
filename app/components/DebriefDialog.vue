@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { formatCredit, radarGain, trackRadar } from '#shared/levels'
-import type { Level, LevelPlace, Progress, Run, Scenario } from '#shared/levels'
+import type { Level, LevelPlace, Progress, Scenario } from '#shared/levels'
 
-// Shown when a level is solved: why the solution works, how you did, the skill radar with this chapter's axis lit (it
-// grows once from the shape before the solve, ADR 0007), and where to go next.
+// Shown when a level is solved, in every track: why the solution works, the skill radar with this chapter's axis lit (it
+// grows once from the shape before the solve, ADR 0007), how you did (the `stats` slot: each track counts its own run,
+// git: GitRunStats) and where to go next.
 const props = defineProps<{
   level: Scenario
   /** Where the level sits: its track's radar, its chapter's axis. */
@@ -13,8 +14,6 @@ const props = defineProps<{
   next: Level | null
   /** Where "Back to the track" goes after the last available level. */
   trackTo: string
-  /** This run (commands, hints), the shortest known solution, and the best run you ever had (this one included). */
-  stats: { commands: number, solution: number, hints: number, best: Run | null }
 }>()
 
 const open = defineModel<boolean>('open', { default: false })
@@ -38,11 +37,6 @@ function onCloseAutoFocus(event: Event) {
   event.preventDefault()
   emit('closed')
 }
-
-const verdict = computed(() => {
-  if (props.stats.commands <= props.stats.solution) return t('debrief.verdictBest')
-  return t('debrief.verdictMore', props.stats.commands - props.stats.solution)
-})
 </script>
 
 <template>
@@ -82,40 +76,7 @@ const verdict = computed(() => {
         />
       </div>
 
-      <dl
-        class="mt-5 grid grid-cols-2 gap-3 rounded-lg border border-default bg-muted p-3 text-sm sm:grid-cols-3"
-        data-testid="debrief-stats"
-      >
-        <div>
-          <dt class="text-muted">
-            {{ t('debrief.commands') }}
-          </dt>
-          <dd class="font-mono text-lg font-semibold text-highlighted">
-            {{ stats.commands }}
-            <span class="text-sm font-normal text-muted">/ {{ stats.solution }}</span>
-          </dd>
-        </div>
-        <div>
-          <dt class="text-muted">
-            {{ t('debrief.hints') }}
-          </dt>
-          <dd class="font-mono text-lg font-semibold text-highlighted">
-            {{ stats.hints }}
-          </dd>
-        </div>
-        <div v-if="stats.best">
-          <dt class="text-muted">
-            {{ t('debrief.best') }}
-          </dt>
-          <dd class="font-mono text-lg font-semibold text-highlighted">
-            {{ stats.best.commands }}
-            <span class="text-sm font-normal text-muted">{{ t('debrief.bestHints', stats.best.hints) }}</span>
-          </dd>
-        </div>
-        <p class="col-span-2 text-muted sm:col-span-3">
-          {{ verdict }}
-        </p>
-      </dl>
+      <slot name="stats" />
     </template>
     <template #footer>
       <div class="flex w-full flex-wrap items-center justify-end gap-2">

@@ -1,6 +1,6 @@
 // Level 2: work on a feature branch and leave main alone.
 import { currentBranch, resolve } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { bakerySite } from './bakery'
 import { once, treeOf } from './checks'
 
@@ -16,7 +16,7 @@ const setup = () => bakerySite()
 const start = once(setup)
 const mainAtStart = () => start().repo!.branches.main!
 
-export const branch: Scenario = {
+export const branch: GitScenario = {
   id: 'git-02-branch',
   track: 'git',
   kind: 'scenario',

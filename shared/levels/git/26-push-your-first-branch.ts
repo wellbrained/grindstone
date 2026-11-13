@@ -4,7 +4,7 @@
 // end state, and the status look only counts after the upstream is set.
 import { remoteBranchHead, resolve, upstreamOf } from '../../git'
 import type { GitState } from '../../git'
-import type { CommandRecord, Scenario } from '../types'
+import type { CommandRecord, GitScenario } from './types'
 import { bakerySite, text } from './bakery'
 import { gitInvocations, hasFlag } from './checks'
 
@@ -41,7 +41,7 @@ function checkedStatus(history: CommandRecord[]): boolean {
   return last !== -1 && calls.slice(last + 1).some(call => call.args[0] === 'status')
 }
 
-export const pushYourFirstBranch: Scenario = {
+export const pushYourFirstBranch: GitScenario = {
   id: 'git-26-push-your-first-branch',
   track: 'git',
   kind: 'scenario',

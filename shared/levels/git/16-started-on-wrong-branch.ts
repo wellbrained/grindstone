@@ -3,7 +3,7 @@
 // preview (.impeccable/mocks/previews/branching-preview.html).
 import { branchExists, currentBranch, isWorkingTreeClean, resolve } from '../../git'
 import type { GitState } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { CONTACT_FORM, bakerySite } from './bakery'
 import { once, treeOf } from './checks'
 
@@ -23,7 +23,7 @@ function addsContactForm(state: GitState): boolean {
   return !!tip?.['contact.html'] && !!parent && parent['contact.html'] === undefined
 }
 
-export const startedOnWrongBranch: Scenario = {
+export const startedOnWrongBranch: GitScenario = {
   id: 'git-16-started-on-wrong-branch',
   track: 'git',
   kind: 'scenario',

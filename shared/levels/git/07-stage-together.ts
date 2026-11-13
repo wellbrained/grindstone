@@ -1,6 +1,6 @@
 // Basics 1.2: two unrelated changes, two commits. The approved sample text of ADR 0006 (preview basics-preview.html).
 import { headCommit, isWorkingTreeClean, repo, resolve } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { changedIn, sameList } from './checks'
 
 const README_TYPO = [
@@ -44,7 +44,7 @@ const setup = () => repo()
   ].join('\n'))
   .build()
 
-export const stageTogether: Scenario = {
+export const stageTogether: GitScenario = {
   id: 'git-07-stage-together',
   track: 'git',
   kind: 'scenario',

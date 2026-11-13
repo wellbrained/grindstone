@@ -11,6 +11,7 @@
 - **Best run**: in Git, the fewest commands you solved a level in (ties broken by fewest hints); in Debugging, the fewest hints, then the fewest reloads, kept next to your **latest run**; replaying never costs anything.
 - **Practise again**: a flag you set on a solved level ("solved, but I don't own it yet"); Continue and the chapter menu offer flagged levels once nothing new is left.
 - **Reset**: clears solved, best and latest run, the "practise again" flag and last played for one level ("Mark as not solved"), a chapter, a track or everything, always after a confirmation.
+- **Environment**: what a track's levels run in and are checked against: Git's is the git model with its terminal and graph, Debugging's the sandbox. The shared level core (levels, goals, hints, progress, Continue, radar) works the same over any environment (ADR 0007).
 - **Setup**: the starting state of a level (local repo, `origin`, files, current branch), built with the setup builder.
 - **Goal**: a named check over the state, shown as one line of the live checklist. A level is solved when every goal passes.
 - **Hint**: three per scenario (from a nudge to the exact command), one per practice task.

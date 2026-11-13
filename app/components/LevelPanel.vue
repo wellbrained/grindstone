@@ -3,21 +3,22 @@ import { levelIntro } from '#shared/levels'
 import type { Level, LevelPlace } from '#shared/levels'
 import { timeText } from '~/utils/track-view'
 
-// Left column of the play page. A scenario: breadcrumb, title, story, the live goal checklist, Hint and Reset, the
+// Left column of the play page, the same in every track. A scenario: breadcrumb, title, story, the live goal checklist, Hint and Reset, the
 // solved card with Show debrief and Next level. A practice task is the compact variant (preview "Stage only app.js"):
 // breadcrumb through its scenario, title with "Practice · ~30 s", the task, its goal, one hint shown in place, and once
 // solved a one-line why with Next and Again. The ⋯ menu beside the title holds Play again, "practise again" and
 // Mark as not solved.
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   level: Level
   /** Track, chapter and number of the level, for the breadcrumb back to the track page. */
   place: LevelPlace
   goals: { id: string, label: string, met: boolean }[]
   hintsUsed: number
   solved: boolean
-  conflictedFiles: string[]
+  /** Files with conflicts, each a button that opens it (git); none in other tracks. */
+  conflictedFiles?: string[]
   next: Level | null
-}>()
+}>(), { conflictedFiles: () => [] })
 
 const emit = defineEmits<{
   hint: []

@@ -6,7 +6,7 @@
 // because main matched origin before; the debrief says so.
 import { commitsOf, isAncestor, resolve } from '../../git'
 import type { GitState } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { INDEX, MENU, STYLE, bakerySite, text } from './bakery'
 import { once } from './checks'
 
@@ -55,7 +55,7 @@ function onTopOfMain(state: GitState): boolean {
   return resolve(state, 'main') === ORIGIN() && isAncestor(state, 'main', BRANCH) && messages.join('\n') === YOURS.join('\n')
 }
 
-export const rebasedTheWrongBranch: Scenario = {
+export const rebasedTheWrongBranch: GitScenario = {
   id: 'git-32-rebased-the-wrong-branch',
   track: 'git',
   kind: 'scenario',

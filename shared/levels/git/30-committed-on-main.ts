@@ -3,7 +3,7 @@
 // switch. A soft reset leaves the changes staged on main; resetting before the branch exists loses the commits (7.2
 // shows how the reflog would bring them back).
 import { currentBranch, isWorkingTreeClean, resolve } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { INDEX, bakerySite, text } from './bakery'
 import { once } from './checks'
 
@@ -32,7 +32,7 @@ const start = once(setup)
 const TIP = () => resolve(start(), 'main')!
 const ORIGIN = () => resolve(start(), 'origin/main')!
 
-export const committedOnMain: Scenario = {
+export const committedOnMain: GitScenario = {
   id: 'git-30-committed-on-main',
   track: 'git',
   kind: 'scenario',

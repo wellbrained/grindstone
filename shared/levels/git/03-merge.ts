@@ -1,6 +1,6 @@
 // Merging 3.1: merge a finished feature branch into main (a fast-forward).
 import { currentBranch, isAncestor } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { INDEX, bakerySite, text } from './bakery'
 
 const BRANCH = 'feature/about-page'
@@ -11,7 +11,7 @@ const ABOUT = text(
   '<p>Maya opened Corner Bakery in 2019. Everything is baked here, every morning.</p>'
 )
 
-export const merge: Scenario = {
+export const merge: GitScenario = {
   id: 'git-03-merge',
   track: 'git',
   kind: 'scenario',

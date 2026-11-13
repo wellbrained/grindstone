@@ -2,8 +2,8 @@
 // Play order, chapter numbers and scenario numbers ("3.2") are derived from the chapter lists, never written by hand.
 // A practice task is listed right after the scenario it trains (after that scenario's other practice tasks) and has no
 // number of its own.
-import { entryOf, lastPlayed } from './progress'
-import type { Progress } from './progress'
+import { entryOf, fewestCommands, lastPlayed } from './progress'
+import type { Progress, RunMeasure } from './progress'
 import type { Level, Scenario, TrackId } from './types'
 
 export type TrackStatus = 'live' | 'coming'
@@ -37,6 +37,8 @@ export interface Track {
   status: TrackStatus
   /** Path of the track's cheat sheet (e.g. '/git/cheat-sheet'), or null when it has none. */
   cheatSheet: string | null
+  /** How its best run is chosen: Git fewest commands (then hints), Debugging fewest hints (then reloads). */
+  bestRun: RunMeasure
   /** Empty for a coming track. */
   chapters: readonly Chapter[]
 }
@@ -57,6 +59,8 @@ export interface TrackDefinition {
   description: string
   status: TrackStatus
   cheatSheet?: string
+  /** Default: fewest commands, then fewest hints. */
+  bestRun?: RunMeasure
   chapters?: readonly ChapterDefinition[]
 }
 
@@ -94,6 +98,7 @@ export function defineTrack(definition: TrackDefinition): Track {
     description: definition.description,
     status: definition.status,
     cheatSheet: definition.cheatSheet ?? null,
+    bestRun: definition.bestRun ?? fewestCommands,
     chapters
   }
 }

@@ -13,7 +13,7 @@
 // moves, you catch up. Every path to the goals therefore needs exactly one force push of a rewritten branch.
 import { hasMergeCommits, isAncestor, remoteBranchHead, resolve, teammateCommit } from '../../git'
 import type { GitState } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { MENU, bakerySite, text } from './bakery'
 import { conflictFullyResolved, gitInvocations, isBareForcePush, isLeasePush } from './checks'
 
@@ -30,7 +30,7 @@ const latestMain = (state: GitState) => {
   return tip && resolve(state, tip) ? tip : null
 }
 
-export const teammateSync: Scenario = {
+export const teammateSync: GitScenario = {
   id: 'git-06-teammate-sync',
   track: 'git',
   kind: 'scenario',

@@ -5,7 +5,7 @@
 // does not.
 import { commitsOf, remoteBranchHead, resolve, trackingBranchHead } from '../../git'
 import type { GitState } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { INDEX, MENU, STYLE, bakerySite } from './bakery'
 import { logsOnlyOn, once, ranBefore } from './checks'
 
@@ -37,7 +37,7 @@ function synced(state: GitState): boolean {
     && YOURS.every(message => messages.includes(message))
 }
 
-export const aheadAndBehind: Scenario = {
+export const aheadAndBehind: GitScenario = {
   id: 'git-29-ahead-and-behind',
   track: 'git',
   kind: 'scenario',

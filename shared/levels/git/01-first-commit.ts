@@ -1,8 +1,8 @@
 // Level 1: turn a plain folder into a repository and make the first commit.
 import { folder, headCommit, isWorkingTreeClean } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 
-export const firstCommit: Scenario = {
+export const firstCommit: GitScenario = {
   id: 'git-01-first-commit',
   track: 'git',
   kind: 'scenario',

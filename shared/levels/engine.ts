@@ -1,23 +1,23 @@
-// The level engine: one submitted line in, a new session out (docs/features/levels.md).
-// Pure and immutable: never mutates a session, never reads the clock; sessions are plain JSON.
-import { gitCommandNames, run, shellCommandNames, submitEditor, tokenize, waitingEditor, writeFile } from '../git'
-import type { GitState, OutputLine } from '../git'
-import { err, hint as hintLine, out } from '../git/output'
-import { isTerminalStep } from './types'
-import type { CommandRecord, Level, Notice, Session, SessionSnapshot, SolutionStep, SubmitResult, TeammateEvent, TerminalLine } from './types'
+// The shared level core: sessions, counted actions, teammate events, goals, hints, undo and reset, for any environment
+// (docs/features/levels.md, "Engine rules"). Each environment turns its own input into counted actions (git: a terminal
+// line, shared/levels/git/engine.ts) and words what these functions report.
+// Pure and immutable: never mutates a session, never reads the clock; sessions are plain JSON. Never imports an environment.
+import type { LevelOf, Notice, SessionOf, SessionSnapshot, TeammateEvent } from './types'
 
 /** Undo depth; older snapshots are dropped. */
 export const MAX_SNAPSHOTS = 200
 
-export const TRAINER_COMMANDS = ['undo', 'reset', 'hint', 'help', 'clear', 'edit'] as const
+/** The level fields the core reads. */
+type AnyLevel<S, R> = LevelOf<S, R, unknown>
 
-function goalsOf(level: Level, state: GitState, history: CommandRecord[]): Record<string, boolean> {
+function goalsOf<S, R>(level: AnyLevel<S, R>, state: S, history: R[]): Record<string, boolean> {
   return Object.fromEntries(level.goals.map(goal => [goal.id, goal.check({ state, history })]))
 }
 
 const allMet = (goals: Record<string, boolean>) => Object.values(goals).every(Boolean)
 
-export function startLevel(level: Level): Session {
+/** A fresh attempt on the level's setup. */
+export function startSession<S, R>(level: AnyLevel<S, R>): SessionOf<S, R> {
   const state = level.setup()
   return {
     levelId: level.id,
@@ -33,22 +33,7 @@ export function startLevel(level: Level): Session {
 }
 
 /** Collapses whitespace, so `git   push` and `git push` match the same trigger. */
-const normalize = (line: string) => line.trim().replace(/\s+/g, ' ')
-
-/** The commands inside a line (split at && and ;), as normalized words. Redirect targets are dropped. */
-function commandsIn(line: string): string[] {
-  const tokenized = tokenize(line)
-  if (!tokenized.ok) return [normalize(line)]
-  const commands: string[][] = [[]]
-  let skipNext = false
-  for (const token of tokenized.tokens) {
-    if (token.type === 'op' && (token.value === '&&' || token.value === ';')) commands.push([])
-    else if (token.type === 'op') skipNext = token.value === '>' || token.value === '>>'
-    else if (skipNext) skipNext = false
-    else commands[commands.length - 1]!.push(token.value)
-  }
-  return commands.filter(words => words.length).map(words => words.join(' '))
-}
+export const normalize = (line: string) => line.trim().replace(/\s+/g, ' ')
 
 const matchesPrefix = (command: string, prefix: string) => {
   const wanted = normalize(prefix)
@@ -56,7 +41,7 @@ const matchesPrefix = (command: string, prefix: string) => {
 }
 
 /** Applies events whose trigger matches, in level order; each fires once per timeline. */
-function fire(level: Level, state: GitState, fired: string[], shouldFire: (event: TeammateEvent, state: GitState) => boolean) {
+function fire<S, R>(level: AnyLevel<S, R>, state: S, fired: string[], shouldFire: (event: TeammateEvent<S>, state: S) => boolean) {
   let next = state
   const firedNow: string[] = []
   const notices: Notice[] = []
@@ -69,20 +54,40 @@ function fire(level: Level, state: GitState, fired: string[], shouldFire: (event
   return { state: next, fired: [...fired, ...firedNow], notices }
 }
 
-/**
- * The shared path of every counted command: snapshot, before-events, execute, record, after-events, goals.
- * `line` is what the history records and what `beforeCommand` triggers match against.
- */
-function counted(session: Session, level: Level, line: string, execute: (state: GitState) => { state: GitState, output: OutputLine[], exitCode: number }): SubmitResult {
-  const snapshot: SessionSnapshot = { state: session.state, history: session.history, firedEvents: session.firedEvents }
+/** What a counted action did: the new state, what the history records, and the environment's output. */
+export interface Outcome<S, R, O> {
+  state: S
+  record: R
+  output: O
+}
+
+/** One counted action (git: a terminal line, an editor save). */
+export interface Action<S, R, O> {
+  /** The commands it runs, as normalized words ('git push -u origin x'); `beforeCommand` triggers match against them. */
+  commands: readonly string[]
+  execute: (state: S) => Outcome<S, R, O>
+  /** A reload of the level's app (Debugging): counted in `reloads` as well. */
+  reload?: boolean
+}
+
+export interface ActResult<S, R, O> {
+  session: SessionOf<S, R>
+  output: O
+  notices: Notice[]
+  /** True only for the action that first made every goal pass. */
+  solvedNow: boolean
+}
+
+/** The path of every counted action: snapshot, before-events, execute, record, after-events, goals. */
+export function act<S, R, O>(session: SessionOf<S, R>, level: AnyLevel<S, R>, action: Action<S, R, O>): ActResult<S, R, O> {
+  const snapshot: SessionSnapshot<S, R> = { state: session.state, history: session.history, firedEvents: session.firedEvents }
   const snapshots = [...session.snapshots, snapshot].slice(-MAX_SNAPSHOTS)
 
-  const commands = commandsIn(line)
   const before = fire(level, session.state, session.firedEvents, ({ trigger }) =>
-    'beforeCommand' in trigger && commands.some(command => matchesPrefix(command, trigger.beforeCommand)))
+    'beforeCommand' in trigger && action.commands.some(command => matchesPrefix(command, trigger.beforeCommand)))
 
-  const result = execute(before.state)
-  const history = [...session.history, { line, exitCode: result.exitCode }]
+  const result = action.execute(before.state)
+  const history = [...session.history, result.record]
 
   const after = fire(level, result.state, before.fired, ({ trigger }, state) =>
     ('afterCommands' in trigger && history.length >= trigger.afterCommands) || ('when' in trigger && trigger.when(state)))
@@ -98,7 +103,8 @@ function counted(session: Session, level: Level, line: string, execute: (state: 
       firedEvents: after.fired,
       goalsMet,
       solved: session.solved || solvedNow,
-      commandCount: session.commandCount + 1
+      commandCount: session.commandCount + 1,
+      ...(action.reload ? { reloads: (session.reloads ?? 0) + 1 } : {})
     },
     output: result.output,
     notices: [...before.notices, ...after.notices],
@@ -106,95 +112,45 @@ function counted(session: Session, level: Level, line: string, execute: (state: 
   }
 }
 
-const quiet = (session: Session, output: TerminalLine[]): SubmitResult => ({ session, output, notices: [], solvedNow: false })
-
-function undo(session: Session, level: Level): SubmitResult {
+/**
+ * Restores the previous snapshot (state, history, fired events); the counts of the attempt stay. Null when there is
+ * nothing to undo; `undone` is the history entry it took back.
+ */
+export function undoLast<S, R>(session: SessionOf<S, R>, level: AnyLevel<S, R>): { session: SessionOf<S, R>, undone: R | undefined } | null {
   const snapshot = session.snapshots.at(-1)
-  if (!snapshot) return quiet(session, [out('Nothing to undo.')])
-  const undone = session.history.at(-1)
-  const restored: Session = {
-    ...session,
-    state: snapshot.state,
-    history: snapshot.history,
-    firedEvents: snapshot.firedEvents,
-    snapshots: session.snapshots.slice(0, -1),
-    goalsMet: goalsOf(level, snapshot.state, snapshot.history)
+  if (!snapshot) return null
+  return {
+    session: {
+      ...session,
+      state: snapshot.state,
+      history: snapshot.history,
+      firedEvents: snapshot.firedEvents,
+      snapshots: session.snapshots.slice(0, -1),
+      goalsMet: goalsOf(level, snapshot.state, snapshot.history)
+    },
+    undone: session.history.at(-1)
   }
-  return quiet(restored, [out(undone ? `Undid: ${undone.line}` : 'Undid the last command.')])
 }
 
 /** Back to the setup as a new attempt. Revealed hints stay revealed (and counted). */
-function reset(session: Session, level: Level): SubmitResult {
-  return quiet({ ...startLevel(level), hintsUsed: session.hintsUsed }, [out('Level reset to its starting point.')])
+export function restart<S, R>(session: SessionOf<S, R>, level: AnyLevel<S, R>): SessionOf<S, R> {
+  return { ...startSession(level), hintsUsed: session.hintsUsed }
 }
 
-function hint(session: Session, level: Level): SubmitResult {
+/** A hint as shown: its number (1-based), the level's hint count and its text. */
+export interface HintShown<S, R> {
+  session: SessionOf<S, R>
+  number: number
+  total: number
+  text: string
+  /** False when every hint was already revealed: the last one is shown again and nothing is counted. */
+  revealed: boolean
+}
+
+/** Reveals the next hint and counts it; after the last one it shows that one again, uncounted. */
+export function takeHint<S, R>(session: SessionOf<S, R>, level: AnyLevel<S, R>): HintShown<S, R> {
   const total = level.hints.length
-  if (session.hintsUsed >= total) {
-    return quiet(session, [hintLine(`Hint ${total}/${total}: ${level.hints[total - 1]}`), out('No more hints. `undo` steps back, `reset` starts over.')])
-  }
+  if (session.hintsUsed >= total) return { session, number: total, total, text: level.hints[total - 1]!, revealed: false }
   const hintsUsed = session.hintsUsed + 1
-  return quiet({ ...session, hintsUsed }, [hintLine(`Hint ${hintsUsed}/${total}: ${level.hints[hintsUsed - 1]}`)])
-}
-
-function help(session: Session): SubmitResult {
-  return quiet(session, [
-    out('Trainer commands:'),
-    out('  hint             show the next hint'),
-    out('  undo             take back your last command'),
-    out('  reset            start the level over'),
-    out('  edit <file>      open a file in the editor'),
-    out('  clear            clear the terminal'),
-    out(''),
-    out('Git commands:'),
-    out(`  ${gitCommandNames.map(name => `git ${name}`).join(', ')}`),
-    out(''),
-    out('Shell commands:'),
-    out(`  ${shellCommandNames.join(', ')}`)
-  ])
-}
-
-function trainerCommand(session: Session, level: Level, line: string): SubmitResult | null {
-  const [word = '', ...rest] = normalize(line).split(' ')
-  const name = word.toLowerCase()
-  if (name === 'edit') {
-    const tokenized = tokenize(line)
-    const args = tokenized.ok ? tokenized.tokens.slice(1) : []
-    if (args.length !== 1 || args[0]!.type !== 'word') return quiet(session, [err('usage: edit <file>')])
-    return quiet(session, [{ kind: 'edit', path: args[0]!.value }])
-  }
-  if (rest.length) return null
-  if (name === 'undo') return undo(session, level)
-  if (name === 'reset') return reset(session, level)
-  if (name === 'hint') return hint(session, level)
-  if (name === 'help') return help(session)
-  if (name === 'clear') return quiet(session, [{ kind: 'clear' }])
-  return null
-}
-
-/** Runs one terminal line: a trainer command, or a counted git/shell line. */
-export function submit(session: Session, level: Level, line: string): SubmitResult {
-  if (!line.trim()) return quiet(session, [])
-  return trainerCommand(session, level, line)
-    ?? counted(session, level, line.trim(), state => run(state, line))
-}
-
-/** Saves a file from the editor panel; counts like a command (`edit <path>` in the history) and can be undone. */
-export function saveFile(session: Session, level: Level, path: string, content: string): SubmitResult {
-  return counted(session, level, `edit ${path}`, state => ({ state: writeFile(state, path, content), output: [], exitCode: 0 }))
-}
-
-/**
- * Saves the file git waits for in the editor (`git rebase -i`: the todo list or a commit message) and lets git go on.
- * Counts like a command (`edit <path>` in the history) and can be undone. Nothing waiting: an error, not counted.
- */
-export function saveEditor(session: Session, level: Level, text: string): SubmitResult {
-  const wait = waitingEditor(session.state)
-  if (!wait) return quiet(session, [err('error: git is not waiting for a file in the editor')])
-  return counted(session, level, `edit ${wait.path}`, state => submitEditor(state, text))
-}
-
-/** Plays one solution step: a terminal line through `submit`, `{ save }` through `saveEditor`. */
-export function playStep(session: Session, level: Level, step: SolutionStep): SubmitResult {
-  return isTerminalStep(step) ? submit(session, level, step) : saveEditor(session, level, step.save)
+  return { session: { ...session, hintsUsed }, number: hintsUsed, total, text: level.hints[hintsUsed - 1]!, revealed: true }
 }

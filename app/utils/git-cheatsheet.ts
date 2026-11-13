@@ -2,7 +2,7 @@
 // plus the link to the levels that use a command, derived from the level solutions so it never goes stale. Every
 // visible text lives in the i18n locales under `cheat.*`; the key helpers below say where. Supported forms: docs/features/git-model.md.
 import { gitLevels, levelCommands } from '../../shared/levels'
-import type { Level } from '../../shared/levels'
+import type { GitLevel } from '../../shared/levels'
 
 export interface CheatCommand {
   /** The git subcommand, e.g. 'commit'. */
@@ -82,6 +82,6 @@ export const summaryKey = (command: string) => `cheat.commands.${command}.summar
 export const noteKey = (command: string, index: number) => `cheat.commands.${command}.examples.${index}`
 
 /** The scenarios whose solution uses this git subcommand, in level order (practice tasks have no number to link by). */
-export function levelsUsing(name: string, levels: readonly Level[] = gitLevels): Level[] {
+export function levelsUsing(name: string, levels: readonly GitLevel[] = gitLevels): GitLevel[] {
   return levels.filter(level => level.kind === 'scenario' && levelCommands(level).includes(name))
 }

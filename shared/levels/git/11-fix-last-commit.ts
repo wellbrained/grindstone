@@ -1,6 +1,6 @@
 // Undo & recovery 6.1: a typo in the last commit's message and a forgotten file, not pushed yet: `git commit --amend`.
 import { headCommit, isWorkingTreeClean, repo, resolve } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 
 const STREAK_CSS = [
   '/* The streak badge next to each habit: how many days in a row you kept it up. */',
@@ -31,7 +31,7 @@ const setup = () => repo()
   .file('src/streak.css', STREAK_CSS)
   .build()
 
-export const fixLastCommit: Scenario = {
+export const fixLastCommit: GitScenario = {
   id: 'git-11-fix-last-commit',
   track: 'git',
   kind: 'scenario',

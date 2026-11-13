@@ -3,7 +3,7 @@
 // one, checked by the level tests); HEAD's reflog has the commits too. Resetting main onto them does not count: the main
 // goal only counts once the branch is back, so nothing ticks at the start.
 import { resolve } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { MENU, bakerySite, text } from './bakery'
 
 const BRANCH = 'feature/loyalty-card'
@@ -36,7 +36,7 @@ const START = setup()
 const TIP = Object.values(START.repo!.commits).find(commit => commit.message === NEWEST)!.id
 const MAIN = resolve(START, 'main')!
 
-export const deletedABranch: Scenario = {
+export const deletedABranch: GitScenario = {
   id: 'git-34-deleted-a-branch',
   track: 'git',
   kind: 'scenario',

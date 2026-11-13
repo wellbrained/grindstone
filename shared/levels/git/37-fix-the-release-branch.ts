@@ -4,7 +4,7 @@
 // commit. The last hint names the fix's real id (checked by the level tests).
 import { commitsOf, remoteBranchHead, resolve } from '../../git'
 import type { GitState } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { INDEX, bakerySite, text } from './bakery'
 import { sameTree, treeOf } from './checks'
 
@@ -56,7 +56,7 @@ function picked(state: GitState): boolean {
     && tip.message.split('\n')[0] === FIX && tip.author.name === 'Jonas'
 }
 
-export const fixTheReleaseBranch: Scenario = {
+export const fixTheReleaseBranch: GitScenario = {
   id: 'git-37-fix-the-release-branch',
   track: 'git',
   kind: 'scenario',

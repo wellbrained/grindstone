@@ -3,7 +3,7 @@
 // (tracking it), and you continue with a commit and a plain `git push`.
 import { commitsOf, currentBranch, isAncestor, remoteBranchHead, upstreamOf } from '../../git'
 import type { GitState } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { INDEX, bakerySite, text } from './bakery'
 import { once } from './checks'
 
@@ -35,7 +35,7 @@ function thanksAdded(state: GitState): boolean {
   return !!tip && tip.id !== JONAS() && isAncestor(state, JONAS(), BRANCH) && !!tip.tree['thanks.html']
 }
 
-export const pickUpTeammateBranch: Scenario = {
+export const pickUpTeammateBranch: GitScenario = {
   id: 'git-17-pick-up-teammate-branch',
   track: 'git',
   kind: 'scenario',

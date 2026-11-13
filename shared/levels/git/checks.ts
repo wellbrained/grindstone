@@ -1,10 +1,10 @@
 // Reusable checks for git level goals, and the helpers git levels are written with.
 import { hasConflictMarkers, headCommit, operationInProgress, resolve, tokenize, unmergedPaths } from '../../git'
 import type { GitState, Tree } from '../../git'
-import type { CommandRecord, PracticeTask } from '../types'
+import type { CommandRecord, GitPracticeTask } from './types'
 
 /** A git practice task: difficulty 1 and about half a minute unless it says otherwise. */
-export const practice = (task: Omit<PracticeTask, 'track' | 'kind' | 'difficulty' | 'minutes'> & Partial<Pick<PracticeTask, 'difficulty' | 'minutes'>>): PracticeTask =>
+export const practice = (task: Omit<GitPracticeTask, 'track' | 'kind' | 'difficulty' | 'minutes'> & Partial<Pick<GitPracticeTask, 'difficulty' | 'minutes'>>): GitPracticeTask =>
   ({ track: 'git', kind: 'practice', difficulty: 1, minutes: 0.5, ...task })
 
 /**

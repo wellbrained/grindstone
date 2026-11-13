@@ -1,7 +1,7 @@
 // Basics 1.4: read the history with git log, find the commit that changed something and put a branch on the one before.
 import { commitsOf, repo, resolve, shortId } from '../../git'
 import type { GitState } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { ran } from './checks'
 
 const shipping = (limit: number) => [
@@ -35,7 +35,7 @@ const setup = () => repo()
 const commitBefore = (state: GitState) => commitsOf(state, 'main').find(commit => commit.message === 'Add free shipping from 50 euros')!.id
 const BEFORE_CHANGE = commitBefore(setup())
 
-export const readHistory: Scenario = {
+export const readHistory: GitScenario = {
   id: 'git-09-read-history',
   track: 'git',
   kind: 'scenario',

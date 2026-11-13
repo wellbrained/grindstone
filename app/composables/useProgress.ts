@@ -1,13 +1,13 @@
 // Progress per entry, shared by the home page, the track page, the play page and the About page. Persisted in
 // localStorage through the guarded adapter. Resets also drop the in-memory play sessions of the entries they clear, so
-// a level you open afterwards starts fresh (a level page that is open restarts itself, see useLevelPlay).
-import { entryOf, lastPlayed, recordPlay, recordSolve, resetEntries, setPractiseAgain } from '#shared/levels'
-import type { LevelProgress, Progress, Session } from '#shared/levels'
+// a level you open afterwards starts fresh (a level page that is open restarts itself, see usePlaySession).
+import { entryOf, fewestCommands, lastPlayed, levelPlace, recordPlay, recordSolve, resetEntries, setPractiseAgain } from '#shared/levels'
+import type { Attempt, LevelProgress, Progress } from '#shared/levels'
 
 /** The level already last played stores its time again at most this often, not on every command. */
 const PLAYED_EVERY_MS = 60_000
 
-/** Restart callbacks of the play pages that are open now, by level id (registered by useLevelPlay). */
+/** Restart callbacks of the play pages that are open now, by level id (registered by usePlaySession). */
 const openPlays = new Map<string, () => void>()
 
 export function registerPlay(levelId: string, restart: () => void) {
@@ -44,10 +44,10 @@ export function useProgress() {
     return saveProgress(next)
   }
 
-  /** Records a solved session and stores it; an unsolved one changes nothing. */
-  function record(levelId: string, session: Session) {
+  /** Records a solved session and stores it, its best run by its track's measure; an unsolved one changes nothing. */
+  function record(levelId: string, session: Attempt) {
     const first = session.solved && !isSolved(levelId)
-    commit(recordSolve(progress.value, levelId, session))
+    commit(recordSolve(progress.value, levelId, session, levelPlace(levelId)?.track.bestRun ?? fewestCommands))
     if (first) justSolved.value = levelId
   }
 

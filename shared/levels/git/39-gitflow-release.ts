@@ -4,7 +4,7 @@
 // deleting the release branch at the end (git flow's "finish") is fine. Nothing to push: Ben pushes after a last look.
 import { commitAt, isAncestor, resolve, tagOf } from '../../git'
 import type { Commit, GitState } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { bakerySite, text } from './bakery'
 import { committedOn, once } from './checks'
 
@@ -43,7 +43,7 @@ function mergedIntoMain(state: GitState): boolean {
   return !!version && !!tip && tip.parents.length === 2 && tip.parents[0] === MAIN() && isAncestor(state, version.id, tip.parents[1]!)
 }
 
-export const gitflowRelease: Scenario = {
+export const gitflowRelease: GitScenario = {
   id: 'git-39-gitflow-release',
   track: 'git',
   kind: 'scenario',

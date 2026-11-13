@@ -1,16 +1,16 @@
 <script setup lang="ts">
 import type { LevelPlace } from '#shared/levels'
-import type { LevelPlay } from '~/composables/useLevelPlay'
+import type { GitPlaySession } from '~/composables/useGitPlay'
 import { fileStatuses } from '~/utils/file-tree'
 import type { PlayLayout } from '~/utils/play-layout'
 import { isCoarsePointer, revealIfStacked } from '~/utils/play-layout'
 
-// The play area of both layouts (docs/adr/0004-editor-layouts.md, docs/features/ui.md). One skeleton for Terminal and IDE:
-// level panel left, terminal centre, commit graph right. IDE only opens two panels in place: Files below the level panel and
+// The git play area in both layouts (docs/adr/0004-editor-layouts.md, docs/features/ui.md), in the shared PlayFrame. One
+// skeleton for Terminal and IDE: level panel left, terminal centre, commit graph right. IDE only opens two panels in place: Files below the level panel and
 // the editor above the terminal. Nothing is rebuilt on a switch, so the terminal, the editor tabs and the scroll positions stay.
 // Closed panels are `inert` (no focus, hidden from screen readers) and take no space; the opening motion is the `.reveal` CSS in main.css.
 const props = defineProps<{
-  play: LevelPlay
+  play: GitPlaySession
   layout: PlayLayout
   place: LevelPlace
 }>()
@@ -65,12 +65,9 @@ defineExpose({
 </script>
 
 <template>
-  <div
-    class="grid gap-4 lg:h-[calc(100dvh-var(--ui-header-height)-9.5rem)] lg:min-h-[32rem] lg:grid-cols-[16rem_minmax(0,1fr)_20rem] lg:grid-rows-1 xl:grid-cols-[18rem_minmax(0,1fr)_24rem] 2xl:grid-cols-[20rem_minmax(0,1fr)_30rem]"
-    :data-layout="layout"
-  >
+  <PlayFrame :data-layout="layout">
     <!-- left: the level, Files below it in the IDE -->
-    <div class="order-1 flex min-w-0 flex-col lg:min-h-0">
+    <template #panel>
       <LevelPanel
         class="min-w-0 lg:min-h-0 lg:flex-[1_1_0] lg:overflow-y-auto lg:pr-1"
         :level="level"
@@ -101,10 +98,10 @@ defineExpose({
           />
         </div>
       </div>
-    </div>
+    </template>
 
     <!-- centre: the editor above the terminal in the IDE -->
-    <div class="order-2 flex min-w-0 flex-col md:order-3 lg:order-2 lg:min-h-0">
+    <template #default>
       <div
         class="reveal reveal-editor"
         :data-open="ide || undefined"
@@ -144,15 +141,15 @@ defineExpose({
         />
         <SparkBurst :trigger="sparkKey" />
       </div>
-    </div>
+    </template>
 
     <!-- right: the commit graph, the same in both layouts -->
-    <div class="order-3 h-80 min-w-0 md:order-2 lg:order-3 lg:h-full">
+    <template #side>
       <CommitGraph
         v-model:show-origin="showOrigin"
         :layout="graph"
         :has-origin="hasOrigin"
       />
-    </div>
-  </div>
+    </template>
+  </PlayFrame>
 </template>

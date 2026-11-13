@@ -5,7 +5,7 @@
 // Ben's commit is found by its message: its id depends on when the event fires.
 import { commitsOf, hasMergeCommits, remoteBranchHead, remoteCommitsOf, resolve, teammateCommit } from '../../git'
 import type { Commit, GitState } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { INDEX, MENU, bakerySite } from './bakery'
 
 const YOURS = 'Add the Christmas opening hours'
@@ -30,7 +30,7 @@ function onTopOfBen(state: GitState): boolean {
   return !!tip && !!parent && tip.message === YOURS && tip.parents[0] === parent.id && isBens(parent) && !hasMergeCommits(state, 'main')
 }
 
-export const yourPushWasRejected: Scenario = {
+export const yourPushWasRejected: GitScenario = {
   id: 'git-28-your-push-was-rejected',
   track: 'git',
   kind: 'scenario',

@@ -2,7 +2,7 @@
 // src/products.js would be overwritten), so you stash, fix and commit on main, switch back and pop.
 import { currentBranch, repo, resolve, stashEntries } from '../../git'
 import type { GitState } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { text } from './bakery'
 import { changedIn, once, sameList, treeOf } from './checks'
 
@@ -55,7 +55,7 @@ function hoursFixed(state: GitState): boolean {
     && sameList(changedIn(state, 'main'), ['src/hours.js'])
 }
 
-export const parkUnfinishedWork: Scenario = {
+export const parkUnfinishedWork: GitScenario = {
   id: 'git-15-park-unfinished-work',
   track: 'git',
   kind: 'scenario',

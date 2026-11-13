@@ -1,6 +1,6 @@
 // Basics 1.3: look at what changed (status, diff, diff --staged) before you commit, and commit only one of two jobs.
 import { commitsOf, headCommit, repo } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { ran } from './checks'
 
 const INDEX = [
@@ -60,7 +60,7 @@ const setup = () => repo()
   .file('style.css', `${STYLE}\n\n/* Dark theme, work in progress: colours not final */\n.dark body {\n  color: #f3e9dc;\n  background: #1f1a16;\n}`)
   .build()
 
-export const whatChanged: Scenario = {
+export const whatChanged: GitScenario = {
   id: 'git-08-what-changed',
   track: 'git',
   kind: 'scenario',

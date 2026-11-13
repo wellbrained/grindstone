@@ -3,7 +3,7 @@
 // Looking in a detached HEAD changes nothing that lasts, so the "looked" goal reads the history (like `git diff` in 1.3).
 import { branchExists, commitsOf, currentBranch, resolve, shortId } from '../../git'
 import type { GitState } from '../../git'
-import type { CommandRecord, Scenario } from '../types'
+import type { CommandRecord, GitScenario } from './types'
 import { INDEX, MENU, STYLE, bakerySite, text } from './bakery'
 import { gitInvocations, hasFlag } from './checks'
 
@@ -55,7 +55,7 @@ function detached(state: GitState, history: CommandRecord[]): boolean {
   })
 }
 
-export const lookAtOldVersion: Scenario = {
+export const lookAtOldVersion: GitScenario = {
   id: 'git-19-look-at-old-version',
   track: 'git',
   kind: 'scenario',

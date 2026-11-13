@@ -2,7 +2,7 @@
 // The approved sample text of the chapter preview (undo-preview.html); the hash in the last hint is the real one.
 import { branchExists, commitsOf, remoteBranchHead, repo, resolve, shortId } from '../../git'
 import type { Tree } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { text } from './bakery'
 import { treeOf } from './checks'
 
@@ -45,7 +45,7 @@ const TIP = commitsOf(START, 'main')[0]!.id
 /** The prices are back to two decimals and Maya's Sunday hours are still there. */
 const undone = (tree: Tree | null) => tree?.['prices.js'] === PRICES && tree['hours.html'] === HOURS_SUNDAY
 
-export const undoPushedCommit: Scenario = {
+export const undoPushedCommit: GitScenario = {
   id: 'git-14-undo-pushed-commit',
   track: 'git',
   kind: 'scenario',

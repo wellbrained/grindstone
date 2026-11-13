@@ -2,7 +2,7 @@
 // (docs/features/levels.md). They use the Corner Bakery website like the scenarios.
 import { branchExists, commitsOf, currentBranch, isWorkingTreeClean, remoteBranchHead, resolve, stashEntries, tagOf, teammateMerge, trackingBranchHead } from '../../../git'
 import type { GitState } from '../../../git'
-import type { CommandRecord } from '../../types'
+import type { CommandRecord } from '../types'
 import { INDEX, MENU, bakerySite, text } from '../bakery'
 import { gitInvocations, practice } from '../checks'
 

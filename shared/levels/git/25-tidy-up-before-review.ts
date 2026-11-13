@@ -4,7 +4,7 @@
 // `{ save }` steps (docs/features/levels.md). Main has not moved, so the rebase only rewrites your own commits.
 import { commitsOf, isAncestor, operationInProgress, resolve, shortId } from '../../git'
 import type { GitState } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { bakerySite, text } from './bakery'
 import { sameTree, treeOf } from './checks'
 
@@ -45,7 +45,7 @@ const yourCommits = (state: GitState) =>
   operationInProgress(state) === null && isAncestor(state, MAIN, BRANCH) ? commitsOf(state, `main..${BRANCH}`) : []
 const onlyOne = (state: GitState) => yourCommits(state).length === 1
 
-export const tidyUpBeforeReview: Scenario = {
+export const tidyUpBeforeReview: GitScenario = {
   id: 'git-25-tidy-up-before-review',
   track: 'git',
   kind: 'scenario',

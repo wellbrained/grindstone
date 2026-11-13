@@ -184,7 +184,7 @@ body {
   }
 }
 
-/* a panel of the play page that opens in place (PlayWorkbench.vue, IDE layout).
+/* a panel of the play page that opens in place (GitWorkbench.vue, IDE layout).
    Stacked (below lg): its row grows from 0fr to 1fr. In the lg grid it is a flex item of its column that grows from 0
    to its share, so the neighbour (level panel, terminal) shrinks without moving its other edge.
    The gap to the neighbour is a margin on the panel itself, one level inside, so a closed panel is 0px tall.

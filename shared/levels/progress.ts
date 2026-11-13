@@ -2,21 +2,41 @@
 // (localStorage adapter) and the backup file; both go through `readProgress`, so a bad file can never break the app.
 // Version 3 keeps a best and a latest run, the fewest hints any solve used (for the skill radar), a "practise again" flag
 // and when an entry was last played. Versions 1 and 2 are migrated on read; version 3 data from before `fewestHints`
-// gets it from its runs (docs/features/levels.md, "Progress").
-import type { Session } from './types'
+// gets it from its runs (docs/features/levels.md, "Progress"). Which run is best is the track's measure (`RunMeasure`):
+// Git fewest commands, Debugging fewest hints then fewest reloads. Track-agnostic: never imports an environment.
+import type { SessionOf } from './types'
 
 export const PROGRESS_VERSION = 3
 
-/** One solve: how many commands it took (undone ones included) and how many hints were revealed. */
+/**
+ * One solve: how many counted actions it took (git: commands; undone ones included), how many hints were revealed and,
+ * in a track with reloads (Debugging), how many reloads. `reloads` is absent in git runs, so their stored form did not change.
+ */
 export interface Run {
   commands: number
   hints: number
+  reloads?: number
 }
+
+/** A count a best run is chosen by. */
+export type RunCounter = 'commands' | 'hints' | 'reloads'
+
+/** How a track picks its best run: the counters in order, fewer wins, each later one breaks a tie (a missing count is 0). */
+export type RunMeasure = readonly RunCounter[]
+
+/** Git: fewest commands, ties broken by fewest hints. */
+export const fewestCommands: RunMeasure = ['commands', 'hints']
+
+/** Debugging: fewest hints, then fewest reloads (ADR 0007). */
+export const fewestHintsThenReloads: RunMeasure = ['hints', 'reloads']
+
+/** What a solve needs from a session, whatever its environment. */
+export type Attempt = Pick<SessionOf<unknown, unknown>, 'solved' | 'commandCount' | 'hintsUsed' | 'reloads'>
 
 export interface LevelProgress {
   /** Stays true once solved; only a reset clears it. */
   solved: boolean
-  /** The best solve: fewest commands, ties broken by fewest hints. Null before the first solve (or unknown). */
+  /** The best solve by the track's measure (git: fewest commands, ties fewest hints). Null before the first solve (or unknown). */
   best: Run | null
   /** The most recent solve. */
   latest: Run | null
@@ -64,26 +84,42 @@ const withEntry = (progress: Progress, levelId: string, change: (entry: LevelPro
   levels: { ...progress.levels, [levelId]: change(entryOf(progress, levelId) ?? blankEntry()) }
 })
 
-/** Fewer commands wins; on a tie, fewer hints. */
-export const isBetterRun = (run: Run, than: Run | null) =>
-  !than || run.commands < than.commands || (run.commands === than.commands && run.hints < than.hints)
+/** True when `run` beats `than` by the measure (default: fewer commands wins; on a tie, fewer hints). */
+export function isBetterRun(run: Run, than: Run | null, measure: RunMeasure = fewestCommands): boolean {
+  if (!than) return true
+  for (const counter of measure) {
+    const mine = run[counter] ?? 0
+    const theirs = than[counter] ?? 0
+    if (mine !== theirs) return mine < theirs
+  }
+  return false
+}
+
+/** The run a solved attempt stands for (`reloads` only when the attempt counted any). */
+export const runOf = (attempt: Attempt): Run => ({
+  commands: attempt.commandCount,
+  hints: attempt.hintsUsed,
+  ...(attempt.reloads !== undefined ? { reloads: attempt.reloads } : {})
+})
 
 /** Marks an entry as the one you last played. */
 export function recordPlay(progress: Progress, levelId: string, at: number): Progress {
   return withEntry(progress, levelId, entry => ({ ...entry, lastPlayed: at }))
 }
 
-/** Records a solved session as the latest run (and the best, when it is) and clears "practise again" (you just did);
- * an unsolved one leaves the progress as it is. */
-export function recordSolve(progress: Progress, levelId: string, session: Session): Progress {
+/**
+ * Records a solved session as the latest run (and the best by the track's measure, when it is) and clears "practise
+ * again" (you just did); an unsolved one leaves the progress as it is.
+ */
+export function recordSolve(progress: Progress, levelId: string, session: Attempt, measure: RunMeasure = fewestCommands): Progress {
   if (!session.solved) return progress
-  const run: Run = { commands: session.commandCount, hints: session.hintsUsed }
+  const run = runOf(session)
   return withEntry(progress, levelId, entry => ({
     ...entry,
     solved: true,
     practiseAgain: false,
     latest: run,
-    best: isBetterRun(run, entry.best) ? run : entry.best,
+    best: isBetterRun(run, entry.best, measure) ? run : entry.best,
     fewestHints: fewest(entry.fewestHints, run.hints)
   }))
 }
@@ -135,8 +171,9 @@ export const MAX_FUTURE_MS = 24 * 60 * 60 * 1000
 
 const isCount = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 0
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
+/** A stored run; `reloads` is kept when it is a count and left out otherwise (git runs never have one). */
 const asRun = (value: unknown): Run | null => isObject(value) && isCount(value.commands) && isCount(value.hints)
-  ? { commands: value.commands, hints: value.hints }
+  ? { commands: value.commands, hints: value.hints, ...(isCount(value.reloads) ? { reloads: value.reloads } : {}) }
   : null
 
 /**

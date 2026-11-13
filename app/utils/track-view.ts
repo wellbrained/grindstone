@@ -1,6 +1,6 @@
 // What the track page and the home page draw for a track, from the track and the progress: pure, so it is tested on the
 // real track and on the 58-level fixture (test/unit/ui/track-view.test.ts). The components only render it.
-import { chapterProgress, entryOf, levelCommands, nextUp, trackPlaces, trackProgress } from '../../shared/levels'
+import { chapterProgress, entryOf, isGitLevel, levelCommands, nextUp, trackPlaces, trackProgress } from '../../shared/levels'
 import type { Chapter, Count, LevelPlace, LevelProgress, Progress, Track } from '../../shared/levels'
 
 /** solved: filled commit dot; next: the first unsolved level (ember ring); open: hollow. */
@@ -33,7 +33,7 @@ export interface LevelRowView {
   state: LevelState
   /** The stored progress (best run, "practise again"), or null. */
   progress: LevelProgress | null
-  /** The git commands the level practises (from its solution). */
+  /** The git commands the level practises (from its solution); none for a level of another track. */
   commands: string[]
   lane: RowLanes
 }
@@ -84,7 +84,7 @@ export function trackView(track: Track, progress: Progress): TrackView {
           place,
           state: stateOf(place),
           progress: entryOf(progress, place.level.id) ?? null,
-          commands: levelCommands(place.level)
+          commands: isGitLevel(place.level) ? levelCommands(place.level) : []
         })))
     }
   })

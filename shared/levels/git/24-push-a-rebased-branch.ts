@@ -3,7 +3,7 @@
 // history fails the lease goal (undo takes it back), and so does merging the old commits back in with `git pull`.
 import { commitsOf, hasMergeCommits, isAncestor, remoteBranchHead, resolve } from '../../git'
 import type { GitState } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { MENU, bakerySite, text } from './bakery'
 import { gitInvocations, isBareForcePush, isLeasePush, once, sameList } from './checks'
 
@@ -40,7 +40,7 @@ const MAIN = () => resolve(start(), 'main')!
 
 const onTopOfMain = (state: GitState) => isAncestor(state, MAIN(), BRANCH)
 
-export const pushRebasedBranch: Scenario = {
+export const pushRebasedBranch: GitScenario = {
   id: 'git-24-push-a-rebased-branch',
   track: 'git',
   kind: 'scenario',

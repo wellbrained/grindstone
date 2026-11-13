@@ -2,7 +2,7 @@
 // touch. No fast-forward this time: `git merge` makes a merge commit with two parents, which you read in
 // `git log --graph`.
 import { isAncestor, resolve } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { INDEX, MENU, STYLE, bakerySite, text } from './bakery'
 import { isMergeOf, once, ranAfter } from './checks'
 
@@ -36,7 +36,7 @@ const start = once(setup)
 const MAIN = () => resolve(start(), 'main')!
 const FEATURE = () => resolve(start(), BRANCH)!
 
-export const bothSidesMovedOn: Scenario = {
+export const bothSidesMovedOn: GitScenario = {
   id: 'git-20-both-sides-moved-on',
   track: 'git',
   kind: 'scenario',

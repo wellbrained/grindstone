@@ -2,7 +2,7 @@
 // You merge main into feature/order-pickup and settle the conflict there; main itself must not move.
 import { isAncestor, resolve } from '../../git'
 import type { GitState } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { INDEX, STYLE, bakerySite, text } from './bakery'
 import { conflictFullyResolved, isMergeOf, once, treeOf } from './checks'
 
@@ -46,7 +46,7 @@ const FEATURE = () => resolve(start(), BRANCH)!
 /** Your branch ends in a merge commit of main (yours first, main second). */
 const mergedMainIn = (state: GitState) => isMergeOf(state, BRANCH, FEATURE(), MAIN())
 
-export const catchUpWithMain: Scenario = {
+export const catchUpWithMain: GitScenario = {
   id: 'git-22-catch-up-with-main',
   track: 'git',
   kind: 'scenario',

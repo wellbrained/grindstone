@@ -6,7 +6,7 @@
 // once your commit is in main, so nothing ticks at the start (the branch doesn't exist yet then).
 import { branchExists, commitsOf, remoteBranchHead, remoteCommitsOf, resolve, teammateCommit, teammateMerge, trackingBranchHead } from '../../git'
 import type { Commit, GitState } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { MENU, bakerySite } from './bakery'
 import { once } from './checks'
 
@@ -41,7 +41,7 @@ const inLocalMain = (state: GitState) => {
   return !!yours && commitsOf(state, 'main').some(commit => commit.id === yours.id)
 }
 
-export const pullRequestFlow: Scenario = {
+export const pullRequestFlow: GitScenario = {
   id: 'git-35-pull-request-flow',
   track: 'git',
   kind: 'scenario',

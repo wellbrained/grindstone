@@ -1,6 +1,6 @@
 // Undo & recovery 6.2: before a commit, throw away a broken experiment (`git restore`) and unstage a draft (`git restore --staged`).
 import { repo } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { text } from './bakery'
 import { committedFile, stagedFile } from './checks'
 
@@ -59,7 +59,7 @@ const setup = () => repo()
   .file('menu.html', MENU_EXPERIMENT)
   .build()
 
-export const throwAwayChange: Scenario = {
+export const throwAwayChange: GitScenario = {
   id: 'git-12-throw-away-change',
   track: 'git',
   kind: 'scenario',

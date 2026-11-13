@@ -2,7 +2,7 @@
 // its changes (`reset`, mixed). The setup's tree is clean, so --hard loses nothing here; story, hints and debrief warn
 // that it throws away uncommitted work for good (owner decision: --hard stays inside this scenario, no separate one).
 import { commitsOf, repo, resolve } from '../../git'
-import type { Scenario } from '../types'
+import type { GitScenario } from './types'
 import { text } from './bakery'
 import { once } from './checks'
 
@@ -66,7 +66,7 @@ const setup = () => repo()
 const start = once(setup)
 const BASE = () => resolve(start(), 'origin/main')!
 
-export const undoLocalCommit: Scenario = {
+export const undoLocalCommit: GitScenario = {
   id: 'git-13-undo-local-commit',
   track: 'git',
   kind: 'scenario',

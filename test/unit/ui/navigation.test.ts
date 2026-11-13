@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { defineTrack, gitTrack, tracks } from '../../../shared/levels'
+import type { Level } from '../../../shared/levels'
 import { firstCommit } from '../../../shared/levels/git/01-first-commit'
 import { comingTracks, liveTracks, navigationItems } from '../../../app/utils/navigation'
 
@@ -12,7 +13,7 @@ const web = defineTrack({
   scope: 'CORS and friends',
   description: 'Fixture.',
   status: 'live',
-  chapters: [{ id: 'cors', title: 'CORS', description: 'Fixture.', colour: 0, levels: [{ ...firstCommit, id: 'web-01-cors', track: 'web' }] }]
+  chapters: [{ id: 'cors', title: 'CORS', description: 'Fixture.', colour: 0, levels: [{ ...firstCommit, id: 'web-01-cors', track: 'web' } as unknown as Level] }]
 })
 const withWeb = [gitTrack, web, ...tracks.filter(track => track.status === 'coming' && track.id !== 'web')]
 
