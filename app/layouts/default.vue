@@ -33,7 +33,7 @@ const menuItems = computed(() => navigation.value.map(item => item.children ? { 
 
       <UNavigationMenu
         :items="menuItems"
-        :ui="{ childList: 'grid w-44 grid-cols-1 gap-0' }"
+        :ui="{ childList: 'grid w-full min-w-44 grid-cols-1 gap-0', childLink: 'hover:before:bg-accented' }"
         :aria-label="t('layout.nav.label')"
       />
 
