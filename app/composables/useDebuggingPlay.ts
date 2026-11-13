@@ -1,10 +1,11 @@
 // The Debugging play page on top of usePlaySession (docs/features/ui.md, "Debugging play page"): the app in its sealed
-// frame, the Console, the code with its drafts, Reload with its check run, and find tasks' clicks. The session, goals,
+// frame, the Console, the Network panel (levels with a backend), the code with its drafts, Reload with its check run,
+// and find tasks' clicks. The session, goals,
 // recording, stats events and debrief are shared.
 // The session, the drafts, the open file and the last click live in the play state (they survive leaving the page); the
-// app you see, its Console and the marked line live as long as the page (coming back loads the app again).
-import { consoleEntry, pickLine, readBridgeMessage, reload, restart, saveDebugFile, startDebugLevel, takeHint } from '#shared/levels'
-import type { ConsoleEntryBody, DebugLevel, DebugResult, DebugSession, PickVerdict, SourceLine, SourceMapping } from '#shared/levels'
+// app you see, its Console, its requests and the marked line live as long as the page (coming back loads the app again).
+import { consoleEntry, pickLine, readBridgeMessage, reload, requestEntry, restart, saveDebugFile, startDebugLevel, takeHint, withResponse } from '#shared/levels'
+import type { ConsoleEntryBody, DebugLevel, DebugResult, DebugSession, NetworkEntry, PickVerdict, SourceLine, SourceMapping } from '#shared/levels'
 import type { LineTone } from '~/editor/codemirror'
 import type { AppLoad } from '~/utils/sandbox-host'
 import { appLoad, runCheck } from '~/utils/sandbox-host'
@@ -28,6 +29,8 @@ interface PlayState {
 const MAX_ENTRIES = 500
 /** The most of its own logs and errors one load of the app shows (a console.log in a loop must not freeze the page). */
 const MAX_APP_MESSAGES = 1000
+/** The most requests one load of the app lists in the Network panel (a fetch in a loop); later ones are not listed. */
+export const MAX_REQUESTS = 200
 
 export function useDebuggingPlay(level: DebugLevel) {
   const fresh = (): PlayState => {
@@ -38,6 +41,9 @@ export function useDebuggingPlay(level: DebugLevel) {
   const { store, session, next, goals, best, debriefOpen, progressBefore, sparkKey } = play
 
   const find = level.sandbox.find ?? null
+  const backend = level.sandbox.backend
+  /** The level scripts a backend, so the page shows the Network panel. */
+  const hasNetwork = backend !== undefined
   const files = computed(() => fileOrder(Object.keys(session.value.state.files)))
   const unsaved = computed(() => files.value.filter(path => store.value.drafts[path] !== session.value.state.files[path]))
   const reloads = computed(() => session.value.reloads ?? 0)
@@ -46,6 +52,8 @@ export function useDebuggingPlay(level: DebugLevel) {
   const load = shallowRef<AppLoad | null>(null)
   const mapping = shallowRef<SourceMapping>({ urls: {}, bridgeLine: 0 })
   const entries = ref<ConsoleEntry[]>([])
+  /** The Network panel: the requests of this load, in the order sent. */
+  const requests = shallowRef<NetworkEntry[]>([])
   const ready = ref(false)
   const checking = ref(false)
   let nextId = 0
@@ -95,11 +103,12 @@ export function useDebuggingPlay(level: DebugLevel) {
   /** Starts the app you see on these files (not counted: Reload counts, a page visit or Reset does not). */
   function startApp(files: Readonly<Record<string, string>>) {
     entries.value = []
+    requests.value = []
     queue = []
     appMessages = 0
     ready.value = false
     mapping.value = { urls: {}, bridgeLine: 0 }
-    load.value = appLoad(files)
+    load.value = appLoad(files, backend)
     mapping.value = { urls: {}, bridgeLine: load.value.bridgeLine }
   }
 
@@ -111,6 +120,9 @@ export function useDebuggingPlay(level: DebugLevel) {
     if (!message) return
     if (message.type === 'files') mapping.value = { urls: message.urls, bridgeLine: current.bridgeLine }
     else if (message.type === 'ready') ready.value = true
+    else if (message.type === 'request') {
+      if (requests.value.length < MAX_REQUESTS) requests.value = [...requests.value, requestEntry(message, mapping.value)]
+    } else if (message.type === 'response') requests.value = withResponse(requests.value, message)
     else {
       // past the cap the app's output is dropped before it is even read
       if (message.type !== 'result' && appMessages >= MAX_APP_MESSAGES) return
@@ -143,6 +155,10 @@ export function useDebuggingPlay(level: DebugLevel) {
     queue = []
   }
 
+  function clearNetwork() {
+    requests.value = []
+  }
+
   function apply(result: DebugResult) {
     play.update(result.session)
     if (result.solvedNow) play.solved(result.session)
@@ -164,7 +180,7 @@ export function useDebuggingPlay(level: DebugLevel) {
     const startedIn = attempt
     startApp(saved)
     checking.value = true
-    const observation = await runCheck(saved, level.sandbox.probes)
+    const observation = await runCheck(saved, level.sandbox.probes, backend)
     // a Reset or Again while the check ran started a new attempt: this result belongs to the old one
     if (disposed || startedIn !== attempt) return
     checking.value = false
@@ -232,6 +248,7 @@ export function useDebuggingPlay(level: DebugLevel) {
   return {
     level,
     find,
+    hasNetwork,
     session,
     store,
     files,
@@ -245,6 +262,7 @@ export function useDebuggingPlay(level: DebugLevel) {
     sparkKey,
     load,
     entries,
+    requests,
     ready,
     checking,
     stale,
@@ -253,6 +271,7 @@ export function useDebuggingPlay(level: DebugLevel) {
     connectFrame,
     evaluate,
     clearConsole,
+    clearNetwork,
     save,
     reloadApp,
     openFile,

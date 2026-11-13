@@ -8,7 +8,7 @@ import type { DebuggingPlaySession } from '~/composables/useDebuggingPlay'
 const props = defineProps<{ play: DebuggingPlaySession }>()
 
 const { t } = useI18n()
-const { level, load, checking, stale, reloadApp, onFrameMessage, connectFrame } = props.play
+const { level, load, checking, stale, hasNetwork, reloadApp, onFrameMessage, connectFrame } = props.play
 
 const frame = useTemplateRef<HTMLIFrameElement>('frame')
 connectFrame(() => frame.value?.contentWindow ?? null)
@@ -70,7 +70,7 @@ const address = `${SHOP_ORIGIN.replace(/^https:\/\//, '').replace(/\/$/, '')}${l
       data-testid="app-frame"
     />
     <p class="border-t border-(--app-terminal-border) px-3 py-1.5 text-xs text-dimmed">
-      {{ t('debugging.app.sealed') }}
+      {{ hasNetwork ? t('debugging.app.sealedBackend') : t('debugging.app.sealed') }}
     </p>
   </section>
 </template>

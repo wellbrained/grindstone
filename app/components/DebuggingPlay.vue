@@ -1,9 +1,11 @@
 <script setup lang="ts">
+import { statusTone } from '#shared/levels'
 import type { DebugLevel, LevelPlace } from '#shared/levels'
 
 // The Debugging play page (the play page picks it for a Debugging level; docs/features/ui.md, "Debugging play page"):
-// in the shared PlayFrame, the level panel left, Code above the Console in the middle, the App on the right. Below lg
-// the three are tabs (App, Console, Code), all mounted, so switching never reloads the app. No layout switch.
+// in the shared PlayFrame, the level panel left, Code above the Console in the middle, the App on the right. A level
+// with a backend has a Network panel too, as a tab next to the Console. Below lg the panels are tabs (App, Console,
+// Network when there is one, Code), all mounted, so switching never reloads the app. No layout switch.
 const props = defineProps<{
   level: DebugLevel
   place: LevelPlace
@@ -12,30 +14,63 @@ const props = defineProps<{
 const { t } = useI18n()
 
 const play = useDebuggingPlay(props.level)
-const { session, store, goals, next, stats, reloads, find, debriefOpen, progressBefore, sparkKey, mark, hint, reset, again } = play
+const { session, store, goals, next, stats, reloads, find, hasNetwork, requests, debriefOpen, progressBefore, sparkKey, mark, hint, reset, again } = play
 
-type Panel = 'app' | 'console' | 'code'
-const PANELS: Panel[] = ['app', 'console', 'code']
+type Panel = 'app' | 'console' | 'network' | 'code'
+type Lower = 'console' | 'network'
+const PANELS: Panel[] = hasNetwork ? ['app', 'console', 'network', 'code'] : ['app', 'console', 'code']
+const LOWER: Lower[] = ['console', 'network']
+/** Below lg: the one panel shown. */
 const panel = ref<Panel>('app')
-// a line opened from the Console (or a find task's answer) shows the Code panel on phones
+/** From lg: Console or Network under the code (levels with a backend). */
+const lower = ref<Lower>('console')
+// the two tab sets agree on Console or Network, so a resize keeps what you were looking at
+watch(panel, (name) => {
+  if (name === 'console' || name === 'network') lower.value = name
+})
+watch(lower, (name) => {
+  if (panel.value === 'console' || panel.value === 'network') panel.value = name
+})
+// a line opened from the Console or the Network panel (or a find task's answer) shows the Code panel on phones
 watch(mark, (line) => {
   if (line) panel.value = 'code'
 })
+const wide = useMediaQuery('(min-width: 1024px)')
 
-const tabList = useTemplateRef<HTMLElement>('tabList')
-function onTabKey(event: KeyboardEvent) {
-  const index = PANELS.indexOf(panel.value)
-  const to = event.key === 'ArrowRight' ? (index + 1) % 3 : event.key === 'ArrowLeft' ? (index + 2) % 3 : -1
+/** Arrow keys move along a tab set (they wrap), Home and End jump to its ends; the new tab gets the focus. */
+function moveTab<T extends string>(event: KeyboardEvent, names: readonly T[], current: T, choose: (name: T) => void, list: HTMLElement | null) {
+  const index = names.indexOf(current)
+  const count = names.length
+  const to = event.key === 'ArrowRight'
+    ? (index + 1) % count
+    : event.key === 'ArrowLeft' ? (index + count - 1) % count : event.key === 'Home' ? 0 : event.key === 'End' ? count - 1 : -1
   if (to < 0) return
   event.preventDefault()
-  panel.value = PANELS[to]!
-  nextTick(() => tabList.value?.querySelector<HTMLElement>(`[data-panel="${PANELS[to]}"]`)?.focus())
+  choose(names[to]!)
+  nextTick(() => list?.querySelector<HTMLElement>(`[data-panel="${names[to]}"]`)?.focus())
 }
+const tabList = useTemplateRef<HTMLElement>('tabList')
+const lowerList = useTemplateRef<HTMLElement>('lowerList')
+const onTabKey = (event: KeyboardEvent) => moveTab(event, PANELS, panel.value, (name) => {
+  panel.value = name
+}, tabList.value)
+const onLowerKey = (event: KeyboardEvent) => moveTab(event, LOWER, lower.value, (name) => {
+  lower.value = name
+}, lowerList.value)
+
+/** Some request failed (a 4xx or 5xx, CORS, no connection): the Network tab says so. */
+const networkFailed = computed(() => requests.value.some(entry => statusTone(entry) === 'error'))
 // the debrief gives focus back to the page (like Git's terminal): the Console input, where the next look starts
 const consolePanel = useTemplateRef<{ focus: () => void }>('consolePanel')
-const focusConsole = () => consolePanel.value?.focus()
+// the open one of Console and Network: the other is hidden from lg (display: none) and can't take focus
+const networkPanel = useTemplateRef<{ focus: () => void }>('networkPanel')
+const focusConsole = () => (lower.value === 'network' ? networkPanel : consolePanel).value?.focus()
 
 const shown = (name: Panel) => panel.value === name ? '' : 'max-lg:hidden'
+/** Console and Network: shown below lg as a tab of their own, from lg as the chosen one under the code. */
+const shownLower = (name: Lower) => [shown(name), hasNetwork && lower.value !== name ? 'lg:hidden' : '']
+/** The tab that names a panel: the phone's tab below lg, the Console/Network tab from lg. */
+const labelledBy = (name: Lower) => wide.value && hasNetwork ? `debugging-lower-tab-${name}` : `debugging-tab-${name}`
 
 const revealedHints = computed(() => props.level.kind === 'scenario' ? props.level.hints.slice(0, session.value.hintsUsed) : [])
 </script>
@@ -115,24 +150,28 @@ const revealedHints = computed(() => props.level.kind === 'scenario' ? props.lev
         ref="tabList"
         role="tablist"
         :aria-label="t('debugging.panels')"
-        class="mb-3 grid grid-cols-3 gap-1 rounded-lg border border-default bg-elevated p-1 lg:hidden"
+        class="mb-3 grid gap-1 rounded-lg border border-default bg-elevated p-1 lg:hidden"
+        :class="PANELS.length === 4 ? 'grid-cols-4' : 'grid-cols-3'"
         @keydown="onTabKey"
       >
         <button
           v-for="name in PANELS"
+          :id="`debugging-tab-${name}`"
           :key="name"
           type="button"
-          :id="`debugging-tab-${name}`"
           role="tab"
           :aria-selected="panel === name"
           :aria-controls="`debugging-${name}`"
           :tabindex="panel === name ? 0 : -1"
           :data-panel="name"
-          class="cursor-pointer rounded-md px-3 py-1.5 text-sm focus-visible:outline-2 focus-visible:outline-primary"
+          class="relative min-w-0 cursor-pointer rounded-md px-1 py-1.5 text-sm focus-visible:outline-2 focus-visible:outline-primary sm:px-3"
           :class="panel === name ? 'bg-accented font-medium text-highlighted' : 'text-muted hover:text-highlighted'"
           @click="panel = name"
         >
-          {{ t(`debugging.panel.${name}`) }}
+          {{ t(`debugging.panel.${name}`) }}<span
+            v-if="name === 'network' && networkFailed"
+            class="absolute top-1 right-1 size-1.5 rounded-full bg-error"
+          ><span class="sr-only">, {{ t('debugging.network.failed') }}</span></span>
         </button>
       </div>
       <div class="flex min-h-0 flex-1 flex-col gap-4">
@@ -144,15 +183,61 @@ const revealedHints = computed(() => props.level.kind === 'scenario' ? props.lev
           class="max-lg:h-[28rem] lg:min-h-40 lg:flex-[1.6_1_0]"
           :class="shown('code')"
         />
-        <DebuggingConsole
-          id="debugging-console"
-          ref="consolePanel"
-          role="tabpanel"
-          aria-labelledby="debugging-tab-console"
-          :play="play"
-          class="max-lg:h-[26rem] lg:min-h-44 lg:flex-[1_1_0]"
-          :class="shown('console')"
-        />
+        <div class="flex min-h-0 flex-col gap-2 max-lg:contents lg:min-h-44 lg:flex-[1_1_0]">
+          <!-- from lg: Console or Network under the code -->
+          <div
+            v-if="hasNetwork"
+            ref="lowerList"
+            role="tablist"
+            :aria-label="t('debugging.lower')"
+            class="flex gap-1 self-start rounded-lg border border-default bg-elevated p-0.5 max-lg:hidden"
+            @keydown="onLowerKey"
+          >
+            <button
+              v-for="name in LOWER"
+              :id="`debugging-lower-tab-${name}`"
+              :key="name"
+              type="button"
+              role="tab"
+              :aria-selected="lower === name"
+              :aria-controls="`debugging-${name}`"
+              :tabindex="lower === name ? 0 : -1"
+              :data-panel="name"
+              data-testid="lower-tab"
+              class="cursor-pointer rounded-md px-3 py-1 text-xs focus-visible:outline-2 focus-visible:outline-primary"
+              :class="lower === name ? 'bg-accented font-medium text-highlighted' : 'text-muted hover:text-highlighted'"
+              @click="lower = name"
+            >
+              {{ t(`debugging.panel.${name}`) }}<span
+                v-if="name === 'network' && requests.length"
+                class="ms-1.5 font-mono tabular-nums"
+                :class="networkFailed ? 'text-error' : 'text-dimmed'"
+              >{{ requests.length }}</span><span
+                v-if="name === 'network' && networkFailed"
+                class="sr-only"
+              >, {{ t('debugging.network.failed') }}</span>
+            </button>
+          </div>
+          <DebuggingConsole
+            id="debugging-console"
+            ref="consolePanel"
+            role="tabpanel"
+            :aria-labelledby="labelledBy('console')"
+            :play="play"
+            class="max-lg:h-[26rem] lg:min-h-0 lg:flex-1"
+            :class="shownLower('console')"
+          />
+          <DebuggingNetwork
+            v-if="hasNetwork"
+            id="debugging-network"
+            ref="networkPanel"
+            role="tabpanel"
+            :aria-labelledby="labelledBy('network')"
+            :play="play"
+            class="max-lg:h-[26rem] lg:min-h-0 lg:flex-1"
+            :class="shownLower('network')"
+          />
+        </div>
       </div>
     </template>
 

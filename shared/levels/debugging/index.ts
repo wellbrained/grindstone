@@ -1,5 +1,5 @@
-// The Debugging track (ADR 0007): its chapters and their levels, in play order. Chapter 1 is live; the other six are
-// coming (no levels yet). A practice task goes right after the scenario it trains (`practises`); defineTrack checks it.
+// The Debugging track (ADR 0007): its chapters and their levels, in play order. Chapters 1 and 2 are live; the other
+// five are coming (no levels yet). A practice task goes right after the scenario it trains (`practises`); defineTrack checks it.
 import { fewestHintsThenReloads } from '../progress'
 import { defineTrack, trackLevels } from '../track'
 import { isDebugLevel } from './types'
@@ -9,6 +9,11 @@ import { pricesVanished } from './02-prices-vanished'
 import { totalNotDefined } from './03-total-not-defined'
 import { errorInMoney } from './04-error-in-money'
 import { blankPage } from './05-blank-page'
+import { menuWontLoad } from './06-menu-wont-load'
+import { nothingHappens } from './07-nothing-happens'
+import { wrongQuantity } from './08-wrong-quantity'
+import { worksOnMyMachine } from './09-works-on-my-machine'
+import { ordersTwice } from './10-orders-twice'
 import {
   closeTheBracket,
   frameThatPassed,
@@ -19,13 +24,22 @@ import {
   realMistake,
   threeFrameTrace
 } from './practice/reading-errors'
+import {
+  buildsTheAddress,
+  checkResponseOk,
+  disableWhileSending,
+  failingRequest,
+  ownOrigin,
+  quantityAsNumber,
+  rightPath
+} from './practice/network'
 
 export const debuggingTrack = defineTrack({
   id: 'debugging',
   title: 'Debugging',
   scope: 'DevTools and incidents: track a bug down to its cause.',
   tagline: 'Find the bug before your customers do.',
-  description: 'Small real apps with real bugs, from Corner Bakery\'s ordering site: read the Console, follow the stack trace to the line, fix the code and reload until the shop works again. Goals check what the app does, so any fix that works counts.',
+  description: 'Small real apps with real bugs, from Corner Bakery\'s ordering site: read the Console and the Network panel, follow the stack trace to the line, fix the code and reload until the shop works again. Goals check what the app does, so any fix that works counts.',
   status: 'live',
   // fewest hints, then fewest reloads (ADR 0007): no commands to count, and no clock
   bestRun: fewestHintsThenReloads,
@@ -51,7 +65,26 @@ export const debuggingTrack = defineTrack({
         closeTheBracket
       ]
     },
-    { id: 'network', title: 'Network', description: 'Failed requests, status codes, payloads and CORS.', colour: 1, levels: [] },
+    {
+      id: 'network',
+      title: 'Network',
+      description: 'Failed requests, status codes, payloads and CORS.',
+      colour: 1,
+      levels: [
+        menuWontLoad,
+        buildsTheAddress,
+        rightPath,
+        nothingHappens,
+        failingRequest,
+        checkResponseOk,
+        wrongQuantity,
+        quantityAsNumber,
+        worksOnMyMachine,
+        ownOrigin,
+        ordersTwice,
+        disableWhileSending
+      ]
+    },
     { id: 'elements-css', title: 'Elements & CSS', description: 'What the page really renders, and why a style does not apply.', colour: 2, levels: [] },
     { id: 'state-async', title: 'State & async', description: 'Stale state, race conditions and promises that never settle.', colour: 3, levels: [] },
     { id: 'breakpoints', title: 'Breakpoints & stepping', description: 'Pause the code and step through it instead of guessing.', colour: 4, levels: [] },

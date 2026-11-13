@@ -1,6 +1,9 @@
 // What every Debugging level's app does, before and after its fix: the unit tests run the goals on these observations,
 // and e2e/debugging-levels.spec.ts checks in a real browser that the apps really do this (so the table cannot drift).
 import type { Probe, ProbeValue } from '../../../../shared/levels'
+import { SAVE_FAILED } from '../../../../shared/levels/debugging/07-nothing-happens'
+import { CONFIRMED } from '../../../../shared/levels/debugging/10-orders-twice'
+import { OPENING_HOURS, VOUCHER_EXPIRED } from '../../../../shared/levels/debugging/practice/network'
 
 export interface ExpectedRun {
   /** Probe values of the check run. */
@@ -9,10 +12,14 @@ export interface ExpectedRun {
   missing?: string[]
   /** How many errors the check run sees. */
   errors: number
-  /** Where the first error points (its source link): what the hints and find tasks talk about. */
-  errorAt?: string
+  /** Where the first error points (its source link): what the hints and find tasks talk about; null: it has none (a CORS line). */
+  errorAt?: string | null
   /** The first error's frames in the level files, top first (a syntax error has none). */
   frames?: string[]
+  /** Levels with a backend: the Network panel's rows of the check run, 'METHOD name status' in the order sent. */
+  network?: string[]
+  /** Console texts the level's texts quote: each is (the start of) a line the Console shows, as Chrome words it. */
+  says?: string[]
 }
 
 export interface ExpectedLevel {
@@ -22,6 +29,8 @@ export interface ExpectedLevel {
   solved?: ExpectedRun
   /** Find tasks: what a customer does before the trace shows up (the task tells the player to do it). */
   before?: Probe[]
+  /** Find tasks whose answer is not on the error's trace (the mistake is elsewhere: before a syntax error, where an address is built). */
+  answerOffTrace?: true
 }
 
 export const expected: Record<string, ExpectedLevel> = {
@@ -68,10 +77,83 @@ export const expected: Record<string, ExpectedLevel> = {
     solved: { probes: { 'rows': 3, 'badge-after-add': '1' }, errors: 0 }
   },
   'debugging-practice-real-mistake': {
+    answerOffTrace: true,
     start: { probes: {}, errors: 1, errorAt: 'hours.js:7', frames: [] }
   },
   'debugging-practice-close-the-bracket': {
     start: { probes: { rows: 0 }, errors: 1, errorAt: 'cart.js:11', frames: [] },
     solved: { probes: { rows: 3 }, errors: 0 }
+  },
+  'debugging-06-menu-wont-load': {
+    start: {
+      probes: { products: 0 },
+      errors: 2,
+      errorAt: 'menu.js:4',
+      frames: [],
+      network: ['GET /api/products 404'],
+      says: ['GET https://cornerbakery.shop/api/products 404 (Not Found)', 'Uncaught (in promise) SyntaxError: Failed to execute \'json\' on \'Response\': Unexpected token \'<\', "<!DOCTYPE "... is not valid JSON']
+    },
+    solved: { probes: { products: 3 }, errors: 0, network: ['GET /api/menu 200'] }
+  },
+  'debugging-practice-builds-the-address': {
+    answerOffTrace: true,
+    start: { probes: {}, errors: 1, errorAt: 'specials.js:5', frames: [], network: ['GET /api/special 404', 'GET /api/menu 200'] }
+  },
+  'debugging-practice-right-path': {
+    start: { probes: { hours: '' }, errors: 2, errorAt: 'hours.js:3', frames: [], network: ['GET /api/opening-hours 404', 'GET /api/menu 200'], says: ['GET https://cornerbakery.shop/api/opening-hours 404 (Not Found)'] },
+    solved: { probes: { hours: OPENING_HOURS }, errors: 0, network: ['GET /api/hours 200', 'GET /api/menu 200'] }
+  },
+  'debugging-07-nothing-happens': {
+    start: { probes: { 'after-error': '', 'basket-after-error': '0' }, errors: 1, errorAt: 'order.js:13', frames: [], network: ['GET /api/menu 200', 'POST /api/orders 500'], says: ['POST https://cornerbakery.shop/api/orders 500 (Internal Server Error)'] },
+    solved: { probes: { 'after-error': SAVE_FAILED, 'basket-after-error': '2' }, errors: 1, network: ['GET /api/menu 200', 'POST /api/orders 500'] }
+  },
+  'debugging-practice-failing-request': {
+    start: { probes: {}, errors: 1, errorAt: 'specials.js:4', frames: [], network: ['GET /api/hours 200', 'GET /api/specials 503', 'GET /api/menu 200'], says: ['GET https://cornerbakery.shop/api/specials 503 (Service Unavailable)'] }
+  },
+  'debugging-practice-check-response-ok': {
+    start: { probes: { voucher: 'Voucher applied: 10% off your order.' }, errors: 1, errorAt: 'voucher.js:5', frames: [], network: ['GET /api/menu 200', 'POST /api/vouchers/check 400'] },
+    solved: { probes: { voucher: VOUCHER_EXPIRED }, errors: 1, network: ['GET /api/menu 200', 'POST /api/vouchers/check 400'] }
+  },
+  'debugging-08-wrong-quantity': {
+    start: { probes: { 'quantity-sent': null, 'confirmation': 'Order 1042: 1 × Butter croissant' }, errors: 0, network: ['POST /api/orders 201'] },
+    solved: { probes: { 'quantity-sent': 3, 'confirmation': 'Order 1042: 3 × Butter croissant' }, errors: 0, network: ['POST /api/orders 201'] }
+  },
+  'debugging-practice-quantity-as-number': {
+    start: { probes: { 'quantity-sent': '3', 'confirmation': 'items[0].quantity must be a number' }, errors: 1, errorAt: 'order.js:7', frames: [], network: ['POST /api/orders 400'], says: ['POST https://cornerbakery.shop/api/orders 400 (Bad Request)'] },
+    solved: { probes: { 'quantity-sent': 3, 'confirmation': 'Order 1042: 3 × Butter croissant' }, errors: 0, network: ['POST /api/orders 201'] }
+  },
+  'debugging-09-works-on-my-machine': {
+    start: {
+      probes: { specials: 0 },
+      errors: 3,
+      errorAt: null,
+      frames: [],
+      network: ['GET https://api.cornerbakery.shop/specials CORS error', 'GET /api/menu 200'],
+      says: [
+        'Access to fetch at \'https://api.cornerbakery.shop/specials\' from origin \'https://cornerbakery.shop\' has been blocked by CORS policy: No \'Access-Control-Allow-Origin\' header is present on the requested resource.',
+        'GET https://api.cornerbakery.shop/specials net::ERR_FAILED 200 (OK)',
+        'Uncaught (in promise) TypeError: Failed to fetch'
+      ]
+    },
+    solved: { probes: { specials: 2 }, errors: 0, network: ['GET /api/specials 200', 'GET /api/menu 200'] }
+  },
+  'debugging-practice-own-origin': {
+    start: {
+      probes: { signup: '' },
+      errors: 3,
+      errorAt: null,
+      frames: [],
+      network: ['GET /api/menu 200', 'POST https://api.cornerbakery.shop/newsletter CORS error'],
+      says: ['Access to fetch at \'https://api.cornerbakery.shop/newsletter\' from origin \'https://cornerbakery.shop\' has been blocked by CORS policy: Response to preflight request doesn\'t pass access control check', 'Uncaught (in promise) TypeError: Failed to fetch']
+    },
+    solved: { probes: { signup: 'Thanks! You\'re on the list.' }, errors: 0, network: ['GET /api/menu 200', 'POST /api/newsletter 201'] }
+  },
+  'debugging-10-orders-twice': {
+    start: { probes: { 'orders-sent': 2, 'confirmation': 'Thanks! Order 1043 is in. Pick it up tomorrow from 7:00.' }, errors: 0, network: ['GET /api/menu 200', 'POST /api/orders 201', 'POST /api/orders 201'] },
+    solved: { probes: { 'orders-sent': 1, 'confirmation': CONFIRMED }, errors: 0, network: ['GET /api/menu 200', 'POST /api/orders 201'] }
+  },
+  'debugging-practice-disable-while-sending': {
+    start: { probes: { reservations: 2 }, errors: 0, network: ['GET /api/menu 200', 'POST /api/cakes 201', 'POST /api/cakes 201'] },
+    solved: { probes: { reservations: 1 }, errors: 0, network: ['GET /api/menu 200', 'POST /api/cakes 201'] }
   }
 }

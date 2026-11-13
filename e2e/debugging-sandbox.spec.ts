@@ -32,3 +32,34 @@ test('the app cannot reach Grindstone\'s storage, page or the network', async ({
   await run('1 + 1')
   await expect(log.locator('[data-level="result"]').last()).toHaveText(/2/)
 })
+
+// A level with a scripted backend (chapter 2): its fetch is answered inside the frame, so no request ever reaches a
+// server, not the shop's, not any other; anything that is not fetch is still refused by the frame's policy.
+test('a level\'s fake backend answers inside the frame: nothing leaves it', async ({ page }) => {
+  // what reached a server (a response came back), and how the browser stopped the rest
+  const outside: string[] = []
+  const stopped: string[] = []
+  page.on('requestfinished', (request) => {
+    if (/cornerbakery\.shop|example\.com/.test(request.url())) outside.push(request.url())
+  })
+  page.on('requestfailed', (request) => {
+    if (/cornerbakery\.shop|example\.com/.test(request.url())) stopped.push(request.failure()?.errorText ?? '')
+  })
+  await page.goto('/debugging/06-menu-wont-load')
+  const log = page.getByTestId('console-log')
+  await expect(log).toContainText('GET https://cornerbakery.shop/api/products 404 (Not Found)')
+  const input = page.getByTestId('console-input')
+  const run = async (code: string) => {
+    await input.fill(code)
+    await input.press('Enter')
+  }
+
+  await run('fetch("/api/menu").then(response => response.json()).then(menu => console.log("menu", menu.length))')
+  await expect(log).toContainText('menu 3')
+  await run('fetch("https://example.com/").catch(error => console.warn(error.message))')
+  await expect(log).toContainText('GET https://example.com/ net::ERR_NAME_NOT_RESOLVED')
+  await run('new Image().src = "https://example.com/pixel.png"')
+  await expect(log).toContainText('Refused to load')
+  expect(outside).toEqual([])
+  expect(stopped).toEqual(['csp'])
+})

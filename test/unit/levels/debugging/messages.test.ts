@@ -138,3 +138,51 @@ describe('observe', () => {
     expect(observation).toMatchObject({ finished: false, errors: [{ kind: 'console', text: 'Oops', source: null }], logs: [] })
   })
 })
+
+describe('the fake backend\'s messages', () => {
+  const MENU = 'blob:null/0f1d2c3b-aaaa-bbbb-cccc-1234567890ab'
+  const backendMapping = { urls: { ...mapping.urls, [MENU]: 'menu.js' }, bridgeLine: 3 }
+  const sentFrom = `Error\n    at fetch (about:srcdoc:3:9120)\n    at loadMenu (${MENU}:5:26)\n    at ${APP}:28:1`
+  const request = { type: 'request', id: 1, method: 'GET', url: 'https://cornerbakery.shop/api/products', headers: [['accept', '*/*']], body: null, stack: sentFrom }
+  const response = { type: 'response', id: 1, status: 404, statusText: 'Not Found', headers: [['content-type', 'text/html; charset=utf-8']], body: '<pre>Cannot GET /api/products</pre>', failure: null, time: 31 }
+  const netlog = { type: 'netlog', text: 'GET https://cornerbakery.shop/api/products 404 (Not Found)', stack: sentFrom }
+
+  it('reads a request, its answer and the browser\'s line for it', () => {
+    expect(readBridgeMessage({ ...request, grindstone: token }, token)).toEqual(request)
+    expect(readBridgeMessage({ ...response, grindstone: token }, token)).toEqual(response)
+    expect(readBridgeMessage({ ...netlog, grindstone: token }, token)).toEqual(netlog)
+    const cors = { ...response, status: null, statusText: '', headers: [], body: null, failure: 'cors' }
+    expect(readBridgeMessage({ ...cors, grindstone: token }, token)).toEqual(cors)
+  })
+
+  it('refuses malformed ones: a made-up failure, headers that are not pairs of text, a status that is not one, a method that is not a word', () => {
+    const read = (message: object) => readBridgeMessage({ ...message, grindstone: token }, token)
+    expect(read({ ...response, failure: 'teapot' })).toBeNull()
+    expect(read({ ...response, headers: [['a']] })).toBeNull()
+    expect(read({ ...response, headers: [['a', 1]] })).toBeNull()
+    expect(read({ ...response, status: 99_999 })).toBeNull()
+    expect(read({ ...response, status: 200.5 })).toBeNull()
+    expect(read({ ...response, time: 'soon' })).toBeNull()
+    expect(read({ ...request, method: 'GET /evil' })).toBeNull()
+    expect(read({ ...request, id: 'one' })).toBeNull()
+    expect(read({ ...request, body: { html: '<b>' } })).toBeNull()
+    expect(read({ ...netlog, text: 5 })).toBeNull()
+  })
+
+  it('caps the headers it keeps', () => {
+    const many = readBridgeMessage({ ...request, headers: Array.from({ length: 80 }, (_, index) => [`x-${index}`, 'v']), grindstone: token }, token)
+    expect(many?.type === 'request' && many.headers).toHaveLength(50)
+  })
+
+  it('shows the browser\'s line for a failed request as an error with the line that sent it, no trace', () => {
+    expect(consoleEntry(netlog as BridgeMessage, backendMapping)).toEqual({ level: 'error', text: netlog.text, source: { path: 'menu.js', line: 5 }, frames: [] })
+    expect(consoleEntry({ type: 'netlog', text: 'Access to fetch …', stack: '' }, backendMapping)).toEqual({ level: 'error', text: 'Access to fetch …', source: null, frames: [] })
+    expect(consoleEntry(request as BridgeMessage, backendMapping)).toBeNull()
+    expect(consoleEntry(response as BridgeMessage, backendMapping)).toBeNull()
+  })
+
+  it('counts the browser\'s line as an error of its own kind', () => {
+    const observation = observe([{ type: 'files', urls: backendMapping.urls }, request as BridgeMessage, response as BridgeMessage, netlog as BridgeMessage, { type: 'done' }], 3)
+    expect(observation.errors).toEqual([{ kind: 'network', text: netlog.text, source: { path: 'menu.js', line: 5 } }])
+  })
+})

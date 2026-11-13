@@ -439,7 +439,7 @@
       "find": "find",
       "fix": "quick fix"
     },
-    "teaches": "Teaches reading a {error}",
+    "teaches": "Teaches: {error}",
     "kindSpoken": "Kind: {kind}"
   },
   "continue": {
@@ -554,6 +554,7 @@
     "panel": {
       "app": "App",
       "console": "Console",
+      "network": "Network",
       "code": "Code"
     },
     "app": {
@@ -562,7 +563,8 @@
       "reload": "Reload",
       "frame": "Corner Bakery order page, the level's app",
       "stale": "You saved changes. Reload to run them.",
-      "sealed": "The app runs in a sealed frame: it can't reach Grindstone or your progress, and its requests are blocked."
+      "sealed": "The app runs in a sealed frame: it can't reach Grindstone or your progress, and its requests are blocked.",
+      "sealedBackend": "The app runs in a sealed frame: it can't reach Grindstone or your progress, and its requests go to Corner Bakery's scripted server, never the network."
     },
     "console": {
       "label": "Console",
@@ -590,6 +592,31 @@
       "files": "Files of the app",
       "unsaved": "unsaved changes",
       "pickNote": "Click a line to answer"
+    },
+    "lower": "Console and Network",
+    "network": {
+      "label": "Network",
+      "count": "no requests | 1 request | {n} requests",
+      "list": "Requests the app sent",
+      "empty": "No requests yet. What the app asks the server for shows here.",
+      "pick": "Select a request to see what was sent and what came back.",
+      "row": "{method} {name}, {status}, {time}",
+      "rowPending": "{method} {name}, {status}",
+      "details": "Details of {name}",
+      "status": "Status",
+      "time": "Time",
+      "initiator": "Sent from",
+      "request": "Request",
+      "response": "Response",
+      "headers": "Headers",
+      "noBody": "No body.",
+      "waiting": "Waiting for the answer…",
+      "failed": "some failed",
+      "failure": {
+        "cors": "No answer the app may read: the browser blocked it (CORS). The Console says why.",
+        "network": "No answer: the connection failed.",
+        "aborted": "Cancelled before the answer came."
+      }
     }
   }
 }

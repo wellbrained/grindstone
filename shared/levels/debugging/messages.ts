@@ -24,17 +24,72 @@ export type BridgeMessage
   /** The answer to Console input: a preview of the value, or the error it threw. */
     | { type: 'result', id: number, ok: true, value: string }
     | { type: 'result', id: number, ok: false, name: string | null, message: string, stack: string | null }
+  /** The app sent a request (the fake backend answers it): what it sent, and where from (the stack at `fetch`). */
+    | RequestMessage
+  /** The backend's answer to a request, or how it failed. */
+    | ResponseMessage
+  /** The browser's own Console line for a failed request (`GET … 404 (Not Found)`, a CORS refusal), with where it was sent from. */
+    | { type: 'netlog', text: string, stack: string }
+
+/** A header as name and value (names lower case, in the order they were sent). */
+export type HeaderPair = [name: string, value: string]
+
+export interface RequestMessage {
+  type: 'request'
+  id: number
+  method: string
+  url: string
+  headers: HeaderPair[]
+  body: string | null
+  stack: string
+}
+
+/** How a request failed without an answer the app can read: refused by CORS, no connection, cancelled. */
+export type RequestFailure = 'cors' | 'network' | 'aborted'
+
+export interface ResponseMessage {
+  type: 'response'
+  id: number
+  /** null when no answer arrived (no connection, cancelled, a refused preflight). */
+  status: number | null
+  statusText: string
+  headers: HeaderPair[]
+  /** null without a body the page may show (a failure, a 204). */
+  body: string | null
+  failure: RequestFailure | null
+  /** Milliseconds from sending to the answer. */
+  time: number
+}
 
 const MAX_TEXT = 10_000
 const MAX_ARGS = 50
 const MAX_FILES = 200
+const MAX_HEADERS = 50
 const LEVELS: readonly ConsoleLevel[] = ['log', 'info', 'warn', 'error', 'debug']
+const FAILURES: readonly RequestFailure[] = ['cors', 'network', 'aborted']
 
 const text = (value: unknown): string | null => typeof value === 'string' ? value.slice(0, MAX_TEXT) : null
 const textOrNull = (value: unknown): string | null | undefined => value === null ? null : text(value) ?? undefined
 const count = (value: unknown): number | null | undefined => {
   if (value === null) return null
   return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+const whole = (value: unknown, max: number): number | undefined =>
+  typeof value === 'number' && Number.isInteger(value) && value >= 0 && value <= max ? value : undefined
+
+/** Header pairs of plain text (at most MAX_HEADERS); null when they are not that. */
+function headerPairs(value: unknown): HeaderPair[] | null {
+  if (!Array.isArray(value)) return null
+  const pairs: HeaderPair[] = []
+  for (const pair of value.slice(0, MAX_HEADERS)) {
+    if (!Array.isArray(pair) || pair.length !== 2) return null
+    const name = text(pair[0])
+    const content = text(pair[1])
+    if (name === null || content === null) return null
+    pairs.push([name, content])
+  }
+  return pairs
 }
 
 /** The message as plain data when it is a well-formed bridge message of this load; null for anything else. */
@@ -91,6 +146,33 @@ export function readBridgeMessage(data: unknown, token: string): BridgeMessage |
       if (raw.ok !== false || message === null || name === undefined || stack === undefined) return null
       return { type: 'result', id: raw.id, ok: false, name, message, stack }
     }
+    case 'request': {
+      const id = whole(raw.id, Number.MAX_SAFE_INTEGER)
+      const method = typeof raw.method === 'string' && /^[A-Za-z]{1,16}$/.test(raw.method) ? raw.method : null
+      const url = text(raw.url)
+      const headers = headerPairs(raw.headers)
+      const body = textOrNull(raw.body)
+      const stack = text(raw.stack)
+      if (id === undefined || method === null || url === null || headers === null || body === undefined || stack === null) return null
+      return { type: 'request', id, method, url, headers, body, stack }
+    }
+    case 'response': {
+      const id = whole(raw.id, Number.MAX_SAFE_INTEGER)
+      const status = raw.status === null ? null : whole(raw.status, 999)
+      const statusText = text(raw.statusText)
+      const headers = headerPairs(raw.headers)
+      const body = textOrNull(raw.body)
+      const failure = raw.failure === null ? null : FAILURES.find(each => each === raw.failure)
+      const time = whole(raw.time, Number.MAX_SAFE_INTEGER)
+      if (id === undefined || status === undefined || statusText === null || headers === null || body === undefined || failure === undefined || time === undefined) return null
+      return { type: 'response', id, status, statusText, headers, body, failure, time }
+    }
+    case 'netlog': {
+      const message = text(raw.text)
+      const stack = text(raw.stack)
+      if (message === null || stack === null) return null
+      return { type: 'netlog', text: message, stack }
+    }
     default:
       return null
   }
@@ -114,7 +196,7 @@ const withFileNames = (text: string, mapping: SourceMapping) =>
 
 const lineOf = (frame: TraceFrame | undefined): SourceLine | null => frame ? { path: frame.path, line: frame.line } : null
 
-/** The Console line for a message; null for the bridge's own messages (files, ready, probes, done). */
+/** The Console line for a message; null for the bridge's own messages (files, ready, probes, done) and the Network panel's. */
 export function consoleEntry(message: BridgeMessage, mapping: SourceMapping): ConsoleEntryBody | null {
   switch (message.type) {
     case 'console': {
@@ -130,6 +212,9 @@ export function consoleEntry(message: BridgeMessage, mapping: SourceMapping): Co
         frames
       }
     }
+    case 'netlog':
+      // the browser's line links the code that sent the request (its initiator); it has no trace of its own
+      return { level: 'error', text: message.text, source: lineOf(mapFrames(parseStack(message.stack), mapping)[0]), frames: [] }
     case 'result': {
       if (message.ok) return { level: 'result', text: message.value, source: null, frames: [] }
       const frames = message.stack ? mapFrames(parseStack(message.stack), mapping) : []
@@ -151,9 +236,10 @@ export function observe(messages: readonly BridgeMessage[], bridgeLine: number):
     else if (message.type === 'probe') {
       if (message.ok) observation.probes[message.id] = message.value
       else observation.probeErrors[message.id] = message.error ?? 'The probe could not run'
-    } else if (message.type === 'error' || message.type === 'console') {
+    } else if (message.type === 'error' || message.type === 'console' || message.type === 'netlog') {
       const entry = consoleEntry(message, mapping)!
       if (message.type === 'error') errors.push({ kind: message.kind, text: entry.text, source: entry.source })
+      else if (message.type === 'netlog') errors.push({ kind: 'network', text: entry.text, source: entry.source })
       else if (message.level === 'error') errors.push({ kind: 'console', text: entry.text, source: entry.source })
       else if (message.level === 'log' || message.level === 'info') observation.logs.push(entry.text)
     }

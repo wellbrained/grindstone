@@ -23,12 +23,19 @@ export type ProbeValue = string | number | null
 
 /** One scripted step of a probe, run inside the app after it loaded. */
 export type ProbeStep
-  /** Clicks the first element that matches (like a customer would), then lets the app react. */
-  = | { click: string }
+  /**
+   * Clicks the first element that matches (like a customer would; `times` clicks back to back, a double click), then
+   * lets the app react: 20 ms, and with a backend until every request it sent is answered.
+   */
+  = | { click: string, times?: number }
   /** Reads the text of the first element that matches (whitespace collapsed). */
     | { text: string }
   /** Counts the elements that match. */
     | { count: string }
+  /** Counts the requests the app sent so far to `'METHOD /path'` (the shop's own address) or `'METHOD https://host/path'`. */
+    | { requests: string }
+  /** Reads the body of the last request sent there (null: none, or no body); with `json`, the value at that path ('items.0.quantity'). */
+    | { sent: string, json?: string }
 
 /** A scripted look at the app that goals read: steps run in order; its value is what the last read step read. */
 export interface Probe {
@@ -38,7 +45,8 @@ export interface Probe {
 
 /** An error the check run saw: an uncaught error, an unhandled rejection or a `console.error` call. */
 export interface ObservedError {
-  kind: 'error' | 'rejection' | 'console'
+  /** `network`: the browser's own line for a failed request (`GET … 404 (Not Found)`, a CORS refusal). */
+  kind: 'error' | 'rejection' | 'console' | 'network'
   text: string
   source: SourceLine | null
 }
@@ -99,12 +107,57 @@ export interface SandboxSpec {
   probes: readonly Probe[]
   /** A find task: clicking a line is the answer (the editor is read-only). */
   find?: FindTarget
+  /** The scripted backend that answers the app's requests (and the Network panel that shows them); none: requests are blocked. */
+  backend?: BackendSpec
+}
+
+/** A value a JSON body can hold. */
+export type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue }
+
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
+
+/** What the fake backend answers: a status with a JSON or text body (and headers), after a delay. */
+export interface BackendReply {
+  status: number
+  json?: JsonValue
+  text?: string
+  headers?: Readonly<Record<string, string>>
+  /** Milliseconds before the answer arrives (default DEFAULT_DELAY_MS). */
+  delay?: number
+}
+
+/** No answer at all: the connection fails (`TypeError: Failed to fetch`). */
+export interface BackendFailure {
+  fail: 'network'
+  delay?: number
+}
+
+export type BackendAnswer = BackendReply | BackendFailure
+
+/** One thing the fake backend answers. */
+export interface BackendRoute {
+  /** Default GET. */
+  method?: HttpMethod
+  /** '/api/menu' on the shop's own address, or a whole URL on another one ('https://api.cornerbakery.shop/specials'). */
+  path: string
+  /** Only requests whose body matches this pattern (a regular expression's source) take this route. */
+  body?: string
+  /** The answer; a list answers call by call, and its last answer repeats. */
+  respond: BackendAnswer | readonly BackendAnswer[]
+}
+
+/**
+ * The level's scripted backend: it answers the app's `fetch` inside the frame (nothing leaves it). Another origin is
+ * refused by CORS unless its answer allows the shop (`Access-Control-Allow-Origin`), like a browser would.
+ */
+export interface BackendSpec {
+  routes: readonly BackendRoute[]
 }
 
 /** What a Debugging level adds to the shared level fields. */
 export interface DebugFields {
   sandbox: SandboxSpec
-  /** A scenario: the error it teaches you to read, shown as its tag on the track page ('TypeError'). */
+  /** A scenario: the error or status it teaches you to read, shown as its tag on the track page ('TypeError', '404'). */
   teaches?: string
 }
 

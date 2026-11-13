@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { debuggingLevels, editedText, levelIntro, pickLine, playSolution, reload, saveDebugFile, startDebugLevel, takeHint } from '../../../../shared/levels'
+import { SHOP_ORIGIN, backendConfig, debuggingLevels, editedText, levelIntro, pickLine, playSolution, reload, saveDebugFile, startDebugLevel, takeHint } from '../../../../shared/levels'
 import type { DebugLevel, Observation } from '../../../../shared/levels'
 import { expected } from './expected'
 import type { ExpectedRun } from './expected'
@@ -33,7 +33,19 @@ const POINTED_AT: Record<string, [path: string, line: number, contains: string][
   'debugging-practice-three-frame-trace': [['app.js', 12, 'confirmPickup(slots)']],
   'debugging-05-blank-page': [['cart.js', 11, '} else {'], ['cart.js', 12, 'cart.items.push('], ['cart.js', 16, 'export function renderBadge']],
   'debugging-practice-real-mistake': [['hours.js', 5, 'sunday: \'closed\''], ['hours.js', 7, 'export function hoursText']],
-  'debugging-practice-close-the-bracket': [['cart.js', 9, 'renderBadge()'], ['cart.js', 11, 'export function renderBadge']]
+  'debugging-practice-close-the-bracket': [['cart.js', 9, 'renderBadge()'], ['cart.js', 11, 'export function renderBadge']],
+  'debugging-06-menu-wont-load': [['menu.js', 4, 'fetch(\'/api/products\')'], ['api.md', 13, '`/api/products` is now `/api/menu`']],
+  'debugging-practice-builds-the-address': [['config.js', 5, '/special`'], ['specials.js', 5, 'fetch(SPECIALS_URL)'], ['config.js', 2, '\'/api\''], ['config.js', 4, 'MENU_URL'], ['app.js', 16, 'loadSpecials('], ['app.js', 17, 'fetch(MENU_URL)']],
+  'debugging-practice-right-path': [['hours.js', 3, 'fetch(\'/api/opening-hours\')']],
+  'debugging-07-nothing-happens': [['order.js', 18, 'const order = await response.json()'], ['order.js', 19, 'clearCart()'], ['order.js', 13, 'fetch(\'/api/orders\'']],
+  'debugging-practice-failing-request': [['specials.js', 4, 'fetch(\'/api/specials\')'], ['hours.js', 3, 'fetch(\'/api/hours\')'], ['menu.js', 4, 'fetch(\'/api/menu\')'], ['specials.js', 6, 'if (!response.ok) return'], ['app.js', 18, 'loadSpecials()']],
+  'debugging-practice-check-response-ok': [['voucher.js', 11, 'message.textContent = \'Voucher applied']],
+  'debugging-08-wrong-quantity': [['order.js', 11, 'qty: line.qty']],
+  'debugging-practice-quantity-as-number': [['order.js', 6, 'quantity: input.value']],
+  'debugging-09-works-on-my-machine': [['specials.js', 4, 'fetch(\'https://api.cornerbakery.shop/specials\')']],
+  'debugging-practice-own-origin': [['newsletter.js', 5, 'fetch(\'https://api.cornerbakery.shop/newsletter\'']],
+  'debugging-10-orders-twice': [['order.js', 9, 'status.textContent = \'Sending your order…\''], ['order.js', 16, 'const order = await response.json()']],
+  'debugging-practice-disable-while-sending': [['cake.js', 7, 'message.textContent = \'Checking the oven plan…\'']]
 }
 
 describe('the Debugging levels', () => {
@@ -54,7 +66,8 @@ describe('the Debugging levels', () => {
         expect(level.hints).toHaveLength(3)
         expect(level.debrief.paragraphs.length).toBeGreaterThanOrEqual(2)
         expect(level.debrief.paragraphs.length).toBeLessThanOrEqual(4)
-        expect(level.teaches).toMatch(/^[A-Z][a-z]+Error$/)
+        // the error a scenario teaches you to read ('TypeError') or, in Network, the status or problem ('404', 'CORS')
+        expect(level.teaches).toMatch(/^(?:[A-Z][a-z]+Error|\d{3}|[A-Za-z ]{3,16})$/)
         expect(find).toBeUndefined()
       } else {
         expect(level.hints).toHaveLength(1)
@@ -75,6 +88,21 @@ describe('the Debugging levels', () => {
         expect(level.solution.at(-1)).toBe('reload')
         expect(level.solution.filter(step => step === 'reload')).toHaveLength(1)
       }
+    })
+
+    it('scripts a backend it can run, and reads requests only where there is one', () => {
+      const backend = level.sandbox.backend
+      const readsRequests = level.sandbox.probes.some(probe => probe.steps.some(step => 'requests' in step || 'sent' in step))
+      if (readsRequests) expect(backend).toBeDefined()
+      // a request probe names 'METHOD /path' or 'METHOD https://host/path'
+      for (const step of level.sandbox.probes.flatMap(probe => probe.steps)) {
+        if ('requests' in step) expect(step.requests).toMatch(/^[A-Z]+ (?:\/|https:\/\/)\S*$/)
+        if ('sent' in step) expect(step.sent).toMatch(/^[A-Z]+ (?:\/|https:\/\/)\S*$/)
+      }
+      if (!backend) return
+      expect(() => backendConfig(backend, SHOP_ORIGIN)).not.toThrow()
+      // every route is on the shop or a whole URL, so the Network panel can name it
+      for (const route of backend.routes) expect(route.path).toMatch(/^(?:\/|https:\/\/)/)
     })
 
     it('starts the same every time, with every goal open', () => {
@@ -128,9 +156,9 @@ describe('the Debugging levels', () => {
         expect(Object.values(broken.goalsMet)).toEqual(level.goals.map(() => false))
         const fixed = reload(startDebugLevel(level), level, observed(table.solved!)).session
         expect(Object.values(fixed.goalsMet)).toEqual(level.goals.map(() => true))
-        // a check run that did not finish (an endless loop, a hang) passes nothing about errors
+        // a check run that did not finish (an endless loop, a hang) proves nothing: no goal passes
         const hung = reload(startDebugLevel(level), level, { ...observed(table.solved!), finished: false }).session
-        expect(hung.goalsMet['no-errors']).toBe(false)
+        expect(Object.values(hung.goalsMet)).toEqual(level.goals.map(() => false))
       })
 
       it('is solved by replaying its solution: the edits, then one reload', async () => {

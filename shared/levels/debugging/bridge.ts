@@ -5,9 +5,11 @@
 // - reports console calls, uncaught errors and unhandled rejections with their raw stacks (the page maps them to files),
 // - runs a check run's probes once the app has loaded (scripted clicks, then reads the page) and says when it is done,
 // - evaluates Console input in the app's global scope,
-// - keeps the app on its page (links do not navigate) and holds the hook for the fake backend (fetch).
+// - keeps the app on its page (links do not navigate),
+// - answers the app's `fetch` with the level's scripted backend (backend.ts) when it has one, inside the frame.
 // It is JavaScript in a string, injected as one line (it never shifts index.html's lines), so it uses no line comments
 // and ends every statement with a semicolon. Tested in a real browser: e2e/debugging-levels.spec.ts.
+import { BACKEND_SOURCE } from './backend'
 
 const SOURCE = String.raw`(function (config) {
   'use strict';
@@ -139,14 +141,21 @@ const SOURCE = String.raw`(function (config) {
     if (link && (link.getAttribute('href') || '').charAt(0) !== '#') event.preventDefault();
   }, true);
 
-  /* The fake backend (ADR 0007, chapter 2) answers here: config.backend will hold the level's scripted answers and
-     answer() turn a request into a Response (data, an error status, a delay). Chapter 1 has none, so requests go on to
-     the network, which the frame's Content-Security-Policy refuses (connect-src 'none'). */
+  /* The fake backend (ADR 0007, chapter 2): a level with one gets every fetch answered here, from its scripted routes;
+     it posts each request and answer (the Network panel) and the browser's lines for failed ones. Without one, requests
+     go on to the network, which the frame's Content-Security-Policy refuses (connect-src 'none'). */
+  var backend = config.backend ? (${BACKEND_SOURCE})(config.backend, { post: post, now: function () { return performance.now(); } }) : null;
   var realFetch = window.fetch;
-  var answer = function () { return null; };
-  window.fetch = function (input, init) {
-    var answered = config.backend ? answer(input, init, config.backend) : null;
-    return answered || realFetch.apply(window, arguments);
+  window.fetch = function fetch(input, init) {
+    return backend ? backend.fetch(input, init) : realFetch.apply(window, arguments);
+  };
+  /* Until the backend has answered everything the app asked (at most 3 s): a check run reads the page after that. */
+  var idle = function (left) {
+    if (!backend || backend.pending() === 0 || left <= 0) return Promise.resolve();
+    return wait(10).then(function () { return idle(left - 10); });
+  };
+  var settle = function (ms) {
+    return wait(ms).then(function () { return idle(3000); }).then(function () { return backend ? wait(20) : null; });
   };
 
   /* Console input from the page: evaluated in the app's global scope; an object literal works as in DevTools. */
@@ -185,8 +194,8 @@ const SOURCE = String.raw`(function (config) {
       if (typeof step.click === 'string') {
         var target = find(step.click);
         if (!target) { problem = 'Nothing on the page matches ' + step.click; return Promise.resolve(); }
-        target.click();
-        return wait(20).then(next);
+        for (var times = Math.min(Math.max(step.times || 1, 1), 10); times > 0; times--) target.click();
+        return settle(20).then(next);
       }
       if (typeof step.text === 'string') {
         var element = find(step.text);
@@ -198,6 +207,14 @@ const SOURCE = String.raw`(function (config) {
         try { value = document.querySelectorAll(step.count).length; } catch (error) { value = 0; }
         return next();
       }
+      if (typeof step.requests === 'string') {
+        value = backend ? backend.count(step.requests) : 0;
+        return next();
+      }
+      if (typeof step.sent === 'string') {
+        value = backend ? backend.sent(step.sent, typeof step.json === 'string' ? step.json : null) : null;
+        return next();
+      }
       return next();
     };
     return next().then(function () {
@@ -205,7 +222,7 @@ const SOURCE = String.raw`(function (config) {
     });
   };
   window.addEventListener('load', function () {
-    wait(30).then(function () {
+    settle(30).then(function () {
       post({ type: 'ready' });
       if (!config.probes) return null;
       return config.probes.reduce(function (done, probe) {

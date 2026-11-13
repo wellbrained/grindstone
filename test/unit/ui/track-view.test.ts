@@ -64,14 +64,16 @@ describe('track view', () => {
 
   it('tags Debugging rows with the error a scenario teaches and the kind of a practice task, no commands', () => {
     const view = trackView(trackById('debugging')!, emptyProgress())
-    expect(view.liveChapters).toBe(1)
-    expect(view.chapters.map(chapter => chapter.coming)).toEqual([false, true, true, true, true, true, true])
+    expect(view.liveChapters).toBe(2)
+    expect(view.chapters.map(chapter => chapter.coming)).toEqual([false, false, true, true, true, true, true])
     expect(view.chapters[0]!.rows.slice(0, 4).map(row => [row.commands, row.teaches, row.taskKind])).toEqual([
       [[], 'TypeError', null],
       [[], null, 'find'],
       [[], null, 'fix'],
       [[], 'TypeError', null]
     ])
+    // Network scenarios are tagged with the status or problem they teach
+    expect(view.chapters[1]!.rows.filter(row => row.teaches).map(row => row.teaches)).toEqual(['404', '500', 'payload', 'CORS', 'double POST'])
     // git rows have commands and nothing else
     expect(trackView(git, emptyProgress()).chapters[0]!.rows[0]).toMatchObject({ teaches: null, taskKind: null })
   })

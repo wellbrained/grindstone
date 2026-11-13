@@ -1,8 +1,8 @@
 // The page's side of the sealed frame (docs/features/ui.md, "Sandbox and bridge"): every load of a level's app gets a
 // fresh token, and a reload's check run happens in a hidden frame of its own, so the probes' clicks never touch the app
-// you see. What the frames post is read with the pure code in shared/levels/debugging (messages.ts).
+// you see. Both get the level's scripted backend, each its own (a sequence of answers starts over with every load). What the frames post is read with the pure code in shared/levels/debugging (messages.ts).
 import { observe, readBridgeMessage, sandboxDocument } from '../../shared/levels'
-import type { BridgeMessage, Observation, Probe, SandboxDocument } from '../../shared/levels'
+import type { BackendSpec, BridgeMessage, Observation, Probe, SandboxDocument } from '../../shared/levels'
 
 /** The only sandbox flag a level's app gets: scripts run, but in an opaque origin (no storage, no cookies, no parent). */
 export const SANDBOX_FLAGS = 'allow-scripts'
@@ -25,9 +25,10 @@ export interface AppLoad extends SandboxDocument {
   files: Readonly<Record<string, string>>
 }
 
-export function appLoad(files: Readonly<Record<string, string>>): AppLoad {
+/** A load of the app you see, with the level's scripted backend (if it has one): its requests feed the Network panel. */
+export function appLoad(files: Readonly<Record<string, string>>, backend?: BackendSpec): AppLoad {
   const token = newToken()
-  return { ...sandboxDocument(files, { token }), token, files }
+  return { ...sandboxDocument(files, { token, backend }), token, files }
 }
 
 /**
@@ -35,10 +36,10 @@ export function appLoad(files: Readonly<Record<string, string>>): AppLoad {
  * loaded, and the frame's messages become what the goals read. Resolves when the bridge says it is done, or after the
  * timeout with `finished: false`.
  */
-export function runCheck(files: Readonly<Record<string, string>>, probes: readonly Probe[], timeoutMs = CHECK_TIMEOUT_MS): Promise<Observation> {
+export function runCheck(files: Readonly<Record<string, string>>, probes: readonly Probe[], backend?: BackendSpec, timeoutMs = CHECK_TIMEOUT_MS): Promise<Observation> {
   return new Promise((resolve) => {
     const token = newToken()
-    const document_ = sandboxDocument(files, { token, probes })
+    const document_ = sandboxDocument(files, { token, probes, backend })
     const frame = document.createElement('iframe')
     frame.setAttribute('sandbox', SANDBOX_FLAGS)
     frame.setAttribute('aria-hidden', 'true')
@@ -51,9 +52,10 @@ export function runCheck(files: Readonly<Record<string, string>>, probes: readon
     const onMessage = (event: MessageEvent) => {
       if (event.source !== frame.contentWindow) return
       const message = readBridgeMessage(event.data, token)
-      if (!message) return
+      // the goals read no requests (probes count them inside the frame): only the app you see shows them
+      if (!message || message.type === 'request' || message.type === 'response') return
       // a flood of logs must not fill memory: the goals need the probes, done and that errors happened, not every line
-      if ((message.type === 'console' || message.type === 'error') && ++appMessages > MAX_CHECK_MESSAGES) return
+      if ((message.type === 'console' || message.type === 'error' || message.type === 'netlog') && ++appMessages > MAX_CHECK_MESSAGES) return
       messages.push(message)
       if (message.type === 'done') finish()
     }

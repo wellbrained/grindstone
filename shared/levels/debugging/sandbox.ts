@@ -4,15 +4,16 @@
 // Modules run from blob URLs the bridge makes inside the frame; relative imports of the level's files are pointed at
 // each file's own name, which the import map resolves (a blob URL has no folder to resolve "./cart.js" against). The
 // stylesheet becomes a data URL. Pure string work: no DOM.
+import { backendConfig } from './backend'
 import { BRIDGE_SOURCE } from './bridge'
-import type { Probe } from './types'
+import type { BackendSpec, Probe } from './types'
 
-/** The shop's address: relative URLs in the app resolve against it (nothing is ever fetched from it). */
+/** The shop's address: relative URLs in the app resolve against it (nothing is ever fetched from it; the fake backend answers in its name). */
 export const SHOP_ORIGIN = 'https://cornerbakery.shop/'
 
 /**
  * What the app may load: its own inline and blob scripts, eval (the Console input), inline and data-URL styles, data
- * images. No network at all (the fake backend will answer inside the frame), no other base URL, no forms, no frames.
+ * images. No network at all (the fake backend answers inside the frame), no other base URL, no forms, no frames.
  */
 export const SANDBOX_CSP = [
   'default-src \'none\'',
@@ -30,6 +31,8 @@ export interface SandboxOptions {
   token: string
   /** A check run's probes; none for the app you see. */
   probes?: readonly Probe[]
+  /** The level's scripted backend (the app you see and its check runs alike); none: requests are refused. */
+  backend?: BackendSpec
 }
 
 export interface SandboxDocument {
@@ -101,7 +104,8 @@ export function sandboxDocument(files: Readonly<Record<string, string>>, options
     .filter(([path]) => /\.m?js$/.test(path))
     .map(([path, source]) => [path, rewriteImports(source, path, files)]))
   // the config is JSON inside a <script>: no raw "<", so no text in it can close the script or open a comment
-  const config = JSON.stringify({ token: options.token, modules, probes: options.probes ?? null }).replace(/</g, '\\u003c')
+  const backend = options.backend ? backendConfig(options.backend, SHOP_ORIGIN) : null
+  const config = JSON.stringify({ token: options.token, modules, probes: options.probes ?? null, backend }).replace(/</g, '\\u003c')
   const injected = `<base href="${SHOP_ORIGIN}"><meta http-equiv="Content-Security-Policy" content="${SANDBOX_CSP}"><script>${BRIDGE_SOURCE}(${config});</script>`
 
   const page = rewriteStylesheets(rewriteScripts(files['index.html'] ?? '', files), files)

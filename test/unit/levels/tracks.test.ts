@@ -66,12 +66,12 @@ describe('track registry', () => {
     }
   })
 
-  it('gives Debugging its seven chapters (ADR 0007): Reading errors live, the other six coming', () => {
+  it('gives Debugging its seven chapters (ADR 0007): Reading errors and Network live, the other five coming', () => {
     const debugging = trackById('debugging')!
     expect(debugging).toMatchObject({ title: 'Debugging', tagline: 'Find the bug before your customers do.', cheatSheet: null, bestRun: ['hints', 'reloads'] })
     expect(debugging.chapters.map(chapter => [chapter.number, chapter.title, chapter.levels.length])).toEqual([
       [1, 'Reading errors', 13],
-      [2, 'Network', 0],
+      [2, 'Network', 12],
       [3, 'Elements & CSS', 0],
       [4, 'State & async', 0],
       [5, 'Breakpoints & stepping', 0],
@@ -94,7 +94,22 @@ describe('track registry', () => {
       [null, 'debugging-practice-real-mistake'],
       [null, 'debugging-practice-close-the-bracket']
     ])
-    expect(nextLevel('debugging-practice-close-the-bracket')).toBeNull()
+    expect(debugging.chapters[1]!.levels.map(level => [levelNumber(level.id), level.id])).toEqual([
+      ['2.1', 'debugging-06-menu-wont-load'],
+      [null, 'debugging-practice-builds-the-address'],
+      [null, 'debugging-practice-right-path'],
+      ['2.2', 'debugging-07-nothing-happens'],
+      [null, 'debugging-practice-failing-request'],
+      [null, 'debugging-practice-check-response-ok'],
+      ['2.3', 'debugging-08-wrong-quantity'],
+      [null, 'debugging-practice-quantity-as-number'],
+      ['2.4', 'debugging-09-works-on-my-machine'],
+      [null, 'debugging-practice-own-origin'],
+      ['2.5', 'debugging-10-orders-twice'],
+      [null, 'debugging-practice-disable-while-sending']
+    ])
+    expect(nextLevel('debugging-practice-close-the-bracket')).toBe(levelById('debugging-06-menu-wont-load'))
+    expect(nextLevel('debugging-practice-disable-while-sending')).toBeNull()
     expect(nextLevel('git-practice-release-from-develop')).toBeNull()
   })
 
