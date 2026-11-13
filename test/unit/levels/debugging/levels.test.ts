@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import { SHOP_ORIGIN, backendConfig, cssRules, debuggingLevels, editedText, levelIntro, pickLine, playSolution, reload, saveDebugFile, startDebugLevel, takeHint } from '../../../../shared/levels'
 import type { DebugLevel, Observation } from '../../../../shared/levels'
+import { probesGoal } from '../../../../shared/levels/debugging/checks'
 import { expected } from './expected'
+import { otherFixes } from './fixes'
 import type { ExpectedRun } from './expected'
 
 // Every Debugging level (ADR 0007): its shape, a start where no goal passes, goals that fail on what its broken app does
@@ -60,7 +62,22 @@ const POINTED_AT: Record<string, [path: string, line: number, contains: string][
   'debugging-practice-turn-the-query': [['style.css', 126, '@media (min-width: 600px) {']],
   'debugging-15-long-name': [['style.css', 73, '.info {'], ['style.css', 74, 'flex: 1;']],
   'debugging-practice-nowrap-line': [['style.css', 129, 'white-space: nowrap;'], ['style.css', 125, '.note {'], ['style.css', 44, 'white-space: nowrap;'], ['style.css', 47, 'main {']],
-  'debugging-practice-long-address': [['style.css', 125, '.note {']]
+  'debugging-practice-long-address': [['style.css', 125, '.note {']],
+  'debugging-16-object-promise': [['basket.js', 10, 'export function addToCart(product) {'], ['basket.js', 11, 'const price = priceOf(product.id)']],
+  'debugging-practice-forgot-to-wait': [['slots.js', 8, 'const slots = loadSlots()'], ['slots.js', 10, 'slots.map('], ['slots.js', 3, 'await fetch('], ['slots.js', 4, 'return response.json()'], ['app.js', 4, 'showSlots()']],
+  'debugging-practice-await-the-hours': [['hours.js', 8, 'const hours = loadHours()']],
+  'debugging-17-wrong-results': [['search.js', 23, 'const products = await response.json()']],
+  'debugging-practice-old-answer-wins': [['allergens.js', 10, 'textContent = `Contains: '], ['allergens.js', 8, 'await fetch('], ['allergens.js', 6, 'textContent = product.name'], ['allergens.js', 9, 'await response.json()'], ['app.js', 15, 'showAllergens(product)']],
+  'debugging-practice-drop-the-old-day': [['slots.js', 15, 'list.textContent = times.join'], ['slots.js', 6, 'let selected = null']],
+  'debugging-18-adds-sourdough': [['app.js', 10, 'var product = products[i]']],
+  'debugging-practice-shared-index': [['sizes.js', 9, 'let i'], ['sizes.js', 10, 'for (i = 0;'], ['sizes.js', 16, 'sizes[i].name'], ['sizes.js', 14, 'button.textContent = sizes[i].name'], ['sizes.js', 15, 'addEventListener('], ['sizes.js', 2, 'const sizes = [']],
+  'debugging-practice-own-time': [['pickup.js', 5, 'for (var time of times)']],
+  'debugging-19-changes-both': [['cart.js', 12, 'const line = { ...DEFAULTS, id: product.id']],
+  'debugging-practice-same-list': [['boxes.js', 8, '{ ...EMPTY_BOX, name }'], ['boxes.js', 3, 'pastries: []'], ['boxes.js', 14, 'box.pastries.push('], ['boxes.js', 9, 'boxes.push(box)'], ['app.js', 14, 'addPastry(box']],
+  'debugging-practice-copy-last-week': [['reorder.js', 7, 'const order = lastWeek']],
+  'debugging-20-says-it-failed': [['order.js', 17, '      response.json()'], ['order.js', 23, '.catch(() => {']],
+  'debugging-practice-pass-the-data-on': [['specials.js', 5, '      response.json()'], ['specials.js', 9, 'for (const special of specials)'], ['specials.js', 3, 'fetch(\'/api/specials\')'], ['specials.js', 7, '.then((specials) => {'], ['specials.js', 4, '.then((response) => {'], ['app.js', 4, 'loadSpecials()']],
+  'debugging-practice-catch-the-rejection': [['app.js', 4, '() => reserveCake())']]
 }
 
 describe('the Debugging levels', () => {
@@ -246,5 +263,45 @@ describe('the Debugging engine', () => {
     expect(() => editedText({}, { save: 'a.js', replace: ['y', 'z'] })).toThrow(/no file/)
     // `$&` in the replacement is written as is
     expect(editedText({ 'a.js': 'x' }, { save: 'a.js', replace: ['x', '$&$&'] })).toBe('$&$&')
+  })
+})
+
+describe('the Debugging goal helpers', () => {
+  const state = (observed: Partial<Observation> | null) => ({ files: {}, picked: null, observed: observed && { finished: true, errors: [], probes: {}, probeErrors: {}, logs: [], ...observed } })
+  const check = (goal: ReturnType<typeof probesGoal>, observed: Partial<Observation> | null) => goal.check({ state: state(observed), history: [] })
+  const error = { kind: 'rejection' as const, text: 'Uncaught (in promise) AbortError: signal is aborted without reason', source: null }
+
+  it('probesGoal: every probe as expected, in a run that finished', () => {
+    const goal = probesGoal('results', 'The results are right', { heading: '2 results', rows: 2 })
+    expect(check(goal, { probes: { heading: '2 results', rows: 2 } })).toBe(true)
+    expect(check(goal, { probes: { heading: '2 results', rows: 2 }, errors: [error] })).toBe(true)
+    expect(check(goal, { probes: { heading: '2 results', rows: 3 } })).toBe(false)
+    expect(check(goal, { probes: { heading: '2 results', rows: 2 }, finished: false })).toBe(false)
+    expect(check(goal, null)).toBe(false)
+  })
+
+  it('probesGoal with clean: also nothing red in the Console', () => {
+    const goal = probesGoal('results', 'The results are right, and nothing is red', { heading: '2 results' }, { clean: true })
+    expect(check(goal, { probes: { heading: '2 results' } })).toBe(true)
+    expect(check(goal, { probes: { heading: '2 results' }, errors: [error] })).toBe(false)
+    expect(check(goal, { probes: { heading: '3 results' } })).toBe(false)
+  })
+})
+
+describe('other fixes and non-fixes (State & async)', () => {
+  it.each(Object.entries(otherFixes))('%s: every edit applies to the starting files and changes them', (id, fixes) => {
+    const level = debuggingLevels.find(each => each.id === id)
+    expect(level, id).toBeDefined()
+    expect(level!.sandbox.find).toBeUndefined()
+    for (const fix of fixes) {
+      let files = level!.setup().files
+      for (const edit of fix.edits) {
+        const text = editedText(files, edit)
+        expect(text, `${id}: ${fix.name}`).not.toBe(files[edit.save])
+        files = { ...files, [edit.save]: text }
+      }
+    }
+    // each fix level with another fix also names a non-fix, or is a practice task
+    if (level!.kind === 'scenario') expect(fixes.some(fix => !fix.solves), id).toBe(true)
   })
 })

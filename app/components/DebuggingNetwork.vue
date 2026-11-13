@@ -65,10 +65,11 @@ const noBodyText = (entry: NetworkEntry) => {
   return t('debugging.network.noBody')
 }
 
-// a pending request has no time yet: its name ends with the status, without a trailing comma
+// a row is spoken with the full address (the list shows only its last part, like the browser's panel); a pending
+// request has no time yet: its name ends with the status, without a trailing comma
 const spoken = (entry: NetworkEntry) => entry.response
-  ? t('debugging.network.row', { method: entry.method, name: entry.name, status: statusText(entry), time: durationText(entry.response.time) })
-  : t('debugging.network.rowPending', { method: entry.method, name: entry.name, status: statusText(entry) })
+  ? t('debugging.network.row', { method: entry.method, name: entry.url, status: statusText(entry), time: durationText(entry.response.time) })
+  : t('debugging.network.rowPending', { method: entry.method, name: entry.url, status: statusText(entry) })
 
 const where = (line: SourceLine) => `${line.path}:${line.line}`
 const linkLabel = (line: SourceLine) => find ? t('debugging.console.answer', { path: line.path, line: line.line }) : t('debugging.console.open', { path: line.path, line: line.line })
@@ -115,7 +116,7 @@ const viewOf = (body: string, headers: readonly HeaderPair[]) => bodyView(body, 
 
     <div class="min-h-0 flex-1 overflow-y-auto @xl:grid @xl:grid-cols-[minmax(12rem,2fr)_3fr] @xl:overflow-hidden">
       <!-- the requests, in the order sent -->
-      <div class="@xl:min-h-0 @xl:overflow-y-auto @xl:border-e @xl:border-(--app-terminal-border)">
+      <div class="@container/requests @xl:min-h-0 @xl:overflow-y-auto @xl:border-e @xl:border-(--app-terminal-border)">
         <p
           v-if="!requests.length"
           class="px-3 py-2 text-xs text-dimmed"
@@ -142,14 +143,19 @@ const viewOf = (body: string, headers: readonly HeaderPair[]) => bodyView(body, 
             :aria-label="spoken(entry)"
             :data-request="entry.id"
             :data-status="statusLabel(entry)"
-            class="grid cursor-pointer grid-cols-[3.25rem_minmax(0,1fr)_5.5rem_3.5rem] items-baseline gap-x-2 border-b border-(--app-terminal-border) px-3 py-1 last:border-b-0"
+            class="grid cursor-pointer grid-cols-[auto_auto_minmax(0,1fr)] items-baseline gap-x-2 border-b border-(--app-terminal-border) px-3 py-1 [grid-template-areas:'name_name_name'_'method_status_time'] last:border-b-0 @sm/requests:grid-cols-[3.25rem_minmax(0,1fr)_5.5rem_3.5rem] @sm/requests:[grid-template-areas:'method_name_status_time']"
             :class="entry.id === selectedId ? 'bg-accented text-highlighted' : 'text-toned hover:bg-elevated'"
             @click="select(entry)"
           >
-            <span class="text-xs text-muted">{{ entry.method }}</span>
-            <span class="truncate">{{ entry.name }}</span>
+            <span class="text-xs text-muted [grid-area:method]">{{ entry.method }}</span>
+            <!-- the name never hides: a narrow list gives it a line of its own, a long one wraps -->
             <span
-              class="text-xs tabular-nums"
+              class="break-all [grid-area:name]"
+              :title="entry.url"
+              data-testid="network-name"
+            >{{ entry.name }}</span>
+            <span
+              class="text-xs tabular-nums [grid-area:status]"
               :class="TONE[statusTone(entry)]"
             >
               <UIcon
@@ -157,7 +163,7 @@ const viewOf = (body: string, headers: readonly HeaderPair[]) => bodyView(body, 
                 name="i-lucide-loader-circle"
                 class="me-0.5 inline size-3 animate-spin align-[-0.1em] motion-reduce:animate-none"
               />{{ statusLabel(entry) }}</span>
-            <span class="text-end text-xs text-dimmed tabular-nums">{{ entry.response ? durationText(entry.response.time) : '' }}</span>
+            <span class="text-end text-xs text-dimmed tabular-nums [grid-area:time]">{{ entry.response ? durationText(entry.response.time) : '' }}</span>
           </li>
         </ul>
       </div>

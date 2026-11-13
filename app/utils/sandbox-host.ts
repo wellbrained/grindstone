@@ -13,6 +13,15 @@ export const CHECK_TIMEOUT_MS = 5000
 /** A check run keeps at most this many of the app's logs and errors (the first ones; the rest are dropped). */
 export const MAX_CHECK_MESSAGES = 1000
 
+/**
+ * Where a check run's frame sits: rendered at its size but out of sight, with one pixel column inside the viewport.
+ * WebKit (Safari) all but stops the timers of a cross-origin frame wholly outside the viewport, and a check run lives on
+ * timers (the fake backend's delays, the probes' waits); the column is transparent and never takes a click.
+ */
+export function checkFrameStyle(width: number, height: number): Record<string, string> {
+  return { position: 'fixed', left: `${1 - width}px`, top: '0px', width: `${width}px`, height: `${height}px`, border: '0px', opacity: '0', pointerEvents: 'none' }
+}
+
 /** A token no other load shares, so messages from an older load (or anything else) are ignored. */
 export function newToken(): string {
   return typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -53,8 +62,21 @@ function runFrame(files: Readonly<Record<string, string>>, { width, height, prob
     frame.setAttribute('aria-hidden', 'true')
     frame.setAttribute('inert', '')
     frame.tabIndex = -1
-    // off screen but rendered, so the app lays out and its timers run as they would on screen
-    Object.assign(frame.style, { position: 'fixed', left: '-10000px', top: '0', width: `${width}px`, height: `${height}px`, border: '0' })
+    // out of sight but rendered, so the app lays out and its timers run as they would on screen
+    Object.assign(frame.style, checkFrameStyle(width, height))
+    // the check frame never keeps the keyboard: should anything in it take the focus (Firefox lets a script in a sealed,
+    // inert frame do that; the page's window blurs and ends up with nothing focused), it goes straight back to where it
+    // was. Focus that moved somewhere real (the app you see, another window) is left alone.
+    let lastFocused: Element | null = document.activeElement
+    const onFocusIn = (event: FocusEvent) => {
+      if (event.target !== frame) lastFocused = event.target as Element
+    }
+    const giveBack = () => {
+      const active = document.activeElement
+      if (active !== frame && active !== document.body && active !== null) return
+      if ((lastFocused instanceof HTMLElement || lastFocused instanceof SVGElement) && lastFocused.isConnected) lastFocused.focus({ preventScroll: true })
+    }
+    const onBlur = () => setTimeout(giveBack, 0)
     const messages: BridgeMessage[] = []
     let appMessages = 0
     const onMessage = (event: MessageEvent) => {
@@ -71,10 +93,15 @@ function runFrame(files: Readonly<Record<string, string>>, { width, height, prob
     function finish() {
       clearTimeout(timer)
       window.removeEventListener('message', onMessage)
+      document.removeEventListener('focusin', onFocusIn, true)
+      window.removeEventListener('blur', onBlur)
       frame.remove()
       resolve(observe(messages, document_.bridgeLine))
     }
     window.addEventListener('message', onMessage)
+    document.addEventListener('focusin', onFocusIn, true)
+    window.addEventListener('blur', onBlur)
+    frame.addEventListener('focus', giveBack)
     frame.srcdoc = document_.html
     document.body.append(frame)
   })

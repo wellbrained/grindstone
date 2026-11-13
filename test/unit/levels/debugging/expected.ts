@@ -8,6 +8,10 @@ import { BRAND_RGB } from '../../../../shared/levels/debugging/11-invisible-orde
 import { MUTED_RGB, SPECIAL_RED } from '../../../../shared/levels/debugging/13-style-doesnt-apply'
 import { SOLD_OUT_GREY } from '../../../../shared/levels/debugging/practice/elements-css'
 import { ORDERED } from '../../../../shared/levels/debugging/storefront'
+import { CROISSANT_LINE, SOURDOUGH_LINE } from '../../../../shared/levels/debugging/16-object-promise'
+import { CRO_RESULTS, CROISSANT_RESULTS } from '../../../../shared/levels/debugging/17-wrong-results'
+import { SORRY, THANKS } from '../../../../shared/levels/debugging/20-says-it-failed'
+import { LAST_WEEK, OVEN_FULL, SATURDAY_TIMES, THIS_WEEK } from '../../../../shared/levels/debugging/practice/state-async'
 
 export interface ExpectedRun {
   /** Probe values of the check run. */
@@ -220,5 +224,68 @@ export const expected: Record<string, ExpectedLevel> = {
   'debugging-practice-long-address': {
     start: { probes: { page: 'overflows', note: 'visible' }, errors: 0 },
     solved: { probes: { page: 'fits', note: 'visible' }, errors: 0 }
+  },
+  // State & async: mostly nothing red; the probes read what the page shows once the answers are in (in a race, once the
+  // late one is in too)
+  'debugging-16-object-promise': {
+    start: { probes: { 'first-line': 'Butter croissant · [object Promise]', 'second-line': 'Sourdough loaf · [object Promise]', 'badge': '2' }, errors: 0, network: ['GET /api/prices/croissant 200', 'GET /api/prices/sourdough 200'] },
+    solved: { probes: { 'first-line': CROISSANT_LINE, 'second-line': SOURDOUGH_LINE, 'badge': '2' }, errors: 0, network: ['GET /api/prices/croissant 200', 'GET /api/prices/sourdough 200'] }
+  },
+  'debugging-practice-forgot-to-wait': {
+    answerOffTrace: true,
+    start: { probes: {}, errors: 1, errorAt: 'slots.js:10', frames: ['slots.js:10', 'app.js:4'], network: ['GET /api/slots 200'], says: ['Uncaught (in promise) TypeError: slots.map is not a function'] }
+  },
+  'debugging-practice-await-the-hours': {
+    start: { probes: { hours: 'Mon–Fri undefined · Sat undefined' }, errors: 0, network: ['GET /api/hours 200'] },
+    solved: { probes: { hours: OPENING_HOURS }, errors: 0, network: ['GET /api/hours 200'] }
+  },
+  'debugging-17-wrong-results': {
+    start: { probes: { 'heading': CRO_RESULTS, 'results': 3, 'short-word': CRO_RESULTS }, errors: 0, network: ['GET /api/search?q=cro 200', 'GET /api/search?q=croissant 200', 'GET /api/search?q=cro 200'] },
+    solved: { probes: { 'heading': CROISSANT_RESULTS, 'results': 2, 'short-word': CRO_RESULTS }, errors: 0, network: ['GET /api/search?q=cro 200', 'GET /api/search?q=croissant 200', 'GET /api/search?q=cro 200'] }
+  },
+  'debugging-practice-old-answer-wins': {
+    answerOffTrace: true,
+    start: { probes: {}, errors: 0 }
+  },
+  'debugging-practice-drop-the-old-day': {
+    start: { probes: { day: 'Saturday', times: '7:30 · 9:00 · 16:00' }, errors: 0, network: ['GET /api/slots?day=fri 200', 'GET /api/slots?day=sat 200'] },
+    solved: { probes: { day: 'Saturday', times: SATURDAY_TIMES }, errors: 0, network: ['GET /api/slots?day=fri 200', 'GET /api/slots?day=sat 200'] }
+  },
+  'debugging-18-adds-sourdough': {
+    start: { probes: { 'croissant': 'Sourdough loaf · 6.50', 'pain-au-chocolat': 'Sourdough loaf · 6.50' }, errors: 0 },
+    solved: { probes: { 'croissant': 'Butter croissant · 2.40', 'pain-au-chocolat': 'Pain au chocolat · 2.80' }, errors: 0 }
+  },
+  'debugging-practice-shared-index': {
+    answerOffTrace: true,
+    before: [{ id: 'customer', steps: [{ click: '#sizes button' }] }],
+    start: { probes: { customer: null }, errors: 1, errorAt: 'sizes.js:16', frames: ['sizes.js:16'], says: ['Uncaught TypeError: Cannot read properties of undefined (reading \'name\')'] }
+  },
+  'debugging-practice-own-time': {
+    start: { probes: { first: 'Pick up at 9:00' }, errors: 0 },
+    solved: { probes: { first: 'Pick up at 7:00' }, errors: 0 }
+  },
+  'debugging-19-changes-both': {
+    start: { probes: { 'first-cut': 'sliced', 'second-cut': 'sliced', 'new-line': 'sliced' }, errors: 0 },
+    solved: { probes: { 'first-cut': 'sliced', 'second-cut': 'whole', 'new-line': 'whole' }, errors: 0 }
+  },
+  'debugging-practice-same-list': {
+    answerOffTrace: true,
+    start: { probes: {}, errors: 0 }
+  },
+  'debugging-practice-copy-last-week': {
+    start: { probes: { 'last-week': THIS_WEEK, 'this-week': THIS_WEEK }, errors: 0 },
+    solved: { probes: { 'last-week': LAST_WEEK, 'this-week': THIS_WEEK }, errors: 0 }
+  },
+  'debugging-20-says-it-failed': {
+    start: { probes: { 'confirmation': SORRY, 'basket': '1', 'turned-down': SORRY }, errors: 1, errorAt: 'order.js:10', frames: [], network: ['GET /api/menu 200', 'POST /api/orders 201', 'POST /api/orders 503'] },
+    solved: { probes: { 'confirmation': THANKS, 'basket': '0', 'turned-down': SORRY }, errors: 1, network: ['GET /api/menu 200', 'POST /api/orders 201', 'POST /api/orders 503'] }
+  },
+  'debugging-practice-pass-the-data-on': {
+    answerOffTrace: true,
+    start: { probes: {}, errors: 1, errorAt: 'specials.js:9', frames: ['specials.js:9'], network: ['GET /api/specials 200'], says: ['Uncaught (in promise) TypeError: specials is not iterable'] }
+  },
+  'debugging-practice-catch-the-rejection': {
+    start: { probes: { message: 'Checking the oven plan…' }, errors: 2, errorAt: 'reserve.js:10', frames: [], network: ['POST /api/cakes 409'], says: ['POST https://cornerbakery.shop/api/cakes 409 (Conflict)', `Uncaught (in promise) Error: ${OVEN_FULL}`] },
+    solved: { probes: { message: OVEN_FULL }, errors: 1, network: ['POST /api/cakes 409'] }
   }
 }

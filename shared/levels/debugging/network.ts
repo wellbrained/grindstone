@@ -22,7 +22,7 @@ export interface NetworkEntry {
   id: number
   method: string
   url: string
-  /** What the list shows: the path (and query) on the shop's own address, the whole address anywhere else. */
+  /** What the list shows, like the browser's Network panel: the last part of the path, with the query ('search?q=cro'). */
   name: string
   requestHeaders: HeaderPair[]
   requestBody: string | null
@@ -34,8 +34,23 @@ export interface NetworkEntry {
 
 const SHOP = new URL(SHOP_ORIGIN).origin
 
-/** The name of a request in the list: its path on the shop, its whole address elsewhere. */
+/**
+ * The name of a request in the list, as the browser's Network panel has it: the last part of its path with the query
+ * ('search?q=cro', 'menu'; the host when the path is empty). The full address is in the details and the row's label.
+ */
 export function requestName(url: string): string {
+  try {
+    const parsed = new URL(url)
+    const parts = parsed.pathname.split('/')
+    const last = parts.at(-1) || (parts.length > 2 ? `${parts.at(-2)}/` : parsed.host)
+    return last + parsed.search
+  } catch {
+    return url
+  }
+}
+
+/** A request's address: its path (and query) on the shop, its whole address anywhere else (the tests' tables use it). */
+export function requestAddress(url: string): string {
   try {
     const parsed = new URL(url)
     return parsed.origin === SHOP ? parsed.pathname + parsed.search : parsed.href

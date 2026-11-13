@@ -228,9 +228,12 @@ renderBadge()
 Object.assign(window, { cart, products })
 `
 
-/** The files every order page level shares; a level adds its app.js and overrides the files with its bug. */
-export function orderSite(files: Readonly<Record<string, string>>, page: OrderPageOptions = {}): Record<string, string> {
-  return {
+/**
+ * The files every order page level shares; a level adds its app.js and overrides the files with its bug. `omit` leaves
+ * out shared files the level's app does not use, so the editor shows only what runs.
+ */
+export function orderSite(files: Readonly<Record<string, string>>, page: OrderPageOptions = {}, omit: readonly string[] = []): Record<string, string> {
+  const site: Record<string, string> = {
     'index.html': orderPage(page),
     'app.js': APP,
     'style.css': STYLE,
@@ -239,4 +242,5 @@ export function orderSite(files: Readonly<Record<string, string>>, page: OrderPa
     'cart.js': CART,
     ...files
   }
+  return Object.fromEntries(Object.entries(site).filter(([path]) => !omit.includes(path)))
 }

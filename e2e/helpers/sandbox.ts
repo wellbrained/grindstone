@@ -2,14 +2,15 @@
 // per width the probes ask for, a phone's first), in a real browser page, and reads its messages with the same pure code
 // as the app (shared/levels/debugging).
 import type { Page } from '@playwright/test'
-import { checkFrames, consoleEntry, mergeObservations, observe, readBridgeMessage, requestEntry, sandboxDocument, statusLabel, withResponse } from '../../shared/levels'
+import { checkFrames, consoleEntry, mergeObservations, observe, readBridgeMessage, requestAddress, requestEntry, sandboxDocument, statusLabel, withResponse } from '../../shared/levels'
 import type { BackendSpec, BridgeMessage, ConsoleEntryBody, NetworkEntry, Observation, Probe } from '../../shared/levels'
+import { checkFrameStyle } from '../../app/utils/sandbox-host'
 
 export interface CheckResult {
   observation: Observation
   /** The Console lines of the run (as the Console panel would show them; the first frame's). */
   entries: ConsoleEntryBody[]
-  /** The Network panel's rows of the run: 'GET /api/menu 200' (the first frame's). */
+  /** The Network panel's rows of the run, by address: 'GET /api/menu 200' (the first frame's). */
   network: string[]
   /** The Network panel's entries themselves. */
   requests: NetworkEntry[]
@@ -18,11 +19,11 @@ export interface CheckResult {
 async function runFrame(page: Page, files: Readonly<Record<string, string>>, probes: readonly Probe[], width: number, height: number, backend?: BackendSpec): Promise<CheckResult> {
   const token = `t-${Math.random().toString(36).slice(2)}`
   const document = sandboxDocument(files, { token, probes, backend })
-  const raw = await page.evaluate(async ({ html, width, height }) => {
+  const raw = await page.evaluate(async ({ html, style }) => {
     const messages: unknown[] = []
     const frame = window.document.createElement('iframe')
     frame.setAttribute('sandbox', 'allow-scripts')
-    Object.assign(frame.style, { position: 'fixed', left: '-10000px', top: '0', width: `${width}px`, height: `${height}px`, border: '0' })
+    Object.assign(frame.style, style)
     const done = new Promise<void>((resolve) => {
       window.addEventListener('message', (event) => {
         if (event.source !== frame.contentWindow) return
@@ -35,7 +36,7 @@ async function runFrame(page: Page, files: Readonly<Record<string, string>>, pro
     await Promise.race([done, new Promise(resolve => setTimeout(resolve, 5000))])
     frame.remove()
     return messages
-  }, { html: document.html, width, height })
+  }, { html: document.html, style: checkFrameStyle(width, height) })
   const messages = raw.map(data => readBridgeMessage(data, token)).filter((message): message is BridgeMessage => message !== null)
   const urls = messages.find(message => message.type === 'files')
   const mapping = { urls: urls?.type === 'files' ? urls.urls : {}, bridgeLine: document.bridgeLine }
@@ -47,7 +48,7 @@ async function runFrame(page: Page, files: Readonly<Record<string, string>>, pro
   return {
     observation: observe(messages, document.bridgeLine),
     entries: messages.map(message => consoleEntry(message, mapping)).filter((entry): entry is ConsoleEntryBody => entry !== null),
-    network: requests.map(entry => `${entry.method} ${entry.name} ${statusLabel(entry)}`),
+    network: requests.map(entry => `${entry.method} ${requestAddress(entry.url)} ${statusLabel(entry)}`),
     requests
   }
 }

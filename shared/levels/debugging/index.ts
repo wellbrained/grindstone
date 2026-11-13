@@ -1,5 +1,5 @@
-// The Debugging track (ADR 0007): its chapters and their levels, in play order. Chapters 1 to 3 are live; the other
-// four are coming (no levels yet). A practice task goes right after the scenario it trains (`practises`); defineTrack checks it.
+// The Debugging track (ADR 0007): its chapters and their levels, in play order. Chapters 1 to 4 are live; the other
+// three are coming (no levels yet). A practice task goes right after the scenario it trains (`practises`); defineTrack checks it.
 import { fewestHintsThenReloads } from '../progress'
 import { defineTrack, trackLevels } from '../track'
 import { isDebugLevel } from './types'
@@ -19,6 +19,11 @@ import { cantClick } from './12-cant-click'
 import { styleDoesntApply } from './13-style-doesnt-apply'
 import { goneOnPhones } from './14-gone-on-phones'
 import { longName } from './15-long-name'
+import { objectPromise } from './16-object-promise'
+import { wrongResults } from './17-wrong-results'
+import { addsSourdough } from './18-adds-sourdough'
+import { changesBoth } from './19-changes-both'
+import { saysItFailed } from './20-says-it-failed'
 import {
   closeTheBracket,
   frameThatPassed,
@@ -50,6 +55,18 @@ import {
   variableName,
   whatCovers
 } from './practice/elements-css'
+import {
+  awaitTheHours,
+  catchTheRejection,
+  copyLastWeek,
+  dropTheOldDay,
+  forgotToWait,
+  oldAnswerWins,
+  ownTime,
+  passTheDataOn,
+  sameList,
+  sharedIndex
+} from './practice/state-async'
 
 export const debuggingTrack = defineTrack({
   id: 'debugging',
@@ -125,7 +142,29 @@ export const debuggingTrack = defineTrack({
         longAddress
       ]
     },
-    { id: 'state-async', title: 'State & async', description: 'Stale state, race conditions and promises that never settle.', colour: 3, levels: [] },
+    {
+      id: 'state-async',
+      title: 'State & async',
+      description: 'Missing await, races, shared state and promise chains that lose their value.',
+      colour: 3,
+      levels: [
+        objectPromise,
+        forgotToWait,
+        awaitTheHours,
+        wrongResults,
+        oldAnswerWins,
+        dropTheOldDay,
+        addsSourdough,
+        sharedIndex,
+        ownTime,
+        changesBoth,
+        sameList,
+        copyLastWeek,
+        saysItFailed,
+        passTheDataOn,
+        catchTheRejection
+      ]
+    },
     { id: 'breakpoints', title: 'Breakpoints & stepping', description: 'Pause the code and step through it instead of guessing.', colour: 4, levels: [] },
     { id: 'performance', title: 'Performance', description: 'Slow pages, long tasks and what makes them slow.', colour: 5, levels: [] },
     { id: 'incidents', title: 'Incidents', description: 'Logs, the latest change and a rollback while customers wait.', colour: 6, levels: [] }

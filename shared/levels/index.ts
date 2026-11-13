@@ -59,5 +59,6 @@ export { CHECK_VIEWPORT, SANDBOX_CSP, SHOP_ORIGIN, checkFrames, sandboxDocument 
 export { MAX_CSS_RULES, compareSpecificity, cssRules, isInherited, longhandsOf, parseCss, parseDeclarations, specificity, splitSelectorList, styleSheets } from './debugging/css'
 export { COMPUTED_PROPERTIES, MAX_DOM_NODES, boxNumber, elementStyles, nodeAtPath, nodeLabel, nodePath, startExpanded, treeMove, treeRows, withAncestors } from './debugging/elements'
 export { DEFAULT_DELAY_MS, STATUS_TEXT, backendConfig } from './debugging/backend'
-export { bodyView, durationText, requestEntry, requestName, statusLabel, statusTone, withResponse } from './debugging/network'
+export { MAX_PROBE_WAIT_MS } from './debugging/bridge'
+export { bodyView, durationText, requestAddress, requestEntry, requestName, statusLabel, statusTone, withResponse } from './debugging/network'
 export { debuggingLevels, debuggingTrack } from './debugging'

@@ -22,7 +22,7 @@ test('plays Network 2.1 through the Network panel', async ({ page }) => {
   await tabs.getByRole('tab', { name: /Network/ }).click()
   await expect(page.getByTestId('console-log')).toBeHidden()
   const list = page.getByTestId('network-list')
-  const request = list.getByRole('option', { name: /GET \/api\/products, 404 Not Found/ })
+  const request = list.getByRole('option', { name: /GET https:\/\/cornerbakery\.shop\/api\/products, 404 Not Found/ })
   await expect(request).toHaveAttribute('data-status', '404')
   await expect(request.locator('.text-error')).toHaveText('404')
 
@@ -55,7 +55,7 @@ test('plays Network 2.1 through the Network panel', async ({ page }) => {
 
   // the reload emptied the panel; the new request is a 200, and the menu is there
   await expect(list.getByRole('option')).toHaveCount(1)
-  await expect(list.getByRole('option', { name: /GET \/api\/menu, 200 OK/ })).toBeVisible()
+  await expect(list.getByRole('option', { name: /GET https:\/\/cornerbakery\.shop\/api\/menu, 200 OK/ })).toBeVisible()
   await expect(app.locator('.product')).toHaveCount(3)
   await expect(tabs.getByRole('tab', { name: /Network/ })).not.toContainText('some failed')
 })
@@ -65,7 +65,7 @@ test('moves through the requests with the keyboard, and shows the Network tab on
   await page.getByRole('tablist', { name: 'Console and Network' }).getByRole('tab', { name: /Network/ }).click()
   const list = page.getByTestId('network-list')
   await expect(list.getByRole('option')).toHaveCount(3)
-  await expect(list.getByRole('option', { name: /GET \/api\/specials, 503 Service Unavailable/ })).toBeVisible()
+  await expect(list.getByRole('option', { name: /GET https:\/\/cornerbakery\.shop\/api\/specials, 503 Service Unavailable/ })).toBeVisible()
 
   // Down and Up move the selection, the details follow
   await list.focus()
@@ -93,6 +93,23 @@ test('moves through the requests with the keyboard, and shows the Network tab on
   await expect(page.getByTestId('network-status')).toHaveText('200 OK')
   await expect(list.getByRole('option').last()).toHaveAttribute('aria-selected', 'true')
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+})
+
+// The list names a request like the browser's panel (the last part of its path, with the query) and never hides it:
+// side by side with the details (a wide window) and on a phone, every name is whole on screen.
+test('names requests like the browser and never cuts a name off', async ({ page }) => {
+  const whole = async () => page.getByTestId('network-name').evaluateAll(names => names.map(name => name.scrollWidth <= name.clientWidth + 1 && name.getBoundingClientRect().width > 40))
+  for (const size of [{ width: 1600, height: 900 }, { width: 390, height: 844 }]) {
+    await page.setViewportSize(size)
+    await page.goto('/debugging/practice-failing-request')
+    if (size.width > 1000) await page.getByRole('tablist', { name: 'Console and Network' }).getByRole('tab', { name: /Network/ }).click()
+    else await page.getByRole('tablist', { name: 'Panels' }).getByRole('tab', { name: /Network/ }).click()
+    const names = page.getByTestId('network-name')
+    await expect(names).toHaveText(['hours', 'specials', 'menu'])
+    await expect(names.nth(1)).toHaveAttribute('title', 'https://cornerbakery.shop/api/specials')
+    await page.getByTestId('network-list').getByRole('option').first().click()
+    expect(await whole(), `names at ${size.width}px`).toEqual([true, true, true])
+  }
 })
 
 test('a level without a backend has no Network panel', async ({ page }) => {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bodyView, durationText, requestEntry, requestName, statusLabel, statusTone, withResponse } from '../../../../shared/levels/debugging/network'
+import { bodyView, durationText, requestAddress, requestEntry, requestName, statusLabel, statusTone, withResponse } from '../../../../shared/levels/debugging/network'
 import type { RequestMessage, ResponseMessage } from '../../../../shared/levels/debugging/messages'
 
 // The Network panel's entries (docs/features/ui.md, "Network"): a request as the bridge reported it, its answer when it
@@ -34,7 +34,7 @@ describe('the Network entries', () => {
       id: 4,
       method: 'POST',
       url: 'https://cornerbakery.shop/api/orders?source=web',
-      name: '/api/orders?source=web',
+      name: 'orders?source=web',
       requestHeaders: [['content-type', 'application/json']],
       requestBody: '{"items":[{"id":"croissant","qty":3}]}',
       initiator: { path: 'menu.js', line: 12 },
@@ -43,11 +43,22 @@ describe('the Network entries', () => {
     expect(requestEntry({ ...request, stack: '' }, mapping).initiator).toBeNull()
   })
 
-  it('name a request on the shop by its path, anywhere else by its whole address', () => {
-    expect(requestName('https://cornerbakery.shop/api/menu')).toBe('/api/menu')
-    expect(requestName('https://cornerbakery.shop/')).toBe('/')
-    expect(requestName('https://api.cornerbakery.shop/specials')).toBe('https://api.cornerbakery.shop/specials')
+  it('name a request like the browser\'s Network panel: the last part of its path, with the query', () => {
+    expect(requestName('https://cornerbakery.shop/api/menu')).toBe('menu')
+    expect(requestName('https://cornerbakery.shop/api/search?q=cro')).toBe('search?q=cro')
+    expect(requestName('https://cornerbakery.shop/api/prices/')).toBe('prices/')
+    expect(requestName('https://api.cornerbakery.shop/specials')).toBe('specials')
+    // nothing in the path: the host
+    expect(requestName('https://cornerbakery.shop/')).toBe('cornerbakery.shop')
+    expect(requestName('https://cornerbakery.shop/?day=fri')).toBe('cornerbakery.shop?day=fri')
     expect(requestName('not a url')).toBe('not a url')
+  })
+
+  it('give a request\'s address: its path on the shop, its whole address elsewhere (the tests\' tables)', () => {
+    expect(requestAddress('https://cornerbakery.shop/api/menu')).toBe('/api/menu')
+    expect(requestAddress('https://cornerbakery.shop/api/search?q=cro')).toBe('/api/search?q=cro')
+    expect(requestAddress('https://api.cornerbakery.shop/specials')).toBe('https://api.cornerbakery.shop/specials')
+    expect(requestAddress('not a url')).toBe('not a url')
   })
 
   it('put the answer on its request, and leave the others alone', () => {

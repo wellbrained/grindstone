@@ -3,7 +3,8 @@
 // answers only the parent's Console input. It
 // - loads the level's modules from blob URLs made inside the frame (so they share its sealed origin) through an import map,
 // - reports console calls, uncaught errors and unhandled rejections with their raw stacks (the page maps them to files),
-// - runs a check run's probes once the app has loaded (scripted clicks, then reads the page) and says when it is done,
+// - runs a check run's probes once the app has loaded (scripted clicks, typing and pauses, then reads the page) and says
+//   when it is done,
 // - evaluates Console input in the app's global scope,
 // - keeps the app on its page (links do not navigate),
 // - answers the app's `fetch` with the level's scripted backend (backend.ts) when it has one, inside the frame,
@@ -12,6 +13,9 @@
 // and ends every statement with a semicolon. Tested in a real browser: e2e/debugging-levels.spec.ts.
 import { BACKEND_SOURCE } from './backend'
 import { INSPECTOR_SOURCE } from './inspector'
+
+/** The longest pause a probe may take (`{ wait }`): a check run gives up after 5 s. */
+export const MAX_PROBE_WAIT_MS = 2000
 
 const SOURCE = String.raw`(function (config) {
   'use strict';
@@ -50,6 +54,7 @@ const SOURCE = String.raw`(function (config) {
     if (Array.isArray(value)) return 'Array(' + value.length + ')';
     if (value instanceof Error) return value.name + ': ' + value.message;
     if (typeof Element !== 'undefined' && value instanceof Element) return describe(value);
+    if (value instanceof Promise) return 'Promise';
     return '{…}';
   };
   var preview = function (value, raw) {
@@ -177,11 +182,30 @@ const SOURCE = String.raw`(function (config) {
     if (data.type === 'eval' && typeof data.code === 'string') evaluate(data);
   });
 
-  /* Console input: evaluated in the app's global scope; an object literal works as in DevTools. */
+  /* Console input: evaluated in the app's global scope; an object literal works as in DevTools, and so does a top-level
+     await (await fetch('/api/menu')): the input runs in an async function and the Console shows what it settles to. A
+     trailing semicolon is dropped first, so it stays an expression. One declaration of one name (const total = await …)
+     defines it for later inputs, as a property of the window (the Console shows undefined, like DevTools). */
+  var DECLARATION = /^\s*(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*([^;]*?)\s*;?\s*$/;
+  var asExpression = function (code) { return (0, eval)('(async () => (' + code + '\n))()'); };
+  var awaited = function (code) {
+    var declared = DECLARATION.exec(code);
+    if (declared) {
+      var name = declared[1];
+      var value = null;
+      try { value = asExpression(declared[2]); } catch (error) { if (!(error instanceof SyntaxError)) throw error; }
+      if (value) return value.then(function (result) { window[name] = result; return undefined; });
+    }
+    try { return asExpression(code.replace(/;\s*$/, '')); } catch (error) {
+      if (!(error instanceof SyntaxError)) throw error;
+      return (0, eval)('(async () => {' + code + '\n})()');
+    }
+  };
   var evaluate = function (data) {
     var code = data.code;
     var trimmed = code.trim();
     var literal = trimmed.charAt(0) === '{' && trimmed.charAt(trimmed.length - 1) === '}';
+    var done = function (value) { post({ type: 'result', id: data.id, ok: true, value: preview(value, false) }); };
     var fail = function (error) {
       var isError = error instanceof Error;
       post({ type: 'result', id: data.id, ok: false, name: isError ? error.name : null, message: isError ? error.message : preview(error, false), stack: isError && error.stack ? String(error.stack) : null });
@@ -190,10 +214,16 @@ const SOURCE = String.raw`(function (config) {
     try {
       value = literal ? (0, eval)('(' + code + ')') : (0, eval)(code);
     } catch (first) {
+      if (first instanceof SyntaxError && /\bawait\b/.test(code)) {
+        var running;
+        try { running = awaited(code); } catch (error) { fail(first); return; }
+        running.then(done, fail);
+        return;
+      }
       if (!literal || !(first instanceof SyntaxError)) { fail(first); return; }
       try { value = (0, eval)(code); } catch (error) { fail(error); return; }
     }
-    post({ type: 'result', id: data.id, ok: true, value: preview(value, false) });
+    done(value);
   };
 
   /* A check run: once the app has loaded, each probe clicks and reads like a customer, then the run is done. */
@@ -275,6 +305,15 @@ const SOURCE = String.raw`(function (config) {
     var b = luminance(ground);
     return Math.round((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) * 100) / 100;
   };
+  /* Typing, as a customer does it: the field gets the whole value at once, then input and change. It never takes the
+     focus: a check run must not take the keyboard from Grindstone (Firefox lets a script in a sealed frame do that). */
+  var typeInto = function (field, value) {
+    field.value = value;
+    var input;
+    try { input = new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }); } catch (error) { input = new Event('input', { bubbles: true }); }
+    field.dispatchEvent(input);
+    field.dispatchEvent(new Event('change', { bubbles: true }));
+  };
   var LOOKS = { style: 1, visible: 1, hit: 1, overflows: 1, contrast: 1 };
   var runProbe = function (probe) {
     var value = null;
@@ -287,8 +326,18 @@ const SOURCE = String.raw`(function (config) {
         var target = find(step.click);
         if (!target) { problem = 'Nothing on the page matches ' + step.click; return Promise.resolve(); }
         for (var times = Math.min(Math.max(step.times || 1, 1), 10); times > 0; times--) target.click();
-        return settle(20).then(next);
+        return (step.settle === false ? wait(20) : settle(20)).then(next);
       }
+      if (typeof step.type === 'string') {
+        var field = find(step.type);
+        if (!field) { problem = 'Nothing on the page matches ' + step.type; return Promise.resolve(); }
+        typeInto(field, String(step.value));
+        return wait(20).then(next);
+      }
+      if (typeof step.wait === 'number') {
+        return wait(Math.min(Math.max(step.wait, 0), ${MAX_PROBE_WAIT_MS})).then(next);
+      }
+      if (step.settle === true) return settle(20).then(next);
       if (typeof step.text === 'string') {
         var element = find(step.text);
         if (!element) { problem = 'Nothing on the page matches ' + step.text; return Promise.resolve(); }

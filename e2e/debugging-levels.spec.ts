@@ -1,13 +1,15 @@
 import { expect, test } from '@playwright/test'
-import { debuggingLevels, playSolution, reload, startDebugLevel } from '../shared/levels'
+import { debuggingLevels, editedText, playSolution, reload, startDebugLevel } from '../shared/levels'
 import { expected } from '../test/unit/levels/debugging/expected'
+import { otherFixes } from '../test/unit/levels/debugging/fixes'
 import { runCheck } from './helpers/sandbox'
 
 // Every Debugging level in a real browser (ADR 0007): its app really fails the way the level says (the table in
 // test/unit/levels/debugging/expected.ts, which the unit tests run the goals on), every goal fails on a reload of the
 // starting files, and replaying the solution (edits, then a reload) makes every goal pass. Find tasks: the trace the
 // player reads has the frames the task talks about. Levels with a fake backend: the Network panel's rows are what the
-// table says, before and after the fix. No dev server needed: the apps run in a blank page.
+// table says, before and after the fix. Throwing away a file the fix edits is no fix; other real fixes pass and tempting
+// non-fixes do not (test/unit/levels/debugging/fixes.ts). No dev server needed: the apps run in a blank page.
 const where = (line: { path: string, line: number } | null | undefined) => line ? `${line.path}:${line.line}` : null
 
 for (const level of debuggingLevels) {
@@ -39,13 +41,24 @@ for (const level of debuggingLevels) {
     const reloaded = reload(startDebugLevel(level), level, start.observation)
     expect(Object.values(reloaded.session.goalsMet).some(Boolean)).toBe(false)
 
-    // Elements & CSS: throwing the stylesheet away is no fix (nothing covers the button, but nothing is styled either)
-    if (level.sandbox.elements) {
-      const { 'style.css': _style, ...withoutStyle } = startDebugLevel(level).state.files
-      for (const files of [{ ...withoutStyle, 'style.css': '' }, withoutStyle]) {
+    // throwing away what the fix edits is no fix: each file the solution saves, emptied and deleted (in Elements & CSS
+    // the stylesheet: nothing covers the button then, but nothing is styled either)
+    const startFiles = startDebugLevel(level).state.files
+    const touched = [...new Set(level.solution.flatMap(step => typeof step === 'object' && 'save' in step ? [step.save] : []))]
+    for (const path of touched) {
+      const { [path]: _gone, ...without } = startFiles
+      for (const files of [{ ...without, [path]: '' }, without]) {
         const bare = reload(startDebugLevel(level), level, (await run(files)).observation)
-        expect(Object.values(bare.session.goalsMet).every(Boolean), `${level.id} without its CSS`).toBe(false)
+        expect(Object.values(bare.session.goalsMet).every(Boolean), `${level.id} without ${path}`).toBe(false)
       }
+    }
+
+    // other real fixes pass, tempting non-fixes do not
+    for (const fix of otherFixes[level.id] ?? []) {
+      let files = startFiles
+      for (const edit of fix.edits) files = { ...files, [edit.save]: editedText(files, edit) }
+      const other = reload(startDebugLevel(level), level, (await run(files)).observation)
+      expect(Object.values(other.session.goalsMet).every(Boolean), `${level.id}: ${fix.name}`).toBe(fix.solves)
     }
 
     const results = await playSolution(level, async (files) => {

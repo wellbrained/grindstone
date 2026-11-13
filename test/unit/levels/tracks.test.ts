@@ -66,14 +66,14 @@ describe('track registry', () => {
     }
   })
 
-  it('gives Debugging its seven chapters (ADR 0007): Reading errors, Network and Elements & CSS live, the other four coming', () => {
+  it('gives Debugging its seven chapters (ADR 0007): Reading errors, Network, Elements & CSS and State & async live, the other three coming', () => {
     const debugging = trackById('debugging')!
     expect(debugging).toMatchObject({ title: 'Debugging', tagline: 'Find the bug before your customers do.', cheatSheet: null, bestRun: ['hints', 'reloads'] })
     expect(debugging.chapters.map(chapter => [chapter.number, chapter.title, chapter.levels.length])).toEqual([
       [1, 'Reading errors', 13],
       [2, 'Network', 12],
       [3, 'Elements & CSS', 15],
-      [4, 'State & async', 0],
+      [4, 'State & async', 15],
       [5, 'Breakpoints & stepping', 0],
       [6, 'Performance', 0],
       [7, 'Incidents', 0]
@@ -125,9 +125,27 @@ describe('track registry', () => {
       [null, 'debugging-practice-nowrap-line'],
       [null, 'debugging-practice-long-address']
     ])
+    expect(debugging.chapters[3]!.levels.map(level => [levelNumber(level.id), level.id])).toEqual([
+      ['4.1', 'debugging-16-object-promise'],
+      [null, 'debugging-practice-forgot-to-wait'],
+      [null, 'debugging-practice-await-the-hours'],
+      ['4.2', 'debugging-17-wrong-results'],
+      [null, 'debugging-practice-old-answer-wins'],
+      [null, 'debugging-practice-drop-the-old-day'],
+      ['4.3', 'debugging-18-adds-sourdough'],
+      [null, 'debugging-practice-shared-index'],
+      [null, 'debugging-practice-own-time'],
+      ['4.4', 'debugging-19-changes-both'],
+      [null, 'debugging-practice-same-list'],
+      [null, 'debugging-practice-copy-last-week'],
+      ['4.5', 'debugging-20-says-it-failed'],
+      [null, 'debugging-practice-pass-the-data-on'],
+      [null, 'debugging-practice-catch-the-rejection']
+    ])
     expect(nextLevel('debugging-practice-close-the-bracket')).toBe(levelById('debugging-06-menu-wont-load'))
     expect(nextLevel('debugging-practice-disable-while-sending')).toBe(levelById('debugging-11-invisible-order'))
-    expect(nextLevel('debugging-practice-long-address')).toBeNull()
+    expect(nextLevel('debugging-practice-long-address')).toBe(levelById('debugging-16-object-promise'))
+    expect(nextLevel('debugging-practice-catch-the-rejection')).toBeNull()
     expect(nextLevel('git-practice-release-from-develop')).toBeNull()
   })
 

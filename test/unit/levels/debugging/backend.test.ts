@@ -61,6 +61,7 @@ describe('backendConfig', () => {
       method: 'GET',
       where: 'https://cornerbakery.shop/api/menu',
       body: null,
+      query: null,
       answers: [{ status: 200, statusText: 'OK', headers: { 'content-type': 'application/json; charset=utf-8' }, body: JSON.stringify(MENU), delay: DEFAULT_DELAY_MS }]
     })
     expect(config.routes[1]).toMatchObject({ method: 'POST', where: 'https://api.cornerbakery.shop/orders', body: '"quantity":3' })
@@ -87,6 +88,7 @@ describe('backendConfig', () => {
     expect(bad({ status: 200, delay: 10_000 })).toThrow(/delay/)
     expect(bad([])).toThrow(/answer/)
     expect(bad({ status: 200 }, { body: '(' })).toThrow(/pattern/)
+    expect(bad({ status: 200 }, { query: '[' })).toThrow(/query pattern/)
   })
 
   it('knows the reason phrase of every status a level may use', () => {
@@ -169,6 +171,39 @@ describe('the fake backend', () => {
     expect(await send({ quantity: '3' })).toEqual({ error: 'quantity must be a number' })
     expect(await send({ quantity: 3 })).toEqual({ quantity: 3 })
     expect(await send({ qty: 3 })).toEqual({ quantity: 1 })
+  })
+
+  it('picks the first route whose query pattern matches (the query as sent, without "?"), so answers can depend on it', async () => {
+    const { backend, of } = start({ routes: [
+      { path: '/api/search', query: '^q=cro$', respond: { status: 200, json: ['slow'], delay: 900 } },
+      { path: '/api/search', query: '^q=croi', respond: { status: 200, json: ['fast'], delay: 50 } },
+      { path: '/api/search', respond: { status: 200, json: [] } }
+    ] })
+    const read = async (input: string) => (await answer(backend.fetch(input))).json()
+    expect(await read('/api/search?q=cro')).toEqual(['slow'])
+    expect(await read('/api/search?q=croissant')).toEqual(['fast'])
+    expect(await read('/api/search?q=sour')).toEqual([])
+    expect(await read('/api/search')).toEqual([])
+    // the routes' delays decide which answer comes first: the later request can win
+    const order: string[] = []
+    void backend.fetch('/api/search?q=cro').then(() => order.push('cro'))
+    void backend.fetch('/api/search?q=croissant').then(() => order.push('croissant'))
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(order).toEqual(['croissant', 'cro'])
+    // counted by address: the query does not count
+    expect(backend.count('GET /api/search')).toBe(6)
+    expect(of('request').at(-1)).toMatchObject({ url: 'https://cornerbakery.shop/api/search?q=croissant' })
+  })
+
+  it('reads the query with its body pattern: both must match', async () => {
+    const { backend } = start({ routes: [
+      { method: 'POST', path: '/api/orders', query: 'dry-run=1', body: '"items":\\[\\]', respond: { status: 400, json: 'empty' } },
+      { method: 'POST', path: '/api/orders', respond: { status: 201, json: 'saved' } }
+    ] })
+    const send = async (input: string, body: string) => (await answer(backend.fetch(input, { method: 'POST', body }))).json()
+    expect(await send('/api/orders?dry-run=1', '{"items":[]}')).toBe('empty')
+    expect(await send('/api/orders?dry-run=1', '{"items":[1]}')).toBe('saved')
+    expect(await send('/api/orders', '{"items":[]}')).toBe('saved')
   })
 
   it('honours delays: nothing arrives before them, and pending counts what is on its way', async () => {

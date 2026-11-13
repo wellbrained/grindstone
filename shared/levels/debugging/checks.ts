@@ -19,12 +19,15 @@ export function probeGoal(id: string, label: string, probe: string, expected: Pr
 /**
  * Several probes read exactly these after the last reload, in a check run that finished: one goal for what belongs
  * together ("Order can be tapped, and the message above it still shows"), so a guard never passes on its own at the start.
+ * `clean`: and nothing red in the Console either (a fix that works but leaves an uncaught error behind does not count).
  */
-export function probesGoal(id: string, label: string, expected: Readonly<Record<string, ProbeValue>>): DebugGoal {
+export function probesGoal(id: string, label: string, expected: Readonly<Record<string, ProbeValue>>, options: { clean?: boolean } = {}): DebugGoal {
   return {
     id,
     label,
-    check: ({ state }) => state.observed?.finished === true && Object.entries(expected).every(([probe, value]) => probeValue(state, probe) === value)
+    check: ({ state }) => state.observed?.finished === true
+      && (!options.clean || state.observed.errors.length === 0)
+      && Object.entries(expected).every(([probe, value]) => probeValue(state, probe) === value)
   }
 }
 

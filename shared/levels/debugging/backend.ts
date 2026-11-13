@@ -1,6 +1,7 @@
 // The scripted fake backend (ADR 0007, chapter 2; docs/features/levels.md "The fake backend"): a level declares what
 // the shop's server answers (routes: method and path to a status, a JSON or text body, headers, a delay, or a failed
-// connection; a list answers call by call). The bridge runs BACKEND_SOURCE inside the sealed frame and hands it the
+// connection; a list answers call by call; a route may take only requests whose query or body matches a pattern, so an
+// answer, and how long it takes, can depend on the request). The bridge runs BACKEND_SOURCE inside the sealed frame and hands it the
 // app's `fetch`, so nothing ever leaves the frame (its Content-Security-Policy still refuses everything else). The app
 // gets real Response objects; another origin is refused by CORS the way the browser would (no Access-Control-Allow-Origin
 // for the shop: "Failed to fetch" and the browser's console lines). What it posts (each request and its answer, the
@@ -52,6 +53,8 @@ export interface BackendRouteData {
   method: HttpMethod
   where: string
   body: string | null
+  /** A pattern the query (as sent, without `?`) must match; null: any query. */
+  query: string | null
   answers: BackendAnswerData[]
 }
 
@@ -110,16 +113,17 @@ export function backendConfig(spec: BackendSpec, shop: string): BackendConfig {
       const method = route.method ?? 'GET'
       const where = addressOf(route.path, origin)
       const name = `${method} ${route.path}`
-      if (route.body !== undefined) {
+      for (const [kind, pattern] of [['body', route.body], ['query', route.query]] as const) {
+        if (pattern === undefined) continue
         try {
-          new RegExp(route.body)
+          new RegExp(pattern)
         } catch {
-          throw new Error(`${name}: the body pattern ${route.body} is not a valid pattern`)
+          throw new Error(`${name}: the ${kind} pattern ${pattern} is not a valid pattern`)
         }
       }
       const answers = answersOf(route.respond).map(answer => answerData(answer, name))
       if (!answers.length) throw new Error(`${name}: a route needs at least one answer`)
-      return { method, where, body: route.body ?? null, answers }
+      return { method, where, body: route.body ?? null, query: route.query ?? null, answers }
     })
   }
 }
@@ -178,12 +182,13 @@ export const BACKEND_SOURCE = String.raw`(function (config, hooks) {
     return '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot ' + method + ' ' + path + '</pre>\n</body>\n</html>\n';
   };
 
-  /* The route for a request (the first whose method, address and body pattern fit), and its answer for this call. */
+  /* The route for a request (the first whose method, address, query and body patterns fit), and its answer for this call. */
   var answerFor = function (method, url, body) {
     var place = placeOf(method, url);
     for (var i = 0; i < routes.length; i++) {
       var route = routes[i];
       if (route.method + ' ' + route.where !== place) continue;
+      if (route.query !== null && !new RegExp(route.query).test(url.search.slice(1))) continue;
       if (route.body !== null && !new RegExp(route.body).test(body === null ? '' : body)) continue;
       var answer = route.answers[Math.min(calls[i], route.answers.length - 1)];
       calls[i] += 1;

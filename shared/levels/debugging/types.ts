@@ -25,9 +25,19 @@ export type ProbeValue = string | number | null
 export type ProbeStep
   /**
    * Clicks the first element that matches (like a customer would; `times` clicks back to back, a double click), then
-   * lets the app react: 20 ms, and with a backend until every request it sent is answered.
+   * lets the app react: 20 ms, and with a backend until every request it sent is answered. `settle: false` goes on after
+   * the 20 ms, while the answers are still on their way (a customer who clicks on: a race).
    */
-  = | { click: string, times?: number }
+  = | { click: string, times?: number, settle?: false }
+  /**
+   * Types into the first field that matches, like a customer: its value becomes `value` (an `input` event, then a
+   * `change`), then the app gets 20 ms. The answers to what it sent are not waited for: the customer types on.
+   */
+    | { type: string, value: string }
+  /** A customer's pause: the app runs on for this many milliseconds (at most MAX_PROBE_WAIT_MS); nothing is waited for. */
+    | { wait: number }
+  /** Waits until every request the app sent is answered (at most 3 s), then 20 ms: what a customer sees once the page is quiet. */
+    | { settle: true }
   /** Reads the text of the first element that matches (whitespace collapsed). */
     | { text: string }
   /** Counts the elements that match. */
@@ -167,6 +177,8 @@ export interface BackendRoute {
   path: string
   /** Only requests whose body matches this pattern (a regular expression's source) take this route. */
   body?: string
+  /** Only requests whose query (as sent, without `?`: 'q=cro') matches this pattern take this route; routing otherwise ignores it. */
+  query?: string
   /** The answer; a list answers call by call, and its last answer repeats. */
   respond: BackendAnswer | readonly BackendAnswer[]
 }
