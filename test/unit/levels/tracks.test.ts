@@ -68,7 +68,7 @@ describe('track registry', () => {
 
   it('gives Debugging its seven chapters (ADR 0007), all live: Reading errors to Incidents', () => {
     const debugging = trackById('debugging')!
-    expect(debugging).toMatchObject({ title: 'Debugging', tagline: 'Find the bug before your customers do.', cheatSheet: null, bestRun: ['hints', 'reloads'] })
+    expect(debugging).toMatchObject({ title: 'Debugging', tagline: 'Find the bug before your customers do.', cheatSheet: '/debugging/cheat-sheet', bestRun: ['hints', 'reloads'] })
     expect(debugging.chapters.map(chapter => [chapter.number, chapter.title, chapter.levels.length])).toEqual([
       [1, 'Reading errors', 13],
       [2, 'Network', 12],

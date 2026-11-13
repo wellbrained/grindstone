@@ -126,6 +126,7 @@ export const debuggingTrack = defineTrack({
   tagline: 'Find the bug before your customers do.',
   description: 'Small real apps with real bugs, from Corner Bakery\'s ordering site: read the Console, the Network and Elements panels, follow the stack trace to the line, step through a recorded run with breakpoints, count what a slow page does, read the server\'s logs and roll back a bad deploy, fix the code and reload until the shop works again. Goals check what the app does, so any fix that works counts.',
   status: 'live',
+  cheatSheet: '/debugging/cheat-sheet',
   // fewest hints, then fewest reloads (ADR 0007): no commands to count, and no clock
   bestRun: fewestHintsThenReloads,
   chapters: [

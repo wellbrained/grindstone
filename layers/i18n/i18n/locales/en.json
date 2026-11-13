@@ -360,6 +360,387 @@
       }
     }
   },
+  "debugCheat": {
+    "kicker": "Debugging track",
+    "title": "Debugging cheat sheet",
+    "intro": "Every panel and the error messages from the levels, in a few lines each. Filter, click an example to copy it, or jump to the level that practises it.",
+    "search": "Filter the sheet",
+    "sections": "Sections",
+    "none": "Nothing matches \"{query}\".",
+    "copy": "Copy {line}",
+    "practise": "Practise it in:",
+    "means": "Usually means",
+    "look": "Look first",
+    "groups": {
+      "console": "Console",
+      "network": "Network",
+      "elements": "Elements & CSS",
+      "async": "State & async",
+      "debugger": "Debugger",
+      "performance": "Performance",
+      "incidents": "Incidents",
+      "errors": "Error messages"
+    },
+    "entries": {
+      "read-trace": {
+        "title": "Read an error and its stack",
+        "summary": "The first line says what went wrong, the frames under it say where. The top frame is the line that threw; each frame below it is the line that called the one above. Start at the top, and if that code has always worked, step down to the call that handed it a wrong value. A link or frame opens its line in Code. A button that \"does nothing\" has usually thrown here: errors go to the Console, not to the page."
+      },
+      "syntax": {
+        "title": "Syntax errors and the blank page",
+        "summary": "A syntax error is found before any code runs, so no line of that module (or of any module that imports it) runs: the page is blank. It has no frames, only where the browser gave up, which is usually after the real mistake. Read the lines above it for a missing bracket; the indentation often gives it away."
+      },
+      "input": {
+        "title": "The input line",
+        "summary": "Type an expression at the bottom of the Console and press Enter: it runs inside the app. › is your input, ← the value as a one-line preview, and an error shows in red. Up and Down bring back your earlier inputs. Clear empties the Console, and so does a Reload. Look at the value first, then find out where it came from.",
+        "examples": {
+          "0": "What is it? A function, or an object that holds formatPrice and toCents?",
+          "1": "The type of a value",
+          "2": "Are two lines one object? true means one object under two names"
+        }
+      },
+      "await": {
+        "title": "Top-level await",
+        "summary": "The input line accepts await, so you can see what a promise settles to without writing an async function. A rejection shows in red. const x = await … defines x for your later inputs.",
+        "examples": {
+          "0": "The price once the promise settles",
+          "1": "Without await you only see a Promise, not its value",
+          "2": "Keep the result for later inputs (it becomes a property of the window)"
+        }
+      },
+      "log": {
+        "title": "Log what you do not expect",
+        "summary": "A catch that only says \"failed\" throws the real error away, and the Console stays quiet. Log it, or handle only the failures you know.",
+        "examples": {
+          "0": "Show the real error from a catch",
+          "1": "Label a value so you can find it in the Console"
+        }
+      },
+      "status": {
+        "title": "Status codes",
+        "summary": "A status says whether the server understood the request. 2xx worked, 4xx means the request was wrong, 5xx means the server failed. The Network panel colours 2xx green and 4xx and 5xx red. Read the response body: the server often says what went wrong.",
+        "examples": {
+          "0": "Worked",
+          "1": "Saved a new thing (a POST). It can still have saved the wrong data",
+          "2": "The server refused what you sent: read its message in the response body",
+          "3": "Nothing lives at that address: the path is wrong",
+          "4": "The request clashes with the current state (the oven is already full)",
+          "5": "It arrived, but a field is not valid (a total that is not a number)",
+          "6": "The server crashed on it: look in its Logs",
+          "7": "The server cannot answer right now: try again later"
+        }
+      },
+      "no-code": {
+        "title": "Status words without a code",
+        "summary": "When there is no answer the page can read, the Network panel shows a word instead of a code. The Console line above or below it says why.",
+        "examples": {
+          "0": "The request is still on its way",
+          "1": "The browser refused to let the page read the answer: the server sent no permission",
+          "2": "No answer at all (no connection); fetch rejects with \"Failed to fetch\"",
+          "3": "The page cancelled it, for example with controller.abort()"
+        }
+      },
+      "details": {
+        "title": "Request and response",
+        "summary": "The panel lists requests in the order sent: method, name, status, time. Select one for its URL, Status, Time, Sent from (opens the line that sent it), and the headers and body of the Request and of the Response. Compare what the page sent with what the server built from it, and with the API description (api.md)."
+      },
+      "address": {
+        "title": "A 404 is a wrong address",
+        "summary": "fetch does not fail on a 404: the server did answer. Compare the path in the Network panel with the paths the API really has, then follow it back (Sent from) to the line that builds the address.",
+        "examples": {
+          "0": "The path the API lists, not the old one"
+        }
+      },
+      "ok": {
+        "title": "Check response.ok",
+        "summary": "fetch rejects only when no answer arrives. A 404 or a 500 is an answer, so the promise resolves and response.ok is false. Check it right after the fetch, before you read the body as a success.",
+        "examples": {
+          "0": "Handle a failed answer before anything else",
+          "1": "Or look at the code itself"
+        }
+      },
+      "payload": {
+        "title": "Check the payload",
+        "summary": "When data arrives wrong, look at the request body in the Network panel first: it tells you whether the page sent the wrong thing or the server read it wrong. JSON keeps types: \"3\" and 3 are different for the server, and a field the server does not know is usually ignored without a word.",
+        "examples": {
+          "0": "Form fields give text: send a number as a number"
+        }
+      },
+      "cors": {
+        "title": "CORS",
+        "summary": "A page may send a request to another origin, but may read the answer only if that server allows it. Without an Access-Control-Allow-Origin header for the page's origin (or *), the browser hides the answer and fetch fails with \"Failed to fetch\"; the reason is in the Console. It works in curl or Postman because they are not browsers. Fix it on the server, never in the page, or send the call to your own origin, which forwards it.",
+        "examples": {
+          "0": "What the other server has to send",
+          "1": "Same origin: no CORS check at all"
+        }
+      },
+      "double": {
+        "title": "Two POSTs for one click",
+        "summary": "A slow answer invites a second click, and the browser sends what the code says: two clicks, two requests. Ignore clicks while a request is on its way and turn the button back on when the answer is in. This only makes duplicates rarer: a server that takes money also needs a unique id per order (an idempotency key).",
+        "examples": {
+          "0": "Ignore clicks while it sends"
+        }
+      },
+      "tree": {
+        "title": "The tree and Refresh",
+        "summary": "The tree shows the page as markup. It is a snapshot: press Refresh to see the page as it is now. An element without a box is dimmed (\"not shown\"), and one whose content is wider than its box gets a scroll badge. Keys: Up and Down, Home and End, Right and Left open and close."
+      },
+      "styles": {
+        "title": "Matched rules and overridden declarations",
+        "summary": "Styles lists element.style, then the rules that match from the winner down, each with its media query, its selector, its specificity and where it is written (a link to the line). A declaration struck through lost to a stronger one; one with a warning is refused by the browser. A property that nothing else sets stays active, which is how a price can get bold but not red."
+      },
+      "specificity": {
+        "title": "Specificity",
+        "summary": "When two rules set the same property, the browser compares selectors: ids first, then classes (and attributes and pseudo-classes), then element names. The panel shows it as ids · classes · types. The order in the file only breaks a tie. Match the specificity or lower the old rule; !important just starts an arms race.",
+        "examples": {
+          "0": "1 · 1 · 0: the id wins over any number of classes",
+          "1": "0 · 2 · 0: loses to the rule above, even if it comes later",
+          "2": "0 · 2 · 0: ties with the one above, so the later rule wins",
+          "3": "0 · 0 · 1: weakest"
+        }
+      },
+      "variables": {
+        "title": "Variables that are not defined",
+        "summary": "var(--name) with no such property makes the declaration invalid at computed-value time, and the browser reports it nowhere. The property then behaves as if it were not set: a property that is not inherited, like background, gets its starting value (transparent), while an inherited one, like color, takes its parent's value. The panel marks it \"--brown is not defined\" under the declaration. Look at the :root rule under Inherited from for the real names.",
+        "examples": {
+          "0": "An invisible button: the variable does not exist"
+        }
+      },
+      "computed": {
+        "title": "Computed values and contrast",
+        "summary": "Computed is what the page really gets; the rules show how it got there. It lists display, visibility, opacity, position, z-index, pointer-events, color, background-color, width, height, min-width, overflow, text-overflow and white-space. Invisible is not gone: text and background of the same colour keep their box, so Pick can still select it. Normal text needs a contrast of at least 4.5 : 1."
+      },
+      "pick": {
+        "title": "Pick mode",
+        "summary": "Pick, then click in the app: the element that is really under the pointer is selected (the app never gets that click), the tree opens to it, and hovering outlines it. Escape stops. It shows what a tap lands on, so when a button \"does nothing\" without an error, pick it: something invisible may sit on top."
+      },
+      "covered": {
+        "title": "Something on top of the button",
+        "summary": "The browser sends a click to the topmost element under the pointer. A transparent box with a higher z-index takes every tap meant for what is below. Let clicks pass through it, or stack or move it differently. Nothing invisible should sit on top of a button.",
+        "examples": {
+          "0": "The element ignores the pointer, and so do its children",
+          "1": "Children that need clicks (a toast) switch it on again",
+          "2": "Stacked above: check which one has the higher value"
+        }
+      },
+      "box": {
+        "title": "The box and what sticks out",
+        "summary": "Box shows margin, border, padding and content with their sides (a dash for 0), and says \"Its content is 512 px wide in a 340 px box: it sticks out.\" when it does. A flex item will not get narrower than its content unless you allow it, and white-space: nowrap makes that content the whole text.",
+        "examples": {
+          "0": "Let a flex item shrink below its content",
+          "1": "Cut a long text with a \"…\" (with overflow: hidden and white-space: nowrap)",
+          "2": "Let a long word or address break"
+        }
+      },
+      "media": {
+        "title": "Media queries",
+        "summary": "A media query is a condition on the width of the page, not on the device. Elements lists only the rules whose query holds right now, and the App shows its width next to the address. Test a layout change at both ends: a phone and a laptop width.",
+        "examples": {
+          "0": "Holds from 600 px wide and up: not \"on desktop\"",
+          "1": "Holds up to 600 px wide"
+        }
+      },
+      "missing-await": {
+        "title": "Missing await",
+        "summary": "Calling an async function gives you a promise at once, not the result. Written into the page it reads [object Promise]; used as a list it throws \"map is not a function\" or \"is not iterable\". await waits for the result: inside an async function, or at the top level of a module. In the Console a promise shows as a Promise, not as its value.",
+        "examples": {
+          "0": "Wait for the result",
+          "1": "Or continue in a then"
+        }
+      },
+      "race": {
+        "title": "Races and AbortController",
+        "summary": "Two requests are on their way and the newer one answers first, so the old answer arrives last and wins. It only happens sometimes. Decide what is still wanted when an answer arrives, or cancel the old request. An aborted fetch rejects with an AbortError (the Network panel says canceled), so catch it and ignore it. A debounce sends fewer requests but does not fix the race.",
+        "examples": {
+          "0": "A counter: take a ticket per request",
+          "1": "Drop the answer when a newer request has started",
+          "2": "Cancel the old request, if there is one",
+          "3": "A new controller for the new request",
+          "4": "Give the request the controller's signal",
+          "5": "An abort on purpose is not an error"
+        }
+      },
+      "closure": {
+        "title": "Closures and var in a loop",
+        "summary": "A function made in a loop keeps the variables themselves, not a copy of their values, and reads them when it runs, long after the loop. var belongs to the whole function, so every handler shares one variable and sees the last value. let and const make a fresh one per round.",
+        "examples": {
+          "0": "Each round gets its own product",
+          "1": "Or a callback parameter, which is new for every call"
+        }
+      },
+      "copy": {
+        "title": "Shallow copies",
+        "summary": "A variable holds a reference to an object, not the object. A spread copies the top level only, so a nested object stays shared and changing one thing changes the other. Check with === in the Console: true means one object. Object.assign is shallow too.",
+        "examples": {
+          "0": "Copy everything",
+          "1": "Copy the nested object as well",
+          "2": "Or never edit the shared one: replace it"
+        }
+      },
+      "chain": {
+        "title": "Promise chains that lose their value",
+        "summary": "Each then hands the next one what its callback returns. A callback that returns nothing passes undefined on, and the next one throws. A catch that treats every error as \"the server said no\" hides the real one. With async and await the code reads top to bottom and nothing can be forgotten between the steps.",
+        "examples": {
+          "0": "Return it, or the next then gets undefined",
+          "1": "The same with await, and one try and catch around it",
+          "2": "A catch tells you what it does not expect"
+        }
+      },
+      "record": {
+        "title": "Record, then step",
+        "summary": "The Debugger records a run: press Record, use the app, press Stop. The app is never paused: you move through what it already did and see each value as it was then, so you can go back as well as forward. Edited the code? Save, then Record again. A Reload, Reset or Again ends a recording. It opens at the first step a breakpoint stops at."
+      },
+      "breakpoints": {
+        "title": "Breakpoints",
+        "summary": "Click the gutter in Code (Ctrl or Cmd+B, or Breakpoint here in the panel, work without the mouse). Each breakpoint is listed with its line and how often it stopped in the recording (\"hit 2 times\", \"not hit\"); a breakpoint that stopped twice for one action shows that something runs twice. Remove it from its list. The breakpoints stay while you are on the page."
+      },
+      "condition": {
+        "title": "Conditional breakpoints",
+        "summary": "Give a breakpoint a condition (the field under it: Enter or leaving it sets it) and it stops only where the condition holds, checked on the values each round had. That finds the one odd row of a thousand. A condition that cannot be read shows why under the field.",
+        "examples": {
+          "0": "Stop on the cheap row",
+          "1": "Stop on the bread with the odd weight",
+          "2": "Stop on one named item"
+        }
+      },
+      "stepping": {
+        "title": "Step over, into, out and back",
+        "summary": "Resume goes to the next breakpoint (with none ahead, to the end). Step over runs the line, Step into goes inside the function it calls, Step out runs to the end of the current function. Step back and Back to the previous breakpoint go the other way. The scrubber shows \"Step 37 of 412\". Stepping over a line and comparing the Scope before and after shows what it changed."
+      },
+      "shortcuts": {
+        "title": "Shortcuts",
+        "summary": "The keys DevTools uses, while there is a recording and no dialog is open. Step back and Back to the previous breakpoint have no key. Plain F11 stays the browser's full screen.",
+        "examples": {
+          "0": "Resume",
+          "1": "Step over",
+          "2": "Step into",
+          "3": "Step out"
+        }
+      },
+      "scope": {
+        "title": "Scope",
+        "summary": "Scope lists the variables of the current step: Block, Local (with this), Closure and Module. Values look like the browser's preview: strings green, numbers and booleans amber, undefined and null dimmed, functions blue; an object opens. It shows the raw value, with every digit, which is what the code compares: 24.999999999999996 shows as 25.00 on the page. When what the page shows and what the code decides disagree, put a breakpoint where it decides."
+      },
+      "stack": {
+        "title": "Call stack",
+        "summary": "The frames of the current step, top first, each with its function and file:line. Click a frame to see its line in Code and its variables at that moment: the way to find out who called a function, and each time. An \"async\" line marks the call that started an async function now back from an await."
+      },
+      "units": {
+        "title": "Counted, not timed",
+        "summary": "The Performance panel counts: one unit of work is one statement of the app's code that ran (a built-in like sort or toFixed counts as part of the statement that calls it), and request times are the server's scripted delays. The same run shows the same numbers on every computer. Record, use the app, Stop. Show picks the whole recording or one action; the totals are Work, Renders, Requests and Server time."
+      },
+      "functions": {
+        "title": "Functions: calls, self and total",
+        "summary": "Calls is how often a function ran. Self is its own statements, Total is itself and everything it called. A function with a big total and a small self spends its time in what it calls. A huge number of calls of a small function means work inside a loop that does not depend on the round: do it once, outside, or look it up in a Map."
+      },
+      "renders": {
+        "title": "Renders and nodes",
+        "summary": "A render is a call of a function that changed the page; its nodes are the elements and texts it added, removed or changed. One Add should cost the basket a few nodes, not the whole menu 48. Draw again only the part whose data changed (a framework does that bookkeeping for you)."
+      },
+      "requests": {
+        "title": "Requests over time",
+        "summary": "Each request has a bar from its start to its end. \"Sent once menu answered\" marks a waterfall: it waited for another answer though it did not need it. \"The same request again\" marks an answer that was thrown away. A request per key typed is the third thing to look for.",
+        "examples": {
+          "0": "Start them together and wait for all",
+          "1": "A debounce: each key cancels the timer of the key before",
+          "2": "A cache by name; keeping the promise also covers a second click"
+        }
+      },
+      "logs": {
+        "title": "Logs",
+        "summary": "The Logs panel is the server's own story: time on the server's clock, level, route, request id, message and the stack where it failed. Filter by level or by text. A page that shows the server's reference for a failed request (x-request-id) gives you the id to search for; an id of this load links to that request in Network. Compare when the first failure came with when things last worked.",
+        "examples": {
+          "0": "Filter on a request id"
+        }
+      },
+      "deploys": {
+        "title": "Deploys and diffs",
+        "summary": "Deploys lists the versions newest first: id, who and when, the message, and the live one. \"Changes in …\" opens the diff per file: added lines green, removed lines red, with their line numbers; a changed line opens in Code. Read the diff for who else uses what changed: damage is often in a file the deploy never touched."
+      },
+      "which": {
+        "title": "Which deploy broke it?",
+        "summary": "Put the timeline from the Logs next to the list of deploys: the last good request, the first failure, the deploy in between. With several suspects, bisect: roll back to the middle, check the shop, keep halving."
+      },
+      "rollback": {
+        "title": "Roll back",
+        "summary": "Roll back to a version sends your saved code back to it (Reload runs it), after asking what changes, which saved changes of your own are replaced and which unsaved edits are dropped. Go back to the last version that worked and no further, then check what it changes and check the shop. Back to live returns to the newest version, and Undo roll back brings your replaced changes back, until you save again. Roll back when you do not know the cause yet or the fix takes longer than customers can wait; with a clear one-line cause, fix forward."
+      },
+      "flags": {
+        "title": "Feature flags",
+        "summary": "A feature flag switches a feature on or off from configuration, so you can turn it off without another deploy. When code behaves differently in one environment, look at the flags it picked: here the deploy named them \"live\" while the script calls the environment \"production\", and a fallback quietly handed production the staging flags. Fail loudly instead of falling back.",
+        "examples": {
+          "0": "Look up the flags by the environment's name",
+          "1": "A missing name should stop the page, not hide"
+        }
+      },
+      "json": {
+        "title": "Never build JSON or HTML by hand",
+        "summary": "Gluing text into JSON breaks on exactly the characters JSON gives a meaning to: a quote, a line break, a backslash. Failures that hit only some customers often share such a character: put the failed requests side by side in the Logs. Let JSON.stringify escape it; the same goes for textContent instead of innerHTML. Test with the input real people type.",
+        "examples": {
+          "0": "The server reads the note exactly as typed",
+          "1": "Text stays text in the page"
+        }
+      }
+    },
+    "errors": {
+      "cannot-read": {
+        "means": "The thing before the dot is undefined (or null). The message names what you tried to read, not the mistake, which is a step earlier.",
+        "look": "The top frame's line and the name just before the dot: often a misspelled property (cart.itmes) or data that has not arrived. Type that name in the Console input."
+      },
+      "not-a-function": {
+        "means": "What you called is not a function: an object, undefined, a promise. The function is not missing.",
+        "look": "Type the name in the Console input and read its value, then check its import: braces take a named export, no braces the default one."
+      },
+      "wrong-value": {
+        "means": "A helper got a value of the wrong kind (here the whole cart instead of a number). The helper is usually right.",
+        "look": "Step down the stack to the frame that called it and see what it passed. Fix it there, not in the helper."
+      },
+      "map-not-a-function": {
+        "means": "An array method on something that is not an array. Often a promise, because an await is missing, or an object.",
+        "look": "Type the name in the Console: a Promise instead of the value means a missing await."
+      },
+      "not-iterable": {
+        "means": "A for…of, spread or destructuring got something that is not a list: undefined, an object or a promise. In a promise chain, the step before returned nothing.",
+        "look": "What did the step before return? Each then passes on only what its callback returns."
+      },
+      "not-defined": {
+        "means": "No variable of that name is in reach at that line: misspelled, declared in another block (let and const stay between their braces) or never imported.",
+        "look": "Find where it is declared and ask whether that place is in reach of the line in the trace."
+      },
+      "before-init": {
+        "means": "A let or const used on a line before the one that declares it.",
+        "look": "Move the declaration above its first use."
+      },
+      "unexpected-export": {
+        "means": "A syntax error: the browser gave up here, usually a few lines after the real mistake, often a missing bracket. Nothing in that module runs, so the page is blank.",
+        "look": "Read the lines above the reported one; look at the indentation for the missing closing brace."
+      },
+      "missing-export": {
+        "means": "A named import the module does not export (renamed, or it only has a default export). Nothing in the module graph runs.",
+        "look": "Open the imported file and compare its export names; an import with as keeps the old name in your file."
+      },
+      "not-json": {
+        "means": "response.json() got HTML, not JSON: usually the server's error page, because of a wrong address or a server error.",
+        "look": "The Network panel: the request's status and the body that came back, before you read any code."
+      },
+      "not-found": {
+        "means": "The browser's own line for a failed request. The server answered, but has nothing at that address.",
+        "look": "Compare the path with the paths the API lists (api.md); Sent from opens the line that built the address."
+      },
+      "failed-fetch": {
+        "means": "No answer the page may read: the browser blocked it (CORS) or there is no connection. It is not an HTTP status.",
+        "look": "The line above it in the Console, and the status in Network: CORS error or failed."
+      },
+      "cors-blocked": {
+        "means": "The other server did not say your page may read its answer. It is fixed on that server, or by calling your own origin, never in the page.",
+        "look": "Which origin and which header the message names; then the request's status (CORS error) in Network."
+      },
+      "aborted": {
+        "means": "A fetch was cancelled with controller.abort(): the Network panel says canceled. Expected when you cancel on purpose.",
+        "look": "Catch AbortError and ignore it, so the Console only shows real errors."
+      }
+    }
+  },
   "about": {
     "kicker": "About",
     "title": "Practice the skills you use every day",

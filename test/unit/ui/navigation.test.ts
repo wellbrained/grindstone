@@ -33,8 +33,11 @@ describe('navigation', () => {
       { label: 'Levels', to: '/git' },
       { label: 'Cheat sheet', to: '/git/cheat-sheet' }
     ])
-    // Debugging has no cheat sheet in its first release (ADR 0007)
-    expect(navigationItems('/', tracks, labels).find(item => item.to === '/debugging')?.children).toEqual([{ label: 'Levels', to: '/debugging' }])
+    // Debugging's sheet came after chapter 7 (ADR 0007)
+    expect(navigationItems('/', tracks, labels).find(item => item.to === '/debugging')?.children).toEqual([
+      { label: 'Levels', to: '/debugging' },
+      { label: 'Cheat sheet', to: '/debugging/cheat-sheet' }
+    ])
     expect(navigationItems('/debugging/01-add-to-cart', tracks, labels).find(item => item.active)?.to).toBe('/debugging')
     // the fixture track has no cheat sheet; home and About are plain links
     const items = navigationItems('/', withWeb, labels)
@@ -46,6 +49,7 @@ describe('navigation', () => {
     for (const path of ['/git', '/git/', '/git/04-merge-conflict', '/git/cheat-sheet']) {
       expect(navigationItems(path, tracks, labels).find(item => item.active)?.to, path).toBe('/git')
     }
+    expect(navigationItems('/debugging/cheat-sheet', tracks, labels).find(item => item.active)?.to).toBe('/debugging')
     expect(navigationItems('/gitlab', tracks, labels).some(item => item.active)).toBe(false)
     expect(navigationItems('/about', tracks, labels).find(item => item.active)?.to).toBe('/about')
   })

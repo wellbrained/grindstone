@@ -107,7 +107,7 @@ export const objectPromise: DebugScenario = {
     title: 'An async function answers with a promise',
     paragraphs: [
       'Calling an `async` function never gives you its result. It starts the work and hands back a promise at once; the result comes later, here when the server answers. The code did not wait, so it stored the promise and wrote it into the page, where any object turned into text reads `[object Promise]`.',
-      '`await` waits for the promise and gives you what it settles to, the price. It only works inside an `async` function, which is why `addToCart` became `async` too (`priceOf(product.id).then(price => …)` works as well).',
+      '`await` waits for the promise and gives you what it settles to, the price. It works inside an `async` function (and at the top level of a module), which is why `addToCart` became `async` too (`priceOf(product.id).then(price => …)` works as well).',
       'The Network panel showed that the answer was right all along: the bug was in when the code read it. In the Console, `await priceOf(\'croissant\')` gives the price, and `priceOf(\'croissant\')` alone shows the promise.'
     ]
   },
