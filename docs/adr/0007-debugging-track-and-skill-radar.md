@@ -180,3 +180,7 @@ The last chapter of "Finishing the Debugging track": the Logs and Deploys panels
 - **Plain rows for keys and status words** (`copy: false`): copying `F10` or `404 Not Found` helps nobody; a Console input, snippet, selector or header copies like a git command.
 - **No print styles**, as Git's sheet has none.
 - **Texts are plain English without vue-i18n syntax**: braces, pipes and at signs stay in the example lines (data), the test checks the texts.
+
+## Debugging track complete (2026-11-13)
+
+Nik called the Debugging track complete after the cheat sheet; released as 0.3.0 (minor bump per the version rule: a minor only when Nik says a feature is complete).
