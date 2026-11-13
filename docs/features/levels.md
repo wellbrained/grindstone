@@ -1,6 +1,6 @@
 # Levels
 
-The shared level core (`shared/levels/`), the git environment on it and the git track's levels (`shared/levels/git/`). Pure TypeScript: no Vue, DOM or Nuxt imports. Tests: `test/unit/levels/`.
+The shared level core (`shared/levels/`), its two environments, git (`shared/levels/git/`) and Debugging (`shared/levels/debugging/`), and their levels. Pure TypeScript: no Vue, DOM or Nuxt imports. Tests: `test/unit/levels/` (Debugging's in `test/unit/levels/debugging/`, plus `e2e/debugging-levels.spec.ts` in a real browser).
 
 ## Environments (ADR 0007, update 2026-11-13)
 
@@ -8,11 +8,12 @@ The core is track-agnostic: levels, goals, hints, debrief, practice tasks, sessi
 
 - **The core never imports an environment**: `types.ts`, `engine.ts`, `progress.ts`, `track.ts`, `radar.ts`. Only the registry (`tracks.ts`) and the barrel (`index.ts`) bring the tracks together. `test/unit/levels/core.test.ts` checks those imports and plays a level of a tiny counter environment (not git) through the core: goals, events, hints, undo, reset, its best run by its own measure, progress.
 - **Generic types**: `ScenarioOf<S, R, Step, T>`, `PracticeTaskOf`, `LevelOf`, `SessionOf<S, R>`, `Goal<S, R>`, `GoalContext<S, R>`, `TeammateEvent<S>`, `TeammateTrigger<S>`, `SessionSnapshot<S, R>`.
-- **Registering an environment**: an environment adds its types to the core's `Environments` interface by declaration merging (`declare module '../types'` with `interface Environments { git: { state, record, step } }` in `shared/levels/git/types.ts`). `Level`, `Scenario`, `PracticeTask` and `Session` are the union over the registered environments (today git's alone, so they are exactly git's); `Level<'git'>` is one environment's (`GitLevel`, `GitScenario`, `GitPracticeTask`, `GitSession`). A level's `track` is its environment's id, so `isGitLevel(level)` (and later Debugging's guard) tells them apart.
+- **Registering an environment**: an environment adds its types to the core's `Environments` interface by declaration merging (Debugging: `debugging: { state, record, step, fields }`, where `fields` are what its levels add to the shared ones, `sandbox` and `teaches`; git adds none, so its types did not change) (`declare module '../types'` with `interface Environments { git: { state, record, step } }` in `shared/levels/git/types.ts`). `Level`, `Scenario`, `PracticeTask` and `Session` are the union over the registered environments (today git's alone, so they are exactly git's); `Level<'git'>` is one environment's (`GitLevel`, `GitScenario`, `GitPracticeTask`, `GitSession`). A level's `track` is its environment's id, so `isGitLevel(level)` (and later Debugging's guard) tells them apart.
 - **Core functions** (`shared/levels/engine.ts`): `startSession(level)`, `act(session, level, { commands, execute, reload? })` (one counted action: snapshot, before-events, execute, record, after-events, goals; `commands` are what `beforeCommand` triggers match, `reload` also counts a reload), `undoLast(session, level)` (null when there is nothing to undo; returns the record it took back), `restart(session, level)` (a new attempt, hints kept), `takeHint(session, level)` (`{ session, number, total, text, revealed }`). They report data; the environment words it (git: `Undid: <line>`, `Hint 2/3: ...`).
 - **The git environment** (`shared/levels/git/engine.ts`): `startLevel`, `submit` (trainer commands typed in the terminal, else a counted git/shell line), `saveFile`, `saveEditor`, `playStep`, `TRAINER_COMMANDS`; a line's commands for triggers come from the git tokenizer (`commandsIn`). `CommandRecord` (`{ line, exitCode }`), `SolutionStep` (a line or `{ save }`), `TerminalLine` and `SubmitResult` are git's types.
 - **Best run per track**: `Track.bestRun` is a `RunMeasure`, the run counters in order; fewer wins, each later one breaks a tie. Git `fewestCommands` (`['commands', 'hints']`, the rule so far), Debugging `fewestHintsThenReloads` (`['hints', 'reloads']`). A track without one gets `fewestCommands`. `useProgress().record` passes the level's track's measure to `recordSolve`.
-- **The play page** follows the same split (docs/features/ui.md, "Play page"): `usePlaySession` and `PlayFrame` are shared, `useGitPlay`, `GitPlay` and `GitWorkbench` are git's.
+- **The play page** follows the same split (docs/features/ui.md, "Play page"): `usePlaySession` and `PlayFrame` are shared, `useGitPlay`, `GitPlay` and `GitWorkbench` are git's, `useDebuggingPlay` and `DebuggingPlay` Debugging's.
+- **The core never imports Debugging either**: `core.test.ts` refuses `./git` and `./debugging` in the core files.
 
 ## Public API (`shared/levels/index.ts`)
 
@@ -29,6 +30,7 @@ The core's own functions are listed under Environments above; the git environmen
 - Skill radar (see below): `trackRadar(track, progress)`, `levelCredit(level, entry)`, `isRadarEmpty(axes)`, `radarGain(before, after, chapterId)`, `formatCredit(value)`.
 - Progress (see below): `emptyProgress()`, `recordSolve`, `recordPlay`, `setPractiseAgain`, `resetEntries`, `lastPlayed`, `summarizeProgress`, `isBetterRun`, `runOf`, `fewestCommands`, `fewestHintsThenReloads`, `serializeProgress`, `readProgress(text)` (strict, for the backup upload), `parseProgress(text)` (never fails, for storage), `PROGRESS_VERSION`.
 - `MAX_SNAPSHOTS` (undo depth, 200), `TRAINER_COMMANDS`, all types (`Level`, `Goal`, `GoalContext`, `TeammateEvent`, `Session`, `TerminalLine`, `Notice`, ...).
+- The Debugging environment (see "The Debugging environment" below): `debuggingTrack`, `debuggingLevels`, `isDebugLevel`, `startDebugLevel`, `saveDebugFile`, `reload`, `pickLine`, `pickVerdict`, `editedText`, `playDebugStep`, `playSolution`; the sandbox `sandboxDocument`, `SANDBOX_CSP`, `SHOP_ORIGIN`; the bridge's messages `readBridgeMessage`, `consoleEntry`, `observe`; traces `parseStack`, `mapFrames`, `sourceOf`.
 
 ## Engine rules
 
@@ -57,7 +59,7 @@ The core's rules, as the git environment uses them (a Debugging level runs throu
 
 `shared/levels/track.ts` (types and helpers) and `shared/levels/tracks.ts` (the registry). Play order, chapter numbers and scenario numbers are derived from the chapter lists, never written by hand.
 
-- **Track**: `{ id, title, scope (one line), tagline (one line for its home card, may be empty), description (the home card's pitch), status: 'live' | 'coming', cheatSheet (its path, or null), bestRun (its run measure, see Environments), chapters }`. Everything the home page, the nav and the track page show about a track comes from here, so a new live track needs data only. `tracks` lists them in home page order: Git (live), then Working with AI, Web fundamentals, Debugging, Framework deep dives (coming: no chapters, no levels, not playable). Debugging's seven chapters (ADR 0007) arrive with its chapter 1 in step 2: `defineTrack` would take chapters on a coming track, but the tests pin coming tracks to no chapters. `defineTrack` numbers the chapters and throws for a level of another track, a level listed twice, a coming track with levels, or a practice task that does not follow its scenario.
+- **Track**: `{ id, title, scope (one line), tagline (one line for its home card, may be empty), description (the home card's pitch), status: 'live' | 'coming', cheatSheet (its path, or null), bestRun (its run measure, see Environments), chapters }`. Everything the home page, the nav and the track page show about a track comes from here, so a new live track needs data only. `tracks` lists them in home page order: Git and Debugging (live), then Working with AI, Web fundamentals, Framework deep dives (coming: no chapters, no levels, not playable; the tests pin coming tracks to no chapters). Debugging has seven chapters (ADR 0007): 1 Reading errors (live), 2 Network, 3 Elements & CSS, 4 State & async, 5 Breakpoints & stepping, 6 Performance, 7 Incidents (coming: no levels yet, so a dashed radar axis and "Coming" on the track page). Colours: slot = chapter number - 1. `defineTrack` numbers the chapters and throws for a level of another track, a level listed twice, a coming track with levels, or a practice task that does not follow its scenario.
 - **Chapter**: `{ id (unique in its track, also the section anchor: /git#merging), trackId, number, title, description (one line), colour (a slot of the branch palette, 0-7), levels }`. `levels` is the play order: each scenario followed by its practice tasks. A chapter without levels is *coming*: shown with its description only.
 - **Git chapters**: 1 Basics (5 scenarios, 6 practice tasks), 2 Branching (5 scenarios, 6 practice tasks), 3 Merging (5 scenarios, 5 practice tasks), 4 Rewriting history (4 scenarios, 4 practice tasks), 5 Teamwork & remotes (5 scenarios, 5 practice tasks), 6 Undo & recovery (5 scenarios, 7 practice tasks), 7 Disasters (5 scenarios, 6 practice tasks), 8 Workflows (5 scenarios, 7 practice tasks). No git chapter is coming any more. Colours: slot = chapter number - 1; slot 7 exists only for chapters, so branch colours in the graph did not move.
 - **Numbers**: a scenario is `chapter.position` counting scenarios only, e.g. `1.2` for Stage only what belongs together, `3.3` for Merge conflict (`levelNumber`, `LevelPlace.number`). A practice task has no number (`number: null`); `LevelPlace.scenario` names its scenario and that scenario's number. `placeName(place)` is the text form: "3.3 Merge conflict", or the title alone for a practice task. The ids and URLs (`git-04-merge-conflict`, `/git/04-merge-conflict`, `/git/practice-stage-one-file`) never change when a level moves or gets renumbered.
@@ -117,6 +119,20 @@ Run = { commands: number, hints: number, reloads?: number }  // reloads: Debuggi
 - `isRadarEmpty(axes)`: nothing solved in the track (the picture shows its outline only). `radarGain(before, after, chapterId)`: the chapter's old and new value, null when it did not change (the debrief's line). `formatCredit(value)`: `4.5`, `5` (never `5.0`).
 - How it is drawn: `docs/features/ui.md`, "Skill radar".
 
+## The Debugging environment
+
+ADR 0007; `shared/levels/debugging/`. A level is a small real app (index.html, one stylesheet, plain JavaScript ES modules) set in Corner Bakery's ordering site, run by the browser in a sealed iframe (how: docs/features/ui.md, "Sandbox and bridge"). The environment itself stays pure: the browser runs the app, and what it saw comes back as data.
+
+- **State** (`DebugState`): `files` (the app's files as saved, by path; a reload runs these), `observed` (what the check run of the last reload saw, an `Observation`; null before the first reload), `picked` (find tasks: the line you clicked last).
+- **Counted actions** (`DebugRecord`): `saveDebugFile` (the editor's Save; only files the app has), `reload(session, level, observation)` (counted, and also in `reloads`), `pickLine` (find tasks: a click on a line in the editor or a frame in a trace; returns a `PickVerdict`, right or why not). The run's measure is the track's: fewest hints, then fewest reloads. Saves and clicks count as actions but not as reloads.
+- **Goals read only what the app did** (`checks.ts`), never the code's text, so any working fix counts: `probeGoal(id, label, probe, expected)` (a probe read exactly this after the last reload), `noErrorsGoal()` (the check run finished, through loading and every probe, with no uncaught error, unhandled rejection or `console.error`), `foundGoal(label, target)` (find tasks). Goals change only on a reload (or a click): a Save keeps what the last reload saw.
+- **Probes** (`SandboxSpec.probes`): scripted looks at the app that run in the check run once it has loaded, in order, on the same page: `{ click: selector }` (like a customer; then the app gets 20 ms to react), `{ text: selector }` (whitespace collapsed), `{ count: selector }`. A probe's value is its last read; one that finds nothing has no value (`probeErrors`). "No errors in the Console after a reload" therefore includes the errors the goals' own clicks cause (1.1: Add throws), so it fails on the starting files.
+- **The observation** (`Observation`): `finished`, `errors` (`{ kind, text, source }`), `probes`, `probeErrors`, `logs`. Built by `observe(messages)` from the bridge's messages.
+- **Solutions** (`DebugStep`): `{ save: path, replace: [from, to] }` (the file with the first occurrence replaced; `editedText` throws when the text is not there), `'reload'` (the check run on the saved files), `{ pick: path, line }`. `playSolution(level, run)` replays them; `run` is the check (a real browser in `e2e/debugging-levels.spec.ts`, the table of `test/unit/levels/debugging/expected.ts` in the unit tests).
+- **Level fields** (`DebugFields`): `sandbox: { page, open, probes, find? }` (the address bar's path, the file the editor opens first, the probes; a find task's `FindTarget`: `path`, `lines` (any counts, the first is the solution's), `wrong` (why a click on a known wrong line is not it, by `'path:line'`), `otherwise`), and a scenario's `teaches` (the error it teaches you to read, its tag on the track page).
+- **Two kinds of practice task**: **find** (`sandbox.find`, no probes, the editor is read-only, the solution is one click; the goal ticks on the right line) and **quick fix** (one line to change, probes and goals like a scenario, solution: the edit and one reload).
+- **No colleague events in chapter 1** (ADR 0007); the core's triggers stay generic for Incidents.
+
 ## Level file format
 
 Scenarios: one file per scenario in `shared/levels/<track>/NN-slug.ts`, exporting a `Scenario`. Practice tasks: grouped per chapter in `shared/levels/<track>/practice/<chapter>.ts`, each exporting a `PracticeTask`.
@@ -124,11 +140,12 @@ Scenarios: one file per scenario in `shared/levels/<track>/NN-slug.ts`, exportin
 | Field | Content |
 | --- | --- |
 | `id` | a scenario `<track>-NN-slug` (`git-04-merge-conflict`), a practice task `<track>-practice-slug` (`git-practice-stage-one-file`); the URL is the id without the track |
-| `track`, `kind`, `title` | `'git'`, `'scenario'` or `'practice'`, a short title |
+| `track`, `kind`, `title` | `'git'` or `'debugging'`, `'scenario'` or `'practice'`, a short title |
 | `difficulty`, `minutes` | 1-3; the time estimate (a practice task about 0.5) |
 | `story` | scenario: 1-3 short paragraphs (joined with a blank line), second person, the situation and what to do |
 | `task`, `practises`, `why` | practice task: the task in one or two sentences (one line); the id of its scenario; one line on why it works, shown once solved |
-| `setup` | `() => S`, the environment's state; git: a `GitState` built with `repo()` / `folder()` from the git model; must be deterministic |
+| `setup` | `() => S`, the environment's state; git: a `GitState` built with `repo()` / `folder()` from the git model; Debugging: `{ files, observed: null, picked: null }`, the files from `orderSite()` (`bakery.ts`) plus the level's own; must be deterministic |
+| `sandbox`, `teaches` | Debugging only, see "The Debugging environment" |
 | `goals` | `{ id, label, check({ state, history }) }`; `label` is one checklist line (`backticks` become code) |
 | `teammates` | optional `{ id, author, trigger, apply, notice }`; `trigger` is `{ afterCommands: n }`, `{ beforeCommand: 'git push' }` or `{ when: state => boolean }` (right after the command that makes the check pass, e.g. your branch reached origin); `apply` usually calls `teammateCommit` or `teammateMerge` on origin |
 | `hints` | a scenario: exactly three (nudge, concept, exact commands in backticks); a practice task: one |
@@ -283,3 +300,31 @@ Chapter 8, Workflows (ADR 0006, batch 8; no preview, the owner delegated the tex
 | | List your tags: `git tag` (or `-l`, `-n`; `git log` does not count) | practice | 1 | ~30 s |
 | 8.5 | **A release branch, GitFlow style**: `git switch -c release/1.5 develop`, set version.txt to 1.5.0 and commit, `git merge --no-ff release/1.5` on main, `git tag -a v1.5.0`, merge the release into develop; the debrief compares GitFlow and trunk-based development. A fast-forward into main, a lightweight tag, forgetting develop, or the version commit straight on develop do not count | scenario | 3 | ~8 min |
 | | Start a release branch from develop: `git switch -c release/1.6 develop` while on main (`switch -c` from main does not count) | practice | 1 | ~30 s |
+
+## The Debugging levels
+
+Chapter 1, Reading errors (ADR 0007; approved preview `.impeccable/mocks/previews/debugging-preview.html`, section 2). Corner Bakery's ordering site (`shared/levels/debugging/bakery.ts`: the page, the stylesheet, the products, `money.js`, a simple `cart.js` and `app.js`; each level brings the files with its bug). Error texts as Chrome words them; the file and line are the same in Chrome, Firefox and Safari (checked once in all three). Every line a text points at is pinned by `levels.test.ts` (`POINTED_AT`), and where the error really points (`errorAt`, the frames) by `e2e/debugging-levels.spec.ts`.
+
+| | Entry | Kind | Bug and error | Difficulty | Time |
+| --- | --- | --- | --- | --- | --- |
+| 1.1 | **Add to cart does nothing** | scenario | `cart.itmes.push(line)` in `cart.js:17`; Add throws `TypeError: Cannot read properties of undefined (reading 'push')`. Goals: Add makes the badge 1, no errors | 1 | ~4 min |
+| | Click the line that throws | find | a special without a price: `specials.js:11` throws, the trace has three frames (`specials.js:17`, `app.js:6` and the data line each say why not) | 1 | ~30 s |
+| | Fix the misspelled property | quick fix | `cart.itesm.length` in `renderBadge`; the counter shows 0 | 1 | ~30 s |
+| 1.2 | **The prices vanished** | scenario | `import formatPrice from './money.js'` takes the default export (an object of helpers): `TypeError: formatPrice is not a function`; the Console input shows the object | 1 | ~5 min |
+| | Import the right name | quick fix | `formatEuro` was renamed: `SyntaxError: The requested module ... does not provide an export named 'formatEuro'`, nothing runs; `import { formatPrice as formatEuro }` | 1 | ~30 s |
+| 1.3 | **Total is not defined** | scenario | `let total` inside an `if` (`checkout.js:17`): `ReferenceError: total is not defined`; an empty basket shows 0.00, two croissants 4.80 | 2 | ~5 min |
+| | Move the declaration up | quick fix | `renderHours()` before `const hours`: `Cannot access 'hours' before initialization` | 1 | ~30 s |
+| 1.4 | **The error is in money.js, the bug isn't** | scenario | `formatPrice(cart)` in `checkout.js:10` throws inside `money.js:3` (`amount.toFixed is not a function`); a croissant and a sourdough loaf make 8.90 | 2 | ~6 min |
+| | Click the frame that passed the wrong value | find | `formatWeight(loaf)` in `breads.js:10` (the frame below the top one) | 1 | ~30 s |
+| | Which file and line? Read a three-frame trace | find | Pick up tomorrow throws three frames deep; the answer is the bottom frame, the click handler (`app.js:12`, or the line above it) | 1 | ~30 s |
+| 1.5 | **The whole page is blank** | scenario | a missing `}` after the `else` branch in `cart.js`: `SyntaxError: Unexpected token 'export'` at line 16, nothing runs; the products and Add come back | 2 | ~6 min |
+| | Click the line with the real mistake | find | the hours object never closes: the error is at `hours.js:7`, the mistake on line 5 (or the blank line 6) | 1 | ~30 s |
+| | Close the open bracket | quick fix | `addToCart` never closes (`cart.js`, after line 9) | 1 | ~30 s |
+
+The ids end in the slugs above (`debugging-01-add-to-cart` ... `debugging-05-blank-page`, `debugging-practice-line-that-throws`, ...). The total element is `#order-total`, not `#total`: an element id becomes a global (`window.total`), which turned 1.3's ReferenceError into a TypeError in money.js.
+
+### Adding a Debugging level
+
+1. Add its row to `test/unit/levels/debugging/expected.ts` (probe values, errors and where the first error points, before and after the fix) and its lines to `POINTED_AT` in `levels.test.ts`: red.
+2. Write the file (a scenario in `shared/levels/debugging/NN-slug.ts`, a practice task in `practice/<chapter>.ts`) and list it in its chapter in `shared/levels/debugging/index.ts`.
+3. `pnpm test`, then `pnpm exec playwright test e2e/debugging-levels.spec.ts`: the real app must do what the table says, every goal must fail on a reload of the starting files, and the solution must solve it on its last step.

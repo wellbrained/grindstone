@@ -1,6 +1,6 @@
 # Context: Grindstone glossary
 
-- **Track**: one skill area of the app, with its own page (`/git`) and its levels in chapters. *Live* tracks are playable (Git; Debugging next, ADR 0007); *coming* tracks (Working with AI, Web fundamentals, Debugging, Framework deep dives) are listed on the home page but have no levels yet.
+- **Track**: one skill area of the app, with its own page (`/git`) and its levels in chapters. *Live* tracks are playable (Git, Debugging); *coming* tracks (Working with AI, Web fundamentals, Framework deep dives) are listed on the home page but have no levels yet.
 - **Chapter**: an ordered group of levels inside a track, with a number, a one-line description and a colour from the branch palette (Git: Basics, Branching, Merging, Rewriting history, Teamwork & remotes, Undo & recovery, Disasters, Workflows). All chapters are open, nothing is locked. A chapter without levels is *coming*.
 - **Level** (also *entry*): one thing to solve in a track, of one of two kinds: a scenario or a practice task. Counts ("n of N solved"), next up and Continue include both kinds.
 - **Scenario**: a level with a short story, goals, three hints and a debrief, written as one TypeScript file (setup, goals, teammate events, hints, debrief, solution). Its **number** is `chapter.position` counting scenarios only (`1.2`, `3.2`), derived from where it is listed.
@@ -14,9 +14,9 @@
 - **Environment**: what a track's levels run in and are checked against: Git's is the git model with its terminal and graph, Debugging's the sandbox. The shared level core (levels, goals, hints, progress, Continue, radar) works the same over any environment (ADR 0007).
 - **Setup**: the starting state of a level (local repo, `origin`, files, current branch), built with the setup builder.
 - **Goal**: a named check over the state, shown as one line of the live checklist. A level is solved when every goal passes.
-- **Hint**: three per scenario (from a nudge to the exact command), one per practice task.
+- **Hint**: three per scenario (from a nudge to the exact command, or in Debugging to the exact line), one per practice task.
 - **Debrief**: the short text shown when a scenario is solved, explaining *why* the solution works (a practice task shows a one-line why instead).
-- **Solution**: the steps that solve a level (command lines, and saves of the file git opens in the editor during `git rebase -i`); tests replay them.
+- **Solution**: the steps that solve a level (git: command lines, and saves of the file git opens in the editor during `git rebase -i`; Debugging: file edits, a reload, or the click of a find task); tests replay them (Debugging's in a real browser).
 - **Git model**: Grindstone's own simulation of git (objects, refs, HEAD, index, working tree), not real git.
 - **Origin**: the simulated remote repository. Your repo sees it only through `fetch`, `pull` and `push`; teammates write only to it.
 - **Teammate**: a scripted colleague (e.g. Anna) who acts on `origin`.
@@ -30,3 +30,7 @@
 - **Fake backend**: the scripted answers a Debugging level gives its app's requests (data, errors, delays), so every run is the same.
 - **Console**: the Debugging panel with the app's logs and errors, clickable stack traces and an input line that runs an expression inside the app.
 - **Reload**: restarting a Debugging level's app after an edit; the fewest reloads (after the fewest hints) make the best run there.
+- **Bridge**: the small script Grindstone puts first into a Debugging app's sealed frame; it reports the app's console calls and errors, runs Console input and the probes, and is the only way the frame talks to Grindstone.
+- **Check run**: what a Reload starts besides restarting the app you see: the saved files run once more in a hidden sealed frame, the level's probes click and read, and what that run saw decides the goals.
+- **Probe**: a scripted look at a Debugging app during the check run, e.g. "click Add on the croissant, then read the basket counter". Goals read probe values, never the code.
+- **Find** and **quick fix**: the two kinds of Debugging practice task. A find task is answered by clicking the right line in the editor (read-only) or the right frame in a stack trace; a wrong click says why it isn't that one. A quick fix is one line to change, then Save and Reload.

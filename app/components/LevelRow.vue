@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { placeName } from '#shared/levels'
 import type { LaneDraw, LevelRowView, RowLanes } from '~/utils/track-view'
-import { timeText } from '~/utils/track-view'
+import { bestRunCounters, timeText } from '~/utils/track-view'
 
 // One entry on the track page; the whole row is the link, the ⋯ menu sits beside it (outside the link).
 // A scenario: commit dot on the chapter's main line, number (1.2), title with the commands it practises, difficulty and
 // time, status. A practice task (preview G2): a smaller dot on a short side branch that forks off its scenario, no
-// number, its title and time. The status is text ("Solved · best 3 cmds"), never only the dot's colour.
+// number, its title and time. The status is text ("Solved · best 3 cmds"; Debugging "best: no hints, 1 reload"), never
+// only the dot's colour. Tags: git the commands a level practises, Debugging the error a scenario teaches or the kind
+// of a practice task (find, quick fix).
 // Lanes: solid between two solved entries, dim around open ones. `draw` animates parts of the lane once (an entry you
 // just solved); the step says when, so neighbouring rows draw as one line.
 const props = defineProps<{
@@ -24,20 +26,36 @@ const time = computed(() => timeText(t, props.row.place.level.minutes))
 const difficulty = computed(() => props.row.place.level.difficulty)
 
 const status = computed(() => t(`track.status.${props.row.state}`))
+// the best run by the track's own measure: git its commands, Debugging its hints and reloads
+const counters = computed(() => bestRunCounters(props.row.place.track.bestRun))
+const bestText = computed(() => {
+  if (!best.value) return null
+  const run = best.value
+  if (counters.value[0] === 'commands') return { short: t('track.best', run.commands), long: t('track.statusBest', { status: status.value, n: run.commands }) }
+  const parts = counters.value.map(counter => t(`track.counter.${counter}`, run[counter] ?? 0)).join(', ')
+  return { short: t('track.bestRun', { run: parts }), long: t('track.statusBestRun', { status: status.value, run: parts }) }
+})
+const kindTag = computed(() => props.row.taskKind ? t(`track.taskKind.${props.row.taskKind}`) : null)
+const tagsSpoken = computed(() => {
+  if (props.row.commands.length) return t('track.practises', { commands: props.row.commands.join(', ') })
+  if (props.row.teaches) return t('track.teaches', { error: props.row.teaches })
+  if (kindTag.value) return t('track.kindSpoken', { kind: kindTag.value })
+  return null
+})
 const label = computed(() => {
   const { place } = props.row
   const parts = [
     practice.value && place.scenario
       ? t('track.practiceName', { scenario: placeName(place.scenario), title: place.level.title })
       : placeName(place),
-    best.value ? t('track.statusBest', { status: status.value, n: best.value.commands }) : status.value
+    bestText.value?.long ?? status.value
   ]
   if (flagged.value) parts.push(t('track.flagged'))
   const spoken = timeText(t, place.level.minutes, 'long')
   const meta = practice.value
     ? t('track.aboutTime', { time: spoken })
     : t('track.difficultyTime', { n: difficulty.value, time: spoken })
-  return `${parts.join(', ')}. ${meta}. ${t('track.practises', { commands: props.row.commands.join(', ') })}`
+  return `${parts.join(', ')}. ${meta}.${tagsSpoken.value ? ` ${tagsSpoken.value}.` : ''}`
 })
 
 /** The animation of one lane part, only for a solid stretch with a step. */
@@ -154,6 +172,14 @@ const laneClass = (part: keyof RowLanes) => [{ 'opacity-35': props.row.lane[part
           :key="command"
           class="rounded-sm border border-default px-1.5 font-mono text-xs leading-5 text-muted"
         >{{ command }}</code>
+        <code
+          v-if="row.teaches"
+          class="rounded-sm border border-default px-1.5 font-mono text-xs leading-5 text-muted"
+        >{{ row.teaches }}</code>
+        <span
+          v-if="kindTag"
+          class="rounded-sm border border-default px-1.5 font-mono text-xs leading-5 whitespace-nowrap text-muted"
+        >{{ kindTag }}</span>
       </span>
 
       <!-- below md one line under the title (status first); from md two columns of their own -->
@@ -167,9 +193,9 @@ const laneClass = (part: keyof RowLanes) => [{ 'opacity-35': props.row.lane[part
         >
           <span :class="{ 'text-success': row.state === 'solved', 'font-medium text-primary': row.state === 'next', 'text-muted': row.state === 'open' }">{{ status }}</span>
           <span
-            v-if="best"
+            v-if="bestText"
             class="font-mono text-xs text-muted tabular-nums"
-          ><span aria-hidden="true">· </span>{{ t('track.best', best.commands) }}</span>
+          ><span aria-hidden="true">· </span>{{ bestText.short }}</span>
           <span
             v-if="flagged"
             class="flex items-center gap-1 text-xs whitespace-nowrap text-warning"

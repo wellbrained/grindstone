@@ -3,10 +3,11 @@
 // Colours come from the app's CSS tokens (main.css), so one theme serves dark and light.
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { HighlightStyle, StreamLanguage, bracketMatching, indentOnInput, syntaxHighlighting } from '@codemirror/language'
-import { Compartment, EditorState, StateField } from '@codemirror/state'
+import { Compartment, EditorState, RangeSet, StateEffect, StateField } from '@codemirror/state'
 import type { Extension, Range } from '@codemirror/state'
 import {
-  Decoration, EditorView, WidgetType, drawSelection, highlightActiveLine, highlightActiveLineGutter, keymap, lineNumbers
+  Decoration, EditorView, GutterMarker, WidgetType, drawSelection, gutterLineClass, highlightActiveLine, highlightActiveLineGutter, keymap,
+  lineNumbers
 } from '@codemirror/view'
 import type { DecorationSet } from '@codemirror/view'
 import { Tag, tags } from '@lezer/highlight'
@@ -33,11 +34,20 @@ export interface CodeEditorOptions {
   labels: EditorLabels
   onChange: (doc: string) => void
   onSave: () => void
+  /** Read-only: the text can be read, selected and navigated, not changed (Debugging's find tasks). */
+  readOnly?: boolean
+  /** Lines are answers (find tasks): a click on a line or its number, or Enter on the cursor's line, picks it. */
+  onPickLine?: (line: number) => void
 }
+
+/** How a marked line is tinted: opened from a trace (error), a right answer (success), a wrong one (warning). */
+export type LineTone = 'error' | 'success' | 'warning'
 
 export interface CodeEditorHandle {
   /** Shows `path` with `doc`: the same file gets the new text, another file gets its own state (undo history, cursor). */
   show: (path: string, doc: string) => void
+  /** Marks a line of the current file (1-based), scrolls it into view and puts the cursor there; null clears the mark. */
+  mark: (line: number | null, tone?: LineTone) => void
   /** Drops the remembered state of a closed tab. */
   forget: (path: string) => void
   focus: () => void
@@ -96,7 +106,17 @@ const theme = EditorView.theme({
     font: 'inherit'
   },
   '.cm-conflict-actions button:hover': { color: 'var(--ui-primary)', textDecoration: 'underline' },
-  '.cm-conflict-actions button:focus-visible': { outline: '2px solid var(--ui-primary)', outlineOffset: '1px' }
+  '.cm-conflict-actions button:focus-visible': { outline: '2px solid var(--ui-primary)', outlineOffset: '1px' },
+  // a line opened from a stack trace, or a find task's answer: a tint and a bar on its left edge, like the browser's
+  '.cm-mark-error': { backgroundColor: tint('--ui-error', 14), boxShadow: 'inset 2px 0 var(--ui-error)' },
+  '.cm-mark-success': { backgroundColor: tint('--ui-success', 16), boxShadow: 'inset 2px 0 var(--ui-success)' },
+  '.cm-mark-warning': { backgroundColor: tint('--ui-warning', 16), boxShadow: 'inset 2px 0 var(--ui-warning)' },
+  '.cm-gutterElement.cm-mark-error': { color: 'var(--ui-error)' },
+  '.cm-gutterElement.cm-mark-success': { color: 'var(--ui-success)' },
+  '.cm-gutterElement.cm-mark-warning': { color: 'var(--ui-warning)' },
+  // find tasks: every line is an answer you can click
+  '&.cm-pickable .cm-line, &.cm-pickable .cm-lineNumbers .cm-gutterElement': { cursor: 'pointer' },
+  '&.cm-pickable .cm-line:hover': { backgroundColor: tint('--ui-primary', 10) }
 })
 
 /** Commit ids in a rebase todo list. */
@@ -120,7 +140,7 @@ const highlight = HighlightStyle.define([
   { tag: tags.invalid, color: 'var(--ui-error)' }
 ])
 
-type LanguageKind = 'javascript' | 'typescript' | 'json' | 'markdown' | null
+type LanguageKind = 'javascript' | 'typescript' | 'json' | 'markdown' | 'html' | 'css' | null
 
 // The files git opens in the editor during `git rebase -i` (shared/git/commands/rebase.ts): small stream languages, no chunk.
 const TODO_COMMANDS = /^(?:pick|p|reword|r|edit|e|squash|s|fixup|f|exec|x|break|b|drop|d|label|l|reset|t|merge|m|noop|update-ref|u)(?=\s|$)/
@@ -176,6 +196,8 @@ function languageOf(path: string): LanguageKind {
   if (['ts', 'mts', 'cts', 'tsx'].includes(extension)) return 'typescript'
   if (extension === 'json') return 'json'
   if (['md', 'markdown'].includes(extension)) return 'markdown'
+  if (['html', 'htm'].includes(extension)) return 'html'
+  if (extension === 'css') return 'css'
   return null
 }
 
@@ -187,6 +209,8 @@ async function loadLanguage(kind: Exclude<LanguageKind, null>): Promise<Extensio
   let extension: Extension
   if (kind === 'json') extension = (await import('@codemirror/lang-json')).json()
   else if (kind === 'markdown') extension = (await import('@codemirror/lang-markdown')).markdown()
+  else if (kind === 'html') extension = (await import('@codemirror/lang-html')).html({ autoCloseTags: false })
+  else if (kind === 'css') extension = (await import('@codemirror/lang-css')).css()
   else extension = (await import('@codemirror/lang-javascript')).javascript({ typescript: kind === 'typescript', jsx: true })
   languageCache.set(kind, extension)
   return extension
@@ -295,14 +319,80 @@ function conflicts(labels: EditorLabels): Extension {
   })
 }
 
+/** The marked line: where it starts (follows edits) and its tone. */
+interface LineMark {
+  from: number
+  tone: LineTone
+}
+
+const setMark = StateEffect.define<LineMark | null>()
+
+class MarkGutter extends GutterMarker {
+  constructor(readonly tone: LineTone) {
+    super()
+    this.elementClass = `cm-mark-${tone}`
+  }
+
+  override eq(other: MarkGutter) {
+    return other.tone === this.tone
+  }
+}
+
+/** One marked line per file, drawn on the line and its number. */
+const markedLine = StateField.define<LineMark | null>({
+  create: () => null,
+  update: (mark, transaction) => {
+    for (const effect of transaction.effects) if (effect.is(setMark)) return effect.value
+    return mark && transaction.docChanged ? { ...mark, from: transaction.changes.mapPos(mark.from) } : mark
+  },
+  provide: field => [
+    EditorView.decorations.from(field, mark => mark ? Decoration.set([Decoration.line({ class: `cm-mark-${mark.tone}` }).range(mark.from)]) : Decoration.none),
+    gutterLineClass.from(field, mark => mark ? RangeSet.of([new MarkGutter(mark.tone).range(mark.from)]) : RangeSet.empty)
+  ]
+})
+
+/** Find tasks: a click on a line or Enter on the cursor's line picks it (the line numbers pick on their own). */
+function pickLines(onPick: (line: number) => void): Extension {
+  const lineAt = (view: EditorView, pos: number) => view.state.doc.lineAt(pos).number
+  return [
+    EditorView.editorAttributes.of({ class: 'cm-pickable' }),
+    EditorView.domEventHandlers({
+      click(event, view) {
+        // a drag that selected text is reading, not answering
+        if (!view.state.selection.main.empty) return false
+        const pos = view.posAtCoords({ x: event.clientX, y: event.clientY })
+        if (pos !== null) onPick(lineAt(view, pos))
+        return false
+      }
+    }),
+    keymap.of([{ key: 'Enter', run: (view) => {
+      onPick(lineAt(view, view.state.selection.main.head))
+      return true
+    } }])
+  ]
+}
+
 export function createCodeEditor(options: CodeEditorOptions): CodeEditorHandle {
   const { labels } = options
   const language = new Compartment()
   const states = new Map<string, EditorState>()
   let current = options.path
 
+  const onPick = options.onPickLine
   const base: Extension[] = [
-    lineNumbers(),
+    lineNumbers(onPick
+      ? {
+          domEventHandlers: {
+            click: (view, line) => {
+              onPick(view.state.doc.lineAt(line.from).number)
+              return true
+            }
+          }
+        }
+      : {}),
+    markedLine,
+    ...(options.readOnly ? [EditorState.readOnly.of(true)] : []),
+    ...(onPick ? [pickLines(onPick)] : []),
     highlightActiveLineGutter(),
     history(),
     drawSelection(),
@@ -364,6 +454,18 @@ export function createCodeEditor(options: CodeEditorOptions): CodeEditorHandle {
       view.setState(remembered && remembered.doc.toString() === doc ? remembered : stateFor(path, doc))
       current = path
       ensureLanguage(path)
+    },
+    mark(line, tone = 'error') {
+      if (line === null) {
+        view.dispatch({ effects: setMark.of(null) })
+        return
+      }
+      const { doc } = view.state
+      const at = doc.line(Math.min(Math.max(line, 1), doc.lines))
+      view.dispatch({
+        effects: [setMark.of({ from: at.from, tone }), EditorView.scrollIntoView(at.from, { y: 'center' })],
+        selection: { anchor: at.from }
+      })
     },
     forget(path) {
       states.delete(path)

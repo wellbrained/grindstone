@@ -31,12 +31,12 @@ import { BIG_CHAPTER_SIZES, bigTrack, fakePractice, practiceTrack, solvedProgres
 const git = trackById('git')!
 
 describe('track registry', () => {
-  it('lists git as the live track and the upcoming ones as coming, without chapters', () => {
+  it('lists git and Debugging as the live tracks and the upcoming ones as coming, without chapters', () => {
     expect(tracks.map(track => [track.id, track.status])).toEqual([
       ['git', 'live'],
+      ['debugging', 'live'],
       ['ai', 'coming'],
       ['web', 'coming'],
-      ['debugging', 'coming'],
       ['frameworks', 'coming']
     ])
     for (const track of tracks) {
@@ -64,6 +64,38 @@ describe('track registry', () => {
       expect(chapter.trackId).toBe('git')
       expect(chapter.description).not.toBe('')
     }
+  })
+
+  it('gives Debugging its seven chapters (ADR 0007): Reading errors live, the other six coming', () => {
+    const debugging = trackById('debugging')!
+    expect(debugging).toMatchObject({ title: 'Debugging', tagline: 'Find the bug before your customers do.', cheatSheet: null, bestRun: ['hints', 'reloads'] })
+    expect(debugging.chapters.map(chapter => [chapter.number, chapter.title, chapter.levels.length])).toEqual([
+      [1, 'Reading errors', 13],
+      [2, 'Network', 0],
+      [3, 'Elements & CSS', 0],
+      [4, 'State & async', 0],
+      [5, 'Breakpoints & stepping', 0],
+      [6, 'Performance', 0],
+      [7, 'Incidents', 0]
+    ])
+    expect(new Set(debugging.chapters.map(chapter => chapter.colour)).size).toBe(7)
+    expect(debugging.chapters[0]!.levels.map(level => [levelNumber(level.id), level.id])).toEqual([
+      ['1.1', 'debugging-01-add-to-cart'],
+      [null, 'debugging-practice-line-that-throws'],
+      [null, 'debugging-practice-misspelled-property'],
+      ['1.2', 'debugging-02-prices-vanished'],
+      [null, 'debugging-practice-import-right-name'],
+      ['1.3', 'debugging-03-total-not-defined'],
+      [null, 'debugging-practice-move-declaration-up'],
+      ['1.4', 'debugging-04-error-in-money'],
+      [null, 'debugging-practice-frame-that-passed'],
+      [null, 'debugging-practice-three-frame-trace'],
+      ['1.5', 'debugging-05-blank-page'],
+      [null, 'debugging-practice-real-mistake'],
+      [null, 'debugging-practice-close-the-bracket']
+    ])
+    expect(nextLevel('debugging-practice-close-the-bracket')).toBeNull()
+    expect(nextLevel('git-practice-release-from-develop')).toBeNull()
   })
 
   it('maps the levels to their chapters', () => {

@@ -1,7 +1,7 @@
 // What the track page and the home page draw for a track, from the track and the progress: pure, so it is tested on the
 // real track and on the 58-level fixture (test/unit/ui/track-view.test.ts). The components only render it.
-import { chapterProgress, entryOf, isGitLevel, levelCommands, nextUp, trackPlaces, trackProgress } from '../../shared/levels'
-import type { Chapter, Count, LevelPlace, LevelProgress, Progress, Track } from '../../shared/levels'
+import { chapterProgress, entryOf, isDebugLevel, isGitLevel, levelCommands, nextUp, trackPlaces, trackProgress } from '../../shared/levels'
+import type { Chapter, Count, LevelPlace, LevelProgress, Progress, RunCounter, RunMeasure, Track } from '../../shared/levels'
 
 /** solved: filled commit dot; next: the first unsolved level (ember ring); open: hollow. */
 export type LevelState = 'solved' | 'next' | 'open'
@@ -35,6 +35,10 @@ export interface LevelRowView {
   progress: LevelProgress | null
   /** The git commands the level practises (from its solution); none for a level of another track. */
   commands: string[]
+  /** A Debugging scenario: the error it teaches you to read ('TypeError'); null otherwise. */
+  teaches: string | null
+  /** A Debugging practice task: find (click the line) or fix (a quick fix); null otherwise. */
+  taskKind: 'find' | 'fix' | null
   lane: RowLanes
 }
 
@@ -84,7 +88,9 @@ export function trackView(track: Track, progress: Progress): TrackView {
           place,
           state: stateOf(place),
           progress: entryOf(progress, place.level.id) ?? null,
-          commands: isGitLevel(place.level) ? levelCommands(place.level) : []
+          commands: isGitLevel(place.level) ? levelCommands(place.level) : [],
+          teaches: isDebugLevel(place.level) && place.level.kind === 'scenario' ? place.level.teaches ?? null : null,
+          taskKind: isDebugLevel(place.level) && place.level.kind === 'practice' ? (place.level.sandbox.find ? 'find' : 'fix') : null
         })))
     }
   })
@@ -211,4 +217,12 @@ export function timeLabel(minutes: number): { value: number, unit: 's' | 'min' }
 export function timeText(t: (key: string, named: Record<string, unknown>) => string, minutes: number, form: 'short' | 'long' = 'short'): string {
   const { value, unit } = timeLabel(minutes)
   return t(`track.${form === 'short' ? 'time' : 'timeLong'}.${unit}`, { n: value })
+}
+
+/**
+ * The counters a row's best run shows: git its commands (the hints only break ties, as before); a track measured by
+ * hints first (Debugging) every counter of its measure, hints then reloads.
+ */
+export function bestRunCounters(measure: RunMeasure): RunCounter[] {
+  return measure[0] === 'commands' ? ['commands'] : [...measure]
 }

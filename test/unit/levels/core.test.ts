@@ -200,6 +200,6 @@ describe('the shared core stays apart from git (ADR 0001)', () => {
 
   it.each(coreFiles)('%s imports no environment', (name) => {
     const imports = [...readFileSync(join(core, name), 'utf8').matchAll(/from '([^']+)'/g)].map(match => match[1]!)
-    expect(imports.filter(path => !/^\.\/[a-z-]+$/.test(path) || ['./git', './tracks', './index'].includes(path))).toEqual([])
+    expect(imports.filter(path => !/^\.\/[a-z-]+$/.test(path) || ['./git', './debugging', './tracks', './index'].includes(path))).toEqual([])
   })
 })

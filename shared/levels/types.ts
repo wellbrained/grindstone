@@ -123,11 +123,15 @@ export interface Notice {
   text: string
 }
 
-/** What one environment brings: its state, what the history records per counted action, one solution step. */
+/**
+ * What one environment brings: its state, what the history records per counted action, one solution step, and
+ * optionally the fields its levels add to the shared ones (Debugging: the app's sandbox settings; git: none).
+ */
 export interface Environment {
   state: unknown
   record: unknown
   step: unknown
+  fields?: object
 }
 
 /**
@@ -142,11 +146,13 @@ export interface Environments {}
 export type EnvironmentId = Extract<keyof Environments, TrackId>
 
 type Env<K extends EnvironmentId> = Environments[K] extends Environment ? Environments[K] : never
+/** The fields an environment's levels add (`unknown`, so nothing, when it adds none). */
+type Fields<K extends EnvironmentId> = Env<K> extends { fields: infer F } ? F : unknown
 
 /** An entry of any track with an environment, or of one (`Level<'git'>`). */
-export type Level<K extends EnvironmentId = EnvironmentId> = K extends EnvironmentId ? LevelOf<Env<K>['state'], Env<K>['record'], Env<K>['step'], K> : never
-export type Scenario<K extends EnvironmentId = EnvironmentId> = K extends EnvironmentId ? ScenarioOf<Env<K>['state'], Env<K>['record'], Env<K>['step'], K> : never
-export type PracticeTask<K extends EnvironmentId = EnvironmentId> = K extends EnvironmentId ? PracticeTaskOf<Env<K>['state'], Env<K>['record'], Env<K>['step'], K> : never
+export type Level<K extends EnvironmentId = EnvironmentId> = K extends EnvironmentId ? LevelOf<Env<K>['state'], Env<K>['record'], Env<K>['step'], K> & Fields<K> : never
+export type Scenario<K extends EnvironmentId = EnvironmentId> = K extends EnvironmentId ? ScenarioOf<Env<K>['state'], Env<K>['record'], Env<K>['step'], K> & Fields<K> : never
+export type PracticeTask<K extends EnvironmentId = EnvironmentId> = K extends EnvironmentId ? PracticeTaskOf<Env<K>['state'], Env<K>['record'], Env<K>['step'], K> & Fields<K> : never
 export type Session<K extends EnvironmentId = EnvironmentId> = K extends EnvironmentId ? SessionOf<Env<K>['state'], Env<K>['record']> : never
 
 /** The text that introduces an entry (Continue card, previews): a scenario's story, a practice task's task. */

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { defineTrack, emptyProgress, gitLevels, trackById } from '../../../shared/levels'
-import { drawSteps, percent, storyLead, timeLabel, trackCardAction, trackView } from '../../../app/utils/track-view'
+import { bestRunCounters, drawSteps, percent, storyLead, timeLabel, trackCardAction, trackView } from '../../../app/utils/track-view'
 import { bigTrack, practiceTrack, solvedProgress } from '../levels/fixtures'
 
 const git = trackById('git')!
@@ -60,6 +60,25 @@ describe('track view', () => {
     const rows = trackView(git, emptyProgress()).chapters.flatMap(chapter => chapter.rows)
     expect(rows[0]!.commands).toEqual(['init', 'add', 'commit'])
     expect(rows[1]!.commands).toEqual(['add'])
+  })
+
+  it('tags Debugging rows with the error a scenario teaches and the kind of a practice task, no commands', () => {
+    const view = trackView(trackById('debugging')!, emptyProgress())
+    expect(view.liveChapters).toBe(1)
+    expect(view.chapters.map(chapter => chapter.coming)).toEqual([false, true, true, true, true, true, true])
+    expect(view.chapters[0]!.rows.slice(0, 4).map(row => [row.commands, row.teaches, row.taskKind])).toEqual([
+      [[], 'TypeError', null],
+      [[], null, 'find'],
+      [[], null, 'fix'],
+      [[], 'TypeError', null]
+    ])
+    // git rows have commands and nothing else
+    expect(trackView(git, emptyProgress()).chapters[0]!.rows[0]).toMatchObject({ teaches: null, taskKind: null })
+  })
+
+  it('shows the counters of a best run: git its commands, Debugging hints and reloads', () => {
+    expect(bestRunCounters(git.bestRun)).toEqual(['commands'])
+    expect(bestRunCounters(trackById('debugging')!.bestRun)).toEqual(['hints', 'reloads'])
   })
 
   it('holds a 58-level track: rows per chapter, one next up across chapters', () => {

@@ -22,6 +22,7 @@ describe('navigation', () => {
     expect(navigationItems('/', tracks, labels).map(item => [item.label, item.to, item.active])).toEqual([
       ['Tracks', '/', true],
       ['Git', '/git', false],
+      ['Debugging', '/debugging', false],
       ['About', '/about', false]
     ])
   })
@@ -32,6 +33,9 @@ describe('navigation', () => {
       { label: 'Levels', to: '/git' },
       { label: 'Cheat sheet', to: '/git/cheat-sheet' }
     ])
+    // Debugging has no cheat sheet in its first release (ADR 0007)
+    expect(navigationItems('/', tracks, labels).find(item => item.to === '/debugging')?.children).toEqual([{ label: 'Levels', to: '/debugging' }])
+    expect(navigationItems('/debugging/01-add-to-cart', tracks, labels).find(item => item.active)?.to).toBe('/debugging')
     // the fixture track has no cheat sheet; home and About are plain links
     const items = navigationItems('/', withWeb, labels)
     expect(items.find(item => item.to === '/web')?.children).toEqual([{ label: 'Levels', to: '/web' }])
@@ -54,6 +58,6 @@ describe('navigation', () => {
       ['/about', false]
     ])
     expect(liveTracks(withWeb).map(track => track.id)).toEqual(['git', 'web'])
-    expect(comingTracks(withWeb).map(track => track.id)).toEqual(['ai', 'debugging', 'frameworks'])
+    expect(comingTracks(withWeb).map(track => track.id)).toEqual(['ai', 'frameworks'])
   })
 })

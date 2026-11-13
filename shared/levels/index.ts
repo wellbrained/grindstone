@@ -1,8 +1,14 @@
-// Public API of the levels: the shared core (track-agnostic) and the git environment (docs/features/levels.md).
+// Public API of the levels: the shared core (track-agnostic) and its environments, git and Debugging
+// (docs/features/levels.md).
 // The core modules (types, engine, progress, track, radar) never import an environment; this barrel and the registry
 // (tracks.ts) are where the tracks come together.
 export type * from './types'
 export type * from './git/types'
+export type * from './debugging/types'
+export type { BridgeMessage, ConsoleEntryBody, ConsoleLevel } from './debugging/messages'
+export type { RawFrame, SourceMapping } from './debugging/trace'
+export type { SandboxDocument, SandboxOptions } from './debugging/sandbox'
+export type { CheckRun } from './debugging/engine'
 export type { Action, ActResult, HintShown, Outcome } from './engine'
 export type { Attempt, LastPlayed, LevelProgress, Progress, ProgressSummary, ReadResult, Run, RunCounter, RunMeasure } from './progress'
 export type { RadarAxis, RadarGain } from './radar'
@@ -39,3 +45,11 @@ export { TRAINER_COMMANDS, playStep, saveEditor, saveFile, startLevel, submit } 
 export { isGitLevel, isTerminalStep } from './git/types'
 export { gitSubcommands, levelCommands } from './git/commands'
 export { gitLevels, gitTrack } from './git'
+
+// the Debugging environment
+export { editedText, pickLine, pickVerdict, playSolution, playStep as playDebugStep, reload, saveFile as saveDebugFile, startDebugLevel } from './debugging/engine'
+export { isDebugLevel } from './debugging/types'
+export { consoleEntry, observe, readBridgeMessage } from './debugging/messages'
+export { mapFrames, parseStack, sourceOf } from './debugging/trace'
+export { SANDBOX_CSP, SHOP_ORIGIN, sandboxDocument } from './debugging/sandbox'
+export { debuggingLevels, debuggingTrack } from './debugging'

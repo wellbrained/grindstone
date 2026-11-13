@@ -13,7 +13,7 @@
   },
   "home": {
     "title": "Practice real developer skills, one short level at a time",
-    "intro": "Each level drops you into a situation you meet at work, and you solve it with real commands, right here in the browser. Git is the first track; more are on the way.",
+    "intro": "Each level drops you into a situation you meet at work, and you solve it with real tools, right here in the browser. Git and Debugging are live; more tracks are on the way.",
     "local": "No account. Your progress stays on this device.",
     "coming": {
       "title": "More tracks on the way",
@@ -109,7 +109,8 @@
       "current": "Conflict {block}: accept the current change",
       "incoming": "Conflict {block}: accept the incoming change",
       "both": "Conflict {block}: accept both changes"
-    }
+    },
+    "pickLabel": "{path}, read-only: click a line, or press Enter on the cursor's line, to answer"
   },
   "gitEditor": {
     "label": "{file}, opened by git",
@@ -134,7 +135,10 @@
     "best": "Your best run",
     "bestHints": "· no hints | · {n} hint | · {n} hints",
     "radarGain": "{chapter} {from} → {to} of {total}",
-    "radarGainLong": "Skill radar, {chapter}: {from} to {to} of {total}"
+    "radarGainLong": "Skill radar, {chapter}: {from} to {to} of {total}",
+    "reloads": "Reloads",
+    "debugClean": "Solved without a hint. That is the skill: read the error, follow the trace, fix the line.",
+    "debugHints": "Solved. Next time, try one more look at the Console before the next hint."
   },
   "explorer": {
     "title": "Explorer",
@@ -379,10 +383,10 @@
       }
     },
     "howTitle": "How it works",
-    "how": "Everything runs in your browser: Grindstone has its own git simulation in TypeScript, so levels are predictable, undo is instant and what you type never leaves your browser. Your progress stays on your device. To see which levels are too hard, Grindstone counts visits and which levels are started and solved, anonymously and without cookies, on its own server (Umami). If your browser sends Do Not Track, nothing is counted. The code is open source.",
+    "how": "Everything runs in your browser: Grindstone has its own git simulation in TypeScript, so levels are predictable, undo is instant and what you type never leaves your browser. Debugging levels run a small real app in a sealed frame that can't see Grindstone, your progress or the network. Your progress stays on your device. To see which levels are too hard, Grindstone counts visits and which levels are started and solved, anonymously and without cookies, on its own server (Umami). If your browser sends Do Not Track, nothing is counted. The code is open source.",
     "laterTitle": "Coming later",
     "later": {
-      "tracks": "More tracks: working with AI, web fundamentals, debugging, framework deep dives",
+      "tracks": "More tracks: working with AI, web fundamentals, framework deep dives",
       "profile": "A skill profile that shows where you are strong and what to practise next"
     },
     "byTitle": "Who builds it",
@@ -423,7 +427,20 @@
     "aboutTime": "Takes {time}",
     "difficultyTime": "Difficulty {n} of 3, takes {time}",
     "difficulty": "Difficulty {n} of 3",
-    "practises": "Practises {commands}"
+    "practises": "Practises {commands}",
+    "bestRun": "best: {run}",
+    "statusBestRun": "{status}, best run: {run}",
+    "counter": {
+      "commands": "{n} command | {n} commands",
+      "hints": "no hints | {n} hint | {n} hints",
+      "reloads": "no reloads | {n} reload | {n} reloads"
+    },
+    "taskKind": {
+      "find": "find",
+      "fix": "quick fix"
+    },
+    "teaches": "Teaches reading a {error}",
+    "kindSpoken": "Kind: {kind}"
   },
   "continue": {
     "resume": "Where you left off in {where}",
@@ -526,5 +543,53 @@
     "axis": "{chapter}: {solved} of {total} solved",
     "coming": "{chapter}: coming",
     "empty": "Solve levels to fill your radar"
+  },
+  "debugging": {
+    "note": "Edit the code, Save, then Reload: the goals are checked on every reload.",
+    "findNote": "Answer with a click: the line in the editor, or its frame in the Console.",
+    "reloads": "Reloads: {n}",
+    "hints": "Hints",
+    "notIt": "Not {where}.",
+    "panels": "Panels",
+    "panel": {
+      "app": "App",
+      "console": "Console",
+      "code": "Code"
+    },
+    "app": {
+      "label": "App",
+      "address": "Address: {address}",
+      "reload": "Reload",
+      "frame": "Corner Bakery order page, the level's app",
+      "stale": "You saved changes. Reload to run them.",
+      "sealed": "The app runs in a sealed frame: it can't reach Grindstone or your progress, and its requests are blocked."
+    },
+    "console": {
+      "label": "Console",
+      "clear": "Clear",
+      "log": "Console messages",
+      "empty": "Nothing logged yet.",
+      "input": "Console input: type an expression to run in the app and press Enter",
+      "placeholder": "Type an expression, e.g. cart",
+      "open": "Open {path} at line {line}",
+      "answer": "Answer: {path}, line {line}",
+      "trace": "Stack trace",
+      "at": "at",
+      "level": {
+        "error": "Error",
+        "warn": "Warning",
+        "log": "Log",
+        "info": "Info",
+        "debug": "Debug",
+        "input": "Input",
+        "result": "Result"
+      }
+    },
+    "code": {
+      "label": "Code",
+      "files": "Files of the app",
+      "unsaved": "unsaved changes",
+      "pickNote": "Click a line to answer"
+    }
   }
 }

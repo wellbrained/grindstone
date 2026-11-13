@@ -7,7 +7,7 @@ import { timeText } from '~/utils/track-view'
 // solved card with Show debrief and Next level. A practice task is the compact variant (preview "Stage only app.js"):
 // breadcrumb through its scenario, title with "Practice · ~30 s", the task, its goal, one hint shown in place, and once
 // solved a one-line why with Next and Again. The ⋯ menu beside the title holds Play again, "practise again" and
-// Mark as not solved.
+// Mark as not solved. The default slot (under the goals) is the track's own (Debugging: revealed hints, a click's verdict).
 const props = withDefaults(defineProps<{
   level: Level
   /** Track, chapter and number of the level, for the breadcrumb back to the track page. */
@@ -140,7 +140,10 @@ const menu = computed(() => entryItems(props.place, { onPlayAgain: () => emit('a
       </ul>
     </section>
 
-    <!-- a practice task's one hint shows in place once revealed (a scenario's hints go to the terminal) -->
+    <!-- what a track adds under the goals (Debugging: revealed hints, a find task's verdict) -->
+    <slot />
+
+    <!-- a practice task's one hint shows in place once revealed (a git scenario's hints go to the terminal) -->
     <p
       v-if="practice && hintsUsed > 0"
       class="rounded-lg border border-default bg-elevated px-3 py-2 text-sm text-toned"

@@ -115,7 +115,8 @@ const initialGoals: Record<string, Record<string, boolean>> = {
 describe('level list', () => {
   it('has the git levels in play order: each scenario, then its practice tasks', () => {
     expect(gitLevels.map(item => item.id)).toEqual(Object.keys(initialGoals))
-    expect(levels).toEqual(gitLevels)
+    // every level of every track: git's first, then Debugging's (test/unit/levels/debugging/levels.test.ts)
+    expect(levels.filter(level => level.track === 'git')).toEqual(gitLevels)
     expect(nextLevel('git-01-first-commit')?.id).toBe('git-practice-stage-one-file')
     expect(nextLevel('git-practice-commit-all')?.id).toBe('git-07-stage-together')
     expect(nextLevel('git-practice-ignore-logs')?.id).toBe('git-02-branch')

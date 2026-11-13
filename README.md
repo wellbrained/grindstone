@@ -2,6 +2,8 @@
 
 Practice real developer skills in short, game-like scenarios. The first track is **Git**: solve levels in a terminal while a commit graph updates live, and keep up with simulated teammates who push to `main` while you work.
 
+The second track is **Debugging**: small real apps from a bakery's ordering site, with real bugs. Read the Console, follow the stack trace to the line, fix the code and reload; the app runs in a sealed frame in your browser.
+
 Status: in development (v0.1 in progress). Plan: [docs/adr/0001-plan.md](docs/adr/0001-plan.md).
 
 ## Why another git trainer?

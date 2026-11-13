@@ -1,7 +1,8 @@
 // The track registry: every track, live and coming, in the order the home page lists them.
 // The lookups take the registry as a parameter (default: the real one), so tests can run them on a 58-level fixture.
+import { debuggingTrack } from './debugging'
 import { gitTrack } from './git'
-import { fewestHintsThenReloads, lastPlayed } from './progress'
+import { lastPlayed } from './progress'
 import { defineTrack, placeIn, trackLevels, trackProgress } from './track'
 import type { Chapter, LevelPlace, Track } from './track'
 import type { Progress } from './progress'
@@ -9,6 +10,7 @@ import type { Level } from './types'
 
 export const tracks: readonly Track[] = [
   gitTrack,
+  debuggingTrack,
   defineTrack({
     id: 'ai',
     title: 'Working with AI',
@@ -21,15 +23,6 @@ export const tracks: readonly Track[] = [
     title: 'Web fundamentals',
     scope: 'CORS, auth, the event loop, performance and accessibility.',
     description: 'The parts of the web platform that bite in production: CORS, auth, the event loop, performance and accessibility.',
-    status: 'coming'
-  }),
-  defineTrack({
-    id: 'debugging',
-    title: 'Debugging',
-    scope: 'DevTools and incidents: track a bug down to its cause.',
-    description: 'DevTools and incidents: track a bug down to its cause.',
-    // fewest hints, then fewest reloads (ADR 0007): there are no commands to count
-    bestRun: fewestHintsThenReloads,
     status: 'coming'
   }),
   defineTrack({
