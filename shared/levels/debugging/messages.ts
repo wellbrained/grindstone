@@ -5,6 +5,7 @@
 import { MAX_CSS_RULES } from './css'
 import { MAX_DOM_NODES } from './elements'
 import type { BoxModel, DomNode, Inspected, InspectedLevel, InspectedMatch, ScrollSize, Sides } from './elements'
+import type { ServerLogMessage } from './logs'
 import { readProfile } from './profile'
 import type { Profile } from './profile'
 import { readSteps } from './recording'
@@ -54,6 +55,8 @@ export type BridgeMessage
     | { type: 'profile', profile: Profile }
   /** While a profile records: the work counted so far and how many actions. */
     | { type: 'profileTick', work: number, actions: number }
+  /** Chapter 7: the shop's server answered a request (numbers only; the Logs panel's lines come from the level's data). */
+    | ServerLogMessage
 
 export interface InspectedMessage extends Inspected {
   type: 'inspected'
@@ -342,6 +345,16 @@ export function readBridgeMessage(data: unknown, token: string): BridgeMessage |
       const work = whole(raw.work, Number.MAX_SAFE_INTEGER)
       const actions = whole(raw.actions, Number.MAX_SAFE_INTEGER)
       return work !== undefined && actions !== undefined ? { type: 'profileTick', work, actions } : null
+    }
+    case 'serverlog': {
+      const id = whole(raw.id, Number.MAX_SAFE_INTEGER)
+      const route = raw.route === -1 ? -1 : whole(raw.route, 9999)
+      const answer = raw.answer === -1 ? -1 : whole(raw.answer, 9999)
+      const status = whole(raw.status, 999)
+      const at = whole(raw.at, 1e9)
+      const time = whole(raw.time, 1e9)
+      if (id === undefined || route === undefined || answer === undefined || status === undefined || at === undefined || time === undefined) return null
+      return { type: 'serverlog', id, route, answer, status, at, time }
     }
     case 'recordEnd': {
       const reason = RECORD_ENDS.find(each => each === raw.reason)

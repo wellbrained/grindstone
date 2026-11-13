@@ -409,3 +409,65 @@ describe('the fake backend', () => {
     ])
   })
 })
+
+describe('the server\'s logs (chapter 7)', () => {
+  function logged(spec: BackendSpec) {
+    const posted: Posted[] = []
+    const backend = create(backendConfig(spec, SHOP_ORIGIN, { first: 4127 }), { post: (message: Posted) => posted.push(message), now: () => Date.now() })
+    return { backend, logs: () => posted.filter(message => message.type === 'serverlog') }
+  }
+
+  it('gives every answer of the shop\'s server its request id, and says which route and answer it was, when on the server\'s clock', async () => {
+    const { backend, logs } = logged({
+      routes: [
+        { path: '/api/menu', respond: { status: 200, json: MENU, delay: 80 } },
+        { method: 'POST', path: '/api/orders', body: '"items"', respond: { status: 201, json: { number: 1042 }, delay: 200 } },
+        { method: 'POST', path: '/api/orders', respond: [{ status: 500, json: { error: 'boom' }, delay: 120 }, { status: 503, delay: 50 }] }
+      ]
+    })
+    const menu = await answer(backend.fetch('/api/menu'))
+    expect(menu.headers.get('x-request-id')).toBe('req-4127')
+    const failed = await answer(backend.fetch('/api/orders', { method: 'POST', body: '{"lines":[]}' }))
+    expect(failed.headers.get('x-request-id')).toBe('req-4128')
+    await answer(backend.fetch('/api/orders', { method: 'POST', body: '{"items":[]}' }))
+    await answer(backend.fetch('/api/orders', { method: 'POST', body: '{"lines":[]}' }))
+    await answer(backend.fetch('/api/nope'))
+    // the server's clock: each answer at its request's start plus its delay (the requests here went out one by one)
+    expect(logs().map(({ id, route, answer, status, at, time }) => [id, route, answer, status, at, time])).toEqual([
+      [1, 0, 0, 200, 80, 80],
+      [2, 2, 0, 500, 200, 120],
+      [3, 1, 0, 201, 400, 200],
+      [4, 2, 1, 503, 450, 50],
+      [5, -1, -1, 404, 480, 30]
+    ])
+  })
+
+  it('logs nothing for another origin or a failed connection, and nothing without logs', async () => {
+    const spec: BackendSpec = { routes: [
+      { path: 'https://api.cornerbakery.shop/specials', respond: { status: 200, json: [], headers: { 'Access-Control-Allow-Origin': '*' } } },
+      { path: '/api/down', respond: { fail: 'network' } }
+    ] }
+    const { backend, logs } = logged(spec)
+    const other = await answer(backend.fetch('https://api.cornerbakery.shop/specials'))
+    expect(other.headers.get('x-request-id')).toBeNull()
+    await refusal(backend.fetch('/api/down'))
+    expect(logs()).toEqual([])
+    const { backend: plain, of } = start({ routes: [{ path: '/api/menu', respond: { status: 200, json: MENU } }] })
+    expect((await answer(plain.fetch('/api/menu'))).headers.get('x-request-id')).toBeNull()
+    expect(of('serverlog')).toEqual([])
+  })
+
+  it('keeps the scripted answers as they were (each request gets its own headers)', async () => {
+    const { backend } = logged({ routes: [{ path: '/api/menu', respond: { status: 200, json: MENU } }] })
+    const first = await answer(backend.fetch('/api/menu'))
+    const second = await answer(backend.fetch('/api/menu'))
+    expect([first.headers.get('x-request-id'), second.headers.get('x-request-id')]).toEqual(['req-4127', 'req-4128'])
+  })
+
+  it('takes a level\'s scripted log lines out of the frame\'s data: they stay on the page', () => {
+    const config = backendConfig({ routes: [{ path: '/a', respond: { status: 500, log: [{ level: 'error', message: 'secret plan' }] } }] }, SHOP_ORIGIN, { first: 1 })
+    expect(JSON.stringify(config)).not.toContain('secret plan')
+    expect(config.logs).toEqual({ first: 1 })
+    expect(backendConfig({ routes: [] }, SHOP_ORIGIN).logs).toBeNull()
+  })
+})

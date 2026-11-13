@@ -64,8 +64,8 @@ describe('track view', () => {
 
   it('tags Debugging rows with the error a scenario teaches and the kind of a practice task, no commands', () => {
     const view = trackView(trackById('debugging')!, emptyProgress())
-    expect(view.liveChapters).toBe(6)
-    expect(view.chapters.map(chapter => chapter.coming)).toEqual([false, false, false, false, false, false, true])
+    expect(view.liveChapters).toBe(7)
+    expect(view.chapters.map(chapter => chapter.coming)).toEqual([false, false, false, false, false, false, false])
     expect(view.chapters[0]!.rows.slice(0, 4).map(row => [row.commands, row.teaches, row.taskKind])).toEqual([
       [[], 'TypeError', null],
       [[], null, 'find'],
@@ -86,6 +86,9 @@ describe('track view', () => {
     // Performance scenarios with what made them slow, a find and a quick fix each
     expect(view.chapters[5]!.rows.filter(row => row.teaches).map(row => row.teaches)).toEqual(['debounce', 'renders', 'work in a loop', 'waterfall', 'cache'])
     expect(view.chapters[5]!.rows.filter(row => row.taskKind).map(row => row.taskKind)).toEqual(Array.from({ length: 5 }, () => ['find', 'fix']).flat())
+    // Incidents scenarios with what the incident teaches, a find and a quick fix each
+    expect(view.chapters[6]!.rows.filter(row => row.teaches).map(row => row.teaches)).toEqual(['logs', 'bisect', 'rollback', 'hand-built JSON', 'feature flag'])
+    expect(view.chapters[6]!.rows.filter(row => row.taskKind).map(row => row.taskKind)).toEqual(Array.from({ length: 5 }, () => ['find', 'fix']).flat())
     // git rows have commands and nothing else
     expect(trackView(git, emptyProgress()).chapters[0]!.rows[0]).toMatchObject({ teaches: null, taskKind: null })
   })

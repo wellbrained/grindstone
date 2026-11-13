@@ -1,8 +1,16 @@
 <script setup lang="ts">
 // The app's one confirmation dialog (useConfirm): a title that asks, the full consequence, Cancel and the action.
 // Cancel is focused first, so Enter never clears progress by accident.
-const { request, open, confirm } = useConfirm()
+const { request, open, confirmed, confirm } = useConfirm()
 const { t } = useI18n()
+
+// after the action, a request may say where the focus goes (the button that opened the dialog may be gone)
+function onCloseAutoFocus(event: Event) {
+  const focusAfter = request.value?.focusAfter
+  if (!confirmed.value || !focusAfter) return
+  event.preventDefault()
+  focusAfter()
+}
 </script>
 
 <template>
@@ -11,6 +19,7 @@ const { t } = useI18n()
     :title="request?.title ?? ''"
     :description="request?.text ?? ''"
     :ui="{ content: 'sm:max-w-md', description: 'text-toned' }"
+    :content="{ onCloseAutoFocus }"
     data-testid="confirm-dialog"
   >
     <template #footer>

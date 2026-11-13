@@ -287,3 +287,23 @@ describe('reading a recording\'s messages (chapter 5)', () => {
     expect(observe([files, steps, { type: 'done' }], 3)).toMatchObject({ finished: true, errors: [], logs: [] })
   })
 })
+
+describe('the server\'s log messages (chapter 7)', () => {
+  const log = { type: 'serverlog', id: 2, route: 1, answer: 0, status: 500, at: 200, time: 120 }
+
+  it('reads the numbers of a serverlog, and nothing else of it', () => {
+    expect(readBridgeMessage({ ...log, grindstone: token }, token)).toEqual(log)
+    expect(readBridgeMessage({ ...log, route: -1, answer: -1, message: 'forged text', grindstone: token }, token)).toEqual({ ...log, route: -1, answer: -1 })
+  })
+
+  it('refuses one whose numbers are not whole numbers in range', () => {
+    for (const bad of [{ id: -1 }, { id: 1.5 }, { route: -2 }, { answer: 'x' }, { status: 1000 }, { at: 1e10 }, { time: Number.NaN }, { route: 1e7 }]) {
+      expect(readBridgeMessage({ ...log, ...bad, grindstone: token }, token), JSON.stringify(bad)).toBeNull()
+    }
+  })
+
+  it('is not a Console line, and a check run ignores it', () => {
+    expect(consoleEntry(log as BridgeMessage, mapping)).toBeNull()
+    expect(observe([log as BridgeMessage, { type: 'done' }], 3)).toMatchObject({ finished: true, errors: [], logs: [] })
+  })
+})

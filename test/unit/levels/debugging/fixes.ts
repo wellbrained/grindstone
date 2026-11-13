@@ -1,11 +1,13 @@
-// Other edits a player may make to a Debugging level (State & async, Breakpoints & stepping, Performance): real fixes the
+// Other edits a player may make to a Debugging level (State & async, Breakpoints & stepping, Performance, Incidents): real fixes the
 // goals must accept (the ones the debriefs name among them), and tempting non-fixes they must reject. The unit tests check that every edit applies to
 // the level's files; e2e/debugging-levels.spec.ts runs them in a real browser.
 
 export interface OtherFix {
   /** What the edit does, for the test's message. */
   name: string
-  /** Applied in order to the starting files, like a solution's save steps. */
+  /** Chapter 7: roll back to this deploy first (its files replace the starting files), as Roll back does. */
+  rollback?: string
+  /** Applied in order to the starting files (or the rolled back ones), like a solution's save steps. */
   edits: { save: string, replace: readonly [string, string] }[]
   /** True: every goal passes after a reload; false: not every goal does. */
   solves: boolean
@@ -337,5 +339,67 @@ export const otherFixes: Record<string, OtherFix[]> = {
       }],
       solves: false
     }
+  ],
+  'debugging-31-checkout-errors': [
+    {
+      name: 'the variable called items again',
+      edits: [
+        { save: 'order.js', replace: ['  const lines = cart.items.map', '  const items = cart.items.map'] },
+        { save: 'order.js', replace: ['JSON.stringify({ lines, note })', 'JSON.stringify({ items, note })'] }
+      ],
+      solves: true
+    },
+    { name: 'rolled back to a1f0c93: orders work, the notes are gone', rollback: 'a1f0c93', edits: [], solves: false },
+    { name: 'the note left out of the order', edits: [{ save: 'order.js', replace: ['JSON.stringify({ lines, note })', 'JSON.stringify({ items: lines })'] }], solves: false },
+    { name: 'the thank-you shown whatever the server says', edits: [{ save: 'order.js', replace: ['  if (!response.ok) {', '  if (false) {'] }], solves: false }
+  ],
+  'debugging-practice-field-the-server-reads': [
+    { name: 'a value written into the code', edits: [{ save: 'gift.js', replace: ['JSON.stringify({ amount: Number(amount.value) })', 'JSON.stringify({ value: 20 })'] }], solves: false }
+  ],
+  'debugging-32-which-deploy': [
+    { name: 'Number(total.toFixed(2))', edits: [{ save: 'order.js', replace: ['  const total = Number(formatPrice(basketTotal()))', '  const total = Number(basketTotal().toFixed(2))'] }], solves: true },
+    { name: 'rolled back to c41e9a2: orders work, the euro signs and the basket total are gone', rollback: 'c41e9a2', edits: [], solves: false },
+    { name: 'rolled back to 8d03f5b: the culprit is still there', rollback: '8d03f5b', edits: [], solves: false },
+    { name: 'formatPrice without the euro sign again', edits: [{ save: 'money.js', replace: ['  return `${amount.toFixed(2)} €`', '  return amount.toFixed(2)'] }], solves: false },
+    { name: 'a total written into the code', edits: [{ save: 'order.js', replace: ['  const total = Number(formatPrice(basketTotal()))', '  const total = 4.8'] }], solves: false },
+    { name: 'no total in the order', edits: [{ save: 'order.js', replace: ['JSON.stringify({ items, total })', 'JSON.stringify({ items })'] }], solves: false }
+  ],
+  'debugging-practice-keep-the-euro-sign': [
+    { name: 'the euro sign cut off before reading the number', edits: [{ save: 'delivery.js', replace: ['  const amount = parseFloat(formatPrice(total))', '  const amount = parseFloat(formatPrice(total).replace(\'€\', \'\'))'] }], solves: true },
+    { name: 'rolled back to 3e8b2f1: the euro sign is gone', rollback: '3e8b2f1', edits: [], solves: false },
+    { name: 'NaN let through as free', edits: [{ save: 'delivery.js', replace: ['amount >= 25 ?', '!(amount < 25) ?'] }], solves: false }
+  ],
+  'debugging-33-roll-back-now': [
+    { name: 'rolled back too far, to 2c7d9e4: yesterday\'s thank-you is gone', rollback: '2c7d9e4', edits: [], solves: false },
+    { name: 'the new checkout patched to go on without pickup times', edits: [{ save: 'order.js', replace: ['  const slots = await response.json()\n', '  const slots = response.ok ? await response.json() : [\'tomorrow from 7:00\']\n'] }], solves: false }
+  ],
+  'debugging-practice-roll-it-back': [
+    { name: 'the old address typed back by hand', edits: [{ save: 'specials.js', replace: ['fetch(\'/api/v2/specials\')', 'fetch(\'/api/specials\')'] }], solves: true }
+  ],
+  'debugging-34-some-customers': [
+    {
+      name: 'backslashes, quotes and line breaks escaped by hand',
+      edits: [{ save: 'order.js', replace: ['  const note = document.querySelector(\'#note\').value.trim()\n', String.raw`  const note = document.querySelector('#note').value.trim().replaceAll('\\', '\\\\').replaceAll('"', '\\"').replaceAll('\n', '\\n')` + '\n'] }],
+      solves: true
+    },
+    { name: 'quotes and line breaks escaped, backslashes not (review 2026-11-13)', edits: [{ save: 'order.js', replace: ['  const note = document.querySelector(\'#note\').value.trim()\n', String.raw`  const note = document.querySelector('#note').value.trim().replaceAll('"', '\\"').replaceAll('\n', '\\n')` + '\n'] }], solves: false },
+    { name: 'only the quotes escaped', edits: [{ save: 'order.js', replace: ['  const note = document.querySelector(\'#note\').value.trim()\n', String.raw`  const note = document.querySelector('#note').value.trim().replaceAll('"', '\\"')` + '\n'] }], solves: false },
+    { name: 'quotes turned into apostrophes, line breaks into spaces', edits: [{ save: 'order.js', replace: ['  const note = document.querySelector(\'#note\').value.trim()\n', '  const note = document.querySelector(\'#note\').value.trim().replaceAll(\'"\', "\'").replaceAll(\'\\n\', \' \')\n'] }], solves: false },
+    { name: 'the note left out', edits: [{ save: 'order.js', replace: ['    body: \'{"items":\' + JSON.stringify(items) + \',"note":"\' + note + \'"}\'', '    body: JSON.stringify({ items })'] }], solves: false },
+    { name: 'rolled back to 6d2e0a1: the notes deploy itself', rollback: '6d2e0a1', edits: [], solves: false }
+  ],
+  'debugging-practice-escape-the-name': [
+    { name: 'the quotes taken out of the name', edits: [{ save: 'newsletter.js', replace: ['  const name = document.querySelector(\'#name\').value.trim()\n', '  const name = document.querySelector(\'#name\').value.trim().replaceAll(\'"\', \'\')\n'] }], solves: false }
+  ],
+  'debugging-35-only-in-production': [
+    { name: 'the production flags looked up by their new name', edits: [{ save: 'config.js', replace: ['export const flags = FLAGS[ENVIRONMENT] ?? FLAGS.staging', 'export const flags = FLAGS[ENVIRONMENT === \'production\' ? \'live\' : ENVIRONMENT]'] }], solves: true },
+    { name: 'rolled back to 7a3c5e9: the gift cards are off again', rollback: '7a3c5e9', edits: [], solves: false },
+    { name: 'env.js says live: the shop calls itself a test site', edits: [{ save: 'env.js', replace: ['export const ENVIRONMENT = \'production\'', 'export const ENVIRONMENT = \'live\''] }], solves: false },
+    { name: 'the stamp\'s 404 ignored: production still calls staging\'s service', edits: [{ save: 'order.js', replace: ['      if (!stamp.ok) throw new Error(`The stamp was answered with ${stamp.status}`)\n', ''] }], solves: false },
+    { name: 'no fallback at all', edits: [{ save: 'config.js', replace: [' ?? FLAGS.staging', ''] }], solves: false }
+  ],
+  'debugging-practice-switch-it-off': [
+    { name: 'env.js says staging', edits: [{ save: 'env.js', replace: ['export const ENVIRONMENT = \'production\'', 'export const ENVIRONMENT = \'staging\''] }], solves: false },
+    { name: 'the reviews\' 404 caught, the request still sent', edits: [{ save: 'app.js', replace: ['  const reviews = await response.json()\n', '  if (!response.ok) return\n  const reviews = await response.json()\n'] }], solves: false }
   ]
 }

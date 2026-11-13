@@ -1,18 +1,19 @@
 // The Debugging play page on top of usePlaySession (docs/features/ui.md, "Debugging play page"): the app in its sealed
 // frame, the Console, the Network panel (levels with a backend), the Elements panel (levels that use it), the Debugger
 // (chapter 5: a recorded run, its breakpoints and stepping), the Performance panel (chapter 6: a counted run, its
-// profile), the code with its drafts, Reload with its check run, and find tasks' clicks. The session, goals, recording of the solve, stats events and debrief are shared.
+// profile), the Logs and Deploys panels (chapter 7: the server's log lines, the shop's deploys with Roll back, and the
+// colleagues' messages), the code with its drafts, Reload with its check run, and find tasks' clicks. The session, goals, recording of the solve, stats events and debrief are shared.
 // The session, the drafts, the open file and the last click live in the play state (they survive leaving the page); the
 // app you see, its Console, its requests, its DOM and the marked line live as long as the page (coming back loads the
 // app again).
 import {
-  RECORD_LIMITS, consoleEntry, cssRules, fittingProfile, fittingSteps, needsCounting, frameStep, hitCounts, nextHit, nodeAtPath, nodePath, pickLine, previousHit, readBridgeMessage, reload,
-  requestEntry, restart, saveDebugFile, scopeAt, scopeValues, startDebugLevel, startExpanded, stepBack, stepInto, stepLine, stepOut, stepOver, takeHint,
-  withAncestors, withResponse, withoutInstrumentation
+  MAX_LOG_LINES, RECORD_LIMITS, consoleEntry, cssRules, deployById, differingPaths, fittingProfile, fittingSteps, historyEntries, lineIn, liveEntries, needsCounting, frameStep, hitCounts, nextHit,
+  nodeAtPath, nodePath, pickDeploy, pickLine, previousHit, readBridgeMessage, reload, requestEntry, restart, restoreFiles, rollback, saveDebugFile, scopeAt, scopeValues, startDebugLevel, startExpanded, stepBack,
+  stepInto, stepLine, stepOut, stepOver, takeHint, versionOf, withAncestors, withResponse, withoutInstrumentation
 } from '#shared/levels'
 import type {
-  Breakpoint, ConsoleEntryBody, CssRule, DebugLevel, DebugResult, DebugSession, DomNode, Inspected, Instrumented, NetworkEntry, PickVerdict, Profile, RecordEndReason,
-  RecordedStep, ScopeEntries, SourceLine, SourceMapping
+  Breakpoint, ColleagueMessage, ConsoleEntryBody, CssRule, DebugLevel, DebugResult, DebugSession, DeployPick, DomNode, Inspected, Instrumented, LogEntry, LoggedRequest, NetworkEntry, PickVerdict,
+  Profile, RecordEndReason, RecordedStep, ScopeEntries, SourceLine, SourceMapping
 } from '#shared/levels'
 import type { CompiledCondition } from '#shared/levels/debugging/condition'
 import type { LineTone } from '~/editor/codemirror'
@@ -22,8 +23,8 @@ import { fileOrder } from '~/utils/debug-files'
 
 export type ConsoleEntry = ConsoleEntryBody & { id: number }
 
-/** A find task's last click, with what it said. */
-export type Answer = SourceLine & PickVerdict
+/** A find task's last click (a line, or in chapter 7 a deploy), with what it said. */
+export type Answer = (SourceLine | DeployPick) & PickVerdict
 
 interface PlayState {
   session: DebugSession
@@ -32,6 +33,8 @@ interface PlayState {
   /** The file open in the editor. */
   active: string
   answer: Answer | null
+  /** Chapter 7: the saved files from before a rollback when they were your own code (no deploy's): Undo roll back. */
+  undoFiles: Record<string, string> | null
 }
 
 /** The Console keeps at most this many lines (the oldest go first). */
@@ -97,7 +100,7 @@ function loadRecordTools(): Promise<RecordTools> {
 export function useDebuggingPlay(level: DebugLevel) {
   const fresh = (): PlayState => {
     const session = startDebugLevel(level)
-    return { session, drafts: { ...session.state.files }, active: level.sandbox.open, answer: null }
+    return { session, drafts: { ...session.state.files }, active: level.sandbox.open, answer: null, undoFiles: null }
   }
   const play = usePlaySession(level, { fresh, onRestart: () => nextTick(restartApp) })
   const { store, session, next, goals, best, debriefOpen, progressBefore, sparkKey } = play
@@ -112,6 +115,11 @@ export function useDebuggingPlay(level: DebugLevel) {
   const hasDebugger = level.sandbox.debugger === true
   /** The level uses the Performance panel (chapter 6). */
   const hasPerformance = level.sandbox.performance === true
+  /** Chapter 7: the server's logs (the Logs panel) and the shop's deploys (the Deploys panel). */
+  const logsSpec = level.sandbox.logs ?? null
+  const hasLogs = logsSpec !== null
+  const deployHistory = level.sandbox.deploys ?? null
+  const hasDeploys = deployHistory !== null
   const files = computed(() => fileOrder(Object.keys(session.value.state.files)))
   const unsaved = computed(() => files.value.filter(path => store.value.drafts[path] !== session.value.state.files[path]))
   const reloads = computed(() => session.value.reloads ?? 0)
@@ -122,6 +130,18 @@ export function useDebuggingPlay(level: DebugLevel) {
   const entries = ref<ConsoleEntry[]>([])
   /** The Network panel: the requests of this load, in the order sent. */
   const requests = shallowRef<NetworkEntry[]>([])
+  /** The Network panel's selected request (the Logs panel can select one too). */
+  const networkSelected = ref<number | null>(null)
+  /** Goes up when a request is shown from elsewhere (a log line's request): the page switches to the Network panel. */
+  const requestShown = ref(0)
+  /** Chapter 7: this load's log lines (the history is the level's, see `logLines`). */
+  const liveLogs = shallowRef<LogEntry[]>([])
+  /** This load's requests as the server logs them (kept apart from the Network panel, which Clear empties). */
+  let loggedRequests = new Map<number, LoggedRequest>()
+  /** The requests whose report the panel has (a second report for one is dropped). */
+  let loggedIds = new Set<number>()
+  /** The server logged more lines this load than the panel keeps. */
+  const logsCut = ref(false)
   const ready = ref(false)
   const checking = ref(false)
   let nextId = 0
@@ -205,6 +225,11 @@ export function useDebuggingPlay(level: DebugLevel) {
     }
     entries.value = []
     requests.value = []
+    networkSelected.value = null
+    liveLogs.value = []
+    loggedRequests = new Map()
+    loggedIds = new Set()
+    logsCut.value = false
     queue = []
     appMessages = 0
     ready.value = false
@@ -215,7 +240,7 @@ export function useDebuggingPlay(level: DebugLevel) {
     hovered.value = null
     awaitingDom = hasElements
     mapping.value = { urls: {}, bridgeLine: 0 }
-    load.value = appLoad(files, { backend, elements: hasElements, record: recorded, profile })
+    load.value = appLoad(files, { backend, elements: hasElements, record: recorded, profile, logs: logsSpec ?? undefined })
     mapping.value = { urls: {}, bridgeLine: load.value.bridgeLine }
   }
 
@@ -307,8 +332,11 @@ export function useDebuggingPlay(level: DebugLevel) {
       if (profileStatus.value === 'recording') profileWork.value = message.work
     } else if (message.type === 'profile') {
       takeProfile(message.profile)
+    } else if (message.type === 'serverlog') {
+      takeServerLog(message)
     } else if (message.type === 'request') {
       const entry = requestEntry(message, mapping.value)
+      if (hasLogs && loggedRequests.size < MAX_REQUESTS) loggedRequests.set(message.id, { method: message.method, url: message.url, body: message.body })
       if (requests.value.length < MAX_REQUESTS) requests.value = [...requests.value, entry]
       const counted = profiling.value
       if (counted && current.recorded && counted.requests.length < MAX_REQUESTS) profiling.value = { ...counted, requests: [...counted.requests, entry] }
@@ -328,6 +356,125 @@ export function useDebuggingPlay(level: DebugLevel) {
       }
     }
   }
+
+  // --- the Logs and Deploys panels (chapter 7) -----------------------------------------------------------------------
+
+  /** The server answered a request of this load: its lines, built from the level's data (the frame sent numbers only). */
+  function takeServerLog(message: { id: number, route: number, answer: number, status: number, at: number, time: number }) {
+    const request = loggedRequests.get(message.id)
+    if (!logsSpec || !backend || !request || logsCut.value || loggedIds.has(message.id)) return
+    loggedIds.add(message.id)
+    const lines = liveEntries(message, request, logsSpec, backend, session.value.state.files)
+    const room = MAX_LOG_LINES - liveLogs.value.length
+    if (lines.length > room) logsCut.value = true
+    liveLogs.value = [...liveLogs.value, ...lines.slice(0, Math.max(room, 0))]
+  }
+
+  /** Every line of the Logs panel: what the server logged before you came, then this load's. */
+  const logLines = computed<LogEntry[]>(() => logsSpec ? [...historyEntries(logsSpec, session.value.state.files), ...liveLogs.value] : [])
+
+  /** A log line's request in the Network panel (this load's requests only). */
+  function showRequest(id: number) {
+    if (!requests.value.some(entry => entry.id === id)) return
+    networkSelected.value = id
+    requestShown.value++
+  }
+
+  /** The deploy whose files are the saved code (null: none, the code was changed). */
+  const savedVersion = computed(() => deployHistory ? versionOf(deployHistory, session.value.state.files) : null)
+
+  /**
+   * What rolling back to a deploy changes in the saved code: the files, which of them hold your own saved code (text no
+   * deploy has), which have unsaved edits, and whether Undo roll back will bring the saved code back (it is your own).
+   */
+  function rollbackPreview(id: string): { paths: string[], replaced: string[], unsaved: string[], undoable: boolean } {
+    const deploy = deployHistory ? deployById(deployHistory, id) : null
+    if (!deploy || !deployHistory) return { paths: [], replaced: [], unsaved: [], undoable: false }
+    const saved = session.value.state.files
+    const paths = differingPaths(saved, deploy.files)
+    const replaced = paths.filter(path => !deployHistory.list.some(each => each.files[path] === saved[path]))
+    return { paths, replaced, unsaved: unsaved.value.filter(path => deploy.files[path] !== store.value.drafts[path]), undoable: savedVersion.value === null }
+  }
+
+  /** Undo roll back is there: the saved code from before a rollback was your own, and it is not what is saved now. */
+  const canUndoRollback = computed(() => {
+    const kept = store.value.undoFiles ?? null
+    return kept !== null && differingPaths(kept, session.value.state.files).length > 0
+  })
+
+  /** Puts the files of the editor after a change of the saved code (and drops a mark whose line may have moved). */
+  function showSaved(before: Readonly<Record<string, string>>, after: Readonly<Record<string, string>>) {
+    const changed = new Set(differingPaths(before, after))
+    for (const [path, text] of Object.entries(after)) {
+      if (changed.has(path) || store.value.drafts[path] !== text) store.value.drafts[path] = text
+    }
+    mark.value = null
+  }
+
+  /**
+   * Roll back: the deploy's files become the saved code (counted, like a save; Reload runs them), and the editor shows
+   * them. Unsaved edits in those files are dropped (the panel asks first). Works in find tasks too, to try a version.
+   */
+  function rollbackTo(id: string) {
+    const deploy = deployHistory ? deployById(deployHistory, id) : null
+    if (!deploy) return
+    play.markPlayed()
+    const before = session.value.state.files
+    const result = rollback(session.value, level, id)
+    if (result.session === session.value) return
+    // your own saved code (no deploy's) is kept for Undo roll back; a version of the list is one click away anyway
+    if (savedVersion.value === null) store.value.undoFiles = { ...before }
+    showSaved(before, result.session.state.files)
+    apply(result)
+  }
+
+  /** Undo roll back: the saved code from before the rollback comes back (counted, like a save). */
+  function undoRollback() {
+    const kept = store.value.undoFiles ?? null
+    if (!kept || checking.value) return
+    play.markPlayed()
+    const before = session.value.state.files
+    const result = restoreFiles(session.value, level, kept)
+    store.value.undoFiles = null
+    if (result.session === session.value) return
+    showSaved(before, result.session.state.files)
+    apply(result)
+  }
+
+  /** A find task's answer named in the Deploys panel ("this one broke it"). */
+  function answerDeploy(id: string) {
+    if (!find?.deploys) return
+    play.markPlayed()
+    const result = pickDeploy(session.value, level, id)
+    if (!result.output.verdict) return
+    store.value.answer = { deploy: id, ...result.output.verdict }
+    apply(result)
+  }
+
+  /**
+   * A line of a deploy's diff: Code opens it where that line is in the editor's text now (a removed line where it
+   * was); in a find task it is the answer, in the saved text (a find task has no edits). A line that is gone opens its file.
+   */
+  function openDiffLine(id: string, path: string, at: number) {
+    const deploy = deployHistory ? deployById(deployHistory, id) : null
+    const text = find ? session.value.state.files[path] : store.value.drafts[path] ?? session.value.state.files[path]
+    if (!deploy || text === undefined) return
+    const line = lineIn(deploy.files[path] ?? '', at, text)
+    openFile(path)
+    if (line === null) return
+    if (find) pick({ path, line })
+    else revealLine({ path, line })
+  }
+
+  /** The colleagues' messages: the report the level opens with, then each colleague event that fired, in order. */
+  const messages = computed<(ColleagueMessage & { id: string })[]>(() => {
+    const fired = session.value.firedEvents
+    const events = (level.teammates ?? []).filter(event => fired.includes(event.id)).sort((a, b) => fired.indexOf(a.id) - fired.indexOf(b.id))
+    return [
+      ...(level.report ? [{ id: 'report', ...level.report }] : []),
+      ...events.map(event => ({ id: event.id, author: event.author, text: event.notice }))
+    ]
+  })
 
   // --- the Debugger (chapter 5): a recorded run, breakpoints and stepping ----------------------------------------------
 
@@ -647,6 +794,7 @@ export function useDebuggingPlay(level: DebugLevel) {
 
   function clearNetwork() {
     requests.value = []
+    networkSelected.value = null
   }
 
   function apply(result: DebugResult) {
@@ -659,6 +807,8 @@ export function useDebuggingPlay(level: DebugLevel) {
     const draft = store.value.drafts[path]
     if (find || draft === undefined || draft === session.value.state.files[path]) return
     play.markPlayed()
+    // Undo roll back would throw this save away: it is gone once you save on top of a rollback
+    store.value.undoFiles = null
     apply(saveDebugFile(session.value, level, path, draft))
   }
 
@@ -676,11 +826,12 @@ export function useDebuggingPlay(level: DebugLevel) {
       counted = (await ensureTools())?.instrumentFiles(saved)
       if (disposed || startedIn !== attempt) return
     }
-    const observation = await runCheck(saved, level.sandbox.probes, { backend, performance: hasPerformance, counted })
+    const observation = await runCheck(saved, level.sandbox.probes, { backend, performance: hasPerformance, counted, logs: logsSpec ?? undefined })
     // a Reset or Again while the check ran started a new attempt: this result belongs to the old one
     if (disposed || startedIn !== attempt) return
     checking.value = false
-    apply(reload(session.value, level, observation))
+    // what the check ran: a save made while it ran is not what it checked
+    apply(reload(session.value, level, observation, saved))
   }
 
   function openFile(path: string) {
@@ -734,6 +885,7 @@ export function useDebuggingPlay(level: DebugLevel) {
     store.value.drafts = { ...restarted.state.files }
     store.value.active = level.sandbox.open
     store.value.answer = null
+    store.value.undoFiles = null
     restartApp()
   }
 
@@ -754,6 +906,9 @@ export function useDebuggingPlay(level: DebugLevel) {
     hasElements,
     hasDebugger,
     hasPerformance,
+    hasLogs,
+    hasDeploys,
+    deployHistory,
     session,
     store,
     files,
@@ -768,6 +923,19 @@ export function useDebuggingPlay(level: DebugLevel) {
     load,
     entries,
     requests,
+    networkSelected,
+    requestShown,
+    logLines,
+    logsCut,
+    showRequest,
+    savedVersion,
+    rollbackPreview,
+    rollbackTo,
+    canUndoRollback,
+    undoRollback,
+    answerDeploy,
+    openDiffLine,
+    messages,
     dom,
     domTruncated,
     rules,

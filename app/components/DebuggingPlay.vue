@@ -5,9 +5,10 @@ import type { DebugLevel, LevelPlace } from '#shared/levels'
 // The Debugging play page (the play page picks it for a Debugging level; docs/features/ui.md, "Debugging play page"):
 // in the shared PlayFrame, the level panel left, Code above the Console in the middle, the App on the right. A level
 // with a backend has a Network panel too, a level of chapter 3 an Elements panel, one of chapter 5 the Debugger, one of
-// chapter 6 the Performance panel, as tabs next to the Console (the chapter's own panel first and open first). Below lg
-// the panels are tabs (App, Elements, Debugger or Performance, Console, Network, Code; the ones the level has), all
-// mounted, so switching never reloads the app. No layout switch.
+// chapter 6 the Performance panel, one of chapter 7 the Logs and Deploys panels, as tabs next to the Console (the
+// chapter's own panels first, the first one open). Below lg the panels are tabs (App, Elements, Debugger or Performance,
+// Logs, Deploys, Console, Network, Code; the ones the level has), all mounted, so switching never reloads the app. In
+// chapter 7 the level panel also lists the colleagues' messages. No layout switch.
 const props = defineProps<{
   level: DebugLevel
   place: LevelPlace
@@ -16,15 +17,17 @@ const props = defineProps<{
 const { t } = useI18n()
 
 const play = useDebuggingPlay(props.level)
-const { session, store, goals, next, stats, reloads, find, hasNetwork, hasElements, hasDebugger, hasPerformance, requests, picking, pickedAt, recordStatus, profileStatus, debriefOpen, progressBefore, sparkKey, mark, hint, reset, again } = play
+const { session, store, goals, next, stats, reloads, find, hasNetwork, hasElements, hasDebugger, hasPerformance, hasLogs, hasDeploys, requests, requestShown, picking, pickedAt, recordStatus, profileStatus, debriefOpen, progressBefore, sparkKey, mark, hint, reset, again } = play
 
-type Lower = 'elements' | 'debugger' | 'performance' | 'console' | 'network'
+type Lower = 'elements' | 'debugger' | 'performance' | 'logs' | 'deploys' | 'console' | 'network'
 type Panel = 'app' | Lower | 'code'
 /** The panels under the code (from lg one at a time, as tabs): the ones this level has, the chapter's own panel first. */
 const LOWER: Lower[] = [
   ...(hasElements ? ['elements' as const] : []),
   ...(hasDebugger ? ['debugger' as const] : []),
   ...(hasPerformance ? ['performance' as const] : []),
+  ...(hasLogs ? ['logs' as const] : []),
+  ...(hasDeploys ? ['deploys' as const] : []),
   'console',
   ...(hasNetwork ? ['network' as const] : [])
 ]
@@ -44,6 +47,11 @@ watch(lower, (name) => {
 // a line opened from the Console, the Network or the Elements panel (or a find task's answer) shows Code on phones
 watch(mark, (line) => {
   if (line) panel.value = 'code'
+})
+// a request shown from a log line: the Network panel, on phones and from lg
+watch(requestShown, () => {
+  panel.value = 'network'
+  lower.value = 'network'
 })
 const wide = useMediaQuery('(min-width: 1024px)')
 // pick mode on a phone: the App to click in, then back to the Elements panel with what you picked
@@ -78,7 +86,8 @@ const lowerLabel = computed(() => {
   const names = LOWER.map(name => t(`debugging.panel.${name}`))
   return names.length > 1 ? t('debugging.lowerList', { first: names.slice(0, -1).join(', '), last: names.at(-1) }) : names[0]!
 })
-const TAB_COLUMNS: Record<number, string> = { 3: 'grid-cols-3', 4: 'grid-cols-4', 5: 'grid-cols-5' }
+// six tabs (chapter 7) take two rows of three on a phone: one row of six would cut their names
+const TAB_COLUMNS: Record<number, string> = { 3: 'grid-cols-3', 4: 'grid-cols-4', 5: 'grid-cols-5', 6: 'grid-cols-3' }
 
 /** Arrow keys move along a tab set (they wrap), Home and End jump to its ends; the new tab gets the focus. */
 function moveTab<T extends string>(event: KeyboardEvent, names: readonly T[], current: T, choose: (name: T) => void, list: HTMLElement | null) {
@@ -110,7 +119,9 @@ const networkPanel = useTemplateRef<{ focus: () => void }>('networkPanel')
 const elementsPanel = useTemplateRef<{ focus: () => void }>('elementsPanel')
 const debuggerPanel = useTemplateRef<{ focus: () => void }>('debuggerPanel')
 const performancePanel = useTemplateRef<{ focus: () => void }>('performancePanel')
-const focusConsole = () => ({ console: consolePanel, network: networkPanel, elements: elementsPanel, debugger: debuggerPanel, performance: performancePanel })[lower.value].value?.focus()
+const logsPanel = useTemplateRef<{ focus: () => void }>('logsPanel')
+const deploysPanel = useTemplateRef<{ focus: () => void }>('deploysPanel')
+const focusConsole = () => ({ console: consolePanel, network: networkPanel, elements: elementsPanel, debugger: debuggerPanel, performance: performancePanel, logs: logsPanel, deploys: deploysPanel })[lower.value].value?.focus()
 
 const shown = (name: Panel) => panel.value === name ? '' : 'max-lg:hidden'
 /** A lower panel: shown below lg as a tab of its own, from lg as the chosen one under the code. */
@@ -119,6 +130,19 @@ const shownLower = (name: Lower) => [shown(name), LOWER.length > 1 && lower.valu
 const labelledBy = (name: Lower) => wide.value && LOWER.length > 1 ? `debugging-lower-tab-${name}` : `debugging-tab-${name}`
 
 const revealedHints = computed(() => props.level.kind === 'scenario' ? props.level.hints.slice(0, session.value.hintsUsed) : [])
+/** Where a wrong answer was: a line, or (chapter 7) a deploy. */
+const answerWhere = computed(() => {
+  const answer = store.value.answer
+  if (!answer) return ''
+  return 'deploy' in answer ? answer.deploy : `${answer.path}:${answer.line}`
+})
+const topNote = computed(() => {
+  if (find) return t('debugging.findNote')
+  if (hasDebugger) return t('debugging.debuggerNote')
+  if (hasPerformance) return t('debugging.performanceNote')
+  if (hasLogs) return t('debugging.incidentNote')
+  return t('debugging.note')
+})
 </script>
 
 <template>
@@ -128,7 +152,7 @@ const revealedHints = computed(() => props.level.kind === 'scenario' ? props.lev
         :name="find ? 'i-lucide-mouse-pointer-click' : 'i-lucide-bug'"
         class="size-4 shrink-0"
       />
-      {{ find ? t('debugging.findNote') : hasDebugger ? t('debugging.debuggerNote') : hasPerformance ? t('debugging.performanceNote') : t('debugging.note') }}
+      {{ topNote }}
     </p>
     <p
       class="shrink-0 rounded-md border border-default px-2.5 py-1 font-mono text-xs text-muted tabular-nums"
@@ -153,6 +177,7 @@ const revealedHints = computed(() => props.level.kind === 'scenario' ? props.lev
         @again="again"
         @debrief="debriefOpen = true"
       >
+        <DebuggingTeam :play="play" />
         <section
           v-if="revealedHints.length"
           aria-labelledby="hints-heading"
@@ -184,7 +209,7 @@ const revealedHints = computed(() => props.level.kind === 'scenario' ? props.lev
           class="rounded-lg border border-warning bg-warning/10 px-3 py-2 text-sm text-toned"
           data-testid="pick-verdict"
         >
-          <span class="font-medium text-highlighted">{{ t('debugging.notIt', { where: `${store.answer.path}:${store.answer.line}` }) }}</span>
+          <span class="font-medium text-highlighted">{{ t('debugging.notIt', { where: answerWhere }) }}</span>
           {{ ' ' }}<InlineText :text="store.answer.why ?? ''" />
         </p>
       </LevelPanel>
@@ -299,6 +324,26 @@ const revealedHints = computed(() => props.level.kind === 'scenario' ? props.lev
             :play="play"
             class="max-lg:h-[34rem] lg:min-h-0 lg:flex-1"
             :class="shownLower('performance')"
+          />
+          <DebuggingLogs
+            v-if="hasLogs"
+            id="debugging-logs"
+            ref="logsPanel"
+            role="tabpanel"
+            :aria-labelledby="labelledBy('logs')"
+            :play="play"
+            class="max-lg:h-[30rem] lg:min-h-0 lg:flex-1"
+            :class="shownLower('logs')"
+          />
+          <DebuggingDeploys
+            v-if="hasDeploys"
+            id="debugging-deploys"
+            ref="deploysPanel"
+            role="tabpanel"
+            :aria-labelledby="labelledBy('deploys')"
+            :play="play"
+            class="max-lg:h-[30rem] lg:min-h-0 lg:flex-1"
+            :class="shownLower('deploys')"
           />
           <DebuggingConsole
             id="debugging-console"

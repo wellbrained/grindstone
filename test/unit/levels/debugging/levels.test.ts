@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { SHOP_ORIGIN, backendConfig, cssRules, debuggingLevels, editedText, levelIntro, pickLine, playSolution, reload, saveDebugFile, startDebugLevel, takeHint } from '../../../../shared/levels'
-import type { DebugLevel, Observation } from '../../../../shared/levels'
+import { SHOP_ORIGIN, backendConfig, checkLogs, cssRules, debuggingLevels, deployById, editedText, historyEntries, levelIntro, liveFiles, pickDeploy, pickLine, playSolution, reload, saveDebugFile, startDebugLevel, takeHint } from '../../../../shared/levels'
+import type { DebugLevel, DebugStep, Observation } from '../../../../shared/levels'
 import { probesGoal } from '../../../../shared/levels/debugging/checks'
 import { expected } from './expected'
 import { otherFixes } from './fixes'
@@ -19,6 +19,17 @@ const observed = (run: ExpectedRun): Observation => ({
 })
 
 const lines = (level: DebugLevel, path: string) => (level.setup().files[path] ?? '').split('\n')
+
+/** The files after a solution's edits and rollbacks (chapter 7), from the starting files. */
+function solvedFiles(level: DebugLevel, steps: readonly DebugStep[] = level.solution): Record<string, string> {
+  let files = level.setup().files
+  for (const step of steps) {
+    if (typeof step === 'string') continue
+    if ('save' in step) files = { ...files, [step.save]: editedText(files, step) }
+    else if ('rollback' in step) files = { ...deployById(level.sandbox.deploys!, step.rollback)!.files }
+  }
+  return files
+}
 const texts = (level: DebugLevel) => [levelIntro(level), ...level.hints, ...(level.kind === 'scenario' ? level.debrief.paragraphs : [level.why])]
 
 /** Lines the texts point at, with what is there: the hints may only name lines that say what they claim. */
@@ -107,7 +118,22 @@ const POINTED_AT: Record<string, [path: string, line: number, contains: string][
   'debugging-practice-both-at-once': [['breads.js', 8, 'await getJson(\'/api/breads\')'], ['breads.js', 9, 'await getJson(\'/api/stock\')']],
   'debugging-30-asks-again': [['tabs.js', 10, 'async function showTab(name)'], ['tabs.js', 11, 'await fetch('], ['tabs.js', 12, 'await response.json()']],
   'debugging-practice-asks-for-hours-again': [['hours.js', 5, 'fetch(\'/api/hours\')'], ['hours.js', 10, 'addEventListener(\'click\', toggleHours)'], ['hours.js', 6, 'box.textContent'], ['hours.js', 4, 'async function toggleHours']],
-  'debugging-practice-keep-the-answer': [['stamps.js', 6, 'card = await']]
+  'debugging-practice-keep-the-answer': [['stamps.js', 6, 'card = await']],
+  'debugging-31-checkout-errors': [['order.js', 13, 'body: JSON.stringify({ lines, note })'], ['order.js', 8, 'const lines = ']],
+  'debugging-practice-customer-error': [['basket.js', 8, 'product.name'], ['basket.js', 7, 'MENU.find('], ['basket.js', 15, 'lineText(id)'], ['basket.js', 11, 'export function renderBasket'], ['app.js', 6, 'renderBasket('], ['app.js', 5, 'fetch(\'/api/basket\')']],
+  'debugging-practice-field-the-server-reads': [['gift.js', 9, 'JSON.stringify({ amount:']],
+  'debugging-32-which-deploy': [['order.js', 10, 'Number(formatPrice(basketTotal()))'], ['money.js', 3, '€']],
+  'debugging-practice-broke-the-hours': [['hours.js', 5, 'hours.weekday}'], ['hours.js', 3, 'fetch(\'/api/hours\')']],
+  'debugging-practice-keep-the-euro-sign': [['delivery.js', 5, 'parseFloat(formatPrice(total))']],
+  'debugging-33-roll-back-now': [['order.js', 11, 'fetch(\'/api/slots\')']],
+  'debugging-practice-last-good-version': [['menu.js', 4, 'fetch(\'/api/v2/menu\')']],
+  'debugging-practice-roll-it-back': [['specials.js', 3, 'fetch(\'/api/v2/specials\')']],
+  'debugging-34-some-customers': [['order.js', 12, '\',"note":"\' + note']],
+  'debugging-practice-body-by-hand': [['cake.js', 11, '\'","message":"\' + text'], ['cake.js', 8, 'await fetch('], ['cake.js', 7, 'message.value.trim()'], ['cake.js', 13, 'response.ok']],
+  'debugging-practice-escape-the-name': [['newsletter.js', 8, '\'{"name":"\' + name']],
+  'debugging-35-only-in-production': [['config.js', 7, 'live: { giftCards: true, stamps: false }'], ['config.js', 11, '?? FLAGS.staging']],
+  'debugging-practice-flag-in-production': [['config.js', 6, 'production: { recommendations: true'], ['config.js', 5, 'staging:'], ['env.js', 3, '\'production\''], ['recommend.js', 6, 'fetch(\'/api/recommendations\')'], ['config.js', 9, 'FLAGS[ENVIRONMENT]']],
+  'debugging-practice-switch-it-off': [['config.js', 6, 'production: { reviews: true']]
 }
 
 describe('the Debugging levels', () => {
@@ -144,7 +170,9 @@ describe('the Debugging levels', () => {
       if (find) {
         expect(level.kind).toBe('practice')
         expect(level.sandbox.probes).toEqual([])
-        expect(level.solution).toEqual([{ pick: find.path, line: find.lines[0] }])
+        // a click on the line, or (chapter 7) naming the deploy
+        const answer = level.solution[0]
+        expect(level.solution).toEqual(typeof answer === 'object' && 'pickDeploy' in answer ? [{ pickDeploy: find.deploys?.[0] }] : [{ pick: find.path, line: find.lines[0] }])
       } else {
         expect(level.sandbox.probes.length).toBeGreaterThan(0)
         expect(level.solution.at(-1)).toBe('reload')
@@ -213,8 +241,23 @@ describe('the Debugging levels', () => {
           expect(result.output.verdict).toEqual({ right: true, why: null })
           expect(result.solvedNow).toBe(true)
         }
+        for (const deploy of find.deploys ?? []) {
+          expect(deployById(level.sandbox.deploys!, deploy), deploy).not.toBeNull()
+          const result = pickDeploy(startDebugLevel(level), level, deploy)
+          expect(result.output.verdict).toEqual({ right: true, why: null })
+          expect(result.solvedNow).toBe(true)
+        }
         for (const [place, why] of Object.entries(find.wrong)) {
           const [path, line] = place.split(':')
+          if (path === 'deploy') {
+            // a deploy that is not the answer (chapter 7)
+            expect(deployById(level.sandbox.deploys!, line!), place).not.toBeNull()
+            expect(find.deploys?.includes(line!), place).toBe(false)
+            const result = pickDeploy(startDebugLevel(level), level, line!)
+            expect(result.output.verdict).toEqual({ right: false, why })
+            expect(result.session.solved).toBe(false)
+            continue
+          }
           expect(find.lines.includes(Number(line)) && path === find.path, place).toBe(false)
           expect(lines(level, path!).length, place).toBeGreaterThanOrEqual(Number(line))
           const result = pickLine(startDebugLevel(level), level, { path: path!, line: Number(line) })
@@ -225,7 +268,7 @@ describe('the Debugging levels', () => {
         expect(elsewhere.output.verdict).toEqual({ right: false, why: find.otherwise })
         // a wrong click, then the right one: solved, and the clicks count as actions but not as reloads
         const wrong = pickLine(startDebugLevel(level), level, { path: 'index.html', line: 1 })
-        const right = pickLine(wrong.session, level, { path: find.path, line: find.lines[0]! })
+        const right = find.lines.length ? pickLine(wrong.session, level, { path: find.path, line: find.lines[0]! }) : pickDeploy(wrong.session, level, find.deploys![0]!)
         expect(right.session).toMatchObject({ solved: true, commandCount: 2 })
         expect(right.session.reloads).toBeUndefined()
       })
@@ -252,13 +295,13 @@ describe('the Debugging levels', () => {
         expect(results.at(-1)!.session).toMatchObject({ solved: true, reloads: 1, commandCount: level.solution.length })
       })
 
-      it('changes its files only through its solution\'s edits, each of which changes something', () => {
+      it('changes its files only through its solution\'s edits (or a rollback), each of which changes something', () => {
         let files = level.setup().files
-        for (const step of level.solution) {
-          if (typeof step === 'string' || !('save' in step)) continue
-          const text = editedText(files, step)
-          expect(text).not.toBe(files[step.save])
-          files = { ...files, [step.save]: text }
+        for (const [index, step] of level.solution.entries()) {
+          if (typeof step === 'string') continue
+          const next = solvedFiles(level, level.solution.slice(0, index + 1))
+          expect(next).not.toEqual(files)
+          files = next
         }
         expect(files).not.toEqual(level.setup().files)
       })
@@ -266,6 +309,55 @@ describe('the Debugging levels', () => {
       it('gets no credit for a reload without a fix', () => {
         const unchanged = saveDebugFile(startDebugLevel(level), level, level.sandbox.open, level.setup().files[level.sandbox.open]!)
         expect(reload(unchanged.session, level, observed(table.start)).session.solved).toBe(false)
+      })
+    }
+
+    if (level.sandbox.logs || level.sandbox.deploys || level.report || level.teammates) {
+      it('is an incident (chapter 7): its logs and deploys can be read, it starts on the live deploy, its colleagues speak on cue', () => {
+        expect(level.sandbox.elements ?? level.sandbox.debugger ?? level.sandbox.performance).toBeUndefined()
+        // every chapter 7 level has the server's logs
+        expect(level.sandbox.logs).toBeDefined()
+        expect(() => checkLogs(level.sandbox.logs!, level.sandbox.backend)).not.toThrow()
+        const deploys = level.sandbox.deploys
+        if (deploys) expect(level.setup().files).toEqual(liveFiles(deploys))
+        // a rollback in a solution names a deploy of the level, and only fix levels roll back
+        for (const step of level.solution) if (typeof step === 'object' && 'rollback' in step) expect(deploys && deployById(deploys, step.rollback)).toBeTruthy()
+        // a scenario opens with a colleague's report and has one colleague event, on a generic trigger; practice tasks have neither
+        if (level.kind === 'scenario') {
+          expect(level.report?.text.length).toBeGreaterThan(40)
+          expect(level.teammates).toHaveLength(1)
+        } else {
+          expect(level.report).toBeUndefined()
+          expect(level.teammates).toBeUndefined()
+        }
+        for (const event of level.teammates ?? []) {
+          expect(event.notice.length).toBeGreaterThan(40)
+          expect('afterCommands' in event.trigger || 'when' in event.trigger).toBe(true)
+          if ('afterCommands' in event.trigger) expect(event.trigger.afterCommands).toBeGreaterThanOrEqual(4)
+          // colleague events say something; they never change the shop
+          const state = level.setup()
+          expect(event.apply(state)).toBe(state)
+          // a first look at the starting files is no failed fix: nobody speaks
+          expect(reload(startDebugLevel(level), level, observed(table.start)).notices).toEqual([])
+        }
+        if (table.answerLogs) {
+          // the answer is a line a stack frame in the Logs panel links
+          const linked = historyEntries(level.sandbox.logs!, level.setup().files).flatMap(entry => entry.stack.flatMap(frame => frame.source ? [`${frame.source.path}:${frame.source.line}`] : []))
+          expect(linked).toContain(`${find!.path}:${find!.lines[0]}`)
+        }
+      })
+    }
+
+    if (!find && level.teammates?.some(event => 'when' in event.trigger)) {
+      it('has its colleague speak after a fix that did not work, and not after the one that did', () => {
+        const event = level.teammates!.find(each => 'when' in each.trigger)!
+        // a wrong fix: the starting files with the first file the fix touches emptied
+        const solved = solvedFiles(level)
+        const path = Object.keys(solved).find(each => solved[each] !== level.setup().files[each])!
+        const saved = saveDebugFile(startDebugLevel(level), level, path, '')
+        expect(reload(saved.session, level, observed(table.start)).notices.map(notice => notice.eventId)).toEqual([event.id])
+        const fixed = playSolution(level, async files => observed(JSON.stringify(files) === JSON.stringify(level.setup().files) ? table.start : table.solved!))
+        return fixed.then(results => expect(results.flatMap(result => result.notices)).toEqual([]))
       })
     }
 
@@ -328,13 +420,15 @@ describe('the Debugging goal helpers', () => {
   })
 })
 
-describe('other fixes and non-fixes (State & async, Breakpoints & stepping)', () => {
+describe('other fixes and non-fixes (State & async, Breakpoints & stepping, Performance, Incidents)', () => {
   it.each(Object.entries(otherFixes))('%s: every edit applies to the starting files and changes them', (id, fixes) => {
     const level = debuggingLevels.find(each => each.id === id)
     expect(level, id).toBeDefined()
     expect(level!.sandbox.find).toBeUndefined()
     for (const fix of fixes) {
-      let files = level!.setup().files
+      // chapter 7: a fix may start with a rollback
+      let files = fix.rollback ? { ...deployById(level!.sandbox.deploys!, fix.rollback)!.files } : level!.setup().files
+      if (fix.rollback) expect(files, `${id}: ${fix.name}`).not.toEqual(level!.setup().files)
       for (const edit of fix.edits) {
         const text = editedText(files, edit)
         expect(text, `${id}: ${fix.name}`).not.toBe(files[edit.save])

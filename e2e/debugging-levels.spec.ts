@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import type { Page } from '@playwright/test'
-import { debuggingLevels, editedText, needsCounting, playSolution, profileLines, reload, startDebugLevel, withUncounted } from '../shared/levels'
+import { debuggingLevels, deployById, differingPaths, editedText, needsCounting, playSolution, profileLines, reload, requestLabel, startDebugLevel, withUncounted } from '../shared/levels'
 import type { DebugLevel, Probe } from '../shared/levels'
 import { instrumentFiles } from '../shared/levels/debugging/instrument'
 import { withoutInstrumentation } from '../shared/levels/debugging/recording'
@@ -17,13 +17,15 @@ import { runCheck } from './helpers/sandbox'
 // runs it, does exactly what it does as written (the same probe values and errors), and a find task's answer is a line
 // the recording stops on. Chapter 6 (Performance): every check run watches the page and keeps the server's clock, and
 // counts the work (instrumented, counting only) when a probe reads it, as the play page does; counted, the app does what
-// it does as written, and a find task's answer is a line the Performance panel links for a recorded profile. No dev
-// server needed: the apps run in a blank page.
+// it does as written, and a find task's answer is a line the Performance panel links for a recorded profile. Chapter 7
+// (Incidents): the shop's server names every request it answers (x-request-id) and reports each answer for the Logs
+// panel, and a fix may start with a rollback (its files, emptied or deleted, are no fix either). No dev server needed:
+// the apps run in a blank page.
 const where = (line: { path: string, line: number } | null | undefined) => line ? `${line.path}:${line.line}` : null
 
 /** A check run as the play page runs it: a Performance level's watches the page, and counts when a probe reads the work. */
 async function checkRun(page: Page, level: DebugLevel, files: Readonly<Record<string, string>>, probes: readonly Probe[]) {
-  if (!level.sandbox.performance) return runCheck(page, files, probes, level.sandbox.backend)
+  if (!level.sandbox.performance) return runCheck(page, files, probes, level.sandbox.backend, { logs: level.sandbox.logs })
   const map = needsCounting(probes) ? instrumentFiles(files) : null
   const result = await runCheck(page, files, probes, level.sandbox.backend, { performance: true, ...(map ? { record: map.modules, count: 'check' as const } : {}) })
   return map ? { ...result, observation: withUncounted(result.observation, probes, map.skipped) } : result
@@ -46,6 +48,15 @@ for (const level of debuggingLevels) {
     expect(first?.frames.map(where)).toEqual(table.start.frames)
     expect(start.network).toEqual(table.start.network ?? [])
     for (const text of table.start.says ?? []) expect(start.entries.map(entry => entry.text).some(line => line.startsWith(text)), text).toBe(true)
+
+    if (level.sandbox.logs) {
+      // the shop's server names each request it answered and reports the answer (the Logs panel's lines come from that)
+      const logs = level.sandbox.logs
+      const own = start.requests.filter(entry => entry.url.startsWith('https://cornerbakery.shop/') && entry.response?.failure !== 'network')
+      // reported as the answers arrive, which need not be the order sent
+      expect(start.serverLogs.map(each => [each.id, each.status]).sort((a, b) => a[0]! - b[0]!)).toEqual(own.map(entry => [entry.id, entry.response?.status]))
+      for (const entry of own) expect(entry.response?.headers, `${level.id} ${entry.url}`).toContainEqual(['x-request-id', requestLabel(logs, entry.id)])
+    }
 
     if (level.sandbox.debugger) {
       // recorded (instrumented) the app does what it does as written, and the recording has steps
@@ -97,10 +108,14 @@ for (const level of debuggingLevels) {
     const reloaded = reload(startDebugLevel(level), level, start.observation)
     expect(Object.values(reloaded.session.goalsMet).some(Boolean)).toBe(false)
 
-    // throwing away what the fix edits is no fix: each file the solution saves, emptied and deleted (in Elements & CSS
-    // the stylesheet: nothing covers the button then, but nothing is styled either)
+    // throwing away what the fix edits is no fix: each file the solution saves (or a rollback changes), emptied and
+    // deleted (in Elements & CSS the stylesheet: nothing covers the button then, but nothing is styled either)
     const startFiles = startDebugLevel(level).state.files
-    const touched = [...new Set(level.solution.flatMap(step => typeof step === 'object' && 'save' in step ? [step.save] : []))]
+    const touched = [...new Set(level.solution.flatMap((step) => {
+      if (typeof step !== 'object') return []
+      if ('save' in step) return [step.save]
+      return 'rollback' in step ? differingPaths(startFiles, deployById(level.sandbox.deploys!, step.rollback)!.files) : []
+    }))]
     for (const path of touched) {
       const { [path]: _gone, ...without } = startFiles
       for (const files of [{ ...without, [path]: '' }, without]) {
@@ -111,7 +126,7 @@ for (const level of debuggingLevels) {
 
     // other real fixes pass, tempting non-fixes do not
     for (const fix of otherFixes[level.id] ?? []) {
-      let files = startFiles
+      let files = fix.rollback ? deployById(level.sandbox.deploys!, fix.rollback)!.files : startFiles
       for (const edit of fix.edits) files = { ...files, [edit.save]: editedText(files, edit) }
       const other = reload(startDebugLevel(level), level, (await run(files)).observation)
       expect(Object.values(other.session.goalsMet).every(Boolean), `${level.id}: ${fix.name}`).toBe(fix.solves)

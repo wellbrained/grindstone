@@ -65,6 +65,12 @@ export interface BackendConfig {
   /** The delay of answers the backend makes up itself (a 404 for an unknown path). */
   delay: number
   routes: BackendRouteData[]
+  /**
+   * Chapter 7, a level with logs: the id of a load's first request. Every answer of the shop's own server then carries
+   * `x-request-id: req-<n>`, and the backend posts a `serverlog` (numbers only) when it answers; the page builds the
+   * log lines from the level's data (logs.ts), so the scripted lines never travel through the frame.
+   */
+  logs: { first: number } | null
 }
 
 /** The backend running in the frame (or in the unit tests). */
@@ -104,11 +110,12 @@ export function addressOf(path: string, origin: string): string {
 }
 
 /** A level's backend as plain data for the frame; throws for what a level cannot mean (the tests load every level). */
-export function backendConfig(spec: BackendSpec, shop: string): BackendConfig {
+export function backendConfig(spec: BackendSpec, shop: string, logs: { first: number } | null = null): BackendConfig {
   const origin = new URL(shop).origin
   return {
     origin,
     delay: DEFAULT_DELAY_MS,
+    logs,
     routes: spec.routes.map((route) => {
       const method = route.method ?? 'GET'
       const where = addressOf(route.path, origin)
@@ -130,6 +137,9 @@ export function backendConfig(spec: BackendSpec, shop: string): BackendConfig {
 
 // Runs inside the frame as part of the bridge (one line, so no line comments, every statement ends in a semicolon), and
 // in the unit tests. `hooks.post` posts a message to the page, `hooks.now` is the clock for the Network panel's times.
+// Chapter 7 (a level with logs): the shop's server names each request (`x-request-id`) and posts a `serverlog` when it
+// answers, with when on its own clock (the same rule as chapter 6's: an answer comes at its request's start plus its
+// delay, and time moves only then).
 // Chapter 6 (the server's clock, see the bridge): `hooks.sent(id, delay)` when a request goes out, `hooks.arrived(id)`
 // when its answer (or failure) arrives, before the app sees it, `hooks.aborted(id)` when it is cancelled; all optional.
 export const BACKEND_SOURCE = String.raw`(function (config, hooks) {
@@ -141,6 +151,8 @@ export const BACKEND_SOURCE = String.raw`(function (config, hooks) {
   var sent = [];
   var pending = 0;
   var nextId = 1;
+  var logs = config.logs || null;
+  var serverNow = 0;
   var FETCH = "Failed to execute 'fetch' on 'Window': ";
   var SIMPLE_METHODS = ['GET', 'HEAD', 'POST'];
   var SIMPLE_HEADERS = ['accept', 'accept-language', 'content-language', 'content-type'];
@@ -184,7 +196,8 @@ export const BACKEND_SOURCE = String.raw`(function (config, hooks) {
     return '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<title>Error</title>\n</head>\n<body>\n<pre>Cannot ' + method + ' ' + path + '</pre>\n</body>\n</html>\n';
   };
 
-  /* The route for a request (the first whose method, address, query and body patterns fit), and its answer for this call. */
+  /* The route for a request (the first whose method, address, query and body patterns fit), and its answer for this
+     call, with which route and answer it was (-1: none). */
   var answerFor = function (method, url, body) {
     var place = placeOf(method, url);
     for (var i = 0; i < routes.length; i++) {
@@ -192,12 +205,12 @@ export const BACKEND_SOURCE = String.raw`(function (config, hooks) {
       if (route.method + ' ' + route.where !== place) continue;
       if (route.query !== null && !new RegExp(route.query).test(url.search.slice(1))) continue;
       if (route.body !== null && !new RegExp(route.body).test(body === null ? '' : body)) continue;
-      var answer = route.answers[Math.min(calls[i], route.answers.length - 1)];
+      var index = Math.min(calls[i], route.answers.length - 1);
       calls[i] += 1;
-      return answer;
+      return { answer: route.answers[index], route: i, index: index };
     }
-    if (hosts.indexOf(url.origin) < 0) return { fail: 'network', error: 'net::ERR_NAME_NOT_RESOLVED', delay: config.delay };
-    return { status: 404, statusText: 'Not Found', headers: { 'content-type': 'text/html; charset=utf-8' }, body: notFound(method, url.pathname), delay: config.delay };
+    if (hosts.indexOf(url.origin) < 0) return { answer: { fail: 'network', error: 'net::ERR_NAME_NOT_RESOLVED', delay: config.delay }, route: -1, index: -1 };
+    return { answer: { status: 404, statusText: 'Not Found', headers: { 'content-type': 'text/html; charset=utf-8' }, body: notFound(method, url.pathname), delay: config.delay }, route: -1, index: -1 };
   };
 
   /* Why the browser keeps another origin's answer from the app (Chrome's wording), or null when the answer allows it. */
@@ -217,8 +230,8 @@ export const BACKEND_SOURCE = String.raw`(function (config, hooks) {
     return null;
   };
 
-  var toResponse = function (answer, href, type) {
-    var response = new Response(answer.body, { status: answer.status, statusText: answer.statusText, headers: answer.headers });
+  var toResponse = function (answer, headers, href, type) {
+    var response = new Response(answer.body, { status: answer.status, statusText: answer.statusText, headers: headers });
     Object.defineProperty(response, 'url', { value: href });
     Object.defineProperty(response, 'type', { value: type });
     return response;
@@ -256,9 +269,18 @@ export const BACKEND_SOURCE = String.raw`(function (config, hooks) {
     var id = nextId++;
     sent.push({ place: placeOf(method, url), body: body });
     hooks.post({ type: 'request', id: id, method: method, url: href, headers: headers, body: body, stack: stack });
-    var answer = answerFor(method, url, body);
+    var found = answerFor(method, url, body);
+    var answer = found.answer;
     if (hooks.sent) hooks.sent(id, answer.delay);
     var started = hooks.now();
+    var startAt = serverNow;
+    /* chapter 7: the shop's own server names the request and logs its answer (another origin's server is not ours) */
+    var logged = !!logs && !cross && !answer.fail;
+    var answerHeaders = {};
+    if (!answer.fail) {
+      Object.keys(answer.headers).forEach(function (name) { answerHeaders[name] = answer.headers[name]; });
+      if (logged) answerHeaders['x-request-id'] = 'req-' + (logs.first + id - 1);
+    }
     var signal = init && init.signal ? init.signal : null;
     pending += 1;
     return new Promise(function (resolve, reject) {
@@ -288,24 +310,27 @@ export const BACKEND_SOURCE = String.raw`(function (config, hooks) {
       var arrive = function () {
         if (!close()) return;
         if (hooks.arrived) hooks.arrived(id);
+        var at = startAt + answer.delay;
+        if (at > serverNow) serverNow = at;
+        if (logged) hooks.post({ type: 'serverlog', id: id, route: found.route, answer: found.index, status: answer.status, at: at, time: answer.delay });
         if (answer.fail) {
           netlog(method + ' ' + href + ' ' + answer.error, stack);
           report({ status: null, statusText: '', headers: [], body: null, failure: 'network' });
           reject(failed);
           return;
         }
-        var answerHeaders = Object.keys(answer.headers).map(function (name) { return [name, answer.headers[name]]; });
+        var headerPairs = Object.keys(answerHeaders).map(function (name) { return [name, answerHeaders[name]]; });
         var problem = cross && !noCors ? corsProblem(href, method, headers, answer, preflight) : null;
         if (problem) {
           netlog(problem, '');
           netlog(method + ' ' + href + ' net::ERR_FAILED' + (preflight ? '' : ' ' + answer.status + ' (' + answer.statusText + ')'), stack);
-          report({ status: preflight ? null : answer.status, statusText: preflight ? '' : answer.statusText, headers: preflight ? [] : answerHeaders, body: null, failure: 'cors' });
+          report({ status: preflight ? null : answer.status, statusText: preflight ? '' : answer.statusText, headers: preflight ? [] : headerPairs, body: null, failure: 'cors' });
           reject(failed);
           return;
         }
-        report({ status: answer.status, statusText: answer.statusText, headers: answerHeaders, body: answer.body, failure: null });
+        report({ status: answer.status, statusText: answer.statusText, headers: headerPairs, body: answer.body, failure: null });
         if (answer.status >= 400) netlog(method + ' ' + href + ' ' + answer.status + ' (' + answer.statusText + ')', stack);
-        resolve(cross && noCors ? opaqueResponse() : toResponse(answer, href, cross ? 'cors' : 'basic'));
+        resolve(cross && noCors ? opaqueResponse() : toResponse(answer, answerHeaders, href, cross ? 'cors' : 'basic'));
       };
       if (signal && signal.aborted) { onAbort(); return; }
       if (signal) signal.addEventListener('abort', onAbort);

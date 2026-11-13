@@ -123,37 +123,58 @@ export interface Observation {
   logs: string[]
 }
 
+/** Chapter 7 find tasks: a deploy you named as the answer ("this one broke it"). */
+export interface DeployPick {
+  deploy: string
+}
+
+/** A find task's answer: a line, or (chapter 7) a deploy. */
+export type Picked = SourceLine | DeployPick
+
 export interface DebugState {
   /** The app's files as saved, by path ('index.html', 'cart.js'); a reload runs these. */
   files: Record<string, string>
   /** What the check run of the last reload saw; null before the first reload. */
   observed: Observation | null
-  /** Find tasks: the line you clicked last (in the editor or in a stack trace). */
-  picked: SourceLine | null
+  /** Find tasks: the line you clicked last (in the editor or in a stack trace), or the deploy you named (chapter 7). */
+  picked: Picked | null
+  /**
+   * The files the last reload ran (absent before the first reload). Colleague events read it (chapter 7): "after a fix
+   * that did not work" is a reload of changed code whose check failed, not a save after it.
+   */
+  checked?: Readonly<Record<string, string>>
 }
 
-/** One counted action: a saved file, a reload, a clicked line (find tasks). */
+/** One counted action: a saved file, a reload, a clicked line or deploy (find tasks), a rollback (chapter 7). */
 export type DebugRecord
   = | { kind: 'save', path: string }
     | { kind: 'reload' }
     | { kind: 'pick', path: string, line: number }
+    | { kind: 'pickDeploy', deploy: string }
+    | { kind: 'rollback', to: string }
+    | { kind: 'restore' }
 
 /**
  * One step of a solution: save a file with one text replaced (the first occurrence; the tests fail when it is not
- * there), reload the app, or click a line (find tasks).
+ * there), reload the app, click a line (find tasks), or in chapter 7 roll the code back to a deploy or name a deploy
+ * as a find task's answer.
  */
 export type DebugStep
   = | 'reload'
     | { save: string, replace: readonly [string, string] }
     | { pick: string, line: number }
+    | { rollback: string }
+    | { pickDeploy: string }
 
-/** A find task's answer: any of these lines counts; a wrong click is told why it is not it. */
+/** A find task's answer: any of these lines counts (or, in chapter 7, one of these deploys); a wrong click is told why it is not it. */
 export interface FindTarget {
   path: string
   lines: readonly number[]
-  /** Why a click on another line is not it, by 'path:line' (e.g. 'app.js:22'). */
+  /** Chapter 7: the deploys that count as the answer ("this one broke it"), by id. */
+  deploys?: readonly string[]
+  /** Why a click on another line is not it, by 'path:line' (e.g. 'app.js:22'), or on another deploy, by 'deploy:<id>'. */
   wrong: Readonly<Record<string, string>>
-  /** For any other wrong line. */
+  /** For any other wrong line (or deploy). */
   otherwise: string
 }
 
@@ -182,6 +203,65 @@ export interface SandboxSpec {
    * (instrumented, counting only) when a probe reads it.
    */
   performance?: true
+  /**
+   * Chapter 7: the server's logs (the Logs panel): what it logged before you came (the incident so far) and, for each
+   * request the app sends, its access line and the lines its answer scripts (`BackendReply.log`). Needs a backend.
+   */
+  logs?: LogsSpec
+  /** Chapter 7: the shop's last deploys (the Deploys panel), each with its diff and a Roll back; the level's files are the live one's. */
+  deploys?: DeployHistory
+}
+
+/** How bad a server log line is. */
+export type LogLevel = 'info' | 'warn' | 'error'
+
+/**
+ * A line the server logs when it gives an answer (before its access line): `{body}` in the message becomes the
+ * request's body (cut), `{query}` its query. A stack is lines like `at createOrder (server/orders.js:18:17)`; a frame in
+ * one of the app's files (`at submit (order.js:14:9)`, an error a customer's browser reported) links its line.
+ */
+export interface ScriptedLog {
+  level: LogLevel
+  message: string
+  stack?: readonly string[]
+}
+
+/** A line the server logged before you opened the level: the incident so far. */
+export interface PastLogLine extends ScriptedLog {
+  /** The server's time, 'HH:MM:SS.mmm'. */
+  at: string
+  /** 'POST /api/orders'; '' for a line of the server itself (a deploy going live). */
+  route: string
+  /** The request's id ('req-4093'), or null. */
+  request: string | null
+}
+
+/** The server's logs of a chapter 7 level. */
+export interface LogsSpec {
+  /** The server's clock when the app loads ('09:41:00.000'); a load's lines are this plus the scripted delays. */
+  now: string
+  /** The id of a load's first request (4127 gives 'req-4127'); each request after it counts up. */
+  firstRequest: number
+  /** What the server logged before, oldest first (at most MAX_LOG_HISTORY lines). */
+  history: readonly PastLogLine[]
+}
+
+/** One deploy of the shop: who, when, why, and the files as they were after it. */
+export interface Deploy {
+  /** A short commit id, 7 hex digits ('b7e41d0'). */
+  id: string
+  author: string
+  /** When it went live, as the team says it ('Today 08:02', 'Yesterday 17:40'). */
+  at: string
+  message: string
+  /** Every file of the app as this deploy left it. */
+  files: Readonly<Record<string, string>>
+}
+
+/** The shop's last deploys, oldest first: the files before the first of them, and each deploy's files. */
+export interface DeployHistory {
+  base: Readonly<Record<string, string>>
+  list: readonly Deploy[]
 }
 
 /** A value a JSON body can hold. */
@@ -197,6 +277,8 @@ export interface BackendReply {
   headers?: Readonly<Record<string, string>>
   /** Milliseconds before the answer arrives (default DEFAULT_DELAY_MS). */
   delay?: number
+  /** Chapter 7: what the server logs while it answers (before its access line), in the Logs panel. */
+  log?: readonly ScriptedLog[]
 }
 
 /** No answer at all: the connection fails (`TypeError: Failed to fetch`). */
@@ -229,11 +311,22 @@ export interface BackendSpec {
   routes: readonly BackendRoute[]
 }
 
+/** A colleague's message (chapter 7): the incident report a scenario opens with. */
+export interface ColleagueMessage {
+  author: string
+  text: string
+}
+
 /** What a Debugging level adds to the shared level fields. */
 export interface DebugFields {
   sandbox: SandboxSpec
   /** A scenario: the error or status it teaches you to read, shown as its tag on the track page ('TypeError', '404'). */
   teaches?: string
+  /**
+   * Chapter 7: the colleague who reports the incident, shown first in the level's messages; later messages are the
+   * level's colleague events (`teammates`, fired by generic triggers after a counted action, never on a timer).
+   */
+  report?: ColleagueMessage
 }
 
 declare module '../types' {

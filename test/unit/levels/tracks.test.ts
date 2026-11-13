@@ -66,7 +66,7 @@ describe('track registry', () => {
     }
   })
 
-  it('gives Debugging its seven chapters (ADR 0007): Reading errors to Performance live, Incidents coming', () => {
+  it('gives Debugging its seven chapters (ADR 0007), all live: Reading errors to Incidents', () => {
     const debugging = trackById('debugging')!
     expect(debugging).toMatchObject({ title: 'Debugging', tagline: 'Find the bug before your customers do.', cheatSheet: null, bestRun: ['hints', 'reloads'] })
     expect(debugging.chapters.map(chapter => [chapter.number, chapter.title, chapter.levels.length])).toEqual([
@@ -76,7 +76,7 @@ describe('track registry', () => {
       [4, 'State & async', 15],
       [5, 'Breakpoints & stepping', 15],
       [6, 'Performance', 15],
-      [7, 'Incidents', 0]
+      [7, 'Incidents', 15]
     ])
     expect(new Set(debugging.chapters.map(chapter => chapter.colour)).size).toBe(7)
     expect(debugging.chapters[0]!.levels.map(level => [levelNumber(level.id), level.id])).toEqual([
@@ -180,8 +180,28 @@ describe('track registry', () => {
       [null, 'debugging-practice-asks-for-hours-again'],
       [null, 'debugging-practice-keep-the-answer']
     ])
+    expect(debugging.chapters[6]!.levels.map(level => [levelNumber(level.id), level.id])).toEqual([
+      ['7.1', 'debugging-31-checkout-errors'],
+      [null, 'debugging-practice-customer-error'],
+      [null, 'debugging-practice-field-the-server-reads'],
+      ['7.2', 'debugging-32-which-deploy'],
+      [null, 'debugging-practice-broke-the-hours'],
+      [null, 'debugging-practice-keep-the-euro-sign'],
+      ['7.3', 'debugging-33-roll-back-now'],
+      [null, 'debugging-practice-last-good-version'],
+      [null, 'debugging-practice-roll-it-back'],
+      ['7.4', 'debugging-34-some-customers'],
+      [null, 'debugging-practice-body-by-hand'],
+      [null, 'debugging-practice-escape-the-name'],
+      ['7.5', 'debugging-35-only-in-production'],
+      [null, 'debugging-practice-flag-in-production'],
+      [null, 'debugging-practice-switch-it-off']
+    ])
     expect(nextLevel('debugging-practice-comma-price')).toBe(levelById('debugging-26-request-per-key'))
-    expect(nextLevel('debugging-practice-keep-the-answer')).toBeNull()
+    expect(nextLevel('debugging-practice-keep-the-answer')).toBe(levelById('debugging-31-checkout-errors'))
+    expect(nextLevel('debugging-practice-switch-it-off')).toBeNull()
+    // the whole track is live: no chapter is coming any more
+    expect(debugging.chapters.every(chapter => chapter.levels.length > 0)).toBe(true)
     expect(nextLevel('git-practice-release-from-develop')).toBeNull()
   })
 

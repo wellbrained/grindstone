@@ -18,6 +18,11 @@ import { BOX_TOTAL } from '../../../../shared/levels/debugging/practice/breakpoi
 import { CROISSANT_HEADING, RYE_HEADING } from '../../../../shared/levels/debugging/26-request-per-key'
 import { HOURS_TEXT, SPECIALS_TEXT } from '../../../../shared/levels/debugging/29-one-after-another'
 import { BREADS_TEXT, SHORT_VOUCHER_TEXT, STAMPS_TEXT, STANDING_TOTAL, VOUCHER_TEXT } from '../../../../shared/levels/debugging/practice/performance'
+import { NOTE } from '../../../../shared/levels/debugging/31-checkout-errors'
+import { BASKET_TOTAL, CROISSANT_PRICE } from '../../../../shared/levels/debugging/32-which-deploy'
+import { SATURDAY_HOURS, THANKS_COUNT } from '../../../../shared/levels/debugging/33-roll-back-now'
+import { BACKSLASH, QUOTED, TWO_LINES } from '../../../../shared/levels/debugging/34-some-customers'
+import { FREE_DELIVERY, GIFT_READY, PAID_DELIVERY, QUOTED_NAME, SPECIALS_TEXT as TODAYS_SPECIALS } from '../../../../shared/levels/debugging/practice/incidents'
 
 export interface ExpectedRun {
   /** Probe values of the check run. */
@@ -49,7 +54,13 @@ export interface ExpectedLevel {
   answerStep?: true
   /** Chapter 6 find tasks: the answer is a line the Performance panel links for a recorded profile (`before` is what the customer does). */
   answerProfile?: true
+  /** Chapter 7 find tasks: the answer is a line a stack frame in the Logs panel links (an error a customer's browser reported). */
+  answerLogs?: true
 }
+
+/** What the Incidents pages show after an order the server took or refused (chapter 7). */
+const sorry = (reference: string) => `Sorry, your order did not go through (reference ${reference}). Please try again.`
+const ourSide = (reference: string) => `Sorry, something went wrong on our side (reference ${reference}). Please try again.`
 
 export const expected: Record<string, ExpectedLevel> = {
   'debugging-01-add-to-cart': {
@@ -435,5 +446,105 @@ export const expected: Record<string, ExpectedLevel> = {
   'debugging-practice-keep-the-answer': {
     start: { probes: { requests: 3, stamps: STAMPS_TEXT }, errors: 0, network: ['GET /api/stamps 200', 'GET /api/stamps 200', 'GET /api/stamps 200'] },
     solved: { probes: { requests: 1, stamps: STAMPS_TEXT }, errors: 0, network: ['GET /api/stamps 200'] }
+  },
+  'debugging-31-checkout-errors': {
+    start: {
+      probes: { 'ordered': ourSide('req-4128'), 'item': null, 'basket': '2', 'with-note': ourSide('req-4129'), 'note': NOTE },
+      errors: 2,
+      errorAt: 'order.js:10',
+      frames: [],
+      network: ['GET /api/menu 200', 'POST /api/orders 500', 'POST /api/orders 500'],
+      says: ['POST https://cornerbakery.shop/api/orders 500 (Internal Server Error)']
+    },
+    solved: { probes: { 'ordered': THANKS, 'item': 'croissant', 'basket': '0', 'with-note': THANKS, 'note': NOTE }, errors: 0, network: ['GET /api/menu 200', 'POST /api/orders 201', 'POST /api/orders 201'] }
+  },
+  'debugging-practice-customer-error': {
+    answerOffTrace: true,
+    answerLogs: true,
+    start: { probes: {}, errors: 0, network: ['GET /api/basket 200'] }
+  },
+  'debugging-practice-field-the-server-reads': {
+    start: { probes: { twenty: 'Sorry, no gift card this time (Bad Request).', fifty: null }, errors: 2, errorAt: 'gift.js:6', frames: [], network: ['POST /api/gift-cards 400', 'POST /api/gift-cards 400'] },
+    solved: { probes: { twenty: GIFT_READY, fifty: 50 }, errors: 0, network: ['POST /api/gift-cards 201', 'POST /api/gift-cards 201'] }
+  },
+  'debugging-32-which-deploy': {
+    start: {
+      probes: { 'price': CROISSANT_PRICE, 'shown-total': BASKET_TOTAL, 'first': sorry('req-6231'), 'first-total': null, 'second': sorry('req-6232'), 'second-total': null },
+      errors: 2,
+      errorAt: 'order.js:11',
+      frames: [],
+      network: ['GET /api/menu 200', 'POST /api/orders 422', 'POST /api/orders 422']
+    },
+    solved: {
+      probes: { 'price': CROISSANT_PRICE, 'shown-total': BASKET_TOTAL, 'first': THANKS, 'first-total': 4.8, 'second': THANKS, 'second-total': 6.5 },
+      errors: 0,
+      network: ['GET /api/menu 200', 'POST /api/orders 201', 'POST /api/orders 201']
+    }
+  },
+  'debugging-practice-broke-the-hours': {
+    answerOffTrace: true,
+    start: { probes: {}, errors: 0, network: ['GET /api/hours 200'] }
+  },
+  'debugging-practice-keep-the-euro-sign': {
+    start: { probes: { small: PAID_DELIVERY, big: PAID_DELIVERY, total: '€ 28.40' }, errors: 0 },
+    solved: { probes: { small: PAID_DELIVERY, big: FREE_DELIVERY, total: '€ 28.40' }, errors: 0 }
+  },
+  'debugging-33-roll-back-now': {
+    start: {
+      probes: { 'hours': SATURDAY_HOURS, 'ordered': '', 'slots-requests': 1 },
+      errors: 2,
+      errorAt: 'order.js:11',
+      frames: [],
+      network: ['GET /api/menu 200', 'GET /api/slots 404']
+    },
+    solved: { probes: { 'hours': SATURDAY_HOURS, 'ordered': THANKS_COUNT, 'slots-requests': 0 }, errors: 0, network: ['GET /api/menu 200', 'POST /api/orders 201'] }
+  },
+  'debugging-practice-last-good-version': {
+    answerOffTrace: true,
+    start: { probes: {}, errors: 2, errorAt: 'menu.js:4', frames: [], network: ['GET /api/v2/menu 404'] }
+  },
+  'debugging-practice-roll-it-back': {
+    start: { probes: { specials: '', title: 'Today\'s specials' }, errors: 2, errorAt: 'specials.js:3', frames: [], network: ['GET /api/v2/specials 404'] },
+    solved: { probes: { specials: TODAYS_SPECIALS, title: 'Today\'s specials' }, errors: 0, network: ['GET /api/specials 200'] }
+  },
+  'debugging-34-some-customers': {
+    start: {
+      probes: { 'quoted': sorry('req-8811'), 'quoted-note': null, 'two-lines': sorry('req-8812'), 'two-lines-note': null, 'backslash': sorry('req-8813'), 'backslash-note': null },
+      errors: 3,
+      errorAt: 'order.js:9',
+      frames: [],
+      network: ['GET /api/menu 200', 'POST /api/orders 400', 'POST /api/orders 400', 'POST /api/orders 400']
+    },
+    solved: {
+      probes: { 'quoted': THANKS, 'quoted-note': QUOTED, 'two-lines': THANKS, 'two-lines-note': TWO_LINES, 'backslash': THANKS, 'backslash-note': BACKSLASH },
+      errors: 0,
+      network: ['GET /api/menu 200', 'POST /api/orders 201', 'POST /api/orders 201', 'POST /api/orders 201']
+    }
+  },
+  'debugging-practice-body-by-hand': {
+    answerOffTrace: true,
+    start: { probes: {}, errors: 0 }
+  },
+  'debugging-practice-escape-the-name': {
+    start: { probes: { 'signed-up': 'Sorry, that did not work. Please try again.', 'name': null }, errors: 1, errorAt: 'newsletter.js:5', frames: [], network: ['POST /api/newsletter 400'] },
+    solved: { probes: { 'signed-up': `Thanks, ${QUOTED_NAME}! See you in your inbox.`, 'name': QUOTED_NAME }, errors: 0, network: ['POST /api/newsletter 201'] }
+  },
+  'debugging-35-only-in-production': {
+    start: {
+      probes: { 'gift-cards': 'visible', 'test-site': 'display: none', 'ordered': 'Sorry, your order did not go through. Please try again.', 'stamp-requests': 1 },
+      errors: 2,
+      errorAt: 'order.js:20',
+      frames: [],
+      network: ['GET /api/menu 200', 'POST /api/orders 201', 'POST /api/stamps 404']
+    },
+    solved: { probes: { 'gift-cards': 'visible', 'test-site': 'display: none', 'ordered': THANKS, 'stamp-requests': 0 }, errors: 0, network: ['GET /api/menu 200', 'POST /api/orders 201'] }
+  },
+  'debugging-practice-flag-in-production': {
+    answerOffTrace: true,
+    start: { probes: {}, errors: 1, errorAt: 'recommend.js:6', frames: [], network: ['GET /api/recommendations 404'] }
+  },
+  'debugging-practice-switch-it-off': {
+    start: { probes: { 'reviews-requests': 1, 'gift-cards': 'visible' }, errors: 2, errorAt: 'app.js:7', frames: [], network: ['GET /api/reviews 404'] },
+    solved: { probes: { 'reviews-requests': 0, 'gift-cards': 'visible' }, errors: 0 }
   }
 }

@@ -10,9 +10,8 @@ import type { DebuggingPlaySession } from '~/composables/useDebuggingPlay'
 const props = defineProps<{ play: DebuggingPlaySession }>()
 
 const { t } = useI18n()
-const { requests, clearNetwork, openLine, find } = props.play
+const { requests, clearNetwork, openLine, find, networkSelected: selectedId, requestShown } = props.play
 
-const selectedId = ref<number | null>(null)
 const selected = computed(() => requests.value.find(entry => entry.id === selectedId.value) ?? null)
 // a reload (or Clear) empties the list: nothing stays selected
 watch(requests, (list) => {
@@ -21,6 +20,13 @@ watch(requests, (list) => {
 
 const list = useTemplateRef<HTMLElement>('list')
 const detail = useTemplateRef<HTMLElement>('detail')
+
+// a request shown from a log line (chapter 7): its details, in view, with the focus (you asked to go there)
+watch(requestShown, () => nextTick(() => {
+  list.value?.querySelector<HTMLElement>(`[data-request="${selectedId.value}"]`)?.scrollIntoView({ block: 'nearest' })
+  detail.value?.scrollIntoView({ block: 'nearest' })
+  detail.value?.focus({ preventScroll: true })
+}))
 
 defineExpose({ focus: () => list.value?.focus() })
 

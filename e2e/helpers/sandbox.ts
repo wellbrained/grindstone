@@ -6,7 +6,7 @@
 // clock, like every load of a Performance level.
 import type { Page } from '@playwright/test'
 import { checkFrames, consoleEntry, mergeObservations, observe, readBridgeMessage, requestAddress, requestEntry, sandboxDocument, statusLabel, withResponse } from '../../shared/levels'
-import type { BackendSpec, BridgeMessage, ConsoleEntryBody, NetworkEntry, Observation, Probe, Profile, RecordedStep } from '../../shared/levels'
+import type { BackendSpec, BridgeMessage, ConsoleEntryBody, LogsSpec, NetworkEntry, Observation, Probe, Profile, RecordedStep, ServerLogMessage } from '../../shared/levels'
 import { checkFrameStyle } from '../../app/utils/sandbox-host'
 
 export interface CheckResult {
@@ -21,6 +21,8 @@ export interface CheckResult {
   steps: RecordedStep[]
   /** A recorded profile (`count: 'profile'`; the first frame's), or null. */
   profile: Profile | null
+  /** Chapter 7: the server's reports of what it answered (the first frame's). */
+  serverLogs: ServerLogMessage[]
 }
 
 export interface RunOptions {
@@ -28,11 +30,13 @@ export interface RunOptions {
   record?: Readonly<Record<string, string>>
   count?: 'check' | 'profile'
   performance?: boolean
+  /** Chapter 7: the level's logs (request ids, the server's reports). */
+  logs?: LogsSpec
 }
 
 async function runFrame(page: Page, files: Readonly<Record<string, string>>, probes: readonly Probe[], width: number, height: number, backend: BackendSpec | undefined, options: RunOptions): Promise<CheckResult> {
   const token = `t-${Math.random().toString(36).slice(2)}`
-  const document = sandboxDocument(files, { token, probes, backend, record: options.record, count: options.count, performance: options.performance })
+  const document = sandboxDocument(files, { token, probes, backend, record: options.record, count: options.count, performance: options.performance, logs: options.logs })
   const raw = await page.evaluate(async ({ html, style, token, profile }) => {
     const messages: unknown[] = []
     const frame = window.document.createElement('iframe')
@@ -74,7 +78,8 @@ async function runFrame(page: Page, files: Readonly<Record<string, string>>, pro
     network: requests.map(entry => `${entry.method} ${requestAddress(entry.url)} ${statusLabel(entry)}`),
     requests,
     steps: messages.flatMap(message => message.type === 'steps' ? message.steps : []),
-    profile: profile?.type === 'profile' ? profile.profile : null
+    profile: profile?.type === 'profile' ? profile.profile : null,
+    serverLogs: messages.filter((message): message is ServerLogMessage => message.type === 'serverlog')
   }
 }
 

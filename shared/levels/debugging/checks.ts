@@ -59,11 +59,34 @@ export function noErrorsGoal(label = 'No errors in the Console after a reload'):
   return { id: 'no-errors', label, check: ({ state }) => state.observed?.finished === true && state.observed.errors.length === 0 }
 }
 
-/** A find task: the line you clicked last is the answer. */
+/** A find task: the line you clicked last is the answer (or, in chapter 7, the deploy you named). */
 export function foundGoal(label: string, target: FindTarget): DebugGoal {
   return {
     id: 'found',
     label,
-    check: ({ state }) => state.picked !== null && state.picked.path === target.path && target.lines.includes(state.picked.line)
+    check: ({ state }) => {
+      const picked = state.picked
+      if (picked === null) return false
+      if ('deploy' in picked) return target.deploys?.includes(picked.deploy) === true
+      return picked.path === target.path && target.lines.includes(picked.line)
+    }
   }
+}
+
+const sameFiles = (a: Readonly<Record<string, string>>, b: Readonly<Record<string, string>>) => {
+  const keys = Object.keys(a)
+  return keys.length === Object.keys(b).length && keys.every(path => Object.hasOwn(b, path) && a[path] === b[path])
+}
+
+/**
+ * Chapter 7's colleague trigger "after a wrong check" (a `when` for `teammates`): the last action was a reload of code
+ * that differs from the starting files (`start`), and its check failed one of these goals. A first look at the starting
+ * files, or a save after a failed check, does not count; deterministic, never a timer.
+ */
+export function afterFailedFix(goals: readonly DebugGoal[], start: Readonly<Record<string, string>>): (state: DebugState) => boolean {
+  return state => state.observed !== null
+    && state.checked !== undefined
+    && sameFiles(state.checked, state.files)
+    && !sameFiles(state.files, start)
+    && goals.some(goal => !goal.check({ state, history: [] }))
 }

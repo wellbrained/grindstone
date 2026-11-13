@@ -10,7 +10,7 @@ import { BRIDGE_SOURCE } from './bridge'
 import { cssRules, styleTags } from './css'
 import { COMPUTED_PROPERTIES } from './elements'
 import { RECORD_LIMITS, countingLimits } from './recorder'
-import type { BackendSpec, Probe } from './types'
+import type { BackendSpec, LogsSpec, Probe } from './types'
 
 export { resolveImport }
 
@@ -61,6 +61,8 @@ export interface SandboxOptions {
   count?: 'check' | 'profile'
   /** A Performance level's load (chapter 6): the page's changes are watched and the server's clock kept (probes, Record). */
   performance?: boolean
+  /** A level with the server's logs (chapter 7): its server names each request and reports what it answered (every load). */
+  logs?: LogsSpec
 }
 
 /** What the bridge needs for the Elements panel: the page's rules (to test which match), the linked stylesheets' names, what to read. */
@@ -160,7 +162,7 @@ export function sandboxDocument(files: Readonly<Record<string, string>>, options
     .filter(([path]) => /\.m?js$/.test(path))
     .map(([path, source]) => [path, rewriteImports(recording?.[path] ?? source, path, files)]))
   // the config is JSON inside a <script>: no raw "<", so no text in it can close the script or open a comment
-  const backend = options.backend ? backendConfig(options.backend, SHOP_ORIGIN) : null
+  const backend = options.backend ? backendConfig(options.backend, SHOP_ORIGIN, options.logs ? { first: options.logs.firstRequest } : null) : null
   const elements = options.elements && !options.probes ? elementsConfig(files) : null
   const record = recording ? options.count ? countingLimits(options.count) : RECORD_LIMITS : null
   const perf = options.performance ? { actions: recording !== null && options.count === 'profile' } : null

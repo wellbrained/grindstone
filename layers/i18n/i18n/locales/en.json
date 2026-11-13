@@ -560,7 +560,9 @@
       "performance": "Performance",
       "console": "Console",
       "network": "Network",
-      "code": "Code"
+      "code": "Code",
+      "logs": "Logs",
+      "deploys": "Deploys"
     },
     "app": {
       "label": "App",
@@ -790,6 +792,69 @@
       "range": "{start}–{end} ms",
       "rangePending": "from {start} ms",
       "sentFrom": "Sent from"
+    },
+    "incidentNote": "Read the server's logs and the shop's deploys, then fix the code (or roll back), Save and Reload: the goals are checked on every reload.",
+    "logs": {
+      "label": "Logs",
+      "count": "no lines | 1 line | {n} lines",
+      "countOf": "{n} of {total} lines",
+      "levelFilter": "Levels to show",
+      "levels": {
+        "all": "All levels",
+        "warn": "Warnings and errors",
+        "error": "Errors"
+      },
+      "textFilter": "Filter the lines",
+      "placeholder": "Filter, e.g. req-4093",
+      "lines": "The server's log lines, oldest first",
+      "empty": "The server logged nothing yet.",
+      "noMatch": "No line matches the filter.",
+      "opened": "{time} · you opened the shop: what the server logged for this load",
+      "level": {
+        "info": "info",
+        "warn": "warn",
+        "error": "error"
+      },
+      "showRequest": "Show {id} in the Network panel",
+      "stack": "Stack",
+      "cut": "The server logged more for this load; the panel shows the first 500 lines."
+    },
+    "deploys": {
+      "label": "Deploys",
+      "count": "no deploys | 1 deploy | {n} deploys",
+      "list": "The shop's last deploys, newest first",
+      "live": "live",
+      "saved": "your saved code",
+      "savedLive": "Your saved code is the live version, {id}.",
+      "savedRolledBack": "Your saved code is {id}: Reload runs it.",
+      "savedChanged": "Your saved code is none of these versions: it has your changes.",
+      "unsavedToo": "The editor has unsaved changes too.",
+      "rollBack": "Roll back",
+      "rollBackTo": "Roll back to {id}",
+      "backToLive": "Back to live",
+      "answer": "Answer: {id}",
+      "changes": "Changes in {files}",
+      "file": "{path}: {added} added, {removed} removed",
+      "openLine": "{kind} line {line} of {path}, open it in Code",
+      "answerLine": "{kind} line {line} of {path}, answer with it",
+      "kind": {
+        "add": "Added",
+        "del": "Removed",
+        "same": "Unchanged"
+      },
+      "confirmTitle": "Roll back to {id}?",
+      "confirmLiveTitle": "Back to the live version, {id}?",
+      "confirmFiles": "Your saved code becomes {id} ({author}, {at}). Files that change: {files}. Reload runs it.",
+      "confirmSame": "Your saved code already is {id}.",
+      "confirmUnsaved": "Your unsaved changes in {files} are dropped.",
+      "confirmUndo": "To undo it, roll back to {id} the same way.",
+      "confirmReplaced": "Your saved changes in {files} are replaced too: Undo roll back brings them back.",
+      "confirmUndoCopy": "Undo roll back brings your saved code back.",
+      "undo": "Undo roll back"
+    },
+    "team": {
+      "heading": "Messages",
+      "label": "Messages from the team"
     }
   }
 }

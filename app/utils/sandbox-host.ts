@@ -2,7 +2,7 @@
 // fresh token, and a reload's check run happens in a hidden frame of its own, so the probes' clicks never touch the app
 // you see. Both get the level's scripted backend, each its own (a sequence of answers starts over with every load). What the frames post is read with the pure code in shared/levels/debugging (messages.ts).
 import { checkFrames, mergeObservations, observe, readBridgeMessage, sandboxDocument, withUncounted } from '../../shared/levels'
-import type { BackendSpec, BridgeMessage, CheckFrame, Instrumented, Observation, Probe, SandboxDocument } from '../../shared/levels'
+import type { BackendSpec, BridgeMessage, CheckFrame, Instrumented, LogsSpec, Observation, Probe, SandboxDocument } from '../../shared/levels'
 
 /** The only sandbox flag a level's app gets: scripts run, but in an opaque origin (no storage, no cookies, no parent). */
 export const SANDBOX_FLAGS = 'allow-scripts'
@@ -46,13 +46,15 @@ export interface LoadOptions {
   record?: Readonly<Record<string, string>>
   /** Chapter 6's Record: the instrumented code counts (the profile), the page's changes and the server's clock are kept. */
   profile?: boolean
+  /** Chapter 7: the server's logs (its requests get ids, and it says what it answered). */
+  logs?: LogsSpec
 }
 
 /** A load of the app you see. */
 export function appLoad(files: Readonly<Record<string, string>>, options: LoadOptions = {}): AppLoad {
   const token = newToken()
-  const { backend, elements, record, profile } = options
-  const document_ = sandboxDocument(files, { token, backend, elements, record, ...(profile && record ? { count: 'profile' as const, performance: true } : {}) })
+  const { backend, elements, record, profile, logs } = options
+  const document_ = sandboxDocument(files, { token, backend, elements, record, logs, ...(profile && record ? { count: 'profile' as const, performance: true } : {}) })
   return { ...document_, token, files, recorded: record !== undefined }
 }
 
@@ -64,6 +66,8 @@ export interface CheckOptions {
   performance?: boolean
   /** The files instrumented to count, when a probe reads the work (chapter 6); a file it skipped leaves those probes without a value. */
   counted?: Instrumented
+  /** Chapter 7: the server's logs (its answers carry request ids, which an app may show). */
+  logs?: LogsSpec
   timeoutMs?: number
 }
 
@@ -82,10 +86,10 @@ export async function runCheck(files: Readonly<Record<string, string>>, probes: 
 
 /** One frame of a check run, at its width. */
 function runFrame(files: Readonly<Record<string, string>>, { width, height, probes }: CheckFrame, options: CheckOptions): Promise<Observation> {
-  const { backend, performance, counted, timeoutMs = CHECK_TIMEOUT_MS } = options
+  const { backend, performance, counted, logs, timeoutMs = CHECK_TIMEOUT_MS } = options
   return new Promise((resolve) => {
     const token = newToken()
-    const document_ = sandboxDocument(files, { token, probes, backend, performance, ...(counted ? { record: counted.modules, count: 'check' as const } : {}) })
+    const document_ = sandboxDocument(files, { token, probes, backend, performance, logs, ...(counted ? { record: counted.modules, count: 'check' as const } : {}) })
     const frame = document.createElement('iframe')
     frame.setAttribute('sandbox', SANDBOX_FLAGS)
     frame.setAttribute('aria-hidden', 'true')
@@ -112,7 +116,7 @@ function runFrame(files: Readonly<Record<string, string>>, { width, height, prob
       if (event.source !== frame.contentWindow) return
       const message = readBridgeMessage(event.data, token)
       // the goals read no requests (probes count them inside the frame): only the app you see shows them
-      if (!message || message.type === 'request' || message.type === 'response') return
+      if (!message || message.type === 'request' || message.type === 'response' || message.type === 'serverlog') return
       // a flood of logs must not fill memory: the goals need the probes, done and that errors happened, not every line
       if ((message.type === 'console' || message.type === 'error' || message.type === 'netlog') && ++appMessages > MAX_CHECK_MESSAGES) return
       messages.push(message)

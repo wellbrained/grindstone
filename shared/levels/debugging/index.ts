@@ -1,5 +1,5 @@
-// The Debugging track (ADR 0007): its chapters and their levels, in play order. Chapters 1 to 6 are live; Incidents
-// is coming (no levels yet). A practice task goes right after the scenario it trains (`practises`); defineTrack checks it.
+// The Debugging track (ADR 0007): its chapters and their levels, in play order; all seven chapters are live. A practice
+// task goes right after the scenario it trains (`practises`); defineTrack checks it.
 import { fewestHintsThenReloads } from '../progress'
 import { defineTrack, trackLevels } from '../track'
 import { isDebugLevel } from './types'
@@ -34,6 +34,11 @@ import { redrawsMenu } from './27-redraws-menu'
 import { formattedThousands } from './28-formatted-thousands'
 import { oneAfterAnother } from './29-one-after-another'
 import { asksAgain } from './30-asks-again'
+import { checkoutErrors } from './31-checkout-errors'
+import { whichDeploy } from './32-which-deploy'
+import { rollBackNow } from './33-roll-back-now'
+import { someCustomers } from './34-some-customers'
+import { onlyInProduction } from './35-only-in-production'
 import {
   closeTheBracket,
   frameThatPassed,
@@ -101,13 +106,25 @@ import {
   sendsPerKey,
   waitsFirst
 } from './practice/performance'
+import {
+  bodyByHand,
+  brokeTheHours,
+  customerError,
+  escapeTheName,
+  fieldTheServerReads,
+  flagInProduction,
+  keepTheEuroSign,
+  lastGoodVersion,
+  rollItBack,
+  switchItOff
+} from './practice/incidents'
 
 export const debuggingTrack = defineTrack({
   id: 'debugging',
   title: 'Debugging',
   scope: 'DevTools and incidents: track a bug down to its cause.',
   tagline: 'Find the bug before your customers do.',
-  description: 'Small real apps with real bugs, from Corner Bakery\'s ordering site: read the Console, the Network and Elements panels, follow the stack trace to the line, step through a recorded run with breakpoints, count what a slow page does, fix the code and reload until the shop works again. Goals check what the app does, so any fix that works counts.',
+  description: 'Small real apps with real bugs, from Corner Bakery\'s ordering site: read the Console, the Network and Elements panels, follow the stack trace to the line, step through a recorded run with breakpoints, count what a slow page does, read the server\'s logs and roll back a bad deploy, fix the code and reload until the shop works again. Goals check what the app does, so any fix that works counts.',
   status: 'live',
   // fewest hints, then fewest reloads (ADR 0007): no commands to count, and no clock
   bestRun: fewestHintsThenReloads,
@@ -245,7 +262,29 @@ export const debuggingTrack = defineTrack({
         keepTheAnswer
       ]
     },
-    { id: 'incidents', title: 'Incidents', description: 'Logs, the latest change and a rollback while customers wait.', colour: 6, levels: [] }
+    {
+      id: 'incidents',
+      title: 'Incidents',
+      description: 'Logs, the latest change and a rollback while customers wait.',
+      colour: 6,
+      levels: [
+        checkoutErrors,
+        customerError,
+        fieldTheServerReads,
+        whichDeploy,
+        brokeTheHours,
+        keepTheEuroSign,
+        rollBackNow,
+        lastGoodVersion,
+        rollItBack,
+        someCustomers,
+        bodyByHand,
+        escapeTheName,
+        onlyInProduction,
+        flagInProduction,
+        switchItOff
+      ]
+    }
   ]
 })
 
