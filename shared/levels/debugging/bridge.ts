@@ -6,10 +6,12 @@
 // - runs a check run's probes once the app has loaded (scripted clicks, then reads the page) and says when it is done,
 // - evaluates Console input in the app's global scope,
 // - keeps the app on its page (links do not navigate),
-// - answers the app's `fetch` with the level's scripted backend (backend.ts) when it has one, inside the frame.
+// - answers the app's `fetch` with the level's scripted backend (backend.ts) when it has one, inside the frame,
+// - in levels with the Elements panel, answers the panel (inspector.ts): snapshots, matching rules, outline, pick mode.
 // It is JavaScript in a string, injected as one line (it never shifts index.html's lines), so it uses no line comments
 // and ends every statement with a semicolon. Tested in a real browser: e2e/debugging-levels.spec.ts.
 import { BACKEND_SOURCE } from './backend'
+import { INSPECTOR_SOURCE } from './inspector'
 
 const SOURCE = String.raw`(function (config) {
   'use strict';
@@ -89,6 +91,8 @@ const SOURCE = String.raw`(function (config) {
   map.type = 'importmap';
   map.textContent = JSON.stringify({ imports: imports });
   document.currentScript.after(map);
+  /* What Grindstone put on the page (the base, the policy, the bridge, the import map): never shown in the Elements panel. */
+  var own = [document.currentScript, map, document.querySelector('base'), document.querySelector('meta[http-equiv]')];
 
   /* The Console: every call is posted with its call stack (an Error argument brings its own), then goes on as usual. */
   ['log', 'info', 'warn', 'error', 'debug'].forEach(function (level) {
@@ -158,11 +162,23 @@ const SOURCE = String.raw`(function (config) {
     return wait(ms).then(function () { return idle(3000); }).then(function () { return backend ? wait(20) : null; });
   };
 
-  /* Console input from the page: evaluated in the app's global scope; an object literal works as in DevTools. */
+  /* The Elements panel (chapter 3), in levels that use it: snapshots, matching rules, the outline and pick mode. */
+  var inspector = config.elements ? (${INSPECTOR_SOURCE})(config.elements, { post: post, describe: describe, own: own }) : null;
+
+  /* Messages from the page (only the parent, with this load's token): Console input, and the Elements panel's requests. */
   window.addEventListener('message', function (event) {
     if (event.source !== host) return;
     var data = event.data;
-    if (!data || data.grindstone !== token || data.type !== 'eval' || typeof data.code !== 'string') return;
+    if (!data || data.grindstone !== token) return;
+    if (inspector && data.type === 'dom') { inspector.snapshot(); return; }
+    if (inspector && data.type === 'inspect' && typeof data.node === 'number' && typeof data.seq === 'number') { inspector.inspect(data.node, data.seq); return; }
+    if (inspector && data.type === 'highlight' && typeof data.node === 'number') { inspector.highlight(data.node); return; }
+    if (inspector && data.type === 'pick') { inspector.pick(data.on === true); return; }
+    if (data.type === 'eval' && typeof data.code === 'string') evaluate(data);
+  });
+
+  /* Console input: evaluated in the app's global scope; an object literal works as in DevTools. */
+  var evaluate = function (data) {
     var code = data.code;
     var trimmed = code.trim();
     var literal = trimmed.charAt(0) === '{' && trimmed.charAt(trimmed.length - 1) === '}';
@@ -178,12 +194,88 @@ const SOURCE = String.raw`(function (config) {
       try { value = (0, eval)(code); } catch (error) { fail(error); return; }
     }
     post({ type: 'result', id: data.id, ok: true, value: preview(value, false) });
-  });
+  };
 
   /* A check run: once the app has loaded, each probe clicks and reads like a customer, then the run is done. */
   var find = function (selector) {
     try { return document.querySelector(selector); } catch (error) { return null; }
   };
+
+  /* Layout probes (chapter 3): what a customer can see and tap, from the browser's own layout. */
+  var scrollTo = function (top) {
+    try { window.scrollTo({ top: top, left: 0, behavior: 'instant' }); } catch (error) { window.scrollTo(0, top); }
+  };
+  /* The centre of an element, scrolled into view vertically only (sideways is where a too wide layout hides things); null without a box. */
+  var centre = function (element) {
+    var rect = element.getBoundingClientRect();
+    if (!element.getClientRects().length || rect.width < 1 || rect.height < 1) return null;
+    scrollTo(window.scrollY + rect.top + rect.height / 2 - window.innerHeight / 2);
+    rect = element.getBoundingClientRect();
+    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  };
+  var onScreen = function (point) { return point.x >= 0 && point.x < document.documentElement.clientWidth && point.y >= 0 && point.y < window.innerHeight; };
+  var visibility = function (element) {
+    var node;
+    for (node = element; node && node.nodeType === 1; node = node.parentElement) {
+      if (getComputedStyle(node).display === 'none') return node === element ? 'display: none' : 'display: none on ' + describe(node);
+    }
+    var hidden = getComputedStyle(element).visibility;
+    if (hidden !== 'visible') return 'visibility: ' + hidden;
+    for (node = element; node && node.nodeType === 1; node = node.parentElement) {
+      if (parseFloat(getComputedStyle(node).opacity) === 0) return node === element ? 'opacity: 0' : 'opacity: 0 on ' + describe(node);
+    }
+    var point = centre(element);
+    if (!point) return 'no size';
+    return onScreen(point) ? 'visible' : 'off screen';
+  };
+  var hitOf = function (element) {
+    var point = centre(element);
+    if (!point) return 'no box';
+    if (!onScreen(point)) return 'off screen';
+    var top = document.elementFromPoint(point.x, point.y);
+    if (!top) return 'nothing';
+    return top === element || element.contains(top) ? 'itself' : describe(top);
+  };
+  var tap = function (element) {
+    var point = centre(element);
+    var top = point && onScreen(point) ? document.elementFromPoint(point.x, point.y) : null;
+    if (!top) return;
+    if (typeof top.click === 'function') top.click();
+    else top.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window, clientX: point.x, clientY: point.y }));
+  };
+  var rgba = function (text) {
+    var match = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)(?:\s*[,/]\s*([\d.]+)(%?))?\s*\)$/.exec(text);
+    if (!match) return null;
+    var alpha = match[4] === undefined ? 1 : parseFloat(match[4]) / (match[5] ? 100 : 1);
+    return [parseFloat(match[1]), parseFloat(match[2]), parseFloat(match[3]), alpha];
+  };
+  var over = function (top, below) {
+    return [0, 1, 2].map(function (i) { return top[i] * top[3] + below[i] * (1 - top[3]); }).concat([1]);
+  };
+  var luminance = function (colour) {
+    var channel = colour.slice(0, 3).map(function (value) {
+      value /= 255;
+      return value <= 0.03928 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * channel[0] + 0.7152 * channel[1] + 0.0722 * channel[2];
+  };
+  /* The text's colour against what is behind it: the backgrounds of the element and its ancestors over a white page. */
+  var contrastOf = function (element) {
+    var layers = [];
+    for (var node = element; node && node.nodeType === 1; node = node.parentElement) layers.unshift(getComputedStyle(node).backgroundColor);
+    var ground = [255, 255, 255, 1];
+    for (var i = 0; i < layers.length; i++) {
+      var colour = rgba(layers[i]);
+      if (!colour) return null;
+      ground = over(colour, ground);
+    }
+    var text = rgba(getComputedStyle(element).color);
+    if (!text) return null;
+    var a = luminance(over(text, ground));
+    var b = luminance(ground);
+    return Math.round((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) * 100) / 100;
+  };
+  var LOOKS = { style: 1, visible: 1, hit: 1, overflows: 1, contrast: 1 };
   var runProbe = function (probe) {
     var value = null;
     var problem = null;
@@ -215,6 +307,23 @@ const SOURCE = String.raw`(function (config) {
         value = backend ? backend.sent(step.sent, typeof step.json === 'string' ? step.json : null) : null;
         return next();
       }
+      if (typeof step.tap === 'string') {
+        var tapped = find(step.tap);
+        if (!tapped) { problem = 'Nothing on the page matches ' + step.tap; return Promise.resolve(); }
+        tap(tapped);
+        return settle(20).then(next);
+      }
+      var look = Object.keys(LOOKS).filter(function (kind) { return typeof step[kind] === 'string'; })[0];
+      if (look) {
+        var seen = find(step[look]);
+        if (!seen) { problem = 'Nothing on the page matches ' + step[look]; return Promise.resolve(); }
+        if (look === 'style') value = getComputedStyle(seen).getPropertyValue(String(step.property)).trim();
+        else if (look === 'visible') value = visibility(seen);
+        else if (look === 'hit') value = hitOf(seen);
+        else if (look === 'overflows') value = seen.scrollWidth > seen.clientWidth + 1 ? 'overflows' : 'fits';
+        else value = contrastOf(seen);
+        return next();
+      }
       return next();
     };
     return next().then(function () {
@@ -224,6 +333,7 @@ const SOURCE = String.raw`(function (config) {
   window.addEventListener('load', function () {
     settle(30).then(function () {
       post({ type: 'ready' });
+      if (inspector) inspector.snapshot();
       if (!config.probes) return null;
       return config.probes.reduce(function (done, probe) {
         return done.then(function () { return runProbe(probe); });

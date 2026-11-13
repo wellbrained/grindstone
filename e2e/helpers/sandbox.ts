@@ -1,26 +1,28 @@
-// Runs a Debugging level's app the way the play page's check run does (a sealed srcdoc iframe with the bridge), in a
-// real browser page, and reads its messages with the same pure code as the app (shared/levels/debugging).
+// Runs a Debugging level's app the way the play page's check run does (a sealed srcdoc iframe with the bridge, one frame
+// per width the probes ask for, a phone's first), in a real browser page, and reads its messages with the same pure code
+// as the app (shared/levels/debugging).
 import type { Page } from '@playwright/test'
-import { consoleEntry, observe, readBridgeMessage, requestEntry, sandboxDocument, statusLabel, withResponse } from '../../shared/levels'
+import { checkFrames, consoleEntry, mergeObservations, observe, readBridgeMessage, requestEntry, sandboxDocument, statusLabel, withResponse } from '../../shared/levels'
 import type { BackendSpec, BridgeMessage, ConsoleEntryBody, NetworkEntry, Observation, Probe } from '../../shared/levels'
 
 export interface CheckResult {
   observation: Observation
-  /** The Console lines of the run (as the Console panel would show them). */
+  /** The Console lines of the run (as the Console panel would show them; the first frame's). */
   entries: ConsoleEntryBody[]
-  /** The Network panel's rows of the run: 'GET /api/menu 200'. */
+  /** The Network panel's rows of the run: 'GET /api/menu 200' (the first frame's). */
   network: string[]
   /** The Network panel's entries themselves. */
   requests: NetworkEntry[]
 }
 
-export async function runCheck(page: Page, files: Readonly<Record<string, string>>, probes: readonly Probe[], backend?: BackendSpec): Promise<CheckResult> {
+async function runFrame(page: Page, files: Readonly<Record<string, string>>, probes: readonly Probe[], width: number, height: number, backend?: BackendSpec): Promise<CheckResult> {
   const token = `t-${Math.random().toString(36).slice(2)}`
   const document = sandboxDocument(files, { token, probes, backend })
-  const raw = await page.evaluate(async ({ html }) => {
+  const raw = await page.evaluate(async ({ html, width, height }) => {
     const messages: unknown[] = []
     const frame = window.document.createElement('iframe')
     frame.setAttribute('sandbox', 'allow-scripts')
+    Object.assign(frame.style, { position: 'fixed', left: '-10000px', top: '0', width: `${width}px`, height: `${height}px`, border: '0' })
     const done = new Promise<void>((resolve) => {
       window.addEventListener('message', (event) => {
         if (event.source !== frame.contentWindow) return
@@ -33,7 +35,7 @@ export async function runCheck(page: Page, files: Readonly<Record<string, string
     await Promise.race([done, new Promise(resolve => setTimeout(resolve, 5000))])
     frame.remove()
     return messages
-  }, { html: document.html })
+  }, { html: document.html, width, height })
   const messages = raw.map(data => readBridgeMessage(data, token)).filter((message): message is BridgeMessage => message !== null)
   const urls = messages.find(message => message.type === 'files')
   const mapping = { urls: urls?.type === 'files' ? urls.urls : {}, bridgeLine: document.bridgeLine }
@@ -48,4 +50,10 @@ export async function runCheck(page: Page, files: Readonly<Record<string, string
     network: requests.map(entry => `${entry.method} ${entry.name} ${statusLabel(entry)}`),
     requests
   }
+}
+
+export async function runCheck(page: Page, files: Readonly<Record<string, string>>, probes: readonly Probe[], backend?: BackendSpec): Promise<CheckResult> {
+  const results: CheckResult[] = []
+  for (const frame of checkFrames(probes)) results.push(await runFrame(page, files, frame.probes, frame.width, frame.height, backend))
+  return { ...results[0]!, observation: mergeObservations(results.map(result => result.observation)) }
 }

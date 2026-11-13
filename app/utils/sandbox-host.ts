@@ -1,8 +1,8 @@
 // The page's side of the sealed frame (docs/features/ui.md, "Sandbox and bridge"): every load of a level's app gets a
 // fresh token, and a reload's check run happens in a hidden frame of its own, so the probes' clicks never touch the app
 // you see. Both get the level's scripted backend, each its own (a sequence of answers starts over with every load). What the frames post is read with the pure code in shared/levels/debugging (messages.ts).
-import { observe, readBridgeMessage, sandboxDocument } from '../../shared/levels'
-import type { BackendSpec, BridgeMessage, Observation, Probe, SandboxDocument } from '../../shared/levels'
+import { checkFrames, mergeObservations, observe, readBridgeMessage, sandboxDocument } from '../../shared/levels'
+import type { BackendSpec, BridgeMessage, CheckFrame, Observation, Probe, SandboxDocument } from '../../shared/levels'
 
 /** The only sandbox flag a level's app gets: scripts run, but in an opaque origin (no storage, no cookies, no parent). */
 export const SANDBOX_FLAGS = 'allow-scripts'
@@ -26,17 +26,25 @@ export interface AppLoad extends SandboxDocument {
 }
 
 /** A load of the app you see, with the level's scripted backend (if it has one): its requests feed the Network panel. */
-export function appLoad(files: Readonly<Record<string, string>>, backend?: BackendSpec): AppLoad {
+export function appLoad(files: Readonly<Record<string, string>>, backend?: BackendSpec, elements = false): AppLoad {
   const token = newToken()
-  return { ...sandboxDocument(files, { token, backend }), token, files }
+  return { ...sandboxDocument(files, { token, backend, elements }), token, files }
 }
 
 /**
  * The check behind a reload: the files run in a hidden sealed frame, the level's probes click and read once the app has
- * loaded, and the frame's messages become what the goals read. Resolves when the bridge says it is done, or after the
- * timeout with `finished: false`.
+ * loaded, and the frame's messages become what the goals read. Probes that ask for another width (a laptop) run in a
+ * frame of that width after it (checkFrames); their observations are put together. Resolves when every frame is done
+ * (each one when the bridge says so, or after the timeout with `finished: false`).
  */
-export function runCheck(files: Readonly<Record<string, string>>, probes: readonly Probe[], backend?: BackendSpec, timeoutMs = CHECK_TIMEOUT_MS): Promise<Observation> {
+export async function runCheck(files: Readonly<Record<string, string>>, probes: readonly Probe[], backend?: BackendSpec, timeoutMs = CHECK_TIMEOUT_MS): Promise<Observation> {
+  const observations: Observation[] = []
+  for (const frame of checkFrames(probes)) observations.push(await runFrame(files, frame, backend, timeoutMs))
+  return mergeObservations(observations)
+}
+
+/** One frame of a check run, at its width. */
+function runFrame(files: Readonly<Record<string, string>>, { width, height, probes }: CheckFrame, backend: BackendSpec | undefined, timeoutMs: number): Promise<Observation> {
   return new Promise((resolve) => {
     const token = newToken()
     const document_ = sandboxDocument(files, { token, probes, backend })
@@ -46,7 +54,7 @@ export function runCheck(files: Readonly<Record<string, string>>, probes: readon
     frame.setAttribute('inert', '')
     frame.tabIndex = -1
     // off screen but rendered, so the app lays out and its timers run as they would on screen
-    Object.assign(frame.style, { position: 'fixed', left: '-10000px', top: '0', width: '390px', height: '700px', border: '0' })
+    Object.assign(frame.style, { position: 'fixed', left: '-10000px', top: '0', width: `${width}px`, height: `${height}px`, border: '0' })
     const messages: BridgeMessage[] = []
     let appMessages = 0
     const onMessage = (event: MessageEvent) => {

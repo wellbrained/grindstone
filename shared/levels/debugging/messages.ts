@@ -2,6 +2,9 @@
 // Everything from the frame is untrusted: `readBridgeMessage` keeps only well-formed messages of the current load (its
 // token) and only plain strings and numbers; the page shows them as text, never as HTML. From the messages come the
 // Console's entries (`consoleEntry`) and what a check run saw (`observe`), which the goals read. Pure: no DOM.
+import { MAX_CSS_RULES } from './css'
+import { MAX_DOM_NODES } from './elements'
+import type { BoxModel, DomNode, Inspected, InspectedLevel, InspectedMatch, ScrollSize, Sides } from './elements'
 import { mapFrames, parseStack, sourceOf } from './trace'
 import type { SourceMapping } from './trace'
 import type { Observation, ObservedError, ProbeValue, SourceLine, TraceFrame } from './types'
@@ -30,6 +33,19 @@ export type BridgeMessage
     | ResponseMessage
   /** The browser's own Console line for a failed request (`GET … 404 (Not Found)`, a CORS refusal), with where it was sent from. */
     | { type: 'netlog', text: string, stack: string }
+  /** The Elements panel: a snapshot of the app's DOM (in document order), cut at MAX_DOM_NODES. */
+    | { type: 'dom', nodes: DomNode[], truncated: boolean }
+  /** The Elements panel: the selected element's matching rules, box and computed values (`seq`: which request it answers). */
+    | InspectedMessage
+  /** Pick mode: the element under the pointer (-1: none), the one clicked, or pick mode ended without a click. */
+    | { type: 'hovered', node: number }
+    | { type: 'picked', node: number }
+    | { type: 'pickEnd' }
+
+export interface InspectedMessage extends Inspected {
+  type: 'inspected'
+  seq: number
+}
 
 /** A header as name and value (names lower case, in the order they were sent). */
 export type HeaderPair = [name: string, value: string]
@@ -65,6 +81,10 @@ const MAX_TEXT = 10_000
 const MAX_ARGS = 50
 const MAX_FILES = 200
 const MAX_HEADERS = 50
+const MAX_ATTRS = 12
+const MAX_ATTR_TEXT = 200
+const MAX_CHAIN = 64
+const MAX_COMPUTED = 30
 const LEVELS: readonly ConsoleLevel[] = ['log', 'info', 'warn', 'error', 'debug']
 const FAILURES: readonly RequestFailure[] = ['cors', 'network', 'aborted']
 
@@ -90,6 +110,111 @@ function headerPairs(value: unknown): HeaderPair[] | null {
     pairs.push([name, content])
   }
   return pairs
+}
+
+const cut = (value: unknown, max: number): string | null => typeof value === 'string' ? value.slice(0, max) : null
+const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value)
+/** A whole number from -1 (none) up. */
+const nodeId = (value: unknown): number | undefined => value === -1 ? -1 : whole(value, Number.MAX_SAFE_INTEGER)
+const record = (value: unknown): Record<string, unknown> | null => typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null
+
+/** Pairs of plain text, at most `max`, each cut at `length`; null when they are not that. */
+function textPairs(value: unknown, max: number, length: number): [string, string][] | null {
+  if (!Array.isArray(value)) return null
+  const pairs: [string, string][] = []
+  for (const pair of value.slice(0, max)) {
+    if (!Array.isArray(pair) || pair.length !== 2) return null
+    const name = cut(pair[0], length)
+    const content = cut(pair[1], length)
+    if (name === null || content === null) return null
+    pairs.push([name, content])
+  }
+  return pairs
+}
+
+/** A snapshot element: plain data, its id its place in the list, its parent before it. */
+function domNode(value: unknown, index: number): DomNode | null {
+  const raw = record(value)
+  if (!raw || raw.id !== index) return null
+  const parent = nodeId(raw.parent)
+  const tag = typeof raw.tag === 'string' && /^[a-z][a-z0-9-]{0,63}$/i.test(raw.tag) ? raw.tag.toLowerCase() : null
+  const attrs = textPairs(raw.attrs, MAX_ATTRS, MAX_ATTR_TEXT)
+  const text = raw.text === null ? null : cut(raw.text, MAX_ATTR_TEXT)
+  if (parent === undefined || parent >= index || tag === null || attrs === null || (raw.text !== null && text === null)) return null
+  if (attrs.some(([name]) => !/^[^\s"'<>/=]{1,64}$/.test(name))) return null
+  if (typeof raw.shown !== 'boolean' || typeof raw.overflows !== 'boolean') return null
+  return { id: index, parent, tag, attrs, text, shown: raw.shown, overflows: raw.overflows }
+}
+
+/** A list of whole numbers (at most `max`); null when it is not one. */
+function wholes(value: unknown, max: number): number[] | null {
+  if (!Array.isArray(value) || value.length > max) return null
+  const list = value.map(each => whole(each, Number.MAX_SAFE_INTEGER))
+  return list.some(each => each === undefined) ? null : list as number[]
+}
+
+function sides(value: unknown): Sides | null {
+  if (!Array.isArray(value) || value.length !== 4) return null
+  const [top, right, bottom, left] = value as unknown[]
+  return finite(top) && finite(right) && finite(bottom) && finite(left) ? [top, right, bottom, left] : null
+}
+
+function boxModel(value: unknown): BoxModel | null | undefined {
+  if (value === null) return null
+  const raw = record(value)
+  if (!raw || !finite(raw.width) || !finite(raw.height)) return undefined
+  const padding = sides(raw.padding)
+  const border = sides(raw.border)
+  const margin = sides(raw.margin)
+  return padding && border && margin ? { width: raw.width, height: raw.height, padding, border, margin } : undefined
+}
+
+function scrollSize(value: unknown): ScrollSize | null | undefined {
+  if (value === null) return null
+  const raw = record(value)
+  if (!raw) return undefined
+  const { scrollWidth, clientWidth, scrollHeight, clientHeight } = raw
+  if (!finite(scrollWidth) || !finite(clientWidth) || !finite(scrollHeight) || !finite(clientHeight)) return undefined
+  return { scrollWidth, clientWidth, scrollHeight, clientHeight }
+}
+
+function inspectedLevel(value: unknown): InspectedLevel | null {
+  const raw = record(value)
+  if (!raw || !Array.isArray(raw.matches) || raw.matches.length > MAX_CSS_RULES) return null
+  const node = nodeId(raw.node)
+  const label = cut(raw.label, MAX_ATTR_TEXT)
+  const inline = raw.inline === null ? null : text(raw.inline)
+  if (node === undefined || label === null || (raw.inline !== null && inline === null)) return null
+  const matches: InspectedMatch[] = []
+  for (const each of raw.matches) {
+    const match = record(each)
+    const rule = whole(match?.rule, Number.MAX_SAFE_INTEGER)
+    const selectors = wholes(match?.selectors, 64)
+    if (rule === undefined || selectors === null) return null
+    matches.push({ rule, selectors })
+  }
+  return { node, label, inline, matches }
+}
+
+function inspectedMessage(raw: Record<string, unknown>): InspectedMessage | null {
+  const seq = whole(raw.seq, Number.MAX_SAFE_INTEGER)
+  const node = nodeId(raw.node)
+  const box = boxModel(raw.box)
+  const scroll = scrollSize(raw.scroll)
+  const computed = textPairs(raw.computed, MAX_COMPUTED, MAX_ATTR_TEXT)
+  if (seq === undefined || node === undefined || typeof raw.found !== 'boolean' || box === undefined || scroll === undefined || computed === null) return null
+  if (!Array.isArray(raw.chain) || raw.chain.length > MAX_CHAIN || !Array.isArray(raw.invalid) || raw.invalid.length > MAX_CSS_RULES) return null
+  const chain = raw.chain.map(inspectedLevel)
+  if (chain.some(level => level === null)) return null
+  const invalid: Inspected['invalid'] = []
+  for (const each of raw.invalid) {
+    const entry = record(each)
+    const rule = whole(entry?.rule, Number.MAX_SAFE_INTEGER)
+    const declarations = wholes(entry?.declarations, 500)
+    if (rule === undefined || declarations === null) return null
+    invalid.push({ rule, declarations })
+  }
+  return { type: 'inspected', seq, node, found: raw.found, chain: chain as InspectedLevel[], invalid, box, computed, scroll }
 }
 
 /** The message as plain data when it is a well-formed bridge message of this load; null for anything else. */
@@ -173,6 +298,24 @@ export function readBridgeMessage(data: unknown, token: string): BridgeMessage |
       if (message === null || stack === null) return null
       return { type: 'netlog', text: message, stack }
     }
+    case 'dom': {
+      if (!Array.isArray(raw.nodes) || typeof raw.truncated !== 'boolean') return null
+      const nodes = raw.nodes.slice(0, MAX_DOM_NODES).map(domNode)
+      if (nodes.some(node => node === null)) return null
+      return { type: 'dom', nodes: nodes as DomNode[], truncated: raw.truncated || raw.nodes.length > MAX_DOM_NODES }
+    }
+    case 'inspected':
+      return inspectedMessage(raw)
+    case 'hovered': {
+      const node = nodeId(raw.node)
+      return node === undefined ? null : { type: 'hovered', node }
+    }
+    case 'picked': {
+      const node = whole(raw.node, Number.MAX_SAFE_INTEGER)
+      return node === undefined ? null : { type: 'picked', node }
+    }
+    case 'pickEnd':
+      return { type: 'pickEnd' }
     default:
       return null
   }
@@ -245,4 +388,27 @@ export function observe(messages: readonly BridgeMessage[], bridgeLine: number):
     }
   }
   return observation
+}
+
+/**
+ * One observation from the frames of a check run at several widths (checkFrames): it finished when all did; each error
+ * once (loading the app in two frames reports the same error twice); every probe; the first frame's logs.
+ */
+export function mergeObservations(observations: readonly Observation[]): Observation {
+  const [first, ...others] = observations
+  if (!first || !others.length) return first ?? { finished: false, errors: [], probes: {}, probeErrors: {}, logs: [] }
+  const seen = new Set<string>()
+  const errors = observations.flatMap(observation => observation.errors).filter((error) => {
+    const key = JSON.stringify([error.kind, error.text, error.source])
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+  return {
+    finished: observations.every(observation => observation.finished),
+    errors,
+    probes: Object.assign({}, ...observations.map(observation => observation.probes)),
+    probeErrors: Object.assign({}, ...observations.map(observation => observation.probeErrors)),
+    logs: first.logs
+  }
 }

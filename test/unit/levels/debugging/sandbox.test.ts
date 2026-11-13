@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { SANDBOX_CSP, SHOP_ORIGIN, resolveImport, rewriteImports, sandboxDocument } from '../../../../shared/levels/debugging/sandbox'
+import { BRIDGE_SOURCE } from '../../../../shared/levels/debugging/bridge'
+import { COMPUTED_PROPERTIES } from '../../../../shared/levels/debugging/elements'
+import { INSPECTOR_SOURCE } from '../../../../shared/levels/debugging/inspector'
+import { CHECK_VIEWPORT, SANDBOX_CSP, SHOP_ORIGIN, checkFrames, resolveImport, rewriteImports, sandboxDocument } from '../../../../shared/levels/debugging/sandbox'
 
 const files = {
   'index.html': [
@@ -105,5 +108,62 @@ describe('sandboxDocument', () => {
 
   it('still runs without an index.html: an empty page with the bridge', () => {
     expect(sandboxDocument({ 'app.js': '' }, { token: 't' }).html).toContain('<script>')
+  })
+})
+
+describe('the bridge', () => {
+  it('is one line of JavaScript that parses, the inspector inside it', () => {
+    for (const source of [BRIDGE_SOURCE, INSPECTOR_SOURCE]) {
+      expect(source).not.toContain('\n')
+
+      expect(() => new Function(`return ${source}`)).not.toThrow()
+    }
+    expect(BRIDGE_SOURCE).toContain(INSPECTOR_SOURCE)
+  })
+})
+
+describe('the Elements panel in the frame', () => {
+  const config = (html: string) => JSON.parse(html.slice(html.indexOf('({"token":') + 1, html.lastIndexOf(');</script>')))
+
+  it('hands the bridge the rules of the page, the names of the linked stylesheets and the computed values to read', () => {
+    const elements = config(sandboxDocument(files, { token: 't', elements: true }).html).elements
+    expect(elements).toEqual({
+      rules: [
+        { selectors: ['body'], conditions: [], declarations: [['color', '#2a2118']] },
+        { selectors: ['.cart::after'], conditions: [], declarations: [['content', '"</style>"']] }
+      ],
+      sheets: ['style.css'],
+      computed: [...COMPUTED_PROPERTIES]
+    })
+  })
+
+  it('leaves it out for levels without the panel and for check runs', () => {
+    expect(config(sandboxDocument(files, { token: 't' }).html).elements).toBeNull()
+    expect(config(sandboxDocument(files, { token: 't', probes: [] }).html).elements).toBeNull()
+  })
+
+  it('passes media and supports conditions as the browser can test them', () => {
+    const page = { ...files, 'style.css': '@media (max-width: 600px) { @supports (display: grid) { .a { display: grid } } }' }
+    expect(config(sandboxDocument(page, { token: 't', elements: true }).html).elements.rules).toEqual([
+      { selectors: ['.a'], conditions: [['media', '(max-width: 600px)'], ['supports', '(display: grid)']], declarations: [['display', 'grid']] }
+    ])
+  })
+})
+
+describe('checkFrames', () => {
+  const probe = (id: string, width?: number) => ({ id, steps: [{ text: 'p' }], ...(width ? { width } : {}) })
+
+  it('runs the probes in one frame as wide as a phone', () => {
+    expect(CHECK_VIEWPORT).toEqual({ width: 390, height: 700 })
+    expect(checkFrames([probe('a'), probe('b')])).toEqual([{ width: 390, height: 700, probes: [probe('a'), probe('b')] }])
+    expect(checkFrames([])).toEqual([{ width: 390, height: 700, probes: [] }])
+  })
+
+  it('gives each other width a frame of its own, the phone first, the probes in their order', () => {
+    expect(checkFrames([probe('wide', 1024), probe('a'), probe('wide-2', 1024), probe('b', 390)])).toEqual([
+      { width: 390, height: 700, probes: [probe('a'), probe('b', 390)] },
+      { width: 1024, height: 700, probes: [probe('wide', 1024), probe('wide-2', 1024)] }
+    ])
+    expect(checkFrames([probe('wide', 1024)])).toEqual([{ width: 1024, height: 700, probes: [probe('wide', 1024)] }])
   })
 })

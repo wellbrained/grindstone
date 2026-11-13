@@ -546,13 +546,14 @@
   },
   "debugging": {
     "note": "Edit the code, Save, then Reload: the goals are checked on every reload.",
-    "findNote": "Answer with a click: the line in the editor, or its frame in the Console.",
+    "findNote": "Answer with a click: the line in the editor, or a link to it in the panels below.",
     "reloads": "Reloads: {n}",
     "hints": "Hints",
     "notIt": "Not {where}.",
     "panels": "Panels",
     "panel": {
       "app": "App",
+      "elements": "Elements",
       "console": "Console",
       "network": "Network",
       "code": "Code"
@@ -564,7 +565,10 @@
       "frame": "Corner Bakery order page, the level's app",
       "stale": "You saved changes. Reload to run them.",
       "sealed": "The app runs in a sealed frame: it can't reach Grindstone or your progress, and its requests are blocked.",
-      "sealedBackend": "The app runs in a sealed frame: it can't reach Grindstone or your progress, and its requests go to Corner Bakery's scripted server, never the network."
+      "sealedBackend": "The app runs in a sealed frame: it can't reach Grindstone or your progress, and its requests go to Corner Bakery's scripted server, never the network.",
+      "width": "The app is {n} pixels wide",
+      "picking": "Click an element in the app to select it. Esc stops.",
+      "stopPicking": "Stop"
     },
     "console": {
       "label": "Console",
@@ -594,6 +598,8 @@
       "pickNote": "Click a line to answer"
     },
     "lower": "Console and Network",
+    "lowerElements": "Elements and Console",
+    "lowerAll": "Elements, Console and Network",
     "network": {
       "label": "Network",
       "count": "no requests | 1 request | {n} requests",
@@ -617,6 +623,38 @@
         "network": "No answer: the connection failed.",
         "aborted": "Cancelled before the answer came."
       }
+    },
+    "elements": {
+      "label": "Elements",
+      "tree": "The app's elements",
+      "empty": "Loading the page…",
+      "pick": "Pick",
+      "pickLabel": "Pick an element in the app",
+      "refresh": "Refresh",
+      "truncated": "The page has more elements than the panel shows.",
+      "select": "Select an element in the tree, or click Pick and then the app.",
+      "reading": "Reading its styles…",
+      "gone": "This element is no longer on the page. Refresh to see the page as it is now.",
+      "details": "Styles of {name}",
+      "styles": "Styles",
+      "inheritedFrom": "Inherited from",
+      "noRules": "No rule of the app's stylesheets matches it.",
+      "defaults": "The browser's own defaults are not listed: Computed shows what the element ends up with.",
+      "overridden": "overridden",
+      "invalid": "invalid: the browser ignores it",
+      "missing": "{name} is not defined",
+      "specificity": "specificity: {ids} ids, {classes} classes, {types} types",
+      "notShown": "not shown",
+      "overflows": "its content sticks out",
+      "scroll": "scroll",
+      "box": "Box",
+      "noBox": "No box: it is not shown on the page.",
+      "margin": "margin",
+      "border": "border",
+      "padding": "padding",
+      "boxSummary": "Content {width} by {height}; padding {padding}; border {border}; margin {margin} (top, right, bottom, left)",
+      "sticksOut": "Its content is {inner} px wide in a {outer} px box: it sticks out.",
+      "computed": "Computed"
     }
   }
 }

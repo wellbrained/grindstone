@@ -1,11 +1,12 @@
 // The Debugging play page on top of usePlaySession (docs/features/ui.md, "Debugging play page"): the app in its sealed
-// frame, the Console, the Network panel (levels with a backend), the code with its drafts, Reload with its check run,
-// and find tasks' clicks. The session, goals,
-// recording, stats events and debrief are shared.
+// frame, the Console, the Network panel (levels with a backend), the Elements panel (levels that use it), the code with
+// its drafts, Reload with its check run, and find tasks' clicks. The session, goals, recording, stats events and debrief
+// are shared.
 // The session, the drafts, the open file and the last click live in the play state (they survive leaving the page); the
-// app you see, its Console, its requests and the marked line live as long as the page (coming back loads the app again).
-import { consoleEntry, pickLine, readBridgeMessage, reload, requestEntry, restart, saveDebugFile, startDebugLevel, takeHint, withResponse } from '#shared/levels'
-import type { ConsoleEntryBody, DebugLevel, DebugResult, DebugSession, NetworkEntry, PickVerdict, SourceLine, SourceMapping } from '#shared/levels'
+// app you see, its Console, its requests, its DOM and the marked line live as long as the page (coming back loads the
+// app again).
+import { consoleEntry, cssRules, nodeAtPath, nodePath, pickLine, readBridgeMessage, reload, requestEntry, restart, saveDebugFile, startDebugLevel, startExpanded, takeHint, withAncestors, withResponse } from '#shared/levels'
+import type { ConsoleEntryBody, CssRule, DebugLevel, DebugResult, DebugSession, DomNode, Inspected, NetworkEntry, PickVerdict, SourceLine, SourceMapping } from '#shared/levels'
 import type { LineTone } from '~/editor/codemirror'
 import type { AppLoad } from '~/utils/sandbox-host'
 import { appLoad, runCheck } from '~/utils/sandbox-host'
@@ -44,6 +45,8 @@ export function useDebuggingPlay(level: DebugLevel) {
   const backend = level.sandbox.backend
   /** The level scripts a backend, so the page shows the Network panel. */
   const hasNetwork = backend !== undefined
+  /** The level uses the Elements panel (chapter 3). */
+  const hasElements = level.sandbox.elements === true
   const files = computed(() => fileOrder(Object.keys(session.value.state.files)))
   const unsaved = computed(() => files.value.filter(path => store.value.drafts[path] !== session.value.state.files[path]))
   const reloads = computed(() => session.value.reloads ?? 0)
@@ -68,6 +71,31 @@ export function useDebuggingPlay(level: DebugLevel) {
 
   /** The saved files differ from what the app runs: Reload runs them. */
   const stale = computed(() => load.value !== null && load.value.files !== session.value.state.files)
+
+  // the Elements panel: the snapshot of this load's DOM, the selected element and what the bridge said about it
+  /** The elements of the last snapshot, in document order. */
+  const dom = shallowRef<DomNode[]>([])
+  /** The page had more elements than a snapshot keeps. */
+  const domTruncated = ref(false)
+  /** The rules of the stylesheets this load runs (the bridge numbers its matches by them). */
+  const rules = computed<CssRule[]>(() => hasElements && load.value ? cssRules(load.value.files) : [])
+  /** The selected element (its id in the snapshot) and, to find it again in the next snapshot, its place in the tree. */
+  const selected = ref<number | null>(null)
+  let selectedPath: number[] | null = null
+  /** The open elements of the tree. */
+  const expanded = ref<Set<number>>(new Set())
+  const inspected = shallowRef<Inspected | null>(null)
+  /** Pick mode: the next click in the app selects what it lands on. */
+  const picking = ref(false)
+  /** Pick mode: the element under the pointer (shown in the tree). */
+  const hovered = ref<number | null>(null)
+  // a snapshot is read only when one was asked for (the one after a load, Refresh) or while picking (the bridge takes one
+  // on the click); an inspection only for the latest request
+  let awaitingDom = false
+  let inspectSeq = 0
+
+  /** Goes up with every pick in the app (the panel shows and focuses the picked element). */
+  const pickedAt = ref(0)
 
   /** The line marked in the editor: opened from the Console (error tint) or a find task's answer. */
   const mark = ref<(SourceLine & { tone: LineTone }) | null>(null)
@@ -107,9 +135,67 @@ export function useDebuggingPlay(level: DebugLevel) {
     queue = []
     appMessages = 0
     ready.value = false
+    dom.value = []
+    domTruncated.value = false
+    inspected.value = null
+    picking.value = false
+    hovered.value = null
+    awaitingDom = hasElements
     mapping.value = { urls: {}, bridgeLine: 0 }
-    load.value = appLoad(files, backend)
+    load.value = appLoad(files, backend, hasElements)
     mapping.value = { urls: {}, bridgeLine: load.value.bridgeLine }
+  }
+
+  /** A message to this load's bridge (the frame's origin is opaque, so '*' is the only target; the token tells it is us). */
+  function toFrame(message: Record<string, unknown>) {
+    const target = frameWindow()
+    if (target && load.value) target.postMessage({ ...message, grindstone: load.value.token }, '*')
+  }
+
+  /** A new snapshot: the same element stays selected when it is still there (also after a reload). */
+  function takeSnapshot(nodes: DomNode[], truncated: boolean, pickedId: number | null = null) {
+    dom.value = nodes
+    domTruncated.value = truncated
+    const again = pickedId ?? (selectedPath ? nodeAtPath(nodes, selectedPath) : null)
+    expanded.value = again === null ? startExpanded(nodes) : withAncestors(nodes, again, startExpanded(nodes))
+    selectNode(again)
+  }
+
+  /** Asks the app for a new snapshot of its DOM (Refresh). */
+  function refreshDom() {
+    if (!hasElements) return
+    awaitingDom = true
+    toFrame({ type: 'dom' })
+  }
+
+  /** Selects an element of the snapshot (null: none), and asks the bridge what applies to it (the panel outlines it). */
+  function selectNode(id: number | null) {
+    const node = id === null ? undefined : dom.value[id]
+    selected.value = node ? node.id : null
+    selectedPath = node ? nodePath(dom.value, node.id) : selectedPath
+    inspected.value = null
+    inspectSeq++
+    if (node) toFrame({ type: 'inspect', node: node.id, seq: inspectSeq })
+  }
+
+  /** Outlines an element in the app (hovering a row), or none (-1); back to the selected one with null. */
+  function highlightNode(id: number | null) {
+    toFrame({ type: 'highlight', node: id ?? selected.value ?? -1 })
+  }
+
+  function toggleNode(id: number, open: boolean) {
+    const next = new Set(expanded.value)
+    if (open) next.add(id)
+    else next.delete(id)
+    expanded.value = next
+  }
+
+  /** Pick mode on or off: on, the next click in the app selects what it lands on (the app never gets that click). */
+  function setPicking(on: boolean) {
+    if (!hasElements || picking.value === on) return
+    picking.value = on
+    hovered.value = null
+    toFrame({ type: 'pick', on })
   }
 
   /** A message from the app's frame (AppPanel checks it came from its iframe); anything not of this load is ignored. */
@@ -120,7 +206,24 @@ export function useDebuggingPlay(level: DebugLevel) {
     if (!message) return
     if (message.type === 'files') mapping.value = { urls: message.urls, bridgeLine: current.bridgeLine }
     else if (message.type === 'ready') ready.value = true
-    else if (message.type === 'request') {
+    else if (message.type === 'dom') {
+      if (!hasElements || (!awaitingDom && !picking.value)) return
+      awaitingDom = false
+      takeSnapshot(message.nodes, message.truncated)
+    } else if (message.type === 'inspected') {
+      if (message.seq === inspectSeq && message.node === selected.value) inspected.value = message
+    } else if (message.type === 'hovered') {
+      if (picking.value) hovered.value = message.node >= 0 ? message.node : null
+    } else if (message.type === 'picked') {
+      if (!picking.value || message.node >= dom.value.length) return
+      picking.value = false
+      hovered.value = null
+      takeSnapshot(dom.value, domTruncated.value, message.node)
+      pickedAt.value++
+    } else if (message.type === 'pickEnd') {
+      picking.value = false
+      hovered.value = null
+    } else if (message.type === 'request') {
       if (requests.value.length < MAX_REQUESTS) requests.value = [...requests.value, requestEntry(message, mapping.value)]
     } else if (message.type === 'response') requests.value = withResponse(requests.value, message)
     else {
@@ -249,6 +352,7 @@ export function useDebuggingPlay(level: DebugLevel) {
     level,
     find,
     hasNetwork,
+    hasElements,
     session,
     store,
     files,
@@ -263,6 +367,15 @@ export function useDebuggingPlay(level: DebugLevel) {
     load,
     entries,
     requests,
+    dom,
+    domTruncated,
+    rules,
+    selected,
+    expanded,
+    inspected,
+    picking,
+    hovered,
+    pickedAt,
     ready,
     checking,
     stale,
@@ -272,6 +385,11 @@ export function useDebuggingPlay(level: DebugLevel) {
     evaluate,
     clearConsole,
     clearNetwork,
+    refreshDom,
+    selectNode,
+    highlightNode,
+    toggleNode,
+    setPicking,
     save,
     reloadApp,
     openFile,

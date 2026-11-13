@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { consoleEntry, observe, readBridgeMessage } from '../../../../shared/levels/debugging/messages'
+import { consoleEntry, mergeObservations, observe, readBridgeMessage } from '../../../../shared/levels/debugging/messages'
 import type { BridgeMessage } from '../../../../shared/levels/debugging/messages'
 
 // Messages as the bridge posts them (recorded from Chromium, e2e/debugging-levels.spec.ts checks the real thing).
@@ -133,6 +133,21 @@ describe('observe', () => {
     })
   })
 
+  it('puts the frames of a check run at several widths together: errors once, every probe, the logs of the first frame', () => {
+    const error = { kind: 'error' as const, text: 'Uncaught TypeError: x', source: { path: 'app.js', line: 3 } }
+    const phone = { finished: true, errors: [error], probes: { a: 'visible' }, probeErrors: {}, logs: ['ready'] }
+    const laptop = { finished: true, errors: [error, { ...error, source: null }], probes: { b: 'display: none' }, probeErrors: { c: 'Nothing on the page matches .c' }, logs: ['ready'] }
+    expect(mergeObservations([phone, laptop])).toEqual({
+      finished: true,
+      errors: [error, { ...error, source: null }],
+      probes: { a: 'visible', b: 'display: none' },
+      probeErrors: { c: 'Nothing on the page matches .c' },
+      logs: ['ready']
+    })
+    expect(mergeObservations([phone, { ...laptop, finished: false }]).finished).toBe(false)
+    expect(mergeObservations([phone])).toEqual(phone)
+  })
+
   it('counts console.error as an error and not as a log; a run without "done" did not finish', () => {
     const observation = observe([files, { type: 'console', level: 'error', args: ['Oops'], stack: '' }], 3)
     expect(observation).toMatchObject({ finished: false, errors: [{ kind: 'console', text: 'Oops', source: null }], logs: [] })
@@ -184,5 +199,69 @@ describe('the fake backend\'s messages', () => {
   it('counts the browser\'s line as an error of its own kind', () => {
     const observation = observe([{ type: 'files', urls: backendMapping.urls }, request as BridgeMessage, response as BridgeMessage, netlog as BridgeMessage, { type: 'done' }], 3)
     expect(observation.errors).toEqual([{ kind: 'network', text: netlog.text, source: { path: 'menu.js', line: 5 } }])
+  })
+})
+
+describe('the Elements panel\'s messages', () => {
+  const read = (message: object) => readBridgeMessage({ ...message, grindstone: token }, token)
+  const nodes = [
+    { id: 0, parent: -1, tag: 'html', attrs: [['lang', 'en']], text: null, shown: true, overflows: false },
+    { id: 1, parent: 0, tag: 'body', attrs: [], text: null, shown: true, overflows: false },
+    { id: 2, parent: 1, tag: 'button', attrs: [['id', 'order'], ['onclick', '<b>alert(1)</b>']], text: 'Order', shown: false, overflows: true }
+  ]
+  const inspected = {
+    type: 'inspected',
+    seq: 4,
+    node: 2,
+    found: true,
+    chain: [{ node: 2, label: 'button#order', inline: 'color: red', matches: [{ rule: 3, selectors: [0, 1] }] }, { node: 1, label: 'body', inline: null, matches: [] }],
+    invalid: [{ rule: 3, declarations: [1] }],
+    box: { width: 80.5, height: 20, padding: [4, 8, 4, 8], border: [0, 0, 0, 0], margin: [0, 0, 0, 0] },
+    computed: [['display', 'inline-block'], ['color', 'rgb(255, 255, 255)']],
+    scroll: { scrollWidth: 80, clientWidth: 80, scrollHeight: 20, clientHeight: 20 }
+  }
+
+  it('reads a snapshot of the page, an inspected element and pick mode\'s messages, as plain data', () => {
+    expect(read({ type: 'dom', nodes, truncated: false })).toEqual({ type: 'dom', nodes, truncated: false })
+    expect(read(inspected)).toEqual(inspected)
+    expect(read({ ...inspected, box: null, scroll: null, found: false })).toMatchObject({ box: null, scroll: null, found: false })
+    expect(read({ type: 'hovered', node: 2 })).toEqual({ type: 'hovered', node: 2 })
+    expect(read({ type: 'hovered', node: -1 })).toEqual({ type: 'hovered', node: -1 })
+    expect(read({ type: 'picked', node: 0 })).toEqual({ type: 'picked', node: 0 })
+    expect(read({ type: 'pickEnd' })).toEqual({ type: 'pickEnd' })
+  })
+
+  it('refuses a snapshot that is not a tree of plain elements', () => {
+    expect(read({ type: 'dom', nodes: [{ ...nodes[0], parent: 0 }], truncated: false })).toBeNull()
+    expect(read({ type: 'dom', nodes: [nodes[0], { ...nodes[1], id: 5 }], truncated: false })).toBeNull()
+    expect(read({ type: 'dom', nodes: [nodes[0], { ...nodes[1], tag: '<img src=x>' }], truncated: false })).toBeNull()
+    expect(read({ type: 'dom', nodes: [nodes[0], { ...nodes[1], attrs: [['a', { html: 1 }]] }], truncated: false })).toBeNull()
+    expect(read({ type: 'dom', nodes: [nodes[0], { ...nodes[1], shown: 'yes' }], truncated: false })).toBeNull()
+    expect(read({ type: 'dom', nodes: 'html', truncated: false })).toBeNull()
+  })
+
+  it('caps a snapshot: elements, attributes and long texts', () => {
+    const many = Array.from({ length: 900 }, (_, id) => ({ ...nodes[1], id, parent: id - 1, attrs: Array.from({ length: 30 }, (_, n) => [`data-${n}`, 'x'.repeat(5000)]) }))
+    const capped = read({ type: 'dom', nodes: many, truncated: false })
+    expect(capped?.type === 'dom' && capped.nodes).toHaveLength(600)
+    expect(capped?.type === 'dom' && capped.truncated).toBe(true)
+    expect(capped?.type === 'dom' && capped.nodes[0]!.attrs).toHaveLength(12)
+    expect(capped?.type === 'dom' && capped.nodes[0]!.attrs[0]![1].length).toBeLessThanOrEqual(200)
+  })
+
+  it('refuses an inspected element with the wrong shape', () => {
+    expect(read({ ...inspected, box: { ...inspected.box, padding: [1, 2, 3] } })).toBeNull()
+    expect(read({ ...inspected, box: { ...inspected.box, width: 'wide' } })).toBeNull()
+    expect(read({ ...inspected, chain: [{ ...inspected.chain[0], matches: [{ rule: 'x', selectors: [] }] }] })).toBeNull()
+    expect(read({ ...inspected, chain: [{ ...inspected.chain[0], matches: [{ rule: 1, selectors: [-1] }] }] })).toBeNull()
+    expect(read({ ...inspected, computed: [['display']] })).toBeNull()
+    expect(read({ ...inspected, scroll: { scrollWidth: Infinity, clientWidth: 0, scrollHeight: 0, clientHeight: 0 } })).toBeNull()
+    expect(read({ type: 'hovered', node: 1.5 })).toBeNull()
+    expect(read({ type: 'picked', node: -1 })).toBeNull()
+  })
+
+  it('has nothing for the Console in them', () => {
+    expect(consoleEntry(read({ type: 'dom', nodes, truncated: false })!, mapping)).toBeNull()
+    expect(consoleEntry(read(inspected)!, mapping)).toBeNull()
   })
 })

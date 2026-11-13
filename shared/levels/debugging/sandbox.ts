@@ -5,8 +5,13 @@
 // each file's own name, which the import map resolves (a blob URL has no folder to resolve "./cart.js" against). The
 // stylesheet becomes a data URL. Pure string work: no DOM.
 import { backendConfig } from './backend'
+import { attribute, isStylesheetLink, pageFile, resolveImport } from './paths'
 import { BRIDGE_SOURCE } from './bridge'
+import { cssRules, styleTags } from './css'
+import { COMPUTED_PROPERTIES } from './elements'
 import type { BackendSpec, Probe } from './types'
+
+export { resolveImport }
 
 /** The shop's address: relative URLs in the app resolve against it (nothing is ever fetched from it; the fake backend answers in its name). */
 export const SHOP_ORIGIN = 'https://cornerbakery.shop/'
@@ -33,27 +38,65 @@ export interface SandboxOptions {
   probes?: readonly Probe[]
   /** The level's scripted backend (the app you see and its check runs alike); none: requests are refused. */
   backend?: BackendSpec
+  /** The app you see in a level with the Elements panel: the bridge gets the page's rules to match and can draw on the page. */
+  elements?: boolean
+}
+
+/** What the bridge needs for the Elements panel: the page's rules (to test which match), the linked stylesheets' names, what to read. */
+export interface ElementsConfig {
+  rules: { selectors: string[], conditions: [kind: string, text: string][], declarations: [property: string, value: string][] }[]
+  /** The level files of the `<link rel="stylesheet">` tags in document order (their href is a data URL in the frame). */
+  sheets: string[]
+  computed: string[]
+}
+
+/** The size of a check run's frame unless a probe asks for another width: a phone. */
+export const CHECK_VIEWPORT = { width: 390, height: 700 } as const
+
+/** One frame of a check run: its size and the probes it runs. */
+export interface CheckFrame {
+  width: number
+  height: number
+  probes: Probe[]
+}
+
+/** The frames a check run needs: one per width its probes ask for, the phone's first, the probes in their order. */
+export function checkFrames(probes: readonly Probe[]): CheckFrame[] {
+  const widthOf = (probe: Probe) => probe.width ?? CHECK_VIEWPORT.width
+  const asked = [...new Set(probes.map(widthOf))]
+  const widths = asked.length ? [...asked.filter(width => width === CHECK_VIEWPORT.width), ...asked.filter(width => width !== CHECK_VIEWPORT.width)] : [CHECK_VIEWPORT.width]
+  return widths.map(width => ({ width, height: CHECK_VIEWPORT.height, probes: probes.filter(probe => widthOf(probe) === width) }))
+}
+
+/** The Elements panel's config for these files. */
+function elementsConfig(files: Readonly<Record<string, string>>): ElementsConfig {
+  return {
+    rules: cssRules(files).map(rule => ({
+      selectors: rule.selectors,
+      conditions: rule.conditions.map(condition => [condition.kind, condition.text]),
+      declarations: rule.declarations.map(declaration => [declaration.property, declaration.value])
+    })),
+    sheets: linkedSheets(files['index.html'] ?? '', files),
+    computed: [...COMPUTED_PROPERTIES]
+  }
+}
+
+/**
+ * The level files of the page's `<link rel="stylesheet">` elements, in document order: one per link the frame's DOM
+ * has with a data URL (also a `disabled` one; not one inside `<!-- -->`), which is how the inspector names them.
+ */
+function linkedSheets(html: string, files: Readonly<Record<string, string>>): string[] {
+  return styleTags(html).flatMap(({ tag, kind }) => {
+    const href = kind === 'link' ? attribute(tag, 'href') : null
+    const path = href === null ? null : pageFile(href, files)
+    return path === null ? [] : [path]
+  })
 }
 
 export interface SandboxDocument {
   html: string
   /** The line of the frame's page that holds the bridge (its stack frames are never shown). */
   bridgeLine: number
-}
-
-/** The level file an import refers to, resolved against the importing file; null when it leaves the app's folder. */
-export function resolveImport(from: string, specifier: string): string | null {
-  const parts = from.split('/').slice(0, -1)
-  for (const segment of specifier.split('/')) {
-    if (segment === '.' || segment === '') continue
-    if (segment === '..') {
-      if (!parts.length) return null
-      parts.pop()
-    } else {
-      parts.push(segment)
-    }
-  }
-  return parts.join('/')
 }
 
 // `from './x.js'`, `import './x.js'`, `import('./x.js')`: a relative specifier in quotes
@@ -67,20 +110,11 @@ export function rewriteImports(source: string, from: string, files: Readonly<Rec
   })
 }
 
-/** The level file a URL in index.html points at ('./app.js', 'app.js', '/app.js'), or null. */
-function fileOf(url: string, files: Readonly<Record<string, string>>): string | null {
-  if (/^[a-z][\w+.-]*:/i.test(url) || url.startsWith('//')) return null
-  const path = resolveImport('index.html', url.replace(/^\/?(?!\.)/, './').split(/[?#]/)[0]!)
-  return path !== null && path in files ? path : null
-}
-
-const attribute = (tag: string, name: string) => new RegExp(`\\b${name}\\s*=\\s*(["']?)([^"'\\s>]*)\\1`, 'i').exec(tag)?.[2] ?? null
-
 /** `<script type="module" src="./app.js"></script>` loads the file through the import map, on the same lines (a tag spread over several lines keeps its line count). */
 function rewriteScripts(html: string, files: Readonly<Record<string, string>>): string {
   return html.replace(/<script\b([^>]*)>(\s*)<\/script>/gi, (whole, attributes: string, inside: string) => {
     const src = attribute(attributes, 'src')
-    const path = src === null ? null : fileOf(src, files)
+    const path = src === null ? null : pageFile(src, files)
     if (path === null || attribute(attributes, 'type')?.toLowerCase() !== 'module') return whole
     return `<script type="module">import "${path}"${'\n'.repeat(((attributes + inside).match(/\n/g) ?? []).length)}</script>`
   })
@@ -89,9 +123,9 @@ function rewriteScripts(html: string, files: Readonly<Record<string, string>>): 
 /** `<link rel="stylesheet" href="./style.css">` gets the file as a data URL (one line, no fetch). */
 function rewriteStylesheets(html: string, files: Readonly<Record<string, string>>): string {
   return html.replace(/<link\b[^>]*>/gi, (tag) => {
-    if (!/\brel\s*=\s*["']?stylesheet\b/i.test(tag)) return tag
+    if (!isStylesheetLink(tag)) return tag
     const href = attribute(tag, 'href')
-    const path = href === null ? null : fileOf(href, files)
+    const path = href === null ? null : pageFile(href, files)
     if (path === null) return tag
     const data = `data:text/css;charset=utf-8,${encodeURIComponent(files[path]!)}`
     return tag.replace(/\bhref\s*=\s*(["']?)[^"'\s>]*\1/i, `href="${data}"`)
@@ -105,7 +139,8 @@ export function sandboxDocument(files: Readonly<Record<string, string>>, options
     .map(([path, source]) => [path, rewriteImports(source, path, files)]))
   // the config is JSON inside a <script>: no raw "<", so no text in it can close the script or open a comment
   const backend = options.backend ? backendConfig(options.backend, SHOP_ORIGIN) : null
-  const config = JSON.stringify({ token: options.token, modules, probes: options.probes ?? null, backend }).replace(/</g, '\\u003c')
+  const elements = options.elements && !options.probes ? elementsConfig(files) : null
+  const config = JSON.stringify({ token: options.token, modules, probes: options.probes ?? null, backend, elements }).replace(/</g, '\\u003c')
   const injected = `<base href="${SHOP_ORIGIN}"><meta http-equiv="Content-Security-Policy" content="${SANDBOX_CSP}"><script>${BRIDGE_SOURCE}(${config});</script>`
 
   const page = rewriteStylesheets(rewriteScripts(files['index.html'] ?? '', files), files)

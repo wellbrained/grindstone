@@ -66,13 +66,13 @@ describe('track registry', () => {
     }
   })
 
-  it('gives Debugging its seven chapters (ADR 0007): Reading errors and Network live, the other five coming', () => {
+  it('gives Debugging its seven chapters (ADR 0007): Reading errors, Network and Elements & CSS live, the other four coming', () => {
     const debugging = trackById('debugging')!
     expect(debugging).toMatchObject({ title: 'Debugging', tagline: 'Find the bug before your customers do.', cheatSheet: null, bestRun: ['hints', 'reloads'] })
     expect(debugging.chapters.map(chapter => [chapter.number, chapter.title, chapter.levels.length])).toEqual([
       [1, 'Reading errors', 13],
       [2, 'Network', 12],
-      [3, 'Elements & CSS', 0],
+      [3, 'Elements & CSS', 15],
       [4, 'State & async', 0],
       [5, 'Breakpoints & stepping', 0],
       [6, 'Performance', 0],
@@ -108,8 +108,26 @@ describe('track registry', () => {
       ['2.5', 'debugging-10-orders-twice'],
       [null, 'debugging-practice-disable-while-sending']
     ])
+    expect(debugging.chapters[2]!.levels.map(level => [levelNumber(level.id), level.id])).toEqual([
+      ['3.1', 'debugging-11-invisible-order'],
+      [null, 'debugging-practice-inherited-colour'],
+      [null, 'debugging-practice-variable-name'],
+      ['3.2', 'debugging-12-cant-click'],
+      [null, 'debugging-practice-what-covers'],
+      [null, 'debugging-practice-let-clicks-through'],
+      ['3.3', 'debugging-13-style-doesnt-apply'],
+      [null, 'debugging-practice-rule-that-wins'],
+      [null, 'debugging-practice-selector-typo'],
+      ['3.4', 'debugging-14-gone-on-phones'],
+      [null, 'debugging-practice-media-query-line'],
+      [null, 'debugging-practice-turn-the-query'],
+      ['3.5', 'debugging-15-long-name'],
+      [null, 'debugging-practice-nowrap-line'],
+      [null, 'debugging-practice-long-address']
+    ])
     expect(nextLevel('debugging-practice-close-the-bracket')).toBe(levelById('debugging-06-menu-wont-load'))
-    expect(nextLevel('debugging-practice-disable-while-sending')).toBeNull()
+    expect(nextLevel('debugging-practice-disable-while-sending')).toBe(levelById('debugging-11-invisible-order'))
+    expect(nextLevel('debugging-practice-long-address')).toBeNull()
     expect(nextLevel('git-practice-release-from-develop')).toBeNull()
   })
 

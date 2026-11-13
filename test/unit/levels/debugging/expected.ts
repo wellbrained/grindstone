@@ -4,6 +4,10 @@ import type { Probe, ProbeValue } from '../../../../shared/levels'
 import { SAVE_FAILED } from '../../../../shared/levels/debugging/07-nothing-happens'
 import { CONFIRMED } from '../../../../shared/levels/debugging/10-orders-twice'
 import { OPENING_HOURS, VOUCHER_EXPIRED } from '../../../../shared/levels/debugging/practice/network'
+import { BRAND_RGB } from '../../../../shared/levels/debugging/11-invisible-order'
+import { MUTED_RGB, SPECIAL_RED } from '../../../../shared/levels/debugging/13-style-doesnt-apply'
+import { SOLD_OUT_GREY } from '../../../../shared/levels/debugging/practice/elements-css'
+import { ORDERED } from '../../../../shared/levels/debugging/storefront'
 
 export interface ExpectedRun {
   /** Probe values of the check run. */
@@ -155,5 +159,66 @@ export const expected: Record<string, ExpectedLevel> = {
   'debugging-practice-disable-while-sending': {
     start: { probes: { reservations: 2 }, errors: 0, network: ['GET /api/menu 200', 'POST /api/cakes 201', 'POST /api/cakes 201'] },
     solved: { probes: { reservations: 1 }, errors: 0, network: ['GET /api/menu 200', 'POST /api/cakes 201'] }
+  },
+  // Elements & CSS: nothing is red in the Console; the probes read the layout (contrast, computed styles, what a tap hits)
+  'debugging-11-invisible-order': {
+    start: { probes: { 'order-contrast': 1, 'order-background': 'rgba(0, 0, 0, 0)' }, errors: 0 },
+    solved: { probes: { 'order-contrast': 8.01, 'order-background': BRAND_RGB }, errors: 0 }
+  },
+  'debugging-practice-inherited-colour': {
+    answerOffTrace: true,
+    start: { probes: {}, errors: 0 }
+  },
+  'debugging-practice-variable-name': {
+    start: { probes: { 'add-background': 'rgba(0, 0, 0, 0)' }, errors: 0 },
+    solved: { probes: { 'add-background': BRAND_RGB }, errors: 0 }
+  },
+  'debugging-12-cant-click': {
+    start: { probes: { 'order-hit': 'div.toast-area', 'toast': 'visible', 'checkout-fixed': 'fixed', 'area-fixed': 'fixed', 'ordered': '', 'toast-closes': 0 }, errors: 0 },
+    solved: { probes: { 'order-hit': 'itself', 'toast': 'visible', 'checkout-fixed': 'fixed', 'area-fixed': 'fixed', 'ordered': ORDERED, 'toast-closes': 0 }, errors: 0 }
+  },
+  'debugging-practice-what-covers': {
+    answerOffTrace: true,
+    start: { probes: {}, errors: 0 }
+  },
+  'debugging-practice-let-clicks-through': {
+    start: { probes: { 'banner': 'visible', 'banner-place': 'absolute', 'badge': '0' }, errors: 0 },
+    solved: { probes: { 'banner': 'visible', 'banner-place': 'absolute', 'badge': '1' }, errors: 0 }
+  },
+  'debugging-13-style-doesnt-apply': {
+    start: { probes: { 'special-price': MUTED_RGB, 'croissant-price': MUTED_RGB }, errors: 0 },
+    solved: { probes: { 'special-price': SPECIAL_RED, 'croissant-price': MUTED_RGB }, errors: 0 }
+  },
+  'debugging-practice-rule-that-wins': {
+    answerOffTrace: true,
+    start: { probes: {}, errors: 0 }
+  },
+  'debugging-practice-selector-typo': {
+    start: { probes: { 'sourdough-add': BRAND_RGB, 'croissant-add': BRAND_RGB }, errors: 0 },
+    solved: { probes: { 'sourdough-add': SOLD_OUT_GREY, 'croissant-add': BRAND_RGB }, errors: 0 }
+  },
+  'debugging-14-gone-on-phones': {
+    start: { probes: { 'bar-phone': 'display: none', 'basket-phone': 'display: none', 'bar-laptop': 'visible', 'basket-laptop': 'visible' }, errors: 0 },
+    solved: { probes: { 'bar-phone': 'visible', 'basket-phone': 'display: none', 'bar-laptop': 'display: none', 'basket-laptop': 'visible' }, errors: 0 }
+  },
+  'debugging-practice-media-query-line': {
+    answerOffTrace: true,
+    start: { probes: {}, errors: 0 }
+  },
+  'debugging-practice-turn-the-query': {
+    start: { probes: { 'photo-phone': 'visible', 'photo-laptop': 'display: none' }, errors: 0 },
+    solved: { probes: { 'photo-phone': 'display: none', 'photo-laptop': 'visible' }, errors: 0 }
+  },
+  'debugging-15-long-name': {
+    start: { probes: { 'page': 'overflows', 'walnut-add': 'off screen', 'walnut-name': 'fits' }, errors: 0 },
+    solved: { probes: { 'page': 'fits', 'walnut-add': 'itself', 'walnut-name': 'overflows' }, errors: 0 }
+  },
+  'debugging-practice-nowrap-line': {
+    answerOffTrace: true,
+    start: { probes: {}, errors: 0 }
+  },
+  'debugging-practice-long-address': {
+    start: { probes: { page: 'overflows', note: 'visible' }, errors: 0 },
+    solved: { probes: { page: 'fits', note: 'visible' }, errors: 0 }
   }
 }

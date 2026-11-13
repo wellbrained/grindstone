@@ -16,6 +16,30 @@ export function probeGoal(id: string, label: string, probe: string, expected: Pr
   return { id, label, check: ({ state }) => state.observed?.finished === true && probeValue(state, probe) === expected }
 }
 
+/**
+ * Several probes read exactly these after the last reload, in a check run that finished: one goal for what belongs
+ * together ("Order can be tapped, and the message above it still shows"), so a guard never passes on its own at the start.
+ */
+export function probesGoal(id: string, label: string, expected: Readonly<Record<string, ProbeValue>>): DebugGoal {
+  return {
+    id,
+    label,
+    check: ({ state }) => state.observed?.finished === true && Object.entries(expected).every(([probe, value]) => probeValue(state, probe) === value)
+  }
+}
+
+/** A probe read a number of at least `min` after the last reload (a contrast ratio), in a check run that finished. */
+export function probeAtLeast(id: string, label: string, probe: string, min: number): DebugGoal {
+  return {
+    id,
+    label,
+    check: ({ state }) => {
+      const value = probeValue(state, probe)
+      return state.observed?.finished === true && typeof value === 'number' && value >= min
+    }
+  }
+}
+
 /** The last reload's check run went through (loading and every probe) without an error in the Console. */
 export function noErrorsGoal(label = 'No errors in the Console after a reload'): DebugGoal {
   return { id: 'no-errors', label, check: ({ state }) => state.observed?.finished === true && state.observed.errors.length === 0 }

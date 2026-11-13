@@ -39,6 +39,15 @@ for (const level of debuggingLevels) {
     const reloaded = reload(startDebugLevel(level), level, start.observation)
     expect(Object.values(reloaded.session.goalsMet).some(Boolean)).toBe(false)
 
+    // Elements & CSS: throwing the stylesheet away is no fix (nothing covers the button, but nothing is styled either)
+    if (level.sandbox.elements) {
+      const { 'style.css': _style, ...withoutStyle } = startDebugLevel(level).state.files
+      for (const files of [{ ...withoutStyle, 'style.css': '' }, withoutStyle]) {
+        const bare = reload(startDebugLevel(level), level, (await run(files)).observation)
+        expect(Object.values(bare.session.goalsMet).every(Boolean), `${level.id} without its CSS`).toBe(false)
+      }
+    }
+
     const results = await playSolution(level, async (files) => {
       const solved = await run(files)
       expect(solved.observation.probes).toEqual(table.solved!.probes)

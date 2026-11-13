@@ -319,7 +319,7 @@ function conflicts(labels: EditorLabels): Extension {
   })
 }
 
-/** The marked line: where it starts (follows edits) and its tone. */
+/** The marked line: where it starts and its tone; it goes with the first edit. */
 interface LineMark {
   from: number
   tone: LineTone
@@ -343,7 +343,9 @@ const markedLine = StateField.define<LineMark | null>({
   create: () => null,
   update: (mark, transaction) => {
     for (const effect of transaction.effects) if (effect.is(setMark)) return effect.value
-    return mark && transaction.docChanged ? { ...mark, from: transaction.changes.mapPos(mark.from) } : mark
+    // an edit makes the marked line stale: the mark goes in the same transaction. (Clearing it with a transaction of its
+    // own from outside, mid-edit, ended Firefox's composition, so text typed or inserted through it was lost.)
+    return transaction.docChanged ? null : mark
   },
   provide: field => [
     EditorView.decorations.from(field, mark => mark ? Decoration.set([Decoration.line({ class: `cm-mark-${mark.tone}` }).range(mark.from)]) : Decoration.none),
@@ -457,7 +459,8 @@ export function createCodeEditor(options: CodeEditorOptions): CodeEditorHandle {
     },
     mark(line, tone = 'error') {
       if (line === null) {
-        view.dispatch({ effects: setMark.of(null) })
+        // nothing to clear (an edit already did): no transaction, which would end an IME or Firefox composition
+        if (view.state.field(markedLine, false)) view.dispatch({ effects: setMark.of(null) })
         return
       }
       const { doc } = view.state

@@ -36,11 +36,34 @@ export type ProbeStep
     | { requests: string }
   /** Reads the body of the last request sent there (null: none, or no body); with `json`, the value at that path ('items.0.quantity'). */
     | { sent: string, json?: string }
+  /**
+   * Taps the first element that matches where a finger would: at its centre (scrolled into view), on whatever is on top
+   * there. Something covering it gets the tap instead, like for a customer; then the app gets 20 ms to react.
+   */
+    | { tap: string }
+  /** Reads a computed style of the first element that matches ('display' → 'none', 'color' → 'rgb(255, 255, 255)'). */
+    | { style: string, property: string }
+  /**
+   * Whether the first element that matches can be seen: 'visible', or why not: 'display: none' (also 'display: none on
+   * section.summary' for an ancestor), 'visibility: hidden', 'opacity: 0' (or on an ancestor), 'no size', 'off screen'.
+   */
+    | { visible: string }
+  /**
+   * What a tap at the centre of the first element that matches lands on: 'itself' (it or something inside it), else the
+   * element on top ('div.toast-area'); 'no box', 'off screen' or 'nothing' when there is nothing to tap.
+   */
+    | { hit: string }
+  /** Whether the first element that matches is wider inside than its box: 'overflows' or 'fits' (`html`: the page scrolls sideways). */
+    | { overflows: string }
+  /** The contrast ratio of the first matching element's text against the background behind it (1 to 21, two decimals). */
+    | { contrast: string }
 
 /** A scripted look at the app that goals read: steps run in order; its value is what the last read step read. */
 export interface Probe {
   id: string
   steps: readonly ProbeStep[]
+  /** The width of the check run's frame for this probe (default CHECK_VIEWPORT, a phone); each width gets a frame of its own. */
+  width?: number
 }
 
 /** An error the check run saw: an uncaught error, an unhandled rejection or a `console.error` call. */
@@ -109,6 +132,8 @@ export interface SandboxSpec {
   find?: FindTarget
   /** The scripted backend that answers the app's requests (and the Network panel that shows them); none: requests are blocked. */
   backend?: BackendSpec
+  /** The level uses the Elements panel (chapter 3): the app's DOM tree, the styles that apply and pick mode. */
+  elements?: true
 }
 
 /** A value a JSON body can hold. */

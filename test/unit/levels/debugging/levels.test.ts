@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SHOP_ORIGIN, backendConfig, debuggingLevels, editedText, levelIntro, pickLine, playSolution, reload, saveDebugFile, startDebugLevel, takeHint } from '../../../../shared/levels'
+import { SHOP_ORIGIN, backendConfig, cssRules, debuggingLevels, editedText, levelIntro, pickLine, playSolution, reload, saveDebugFile, startDebugLevel, takeHint } from '../../../../shared/levels'
 import type { DebugLevel, Observation } from '../../../../shared/levels'
 import { expected } from './expected'
 import type { ExpectedRun } from './expected'
@@ -45,7 +45,22 @@ const POINTED_AT: Record<string, [path: string, line: number, contains: string][
   'debugging-09-works-on-my-machine': [['specials.js', 4, 'fetch(\'https://api.cornerbakery.shop/specials\')']],
   'debugging-practice-own-origin': [['newsletter.js', 5, 'fetch(\'https://api.cornerbakery.shop/newsletter\'']],
   'debugging-10-orders-twice': [['order.js', 9, 'status.textContent = \'Sending your order…\''], ['order.js', 16, 'const order = await response.json()']],
-  'debugging-practice-disable-while-sending': [['cake.js', 7, 'message.textContent = \'Checking the oven plan…\'']]
+  'debugging-practice-disable-while-sending': [['cake.js', 7, 'message.textContent = \'Checking the oven plan…\'']],
+  'debugging-11-invisible-order': [['style.css', 99, '.order {'], ['style.css', 103, 'background: var(--brown);'], ['style.css', 3, '--brand: #7a3e12;']],
+  'debugging-practice-inherited-colour': [['style.css', 110, '.basket {'], ['style.css', 114, 'color: var(--paper);'], ['style.css', 14, 'color: var(--ink);'], ['style.css', 7, '--paper: #fffaf3;'], ['style.css', 117, '.basket p {']],
+  'debugging-practice-variable-name': [['style.css', 92, 'background: var(--brand-colour);']],
+  'debugging-12-cant-click': [['style.css', 145, '.toast-area {'], ['style.css', 150, 'z-index: 10;'], ['style.css', 151, 'height: 140px;'], ['style.css', 157, '.toast {']],
+  'debugging-practice-what-covers': [['style.css', 126, '.notice-area {'], ['style.css', 127, 'position: fixed;'], ['style.css', 128, 'inset: 0;'], ['style.css', 129, 'z-index: 100;'], ['style.css', 135, '.notice {'], ['style.css', 87, '.add {'], ['style.css', 99, '.order {']],
+  'debugging-practice-let-clicks-through': [['style.css', 126, '.banner {']],
+  'debugging-13-style-doesnt-apply': [['style.css', 82, '#products .price {'], ['style.css', 126, '.special .price {']],
+  'debugging-practice-rule-that-wins': [['style.css', 87, '#products .add {'], ['style.css', 92, 'background: var(--brand);'], ['style.css', 126, '.sold-out .add {'], ['style.css', 127, 'background: #b8ad9f;']],
+  'debugging-practice-selector-typo': [['style.css', 126, '.sold-uot .add {']],
+  'debugging-14-gone-on-phones': [['style.css', 126, '.order-bar {'], ['style.css', 127, 'display: none;'], ['style.css', 148, '@media (min-width: 600px) {']],
+  'debugging-practice-media-query-line': [['style.css', 132, '@media (max-width: 700px) {'], ['style.css', 125, '@media (min-width: 900px) {'], ['style.css', 31, '.tagline,'], ['style.css', 32, '.hours {']],
+  'debugging-practice-turn-the-query': [['style.css', 126, '@media (min-width: 600px) {']],
+  'debugging-15-long-name': [['style.css', 73, '.info {'], ['style.css', 74, 'flex: 1;']],
+  'debugging-practice-nowrap-line': [['style.css', 129, 'white-space: nowrap;'], ['style.css', 125, '.note {'], ['style.css', 44, 'white-space: nowrap;'], ['style.css', 47, 'main {']],
+  'debugging-practice-long-address': [['style.css', 125, '.note {']]
 }
 
 describe('the Debugging levels', () => {
@@ -67,7 +82,7 @@ describe('the Debugging levels', () => {
         expect(level.debrief.paragraphs.length).toBeGreaterThanOrEqual(2)
         expect(level.debrief.paragraphs.length).toBeLessThanOrEqual(4)
         // the error a scenario teaches you to read ('TypeError') or, in Network, the status or problem ('404', 'CORS')
-        expect(level.teaches).toMatch(/^(?:[A-Z][a-z]+Error|\d{3}|[A-Za-z ]{3,16})$/)
+        expect(level.teaches).toMatch(/^(?:[A-Z][a-z]+Error|\d{3}|[A-Za-z@ ()-]{3,16})$/)
         expect(find).toBeUndefined()
       } else {
         expect(level.hints).toHaveLength(1)
@@ -121,6 +136,18 @@ describe('the Debugging levels', () => {
         }
       }
     })
+
+    if (level.sandbox.elements) {
+      it('uses the Elements panel: its CSS opens first, and every rule of it can be read and linked', () => {
+        expect(level.sandbox.open).toBe('style.css')
+        expect(level.sandbox.backend).toBeUndefined()
+        const rules = cssRules(level.setup().files)
+        expect(rules.length).toBeGreaterThan(10)
+        // a find task's answer is a line the panel links: a rule's selector, one of its declarations or its media query
+        const linked = new Set(rules.flatMap(rule => [rule.line, ...rule.declarations.map(each => each.line), ...rule.conditions.map(each => each.line)]))
+        for (const line of find?.lines ?? []) expect(linked.has(line), `style.css:${line}`).toBe(true)
+      })
+    }
 
     if (find) {
       it('is solved by clicking the answer, in the editor or the trace, and says why a wrong click is not it', () => {
