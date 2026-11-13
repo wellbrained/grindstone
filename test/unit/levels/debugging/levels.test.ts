@@ -77,7 +77,22 @@ const POINTED_AT: Record<string, [path: string, line: number, contains: string][
   'debugging-practice-copy-last-week': [['reorder.js', 7, 'const order = lastWeek']],
   'debugging-20-says-it-failed': [['order.js', 17, '      response.json()'], ['order.js', 23, '.catch(() => {']],
   'debugging-practice-pass-the-data-on': [['specials.js', 5, '      response.json()'], ['specials.js', 9, 'for (const special of specials)'], ['specials.js', 3, 'fetch(\'/api/specials\')'], ['specials.js', 7, '.then((specials) => {'], ['specials.js', 4, '.then((response) => {'], ['app.js', 4, 'loadSpecials()']],
-  'debugging-practice-catch-the-rejection': [['app.js', 4, '() => reserveCake())']]
+  'debugging-practice-catch-the-rejection': [['app.js', 4, '() => reserveCake())']],
+  'debugging-21-discount-twice': [['loyalty.js', 5, 'return total * (1 - LOYALTY_DISCOUNT)'], ['cart.js', 17, 'if (card.checked) total = applyDiscount(total)'], ['checkout.js', 12, 'if (card.checked) total = applyDiscount(total)'], ['checkout.js', 11, 'let total = basketTotal()']],
+  'debugging-practice-second-caller': [['menu.js', 14, 'showWelcome()'], ['app.js', 5, 'showWelcome()'], ['app.js', 6, 'showMenu()'], ['greeting.js', 5, 'line.textContent = \'Good morning'], ['greeting.js', 6, '.append(line)']],
+  'debugging-practice-count-once': [['app.js', 6, 'addStamp()'], ['order.js', 6, 'addStamp()']],
+  'debugging-22-misses-last-item': [['receipt.js', 10, 'i < items.length - 1']],
+  'debugging-practice-loop-start': [['times.js', 6, 'for (let i = 1;'], ['times.js', 2, 'const times = [\'7:00\''], ['times.js', 9, 'button.textContent = times[i]'], ['app.js', 3, 'showTimes()']],
+  'debugging-practice-no-extra-size': [['sizes.js', 6, 'i <= sizes.length']],
+  'debugging-23-no-free-delivery': [['delivery.js', 6, 'if (total >= FREE_FROM) return 0']],
+  'debugging-practice-unrounded-compare': [['tips.js', 7, 'if (tips === 0.3)'], ['tips.js', 5, 'tips += amount'], ['tips.js', 6, 'tips.toFixed(2)'], ['app.js', 5, 'addTip(0.2)']],
+  'debugging-practice-box-from-six': [['box.js', 5, 'if (count > BOX_FROM) return 2']],
+  'debugging-24-always-pickup': [['order.js', 13, 'if (order.method = \'pickup\')']],
+  'debugging-practice-stock-zero': [['stock.js', 6, 'if (left = 0)'], ['stock.js', 2, '\'croissant\': 12'], ['stock.js', 5, 'let left = stock[id]'], ['stock.js', 7, 'left} left'], ['app.js', 10, 'stockText(product.id)']],
+  'debugging-practice-compare-the-day': [['hours.js', 3, 'if (day = \'Sunday\')']],
+  'debugging-25-seventh-item': [['wholesale.js', 9, 'total += price'], ['breads.js', 10, 'name: \'Rye loaf\', grams: 0.75']],
+  'debugging-practice-wrong-slices': [['cakes.js', 11, 'name: \'Plum cake\', slices: 80'], ['party.js', 7, 'total += cake.slices'], ['cakes.js', 9, 'name: \'Sheet cake\', slices: 16']],
+  'debugging-practice-comma-price': [['box.js', 7, 'total += Number(pastry.price)'], ['pastries.js', 13, 'price: \'3,20\'']]
 }
 
 describe('the Debugging levels', () => {
@@ -288,7 +303,7 @@ describe('the Debugging goal helpers', () => {
   })
 })
 
-describe('other fixes and non-fixes (State & async)', () => {
+describe('other fixes and non-fixes (State & async, Breakpoints & stepping)', () => {
   it.each(Object.entries(otherFixes))('%s: every edit applies to the starting files and changes them', (id, fixes) => {
     const level = debuggingLevels.find(each => each.id === id)
     expect(level, id).toBeDefined()

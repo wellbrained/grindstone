@@ -32,12 +32,17 @@ export interface AppLoad extends SandboxDocument {
   token: string
   /** The files this load runs (to tell when saved changes are not running yet). */
   files: Readonly<Record<string, string>>
+  /** A recorded load: its code runs instrumented (Record). */
+  recorded: boolean
 }
 
-/** A load of the app you see, with the level's scripted backend (if it has one): its requests feed the Network panel. */
-export function appLoad(files: Readonly<Record<string, string>>, backend?: BackendSpec, elements = false): AppLoad {
+/**
+ * A load of the app you see, with the level's scripted backend (if it has one): its requests feed the Network panel.
+ * `record`: the modules as instrumented for a recorded load (chapter 5).
+ */
+export function appLoad(files: Readonly<Record<string, string>>, backend?: BackendSpec, elements = false, record?: Readonly<Record<string, string>>): AppLoad {
   const token = newToken()
-  return { ...sandboxDocument(files, { token, backend, elements }), token, files }
+  return { ...sandboxDocument(files, { token, backend, elements, record }), token, files, recorded: record !== undefined }
 }
 
 /**

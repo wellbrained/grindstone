@@ -144,6 +144,11 @@ export interface SandboxSpec {
   backend?: BackendSpec
   /** The level uses the Elements panel (chapter 3): the app's DOM tree, the styles that apply and pick mode. */
   elements?: true
+  /**
+   * The level uses the Debugger panel (chapter 5): Record reloads the app with its code instrumented, then breakpoints,
+   * stepping, the Scope and the Call stack go through the recorded run. Other levels never run instrumented code.
+   */
+  debugger?: true
 }
 
 /** A value a JSON body can hold. */

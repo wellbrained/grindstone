@@ -66,7 +66,7 @@ describe('track registry', () => {
     }
   })
 
-  it('gives Debugging its seven chapters (ADR 0007): Reading errors, Network, Elements & CSS and State & async live, the other three coming', () => {
+  it('gives Debugging its seven chapters (ADR 0007): Reading errors, Network, Elements & CSS, State & async and Breakpoints & stepping live, the other two coming', () => {
     const debugging = trackById('debugging')!
     expect(debugging).toMatchObject({ title: 'Debugging', tagline: 'Find the bug before your customers do.', cheatSheet: null, bestRun: ['hints', 'reloads'] })
     expect(debugging.chapters.map(chapter => [chapter.number, chapter.title, chapter.levels.length])).toEqual([
@@ -74,7 +74,7 @@ describe('track registry', () => {
       [2, 'Network', 12],
       [3, 'Elements & CSS', 15],
       [4, 'State & async', 15],
-      [5, 'Breakpoints & stepping', 0],
+      [5, 'Breakpoints & stepping', 15],
       [6, 'Performance', 0],
       [7, 'Incidents', 0]
     ])
@@ -144,8 +144,26 @@ describe('track registry', () => {
     ])
     expect(nextLevel('debugging-practice-close-the-bracket')).toBe(levelById('debugging-06-menu-wont-load'))
     expect(nextLevel('debugging-practice-disable-while-sending')).toBe(levelById('debugging-11-invisible-order'))
+    expect(debugging.chapters[4]!.levels.map(level => [levelNumber(level.id), level.id])).toEqual([
+      ['5.1', 'debugging-21-discount-twice'],
+      [null, 'debugging-practice-second-caller'],
+      [null, 'debugging-practice-count-once'],
+      ['5.2', 'debugging-22-misses-last-item'],
+      [null, 'debugging-practice-loop-start'],
+      [null, 'debugging-practice-no-extra-size'],
+      ['5.3', 'debugging-23-no-free-delivery'],
+      [null, 'debugging-practice-unrounded-compare'],
+      [null, 'debugging-practice-box-from-six'],
+      ['5.4', 'debugging-24-always-pickup'],
+      [null, 'debugging-practice-stock-zero'],
+      [null, 'debugging-practice-compare-the-day'],
+      ['5.5', 'debugging-25-seventh-item'],
+      [null, 'debugging-practice-wrong-slices'],
+      [null, 'debugging-practice-comma-price']
+    ])
     expect(nextLevel('debugging-practice-long-address')).toBe(levelById('debugging-16-object-promise'))
-    expect(nextLevel('debugging-practice-catch-the-rejection')).toBeNull()
+    expect(nextLevel('debugging-practice-catch-the-rejection')).toBe(levelById('debugging-21-discount-twice'))
+    expect(nextLevel('debugging-practice-comma-price')).toBeNull()
     expect(nextLevel('git-practice-release-from-develop')).toBeNull()
   })
 

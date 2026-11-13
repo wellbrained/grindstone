@@ -13,6 +13,9 @@ export type { BackendConfig, BackendRuntime } from './debugging/backend'
 export type { RawFrame, SourceMapping } from './debugging/trace'
 export type { CheckFrame, ElementsConfig, SandboxDocument, SandboxOptions } from './debugging/sandbox'
 export type { CheckRun } from './debugging/engine'
+export type { Breakpoint, ConditionCheck, Hit, RecordedFrame, RecordedObject, RecordedStep, RecordedValue, RecordingMap, ScopeEntries } from './debugging/recording'
+export type { RecordEndReason, RecordLimits } from './debugging/recorder'
+export type { FunctionInfo, Instrumented, ScopeKind, ScopeView, SkipReason, StepPoint } from './debugging/instrument'
 export type { Action, ActResult, HintShown, Outcome } from './engine'
 export type { Attempt, LastPlayed, LevelProgress, Progress, ProgressSummary, ReadResult, Run, RunCounter, RunMeasure } from './progress'
 export type { RadarAxis, RadarGain } from './radar'
@@ -60,5 +63,28 @@ export { MAX_CSS_RULES, compareSpecificity, cssRules, isInherited, longhandsOf, 
 export { COMPUTED_PROPERTIES, MAX_DOM_NODES, boxNumber, elementStyles, nodeAtPath, nodeLabel, nodePath, startExpanded, treeMove, treeRows, withAncestors } from './debugging/elements'
 export { DEFAULT_DELAY_MS, STATUS_TEXT, backendConfig } from './debugging/backend'
 export { MAX_PROBE_WAIT_MS } from './debugging/bridge'
+export { RECORD_LIMITS, RECORDER_GLOBAL } from './debugging/recorder'
+export {
+  atBreakpoint,
+  fittingSteps,
+  frameStep,
+  hitCounts,
+  isExpandable,
+  nextHit,
+  previousHit,
+  readSteps,
+  recordedLines,
+  scopeAt,
+  scopeValues,
+  stepBack,
+  stepInto,
+  stepLine,
+  stepOut,
+  stepOver,
+  valueChildren,
+  valuePreview,
+  valueTone,
+  withoutInstrumentation
+} from './debugging/recording'
 export { bodyView, durationText, requestAddress, requestEntry, requestName, statusLabel, statusTone, withResponse } from './debugging/network'
 export { debuggingLevels, debuggingTrack } from './debugging'

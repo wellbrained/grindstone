@@ -3,11 +3,12 @@ import type { DebuggingPlaySession } from '~/composables/useDebuggingPlay'
 
 // Debugging's Code panel (docs/features/ui.md, "Debugging play page"): a tab per file of the app, Save, and the editor.
 // A line opened from the Console is marked and scrolled into view. A find task is read-only: a click on a line (or
-// Enter on the cursor's line) is the answer.
+// Enter on the cursor's line) is the answer. With the Debugger (chapter 5) the gutter holds the breakpoints (a click, a
+// line number, Ctrl/Cmd+B) and the line the recording is at is lit.
 const props = defineProps<{ play: DebuggingPlaySession }>()
 
 const { t } = useI18n()
-const { store, files, unsaved, find, mark, save, openFile, pick } = props.play
+const { store, files, unsaved, find, mark, save, openFile, pick, hasDebugger, breakpoints, debugLine, recordStatus, toggleBreakpoint } = props.play
 
 const active = computed(() => store.value.active)
 const draft = computed({
@@ -20,6 +21,12 @@ const draft = computed({
 })
 // only the open file's mark; a new object per mark, so the same line opened again scrolls to it again
 const activeMark = computed(() => mark.value && mark.value.path === active.value ? { line: mark.value.line, tone: mark.value.tone } : null)
+
+// the open file's breakpoints (null: no breakpoints in this level) and the Debugger's line in it
+const activeBreakpoints = computed(() => hasDebugger
+  ? breakpoints.value.filter(each => each.path === active.value).map(each => ({ line: each.line, conditional: each.condition !== '' }))
+  : null)
+const activeStep = computed(() => recordStatus.value === 'recorded' && debugLine.value?.path === active.value ? debugLine.value.line : null)
 
 const tabs = useTemplateRef<HTMLElement>('tabs')
 
@@ -111,8 +118,11 @@ function onTabKey(event: KeyboardEvent) {
         :read-only="!!find"
         :pickable="!!find"
         :mark="activeMark"
+        :breakpoints="activeBreakpoints"
+        :step-line="activeStep"
         @save="save()"
         @pick="line => pick({ path: active, line })"
+        @breakpoint="line => toggleBreakpoint({ path: active, line })"
       />
     </div>
   </section>

@@ -1,9 +1,9 @@
 // Runs a Debugging level's app the way the play page's check run does (a sealed srcdoc iframe with the bridge, one frame
 // per width the probes ask for, a phone's first), in a real browser page, and reads its messages with the same pure code
-// as the app (shared/levels/debugging).
+// as the app (shared/levels/debugging). `record` runs it instrumented (chapter 5) and keeps the steps it posts.
 import type { Page } from '@playwright/test'
 import { checkFrames, consoleEntry, mergeObservations, observe, readBridgeMessage, requestAddress, requestEntry, sandboxDocument, statusLabel, withResponse } from '../../shared/levels'
-import type { BackendSpec, BridgeMessage, ConsoleEntryBody, NetworkEntry, Observation, Probe } from '../../shared/levels'
+import type { BackendSpec, BridgeMessage, ConsoleEntryBody, NetworkEntry, Observation, Probe, RecordedStep } from '../../shared/levels'
 import { checkFrameStyle } from '../../app/utils/sandbox-host'
 
 export interface CheckResult {
@@ -14,11 +14,13 @@ export interface CheckResult {
   network: string[]
   /** The Network panel's entries themselves. */
   requests: NetworkEntry[]
+  /** A recorded run's steps (the first frame's; none without `record`). */
+  steps: RecordedStep[]
 }
 
-async function runFrame(page: Page, files: Readonly<Record<string, string>>, probes: readonly Probe[], width: number, height: number, backend?: BackendSpec): Promise<CheckResult> {
+async function runFrame(page: Page, files: Readonly<Record<string, string>>, probes: readonly Probe[], width: number, height: number, backend?: BackendSpec, record?: Readonly<Record<string, string>>): Promise<CheckResult> {
   const token = `t-${Math.random().toString(36).slice(2)}`
-  const document = sandboxDocument(files, { token, probes, backend })
+  const document = sandboxDocument(files, { token, probes, backend, record })
   const raw = await page.evaluate(async ({ html, style }) => {
     const messages: unknown[] = []
     const frame = window.document.createElement('iframe')
@@ -49,12 +51,13 @@ async function runFrame(page: Page, files: Readonly<Record<string, string>>, pro
     observation: observe(messages, document.bridgeLine),
     entries: messages.map(message => consoleEntry(message, mapping)).filter((entry): entry is ConsoleEntryBody => entry !== null),
     network: requests.map(entry => `${entry.method} ${requestAddress(entry.url)} ${statusLabel(entry)}`),
-    requests
+    requests,
+    steps: messages.flatMap(message => message.type === 'steps' ? message.steps : [])
   }
 }
 
-export async function runCheck(page: Page, files: Readonly<Record<string, string>>, probes: readonly Probe[], backend?: BackendSpec): Promise<CheckResult> {
+export async function runCheck(page: Page, files: Readonly<Record<string, string>>, probes: readonly Probe[], backend?: BackendSpec, record?: Readonly<Record<string, string>>): Promise<CheckResult> {
   const results: CheckResult[] = []
-  for (const frame of checkFrames(probes)) results.push(await runFrame(page, files, frame.probes, frame.width, frame.height, backend))
+  for (const frame of checkFrames(probes)) results.push(await runFrame(page, files, frame.probes, frame.width, frame.height, backend, record))
   return { ...results[0]!, observation: mergeObservations(results.map(result => result.observation)) }
 }

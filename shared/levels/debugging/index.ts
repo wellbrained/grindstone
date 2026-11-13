@@ -1,5 +1,5 @@
-// The Debugging track (ADR 0007): its chapters and their levels, in play order. Chapters 1 to 4 are live; the other
-// three are coming (no levels yet). A practice task goes right after the scenario it trains (`practises`); defineTrack checks it.
+// The Debugging track (ADR 0007): its chapters and their levels, in play order. Chapters 1 to 5 are live; the other
+// two are coming (no levels yet). A practice task goes right after the scenario it trains (`practises`); defineTrack checks it.
 import { fewestHintsThenReloads } from '../progress'
 import { defineTrack, trackLevels } from '../track'
 import { isDebugLevel } from './types'
@@ -24,6 +24,11 @@ import { wrongResults } from './17-wrong-results'
 import { addsSourdough } from './18-adds-sourdough'
 import { changesBoth } from './19-changes-both'
 import { saysItFailed } from './20-says-it-failed'
+import { discountTwice } from './21-discount-twice'
+import { missesLastItem } from './22-misses-last-item'
+import { noFreeDelivery } from './23-no-free-delivery'
+import { alwaysPickup } from './24-always-pickup'
+import { seventhItem } from './25-seventh-item'
 import {
   closeTheBracket,
   frameThatPassed,
@@ -67,13 +72,25 @@ import {
   sameList,
   sharedIndex
 } from './practice/state-async'
+import {
+  boxFromSix,
+  commaPrice,
+  compareTheDay,
+  countOnce,
+  loopStart,
+  noExtraSize,
+  secondCaller,
+  stockZero,
+  unroundedCompare,
+  wrongSlices
+} from './practice/breakpoints'
 
 export const debuggingTrack = defineTrack({
   id: 'debugging',
   title: 'Debugging',
   scope: 'DevTools and incidents: track a bug down to its cause.',
   tagline: 'Find the bug before your customers do.',
-  description: 'Small real apps with real bugs, from Corner Bakery\'s ordering site: read the Console, the Network and Elements panels, follow the stack trace to the line, fix the code and reload until the shop works again. Goals check what the app does, so any fix that works counts.',
+  description: 'Small real apps with real bugs, from Corner Bakery\'s ordering site: read the Console, the Network and Elements panels, follow the stack trace to the line, step through a recorded run with breakpoints, fix the code and reload until the shop works again. Goals check what the app does, so any fix that works counts.',
   status: 'live',
   // fewest hints, then fewest reloads (ADR 0007): no commands to count, and no clock
   bestRun: fewestHintsThenReloads,
@@ -165,7 +182,29 @@ export const debuggingTrack = defineTrack({
         catchTheRejection
       ]
     },
-    { id: 'breakpoints', title: 'Breakpoints & stepping', description: 'Pause the code and step through it instead of guessing.', colour: 4, levels: [] },
+    {
+      id: 'breakpoints',
+      title: 'Breakpoints & stepping',
+      description: 'Record a run, then step through it with breakpoints and watch every value change.',
+      colour: 4,
+      levels: [
+        discountTwice,
+        secondCaller,
+        countOnce,
+        missesLastItem,
+        loopStart,
+        noExtraSize,
+        noFreeDelivery,
+        unroundedCompare,
+        boxFromSix,
+        alwaysPickup,
+        stockZero,
+        compareTheDay,
+        seventhItem,
+        wrongSlices,
+        commaPrice
+      ]
+    },
     { id: 'performance', title: 'Performance', description: 'Slow pages, long tasks and what makes them slow.', colour: 5, levels: [] },
     { id: 'incidents', title: 'Incidents', description: 'Logs, the latest change and a rollback while customers wait.', colour: 6, levels: [] }
   ]

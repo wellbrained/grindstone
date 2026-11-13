@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { BRIDGE_SOURCE } from '../../../../shared/levels/debugging/bridge'
 import { COMPUTED_PROPERTIES } from '../../../../shared/levels/debugging/elements'
 import { INSPECTOR_SOURCE } from '../../../../shared/levels/debugging/inspector'
+import { RECORDER_SOURCE, RECORD_LIMITS } from '../../../../shared/levels/debugging/recorder'
 import { CHECK_VIEWPORT, SANDBOX_CSP, SHOP_ORIGIN, checkFrames, resolveImport, rewriteImports, sandboxDocument } from '../../../../shared/levels/debugging/sandbox'
 
 const files = {
@@ -165,5 +166,28 @@ describe('checkFrames', () => {
       { width: 1024, height: 700, probes: [probe('wide', 1024), probe('wide-2', 1024)] }
     ])
     expect(checkFrames([probe('wide', 1024)])).toEqual([{ width: 1024, height: 700, probes: [probe('wide', 1024)] }])
+  })
+})
+
+describe('a recorded load (chapter 5)', () => {
+  const config = (html: string) => JSON.parse(/\((\{"token".*\})\);<\/script>/.exec(html)![1]!.replace(/\u003c/g, '<')) as { modules: Record<string, string>, record: unknown }
+
+  it('runs the instrumented modules (imports still rewritten) and hands the bridge the recorder\'s limits', () => {
+    const instrumented = { 'app.js': 'var __gs$m=__gs$.e(0,1);import { cart } from \'./cart.js\'\nimport \'./lib/log.js\'\n__gs$.on&&__gs$.s(0,__gs$m,[]);console.log(cart)\n' }
+    const { html } = sandboxDocument(files, { token: 't', record: instrumented })
+    const { modules, record } = config(html)
+    expect(modules['app.js']).toBe('var __gs$m=__gs$.e(0,1);import { cart } from \'cart.js\'\nimport \'lib/log.js\'\n__gs$.on&&__gs$.s(0,__gs$m,[]);console.log(cart)\n')
+    // the other modules run as written
+    expect(modules['cart.js']).toBe('export { formatPrice } from "lib/money.js"\nexport const cart = { items: [] }\n')
+    expect(record).toEqual(RECORD_LIMITS)
+  })
+
+  it('is off for any other load', () => {
+    expect(config(sandboxDocument(files, { token: 't' }).html).record).toBeNull()
+  })
+
+  it('puts the recorder into the bridge, still one line that parses', () => {
+    expect(BRIDGE_SOURCE).toContain(RECORDER_SOURCE.replace(/\s*\n\s*/g, ' '))
+    expect(() => new Function(`return ${RECORDER_SOURCE.replace(/\s*\n\s*/g, ' ')}`)).not.toThrow()
   })
 })

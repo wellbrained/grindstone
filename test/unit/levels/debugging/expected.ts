@@ -12,6 +12,9 @@ import { CROISSANT_LINE, SOURDOUGH_LINE } from '../../../../shared/levels/debugg
 import { CRO_RESULTS, CROISSANT_RESULTS } from '../../../../shared/levels/debugging/17-wrong-results'
 import { SORRY, THANKS } from '../../../../shared/levels/debugging/20-says-it-failed'
 import { LAST_WEEK, OVEN_FULL, SATURDAY_TIMES, THIS_WEEK } from '../../../../shared/levels/debugging/practice/state-async'
+import { DELIVERY_TEXT, PICKUP_TEXT } from '../../../../shared/levels/debugging/24-always-pickup'
+import { WHOLESALE_TOTAL } from '../../../../shared/levels/debugging/25-seventh-item'
+import { BOX_TOTAL } from '../../../../shared/levels/debugging/practice/breakpoints'
 
 export interface ExpectedRun {
   /** Probe values of the check run. */
@@ -39,6 +42,8 @@ export interface ExpectedLevel {
   before?: Probe[]
   /** Find tasks whose answer is not on the error's trace (the mistake is elsewhere: before a syntax error, where an address is built). */
   answerOffTrace?: true
+  /** Chapter 5 find tasks whose answer is a line the recording stops on (a step, or a frame of a step's call stack). */
+  answerStep?: true
 }
 
 export const expected: Record<string, ExpectedLevel> = {
@@ -287,5 +292,70 @@ export const expected: Record<string, ExpectedLevel> = {
   'debugging-practice-catch-the-rejection': {
     start: { probes: { message: 'Checking the oven plan…' }, errors: 2, errorAt: 'reserve.js:10', frames: [], network: ['POST /api/cakes 409'], says: ['POST https://cornerbakery.shop/api/cakes 409 (Conflict)', `Uncaught (in promise) Error: ${OVEN_FULL}`] },
     solved: { probes: { message: OVEN_FULL }, errors: 1, network: ['POST /api/cakes 409'] }
+  },
+  'debugging-21-discount-twice': {
+    start: { probes: { 'with-card': '3.89', 'without-card': '4.80' }, errors: 0 },
+    solved: { probes: { 'with-card': '4.32', 'without-card': '4.80' }, errors: 0 }
+  },
+  'debugging-practice-second-caller': {
+    answerOffTrace: true,
+    answerStep: true,
+    start: { probes: {}, errors: 0 }
+  },
+  'debugging-practice-count-once': {
+    start: { probes: { first: '2 of 10 stamps', second: '4 of 10 stamps' }, errors: 0 },
+    solved: { probes: { first: '1 of 10 stamps', second: '2 of 10 stamps' }, errors: 0 }
+  },
+  'debugging-22-misses-last-item': {
+    start: { probes: { lines: 2, last: 'Pain au chocolat · 2.80', total: '5.20' }, errors: 0 },
+    solved: { probes: { lines: 3, last: 'Sourdough loaf · 6.50', total: '11.70' }, errors: 0 }
+  },
+  'debugging-practice-loop-start': {
+    answerOffTrace: true,
+    answerStep: true,
+    start: { probes: {}, errors: 0 }
+  },
+  'debugging-practice-no-extra-size': {
+    start: { probes: { count: 4, last: 'undefined' }, errors: 0 },
+    solved: { probes: { count: 3, last: 'Large' }, errors: 0 }
+  },
+  'debugging-23-no-free-delivery': {
+    start: { probes: { 'below': '3.50', 'at-25': '3.50', 'total': '25.00', 'at-24-40': '3.50' }, errors: 0 },
+    solved: { probes: { 'below': '3.50', 'at-25': 'free', 'total': '25.00', 'at-24-40': '3.50' }, errors: 0 }
+  },
+  'debugging-practice-unrounded-compare': {
+    answerOffTrace: true,
+    answerStep: true,
+    before: [{ id: 'customer', steps: [{ click: '#tip-10' }, { click: '#tip-20' }] }],
+    start: { probes: { customer: null }, errors: 0 }
+  },
+  'debugging-practice-box-from-six': {
+    start: { probes: { five: '2.40 each', six: '2.40 each' }, errors: 0 },
+    solved: { probes: { five: '2.40 each', six: '2.00 each' }, errors: 0 }
+  },
+  'debugging-24-always-pickup': {
+    start: { probes: { delivery: PICKUP_TEXT, pickup: PICKUP_TEXT.replace('Order 1', 'Order 2') }, errors: 0 },
+    solved: { probes: { delivery: DELIVERY_TEXT, pickup: PICKUP_TEXT.replace('Order 1', 'Order 2') }, errors: 0 }
+  },
+  'debugging-practice-stock-zero': {
+    answerOffTrace: true,
+    answerStep: true,
+    start: { probes: {}, errors: 0 }
+  },
+  'debugging-practice-compare-the-day': {
+    start: { probes: { monday: 'Monday: closed', sunday: 'Sunday: closed' }, errors: 0 },
+    solved: { probes: { monday: 'Monday: 7:00–18:00', sunday: 'Sunday: closed' }, errors: 0 }
+  },
+  'debugging-25-seventh-item': {
+    start: { probes: { total: '57.12' }, errors: 0 },
+    solved: { probes: { total: WHOLESALE_TOTAL }, errors: 0 }
+  },
+  'debugging-practice-wrong-slices': {
+    answerOffTrace: true,
+    start: { probes: {}, errors: 0 }
+  },
+  'debugging-practice-comma-price': {
+    start: { probes: { total: 'NaN' }, errors: 0 },
+    solved: { probes: { total: BOX_TOTAL }, errors: 0 }
   }
 }

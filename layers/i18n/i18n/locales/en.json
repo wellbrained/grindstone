@@ -110,7 +110,8 @@
       "incoming": "Conflict {block}: accept the incoming change",
       "both": "Conflict {block}: accept both changes"
     },
-    "pickLabel": "{path}, read-only: click a line, or press Enter on the cursor's line, to answer"
+    "pickLabel": "{path}, read-only: click a line, or press Enter on the cursor's line, to answer",
+    "breakpointLabel": "Contents of {path}: click a line number, or press Ctrl+B (Cmd+B), to set a breakpoint"
   },
   "gitEditor": {
     "label": "{file}, opened by git",
@@ -547,6 +548,7 @@
   "debugging": {
     "note": "Edit the code, Save, then Reload: the goals are checked on every reload.",
     "findNote": "Answer with a click: the line in the editor, or a link to it in the panels below.",
+    "debuggerNote": "Record a run of the app and step through it, then fix the code, Save and Reload: the goals are checked on every reload.",
     "reloads": "Reloads: {n}",
     "hints": "Hints",
     "notIt": "Not {where}.",
@@ -554,6 +556,7 @@
     "panel": {
       "app": "App",
       "elements": "Elements",
+      "debugger": "Debugger",
       "console": "Console",
       "network": "Network",
       "code": "Code"
@@ -568,7 +571,8 @@
       "sealedBackend": "The app runs in a sealed frame: it can't reach Grindstone or your progress, and its requests go to Corner Bakery's scripted server, never the network.",
       "width": "The app is {n} pixels wide",
       "picking": "Click an element in the app to select it. Esc stops.",
-      "stopPicking": "Stop"
+      "stopPicking": "Stop",
+      "recording": "Recording: use the app, then Stop."
     },
     "console": {
       "label": "Console",
@@ -597,9 +601,6 @@
       "unsaved": "unsaved changes",
       "pickNote": "Click a line to answer"
     },
-    "lower": "Console and Network",
-    "lowerElements": "Elements and Console",
-    "lowerAll": "Elements, Console and Network",
     "network": {
       "label": "Network",
       "count": "no requests | 1 request | {n} requests",
@@ -655,6 +656,67 @@
       "boxSummary": "Content {width} by {height}; padding {padding}; border {border}; margin {margin} (top, right, bottom, left)",
       "sticksOut": "Its content is {inner} px wide in a {outer} px box: it sticks out.",
       "computed": "Computed"
+    },
+    "lowerList": "{first} and {last}",
+    "debugger": {
+      "label": "Debugger",
+      "record": "Record",
+      "recordAgain": "Record again",
+      "stop": "Stop",
+      "steps": "no steps | 1 step | {n} steps",
+      "intro": "Record a run: the app reloads with its code instrumented, you use it (click Add, tick a box…), then press Stop. Then step through what it did, forward and back, with every variable's value at each moment. Set breakpoints first or later: click a line number in Code, or press Ctrl+B (Cmd+B) on a line.",
+      "recording": "Recording: use the app (click Add, tick a box…), then press Stop. Every line that runs is recorded with its values.",
+      "recorded": "Recorded run: the app isn't paused. You move through what it already did, and see each value as it was then.",
+      "ended": {
+        "steps": "The recording stopped after {n} steps, the most it keeps. Record again and do less, or step from the start.",
+        "slow": "The recording stopped: reading the app's values took too long. What it recorded until then is here."
+      },
+      "outdated": "The code changed since this recording, so its lines may not match. Save, then Record again to step through the new code.",
+      "skipped": {
+        "syntax": "{path} could not be read (a syntax error): it ran without steps.",
+        "size": "{path} is too long to record: it ran without steps.",
+        "nesting": "{path} is nested too deeply to record: it ran without steps.",
+        "names": "{path} uses the recorder's own name: it ran without steps.",
+        "points": "{path} has more statements than a recording keeps: it ran without steps.",
+        "clash": "{path} declares a function twice, or a var with a function's name, in one function, which a recording can't keep apart: it ran without steps."
+      },
+      "empty": "Nothing was recorded: no line of the app ran while recording.",
+      "toolsFailed": "The Debugger's tools could not be loaded (are you offline?). Check your connection and try again.",
+      "controls": "Move through the recording",
+      "resume": "Resume to the next breakpoint (F8)",
+      "resumeBack": "Back to the previous breakpoint",
+      "stepOver": "Step over (F10)",
+      "stepInto": "Step into (Ctrl+;)",
+      "stepOut": "Step out (Shift+F11)",
+      "stepBack": "Step back",
+      "position": "Step {n} of {total}",
+      "scrubber": "Position in the recording",
+      "at": "Step {n} of {total}: {path}, line {line}.",
+      "note": {
+        "noBreakpointAhead": "No breakpoint stops after this: at the end of the recording.",
+        "noBreakpointBehind": "No breakpoint stops before this: at the start of the recording."
+      },
+      "addHere": "Breakpoint here",
+      "removeHere": "Remove breakpoint",
+      "answer": "Answer: {where}",
+      "scope": "Scope",
+      "noScope": "No variables here.",
+      "scopeKind": {
+        "block": "Block",
+        "local": "Local ({name})",
+        "closure": "Closure ({name})",
+        "module": "Module"
+      },
+      "more": "no more | … 1 more | … {n} more",
+      "callStack": "Call stack",
+      "async": "async",
+      "frame": "{name}, {path} line {line}",
+      "breakpoints": "Breakpoints",
+      "noBreakpoints": "No breakpoints. Click a line number in Code, or press Ctrl+B (Cmd+B) on a line, to set one.",
+      "hits": "not hit | hit once | hit {n} times",
+      "remove": "Remove the breakpoint at {where}",
+      "condition": "Condition of the breakpoint at {where}",
+      "conditionPlaceholder": "Condition (optional), e.g. i === 6"
     }
   }
 }

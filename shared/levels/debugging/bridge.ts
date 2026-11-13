@@ -8,11 +8,13 @@
 // - evaluates Console input in the app's global scope,
 // - keeps the app on its page (links do not navigate),
 // - answers the app's `fetch` with the level's scripted backend (backend.ts) when it has one, inside the frame,
-// - in levels with the Elements panel, answers the panel (inspector.ts): snapshots, matching rules, outline, pick mode.
+// - in levels with the Elements panel, answers the panel (inspector.ts): snapshots, matching rules, outline, pick mode,
+// - in a recorded load (chapter 5), runs the recorder (recorder.ts) the instrumented modules report their steps to.
 // It is JavaScript in a string, injected as one line (it never shifts index.html's lines), so it uses no line comments
 // and ends every statement with a semicolon. Tested in a real browser: e2e/debugging-levels.spec.ts.
 import { BACKEND_SOURCE } from './backend'
 import { INSPECTOR_SOURCE } from './inspector'
+import { RECORDER_GLOBAL, RECORDER_SOURCE } from './recorder'
 
 /** The longest pause a probe may take (`{ wait }`): a check run gives up after 5 s. */
 export const MAX_PROBE_WAIT_MS = 2000
@@ -81,6 +83,14 @@ const SOURCE = String.raw`(function (config) {
       return '{…}';
     }
   };
+
+  /* A recorded load (chapter 5): the recorder the instrumented modules call before each statement, set up before any of
+     them runs. It posts the steps in batches and stops on its caps or on the page's Stop. */
+  var recorder = null;
+  if (config.record) {
+    recorder = (${RECORDER_SOURCE})(config.record, { post: post, now: function () { return performance.now(); }, describe: describe });
+    try { Object.defineProperty(window, '${RECORDER_GLOBAL}', { value: recorder }); } catch (error) { recorder = null; }
+  }
 
   /* The level's modules: blob URLs made here, and an import map from each file's name (and ./name) to its URL. */
   var imports = {};
@@ -170,7 +180,8 @@ const SOURCE = String.raw`(function (config) {
   /* The Elements panel (chapter 3), in levels that use it: snapshots, matching rules, the outline and pick mode. */
   var inspector = config.elements ? (${INSPECTOR_SOURCE})(config.elements, { post: post, describe: describe, own: own }) : null;
 
-  /* Messages from the page (only the parent, with this load's token): Console input, and the Elements panel's requests. */
+  /* Messages from the page (only the parent, with this load's token): Console input, the Elements panel's requests and
+     the Debugger's Stop. */
   window.addEventListener('message', function (event) {
     if (event.source !== host) return;
     var data = event.data;
@@ -179,6 +190,7 @@ const SOURCE = String.raw`(function (config) {
     if (inspector && data.type === 'inspect' && typeof data.node === 'number' && typeof data.seq === 'number') { inspector.inspect(data.node, data.seq); return; }
     if (inspector && data.type === 'highlight' && typeof data.node === 'number') { inspector.highlight(data.node); return; }
     if (inspector && data.type === 'pick') { inspector.pick(data.on === true); return; }
+    if (recorder && data.type === 'recordStop') { recorder.stop('stopped'); return; }
     if (data.type === 'eval' && typeof data.code === 'string') evaluate(data);
   });
 

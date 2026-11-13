@@ -6,7 +6,7 @@ import { HighlightStyle, StreamLanguage, bracketMatching, indentOnInput, syntaxH
 import { Compartment, EditorState, RangeSet, StateEffect, StateField } from '@codemirror/state'
 import type { Extension, Range } from '@codemirror/state'
 import {
-  Decoration, EditorView, GutterMarker, WidgetType, drawSelection, gutterLineClass, highlightActiveLine, highlightActiveLineGutter, keymap,
+  Decoration, EditorView, GutterMarker, WidgetType, drawSelection, gutter, gutterLineClass, highlightActiveLine, highlightActiveLineGutter, keymap,
   lineNumbers
 } from '@codemirror/view'
 import type { DecorationSet } from '@codemirror/view'
@@ -38,16 +38,31 @@ export interface CodeEditorOptions {
   readOnly?: boolean
   /** Lines are answers (find tasks): a click on a line or its number, or Enter on the cursor's line, picks it. */
   onPickLine?: (line: number) => void
+  /**
+   * Breakpoints (Debugging's chapter 5): a gutter of dots left of the line numbers; a click there or on a line number,
+   * or Ctrl/Cmd+B on the cursor's line, toggles one (in a find task the line itself still answers).
+   */
+  onToggleBreakpoint?: (line: number) => void
+}
+
+/** A breakpoint dot in the gutter: plain or with a condition. */
+export interface BreakpointMark {
+  line: number
+  conditional: boolean
 }
 
 /** How a marked line is tinted: opened from a trace (error), a right answer (success), a wrong one (warning). */
-export type LineTone = 'error' | 'success' | 'warning'
+export type LineTone = 'error' | 'success' | 'warning' | 'info'
 
 export interface CodeEditorHandle {
   /** Shows `path` with `doc`: the same file gets the new text, another file gets its own state (undo history, cursor). */
   show: (path: string, doc: string) => void
   /** Marks a line of the current file (1-based), scrolls it into view and puts the cursor there; null clears the mark. */
   mark: (line: number | null, tone?: LineTone) => void
+  /** The current file's breakpoint dots (by line). */
+  breakpoints: (marks: readonly BreakpointMark[]) => void
+  /** The line the Debugger is at in the current file (null: none), scrolled into view. */
+  step: (line: number | null) => void
   /** Drops the remembered state of a closed tab. */
   forget: (path: string) => void
   focus: () => void
@@ -114,9 +129,22 @@ const theme = EditorView.theme({
   '.cm-gutterElement.cm-mark-error': { color: 'var(--ui-error)' },
   '.cm-gutterElement.cm-mark-success': { color: 'var(--ui-success)' },
   '.cm-gutterElement.cm-mark-warning': { color: 'var(--ui-warning)' },
+  '.cm-mark-info': { backgroundColor: tint('--ui-info', 10) },
+  '.cm-gutterElement.cm-mark-info': { color: 'var(--ui-info)' },
   // find tasks: every line is an answer you can click
   '&.cm-pickable .cm-line, &.cm-pickable .cm-lineNumbers .cm-gutterElement': { cursor: 'pointer' },
-  '&.cm-pickable .cm-line:hover': { backgroundColor: tint('--ui-primary', 10) }
+  '&.cm-pickable .cm-line:hover': { backgroundColor: tint('--ui-primary', 10) },
+  // the Debugger's line (a recorded step, not a paused program): the info tint and a bar, stronger than the active line
+  '.cm-step-line': { backgroundColor: tint('--ui-info', 18), boxShadow: 'inset 3px 0 var(--ui-info)' },
+  '.cm-gutterElement.cm-step-line': { color: 'var(--ui-info)', fontWeight: '600', boxShadow: 'none' },
+  // breakpoints: a dot left of the line number, like the browser's marker; a condition makes it the warning colour
+  '.cm-breakpoint-gutter .cm-gutterElement': { width: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' },
+  '.cm-breakpoint-gutter .cm-gutterElement:hover::before': { content: '""', width: '8px', height: '8px', borderRadius: '9999px', backgroundColor: tint('--ui-info', 35) },
+  '.cm-breakpoint-gutter .cm-gutterElement:has(.cm-breakpoint):hover::before': { display: 'none' },
+  '.cm-breakpoint, .cm-breakpoint-spacer': { display: 'block', width: '9px', height: '9px', borderRadius: '9999px' },
+  '.cm-breakpoint': { backgroundColor: 'var(--ui-info)' },
+  '.cm-breakpoint-conditional': { backgroundColor: 'var(--ui-warning)', boxShadow: `0 0 0 2px ${tint('--ui-warning', 35)}` },
+  '&.cm-breakpoints .cm-lineNumbers .cm-gutterElement': { cursor: 'pointer' }
 })
 
 /** Commit ids in a rebase todo list. */
@@ -353,6 +381,96 @@ const markedLine = StateField.define<LineMark | null>({
   ]
 })
 
+class BreakpointDot extends GutterMarker {
+  /** `spacer`: the gutter's invisible width keeper, not a breakpoint. */
+  constructor(readonly conditional: boolean, readonly spacer = false) {
+    super()
+  }
+
+  override eq(other: BreakpointDot) {
+    return other.conditional === this.conditional && other.spacer === this.spacer
+  }
+
+  override toDOM() {
+    const dot = document.createElement('span')
+    dot.className = this.spacer ? 'cm-breakpoint-spacer' : this.conditional ? 'cm-breakpoint cm-breakpoint-conditional' : 'cm-breakpoint'
+    dot.setAttribute('aria-hidden', 'true')
+    return dot
+  }
+}
+
+const setBreakpoints = StateEffect.define<readonly BreakpointMark[]>()
+const setStep = StateEffect.define<number | null>()
+
+/** The start of a line by its number, kept inside the document. */
+const lineStart = (state: EditorState, line: number) => state.doc.line(Math.min(Math.max(line, 1), state.doc.lines)).from
+
+/**
+ * The breakpoint dots: kept by line number (the Debugger's breakpoints are lines), drawn again after an edit, so they
+ * stay on the line numbers the panel lists.
+ */
+const breakpointField = StateField.define<{ marks: readonly BreakpointMark[], set: RangeSet<GutterMarker> }>({
+  create: () => ({ marks: [], set: RangeSet.empty }),
+  update: (value, transaction) => {
+    let marks = value.marks
+    for (const effect of transaction.effects) if (effect.is(setBreakpoints)) marks = effect.value
+    if (marks === value.marks && !transaction.docChanged) return value
+    const state = transaction.state
+    const ranges = [...marks]
+      .filter(mark => mark.line >= 1 && mark.line <= state.doc.lines)
+      .sort((a, b) => a.line - b.line)
+      .map(mark => new BreakpointDot(mark.conditional).range(lineStart(state, mark.line)))
+    return { marks, set: RangeSet.of(ranges) }
+  }
+})
+
+class StepGutter extends GutterMarker {
+  override elementClass = 'cm-step-line'
+}
+
+/** The Debugger's line, by number (null: none in this file). */
+const stepField = StateField.define<number | null>({
+  create: () => null,
+  update: (line, transaction) => {
+    for (const effect of transaction.effects) if (effect.is(setStep)) return effect.value
+    return line
+  },
+  provide: field => [
+    gutterLineClass.compute([field], (state) => {
+      const line = state.field(field)
+      return line === null || line > state.doc.lines ? RangeSet.empty : RangeSet.of([new StepGutter().range(lineStart(state, line))])
+    })
+  ]
+})
+
+const stepDecorations = EditorView.decorations.compute([stepField], (state) => {
+  const line = state.field(stepField)
+  return line === null || line > state.doc.lines ? Decoration.none : Decoration.set([Decoration.line({ class: 'cm-step-line' }).range(lineStart(state, line))])
+})
+
+/** Breakpoints on: the dot gutter, the line numbers and Ctrl/Cmd+B toggle them. */
+function breakpointGutter(onToggle: (line: number) => void): Extension {
+  return [
+    EditorView.editorAttributes.of({ class: 'cm-breakpoints' }),
+    breakpointField,
+    gutter({
+      class: 'cm-breakpoint-gutter',
+      markers: view => view.state.field(breakpointField).set,
+      initialSpacer: () => new BreakpointDot(false, true),
+      domEventHandlers: {
+        mousedown: (view, line) => {
+          onToggle(view.state.doc.lineAt(line.from).number)
+          return true
+        }
+      }
+    }),
+    keymap.of([{ key: 'Mod-b', preventDefault: true, run: (view) => {
+      onToggle(view.state.doc.lineAt(view.state.selection.main.head).number)
+      return true
+    } }])
+  ]
+}
+
 /** Find tasks: a click on a line or Enter on the cursor's line picks it (the line numbers pick on their own). */
 function pickLines(onPick: (line: number) => void): Extension {
   const lineAt = (view: EditorView, pos: number) => view.state.doc.lineAt(pos).number
@@ -381,18 +499,24 @@ export function createCodeEditor(options: CodeEditorOptions): CodeEditorHandle {
   let current = options.path
 
   const onPick = options.onPickLine
+  const onToggle = options.onToggleBreakpoint
+  // a line number toggles a breakpoint where there are breakpoints, else (find tasks) it picks its line
+  const onNumber = onToggle ?? onPick
   const base: Extension[] = [
-    lineNumbers(onPick
+    ...(onToggle ? [breakpointGutter(onToggle)] : []),
+    lineNumbers(onNumber
       ? {
           domEventHandlers: {
             click: (view, line) => {
-              onPick(view.state.doc.lineAt(line.from).number)
+              onNumber(view.state.doc.lineAt(line.from).number)
               return true
             }
           }
         }
       : {}),
     markedLine,
+    stepField,
+    stepDecorations,
     ...(options.readOnly ? [EditorState.readOnly.of(true)] : []),
     ...(onPick ? [pickLines(onPick)] : []),
     highlightActiveLineGutter(),
@@ -469,6 +593,20 @@ export function createCodeEditor(options: CodeEditorOptions): CodeEditorHandle {
         effects: [setMark.of({ from: at.from, tone }), EditorView.scrollIntoView(at.from, { y: 'center' })],
         selection: { anchor: at.from }
       })
+    },
+    breakpoints(marks) {
+      if (!view.state.field(breakpointField, false)) return
+      view.dispatch({ effects: setBreakpoints.of(marks) })
+    },
+    step(line) {
+      const current = view.state.field(stepField, false) ?? null
+      if (line === current) return
+      if (line === null) {
+        view.dispatch({ effects: setStep.of(null) })
+        return
+      }
+      const at = lineStart(view.state, line)
+      view.dispatch({ effects: [setStep.of(line), EditorView.scrollIntoView(at, { y: 'nearest', yMargin: 48 })] })
     },
     forget(path) {
       states.delete(path)

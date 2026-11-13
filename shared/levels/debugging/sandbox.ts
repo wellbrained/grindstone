@@ -9,6 +9,7 @@ import { attribute, isStylesheetLink, pageFile, resolveImport } from './paths'
 import { BRIDGE_SOURCE } from './bridge'
 import { cssRules, styleTags } from './css'
 import { COMPUTED_PROPERTIES } from './elements'
+import { RECORD_LIMITS } from './recorder'
 import type { BackendSpec, Probe } from './types'
 
 export { resolveImport }
@@ -40,6 +41,12 @@ export interface SandboxOptions {
   backend?: BackendSpec
   /** The app you see in a level with the Elements panel: the bridge gets the page's rules to match and can draw on the page. */
   elements?: boolean
+  /**
+   * A recorded load (chapter 5: Record, never a check run of the play page): the modules as instrumented (instrument.ts),
+   * by path; the bridge runs the recorder they report their steps to. Lines stay where they are. With probes only in the
+   * e2e, which checks that instrumented code does what the code does.
+   */
+  record?: Readonly<Record<string, string>>
 }
 
 /** What the bridge needs for the Elements panel: the page's rules (to test which match), the linked stylesheets' names, what to read. */
@@ -134,13 +141,15 @@ function rewriteStylesheets(html: string, files: Readonly<Record<string, string>
 
 /** The document of one load of the app: the app you see (no probes) or a check run (with the level's probes). */
 export function sandboxDocument(files: Readonly<Record<string, string>>, options: SandboxOptions): SandboxDocument {
+  const recording = options.record ?? null
   const modules = Object.fromEntries(Object.entries(files)
     .filter(([path]) => /\.m?js$/.test(path))
-    .map(([path, source]) => [path, rewriteImports(source, path, files)]))
+    .map(([path, source]) => [path, rewriteImports(recording?.[path] ?? source, path, files)]))
   // the config is JSON inside a <script>: no raw "<", so no text in it can close the script or open a comment
   const backend = options.backend ? backendConfig(options.backend, SHOP_ORIGIN) : null
   const elements = options.elements && !options.probes ? elementsConfig(files) : null
-  const config = JSON.stringify({ token: options.token, modules, probes: options.probes ?? null, backend, elements }).replace(/</g, '\\u003c')
+  const record = recording ? RECORD_LIMITS : null
+  const config = JSON.stringify({ token: options.token, modules, probes: options.probes ?? null, backend, elements, record }).replace(/</g, '\\u003c')
   const injected = `<base href="${SHOP_ORIGIN}"><meta http-equiv="Content-Security-Policy" content="${SANDBOX_CSP}"><script>${BRIDGE_SOURCE}(${config});</script>`
 
   const page = rewriteStylesheets(rewriteScripts(files['index.html'] ?? '', files), files)

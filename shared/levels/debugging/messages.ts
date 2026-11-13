@@ -5,6 +5,9 @@
 import { MAX_CSS_RULES } from './css'
 import { MAX_DOM_NODES } from './elements'
 import type { BoxModel, DomNode, Inspected, InspectedLevel, InspectedMatch, ScrollSize, Sides } from './elements'
+import { readSteps } from './recording'
+import type { RecordedStep } from './recording'
+import type { RecordEndReason } from './recorder'
 import { mapFrames, parseStack, sourceOf } from './trace'
 import type { SourceMapping } from './trace'
 import type { Observation, ObservedError, ProbeValue, SourceLine, TraceFrame } from './types'
@@ -41,6 +44,10 @@ export type BridgeMessage
     | { type: 'hovered', node: number }
     | { type: 'picked', node: number }
     | { type: 'pickEnd' }
+  /** A recorded load (chapter 5): a batch of steps, checked by `readSteps`. */
+    | { type: 'steps', steps: RecordedStep[] }
+  /** The recording ended: the page's Stop, the step cap or values too slow to read; how many steps it posted. */
+    | { type: 'recordEnd', reason: RecordEndReason, count: number }
 
 export interface InspectedMessage extends Inspected {
   type: 'inspected'
@@ -87,6 +94,7 @@ const MAX_CHAIN = 64
 const MAX_COMPUTED = 30
 const LEVELS: readonly ConsoleLevel[] = ['log', 'info', 'warn', 'error', 'debug']
 const FAILURES: readonly RequestFailure[] = ['cors', 'network', 'aborted']
+const RECORD_ENDS: readonly RecordEndReason[] = ['stopped', 'steps', 'slow']
 
 const text = (value: unknown): string | null => typeof value === 'string' ? value.slice(0, MAX_TEXT) : null
 const textOrNull = (value: unknown): string | null | undefined => value === null ? null : text(value) ?? undefined
@@ -316,6 +324,15 @@ export function readBridgeMessage(data: unknown, token: string): BridgeMessage |
     }
     case 'pickEnd':
       return { type: 'pickEnd' }
+    case 'steps': {
+      const steps = readSteps(raw.steps)
+      return steps ? { type: 'steps', steps } : null
+    }
+    case 'recordEnd': {
+      const reason = RECORD_ENDS.find(each => each === raw.reason)
+      const total = whole(raw.count, Number.MAX_SAFE_INTEGER)
+      return reason && total !== undefined ? { type: 'recordEnd', reason, count: total } : null
+    }
     default:
       return null
   }

@@ -265,3 +265,25 @@ describe('the Elements panel\'s messages', () => {
     expect(consoleEntry(read(inspected)!, mapping)).toBeNull()
   })
 })
+
+describe('reading a recording\'s messages (chapter 5)', () => {
+  it('reads a batch of steps and the end of a recording, and drops what is malformed', () => {
+    const step = [3, 7, [[7, 2, 3]], -1, [{ t: 'number', v: 4.8 }]]
+    expect(readBridgeMessage({ type: 'steps', steps: [step], grindstone: token }, token)).toEqual({
+      type: 'steps',
+      steps: [{ point: 3, inv: 7, frames: [{ inv: 7, fn: 2, point: 3, async: false }], values: [{ t: 'number', v: 4.8 }] }]
+    })
+    expect(readBridgeMessage({ type: 'recordEnd', reason: 'steps', count: 2000, grindstone: token }, token)).toEqual({ type: 'recordEnd', reason: 'steps', count: 2000 })
+    for (const bad of [{ type: 'steps', steps: [[3]] }, { type: 'steps', steps: 'many' }, { type: 'recordEnd', reason: 'bored', count: 1 }, { type: 'recordEnd', reason: 'stopped', count: -1 }]) {
+      expect(readBridgeMessage({ ...bad, grindstone: token }, token)).toBeNull()
+    }
+    // another load's steps are not this one's
+    expect(readBridgeMessage({ type: 'steps', steps: [step], grindstone: 'other' }, token)).toBeNull()
+  })
+
+  it('leaves steps out of the Console and the check run', () => {
+    const steps: BridgeMessage = { type: 'steps', steps: [] }
+    expect(consoleEntry(steps, mapping)).toBeNull()
+    expect(observe([files, steps, { type: 'done' }], 3)).toMatchObject({ finished: true, errors: [], logs: [] })
+  })
+})

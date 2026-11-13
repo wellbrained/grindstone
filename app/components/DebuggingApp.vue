@@ -6,11 +6,11 @@ import type { DebuggingPlaySession } from '~/composables/useDebuggingPlay'
 // a sealed iframe (sandbox="allow-scripts" only: an opaque origin, so it can't read Grindstone's storage, cookies or
 // DOM). Only messages from this iframe reach the play page, which still checks each one (its load's token, its shape).
 // In levels with the Elements panel the header shows the app's width (media queries hold by it), and pick mode says
-// what the next click does.
+// what the next click does. While the Debugger records (chapter 5) a line says so, with Stop.
 const props = defineProps<{ play: DebuggingPlaySession }>()
 
 const { t } = useI18n()
-const { level, load, checking, stale, hasNetwork, hasElements, picking, setPicking, reloadApp, onFrameMessage, connectFrame } = props.play
+const { level, load, checking, stale, hasNetwork, hasElements, picking, setPicking, reloadApp, onFrameMessage, connectFrame, recordStatus, stepCount, stopRecording } = props.play
 
 const frame = useTemplateRef<HTMLIFrameElement>('frame')
 connectFrame(() => frame.value?.contentWindow ?? null)
@@ -84,6 +84,28 @@ const address = `${SHOP_ORIGIN.replace(/^https:\/\//, '').replace(/\/$/, '')}${l
         color="neutral"
         :label="t('debugging.app.stopPicking')"
         @click="setPicking(false)"
+      />
+    </p>
+    <p
+      v-if="recordStatus === 'recording' || recordStatus === 'stopping'"
+      class="flex items-center justify-between gap-2 border-b border-(--app-terminal-border) bg-error/10 px-3 py-1 text-xs text-highlighted"
+      data-testid="record-banner"
+    >
+      <span class="flex items-center gap-1.5">
+        <span
+          class="size-2 shrink-0 animate-pulse rounded-full bg-error motion-reduce:animate-none"
+          aria-hidden="true"
+        />
+        {{ t('debugging.app.recording') }}
+        <span class="font-mono whitespace-nowrap text-dimmed tabular-nums">{{ t('debugging.debugger.steps', stepCount) }}</span>
+      </span>
+      <UButton
+        size="xs"
+        color="error"
+        icon="i-lucide-square"
+        :label="t('debugging.debugger.stop')"
+        :loading="recordStatus === 'stopping'"
+        @click="stopRecording"
       />
     </p>
     <p

@@ -1,12 +1,20 @@
 // The Debugging play page on top of usePlaySession (docs/features/ui.md, "Debugging play page"): the app in its sealed
-// frame, the Console, the Network panel (levels with a backend), the Elements panel (levels that use it), the code with
-// its drafts, Reload with its check run, and find tasks' clicks. The session, goals, recording, stats events and debrief
-// are shared.
+// frame, the Console, the Network panel (levels with a backend), the Elements panel (levels that use it), the Debugger
+// (chapter 5: a recorded run, its breakpoints and stepping), the code with its drafts, Reload with its check run, and find
+// tasks' clicks. The session, goals, recording of the solve, stats events and debrief are shared.
 // The session, the drafts, the open file and the last click live in the play state (they survive leaving the page); the
 // app you see, its Console, its requests, its DOM and the marked line live as long as the page (coming back loads the
 // app again).
-import { consoleEntry, cssRules, nodeAtPath, nodePath, pickLine, readBridgeMessage, reload, requestEntry, restart, saveDebugFile, startDebugLevel, startExpanded, takeHint, withAncestors, withResponse } from '#shared/levels'
-import type { ConsoleEntryBody, CssRule, DebugLevel, DebugResult, DebugSession, DomNode, Inspected, NetworkEntry, PickVerdict, SourceLine, SourceMapping } from '#shared/levels'
+import {
+  RECORD_LIMITS, consoleEntry, cssRules, fittingSteps, frameStep, hitCounts, nextHit, nodeAtPath, nodePath, pickLine, previousHit, readBridgeMessage, reload,
+  requestEntry, restart, saveDebugFile, scopeAt, scopeValues, startDebugLevel, startExpanded, stepBack, stepInto, stepLine, stepOut, stepOver, takeHint,
+  withAncestors, withResponse, withoutInstrumentation
+} from '#shared/levels'
+import type {
+  Breakpoint, ConsoleEntryBody, CssRule, DebugLevel, DebugResult, DebugSession, DomNode, Inspected, Instrumented, NetworkEntry, PickVerdict, RecordEndReason,
+  RecordedStep, ScopeEntries, SourceLine, SourceMapping
+} from '#shared/levels'
+import type { CompiledCondition } from '#shared/levels/debugging/condition'
 import type { LineTone } from '~/editor/codemirror'
 import type { AppLoad } from '~/utils/sandbox-host'
 import { appLoad, runCheck } from '~/utils/sandbox-host'
@@ -32,6 +40,49 @@ const MAX_ENTRIES = 500
 const MAX_APP_MESSAGES = 1000
 /** The most requests one load of the app lists in the Network panel (a fetch in a loop); later ones are not listed. */
 export const MAX_REQUESTS = 200
+/** How long Stop waits for the recorder's last steps (a busy app may never answer). */
+const STOP_WAIT_MS = 600
+
+/** Where the Debugger is: nothing recorded, recording, waiting for the last steps after Stop, or a recording to step through. */
+export type RecordStatus = 'idle' | 'recording' | 'stopping' | 'recorded'
+
+/** A recorded run: the code it ran (instrumented), the files it ran, the steps and why it ended. */
+export interface Recording {
+  map: Instrumented
+  files: Readonly<Record<string, string>>
+  steps: RecordedStep[]
+  ended: RecordEndReason | null
+}
+
+/** One frame of the call stack at the current step, as the Debugger lists it. */
+export interface StackFrame extends SourceLine {
+  index: number
+  name: string
+  /** A frame of the call that started an async function now back from an `await`. */
+  async: boolean
+}
+
+/** What a move in the recording ended on, said once (no breakpoint ahead or behind). */
+export type MoveNote = 'noBreakpointAhead' | 'noBreakpointBehind' | null
+
+/** The lazily loaded tools of chapter 5 (acorn and what uses it). */
+interface RecordTools {
+  instrumentFiles: (files: Readonly<Record<string, string>>) => Instrumented
+  compileCondition: (text: string) => CompiledCondition
+  truthy: (value: unknown) => boolean
+}
+
+let toolsLoading: Promise<RecordTools> | null = null
+/** Loads the instrumentation and the condition reader once (their own chunk, with acorn). */
+function loadRecordTools(): Promise<RecordTools> {
+  toolsLoading ??= Promise.all([import('#shared/levels/debugging/instrument'), import('#shared/levels/debugging/condition')])
+    .then(([instrument, condition]) => ({ instrumentFiles: instrument.instrumentFiles, compileCondition: condition.compileCondition, truthy: condition.truthy }))
+    .catch((error: unknown) => {
+      toolsLoading = null
+      throw error
+    })
+  return toolsLoading
+}
 
 export function useDebuggingPlay(level: DebugLevel) {
   const fresh = (): PlayState => {
@@ -47,6 +98,8 @@ export function useDebuggingPlay(level: DebugLevel) {
   const hasNetwork = backend !== undefined
   /** The level uses the Elements panel (chapter 3). */
   const hasElements = level.sandbox.elements === true
+  /** The level uses the Debugger (chapter 5). */
+  const hasDebugger = level.sandbox.debugger === true
   const files = computed(() => fileOrder(Object.keys(session.value.state.files)))
   const unsaved = computed(() => files.value.filter(path => store.value.drafts[path] !== session.value.state.files[path]))
   const reloads = computed(() => session.value.reloads ?? 0)
@@ -128,8 +181,12 @@ export function useDebuggingPlay(level: DebugLevel) {
       : entry)
   }
 
-  /** Starts the app you see on these files (not counted: Reload counts, a page visit or Reset does not). */
-  function startApp(files: Readonly<Record<string, string>>) {
+  /**
+   * Starts the app you see on these files (not counted: Reload counts, a page visit or Reset does not); with `recorded`
+   * (Record), its modules run instrumented and report their steps. Any other start ends the recording.
+   */
+  function startApp(files: Readonly<Record<string, string>>, recorded?: Readonly<Record<string, string>>) {
+    if (!recorded) dropRecording()
     entries.value = []
     requests.value = []
     queue = []
@@ -142,7 +199,7 @@ export function useDebuggingPlay(level: DebugLevel) {
     hovered.value = null
     awaitingDom = hasElements
     mapping.value = { urls: {}, bridgeLine: 0 }
-    load.value = appLoad(files, backend, hasElements)
+    load.value = appLoad(files, backend, hasElements, recorded)
     mapping.value = { urls: {}, bridgeLine: load.value.bridgeLine }
   }
 
@@ -223,19 +280,255 @@ export function useDebuggingPlay(level: DebugLevel) {
     } else if (message.type === 'pickEnd') {
       picking.value = false
       hovered.value = null
+    } else if (message.type === 'steps') {
+      takeSteps(message.steps)
+    } else if (message.type === 'recordEnd') {
+      const current = recording.value
+      if (!current || (recordStatus.value !== 'recording' && recordStatus.value !== 'stopping')) return
+      recording.value = { ...current, ended: message.reason }
+      finishRecording()
     } else if (message.type === 'request') {
       if (requests.value.length < MAX_REQUESTS) requests.value = [...requests.value, requestEntry(message, mapping.value)]
     } else if (message.type === 'response') requests.value = withResponse(requests.value, message)
     else {
       // past the cap the app's output is dropped before it is even read
       if (message.type !== 'result' && appMessages >= MAX_APP_MESSAGES) return
-      const entry = consoleEntry(message, mapping.value)
+      const found = consoleEntry(message, mapping.value)
+      // a recorded load runs instrumented code: what Firefox and Safari quote of it reads as written
+      const entry = found && current.recorded ? { ...found, text: withoutInstrumentation(found.text) } : found
       if (entry) {
         if (message.type === 'result') push(entry)
         else pushFromApp(entry)
       }
     }
   }
+
+  // --- the Debugger (chapter 5): a recorded run, breakpoints and stepping ----------------------------------------------
+
+  const recordStatus = ref<RecordStatus>('idle')
+  /** The recorded run (its steps grow while recording; never deep-reactive). */
+  const recording = shallowRef<Recording | null>(null)
+  /** How many steps the recording holds (it grows while recording). */
+  const stepCount = ref(0)
+  /** The step the Debugger is at (an index into the steps). */
+  const position = ref(0)
+  /** The frame of the call stack whose scope shows (0: the top one). */
+  const selectedFrame = ref(0)
+  /** What the last move ended on, when it is worth saying. */
+  const moveNote = ref<MoveNote>(null)
+  /** The breakpoints, per line (they stay while you are on the page, across reloads and recordings). */
+  const breakpoints = ref<Breakpoint[]>([])
+  /** The chapter 5 tools, once loaded (Record or a condition loads them). */
+  const tools = shallowRef<RecordTools | null>(null)
+  let stopTimer: ReturnType<typeof setTimeout> | null = null
+
+  function dropRecording() {
+    if (stopTimer) clearTimeout(stopTimer)
+    stopTimer = null
+    recording.value = null
+    recordStatus.value = 'idle'
+    stepCount.value = 0
+    position.value = 0
+    selectedFrame.value = 0
+    moveNote.value = null
+  }
+
+  /** The chapter 5 tools could not be loaded (offline after a new version went live): the Debugger says so. */
+  const toolsFailed = ref(false)
+
+  async function ensureTools(): Promise<RecordTools | null> {
+    if (tools.value) return tools.value
+    try {
+      tools.value = await loadRecordTools()
+      toolsFailed.value = false
+    } catch (error) {
+      console.error(error)
+      toolsFailed.value = true
+      return null
+    }
+    return tools.value
+  }
+
+  /** Record: the app reloads from the saved files with its code instrumented; using it records the run, until Stop. */
+  async function record() {
+    if (!hasDebugger || checking.value || recordStatus.value === 'recording' || recordStatus.value === 'stopping') return
+    play.markPlayed()
+    const loaded = await ensureTools()
+    if (!loaded || disposed || checking.value) return
+    const saved = session.value.state.files
+    const map = loaded.instrumentFiles(saved)
+    startApp(saved, map.modules)
+    recording.value = { map, files: saved, steps: markRaw([]), ended: null }
+    stepCount.value = 0
+    recordStatus.value = 'recording'
+  }
+
+  /** Steps from the recorder: kept while recording (and just after Stop), only those that fit the recorded code. */
+  function takeSteps(incoming: RecordedStep[]) {
+    const current = recording.value
+    if (!current || (recordStatus.value !== 'recording' && recordStatus.value !== 'stopping')) return
+    const room = RECORD_LIMITS.maxSteps - current.steps.length
+    if (room <= 0) return
+    current.steps.push(...fittingSteps(incoming, current.map).slice(0, room))
+    stepCount.value = current.steps.length
+  }
+
+  /** Stop: the recorder sends its last steps and stops; the app runs on. */
+  function stopRecording() {
+    if (recordStatus.value !== 'recording') return
+    recordStatus.value = 'stopping'
+    toFrame({ type: 'recordStop' })
+    stopTimer = setTimeout(finishRecording, STOP_WAIT_MS)
+  }
+
+  const points = computed(() => recording.value?.map.points ?? [])
+  const steps = computed<readonly RecordedStep[]>(() => {
+    // the steps grow in place while recording: stepCount says when to look again
+    void stepCount.value
+    return recording.value?.steps ?? []
+  })
+  const currentStep = computed(() => recordStatus.value === 'recorded' ? steps.value[position.value] ?? null : null)
+
+  // conditions are read once per text
+  const compiled = new Map<string, CompiledCondition>()
+  function conditionOf(text: string): CompiledCondition | null {
+    const loaded = tools.value
+    if (!loaded) return null
+    let found = compiled.get(text)
+    if (!found) {
+      found = loaded.compileCondition(text)
+      compiled.set(text, found)
+    }
+    return found
+  }
+
+  /** A breakpoint stops at a step when it has no condition, or its condition holds on that step's values. */
+  function holds(breakpoint: Breakpoint, step: RecordedStep): boolean {
+    if (!breakpoint.condition.trim()) return true
+    const condition = conditionOf(breakpoint.condition)
+    if (!condition?.ok || !tools.value) return false
+    const result = condition.evaluate(scopeValues(points.value, step))
+    return result.ok && tools.value.truthy(result.value)
+  }
+
+  function goTo(index: number, note: MoveNote = null) {
+    position.value = Math.min(Math.max(index, 0), Math.max(steps.value.length - 1, 0))
+    selectedFrame.value = 0
+    moveNote.value = note
+  }
+
+  /** The recording is there to step through: at the first breakpoint it stops at, else at its first step. */
+  function finishRecording() {
+    if (stopTimer) clearTimeout(stopTimer)
+    stopTimer = null
+    if (recordStatus.value !== 'recording' && recordStatus.value !== 'stopping') return
+    recordStatus.value = 'recorded'
+    if (recording.value && !recording.value.ended) recording.value = { ...recording.value, ended: 'stopped' }
+    const all = steps.value
+    const hit = all.length ? nextHit(all, points.value, -1, breakpoints.value, holds) : null
+    goTo(hit?.index ?? 0)
+  }
+
+  /** The call stack at the current step, top first. */
+  const callStack = computed<StackFrame[]>(() => {
+    const step = currentStep.value
+    const map = recording.value?.map
+    if (!step || !map) return []
+    return step.frames.flatMap((frame, index) => {
+      const point = map.points[frame.point]
+      const fn = map.functions[frame.fn]
+      if (!fn) return []
+      return [{ index, name: fn.name, async: frame.async, path: point?.path ?? fn.path, line: point?.line ?? fn.line }]
+    })
+  })
+
+  /** The line the Debugger shows: the selected frame's (the current step's for the top one). */
+  const debugLine = computed<SourceLine | null>(() => {
+    const frame = callStack.value.find(each => each.index === selectedFrame.value) ?? callStack.value[0]
+    return frame ? { path: frame.path, line: frame.line } : null
+  })
+
+  /** The scopes the selected frame could see, with their values at that moment. */
+  const scopes = computed<ScopeEntries[]>(() => {
+    if (recordStatus.value !== 'recorded') return []
+    const index = frameStep(steps.value, position.value, selectedFrame.value)
+    const step = index === null ? null : steps.value[index]
+    return step ? scopeAt(points.value, step) : []
+  })
+
+  /** The files the recording ran differ from the code in the editor (its lines may have moved). */
+  const recordingOutdated = computed(() => recording.value !== null && Object.entries(recording.value.files).some(([path, text]) => store.value.drafts[path] !== text))
+
+  /** How often each breakpoint stops in the recording. */
+  const hits = computed(() => {
+    void tools.value
+    return recordStatus.value === 'recorded' ? hitCounts(steps.value, points.value, breakpoints.value, holds) : breakpoints.value.map(() => 0)
+  })
+
+  /** Why a breakpoint's condition can't be read (null: it can, it has none, or the reader is still loading). */
+  function conditionError(breakpoint: Breakpoint): string | null {
+    if (!breakpoint.condition.trim()) return null
+    const condition = conditionOf(breakpoint.condition)
+    return condition && !condition.ok ? condition.error : null
+  }
+
+  const atRecording = () => recordStatus.value === 'recorded' && steps.value.length > 0
+  function moveBy(move: (all: readonly RecordedStep[], at: number) => number) {
+    if (atRecording()) goTo(move(steps.value, position.value))
+  }
+  const stepOverNext = () => moveBy(stepOver)
+  const stepIntoNext = () => moveBy(stepInto)
+  const stepOutOf = () => moveBy(stepOut)
+  const stepBackOne = () => moveBy((_, at) => stepBack(at))
+
+  /** Resume: on to the next step a breakpoint stops at; with none ahead, to the end of the recording. */
+  function resume() {
+    if (!atRecording()) return
+    const hit = nextHit(steps.value, points.value, position.value, breakpoints.value, holds)
+    goTo(hit ? hit.index : steps.value.length - 1, hit ? null : 'noBreakpointAhead')
+  }
+
+  /** Back to the previous step a breakpoint stops at; with none behind, to the start. */
+  function resumeBack() {
+    if (!atRecording()) return
+    const hit = previousHit(steps.value, points.value, position.value, breakpoints.value, holds)
+    goTo(hit ? hit.index : 0, hit ? null : 'noBreakpointBehind')
+  }
+
+  function selectFrame(index: number) {
+    if (callStack.value.some(frame => frame.index === index)) selectedFrame.value = index
+  }
+
+  /** A breakpoint on this line on or off (a click in the gutter, Ctrl/Cmd+B). */
+  function toggleBreakpoint(line: SourceLine) {
+    if (!hasDebugger) return
+    const at = breakpoints.value.findIndex(each => each.path === line.path && each.line === line.line)
+    if (at >= 0) breakpoints.value = breakpoints.value.filter((_, index) => index !== at)
+    else breakpoints.value = [...breakpoints.value, { path: line.path, line: line.line, condition: '' }].sort((a, b) => a.path.localeCompare(b.path) || a.line - b.line)
+  }
+
+  function removeBreakpoint(index: number) {
+    breakpoints.value = breakpoints.value.filter((_, at) => at !== index)
+  }
+
+  /** A breakpoint's condition ('' for none); the chapter 5 tools load to read it. */
+  async function setCondition(index: number, condition: string) {
+    if (!breakpoints.value[index]) return
+    breakpoints.value = breakpoints.value.map((each, at) => at === index ? { ...each, condition: condition.trim() } : each)
+    if (condition.trim()) await ensureTools()
+  }
+
+  /** The current step's line as a find task's answer (the Debugger's Answer button). */
+  function answerStep() {
+    const step = currentStep.value
+    const line = step ? stepLine(points.value, step) : null
+    if (line) pick(line)
+  }
+
+  // the code follows the Debugger: the selected frame's file opens at its line
+  watch(debugLine, (line) => {
+    if (line && recordStatus.value === 'recorded') openFile(line.path)
+  })
 
   /** AppPanel tells where its frame is, for Console input. */
   function connectFrame(getWindow: () => Window | null) {
@@ -304,6 +597,12 @@ export function useDebuggingPlay(level: DebugLevel) {
     mark.value = { ...line, tone: 'error' }
   }
 
+  /** Shows a line in Code without saying anything about it (a breakpoint's place). */
+  function revealLine(line: SourceLine) {
+    openFile(line.path)
+    mark.value = { ...line, tone: 'info' }
+  }
+
   /** A click on a line in a find task: the answer, right or wrong (counted). */
   function pick(line: SourceLine) {
     if (!find) return
@@ -353,6 +652,7 @@ export function useDebuggingPlay(level: DebugLevel) {
     find,
     hasNetwork,
     hasElements,
+    hasDebugger,
     session,
     store,
     files,
@@ -394,10 +694,41 @@ export function useDebuggingPlay(level: DebugLevel) {
     reloadApp,
     openFile,
     openLine,
+    revealLine,
     pick,
     hint,
     reset,
-    again: play.again
+    again: play.again,
+    recordStatus,
+    recording,
+    stepCount,
+    position,
+    selectedFrame,
+    moveNote,
+    breakpoints,
+    tools,
+    toolsFailed,
+    currentStep,
+    callStack,
+    debugLine,
+    scopes,
+    hits,
+    recordingOutdated,
+    conditionError,
+    record,
+    stopRecording,
+    goTo,
+    stepOverNext,
+    stepIntoNext,
+    stepOutOf,
+    stepBackOne,
+    resume,
+    resumeBack,
+    selectFrame,
+    toggleBreakpoint,
+    removeBreakpoint,
+    setCondition,
+    answerStep
   }
 }
 

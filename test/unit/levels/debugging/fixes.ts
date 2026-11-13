@@ -1,5 +1,5 @@
-// Other edits a player may make to a Debugging level (State & async): real fixes the goals must accept (the ones the
-// debriefs name among them), and tempting non-fixes they must reject. The unit tests check that every edit applies to
+// Other edits a player may make to a Debugging level (State & async, Breakpoints & stepping): real fixes the goals must
+// accept (the ones the debriefs name among them), and tempting non-fixes they must reject. The unit tests check that every edit applies to
 // the level's files; e2e/debugging-levels.spec.ts runs them in a real browser.
 
 export interface OtherFix {
@@ -131,5 +131,58 @@ export const otherFixes: Record<string, OtherFix[]> = {
   ],
   'debugging-practice-catch-the-rejection': [
     { name: 'handled where it happens, in reserve.js', edits: [{ save: 'reserve.js', replace: ['if (!response.ok) throw new Error(answer.error)', 'if (!response.ok) return showMessage(answer.error)'] }], solves: true }
+  ],
+  'debugging-21-discount-twice': [
+    { name: 'the discount kept on the page only (deleted from basketTotal)', edits: [{ save: 'cart.js', replace: ['  if (card.checked) total = applyDiscount(total)\n', ''] }], solves: true },
+    { name: 'a smaller discount (5%)', edits: [{ save: 'loyalty.js', replace: ['LOYALTY_DISCOUNT = 0.1', 'LOYALTY_DISCOUNT = 0.05'] }], solves: false },
+    {
+      name: 'no discount anywhere',
+      edits: [
+        { save: 'cart.js', replace: ['  if (card.checked) total = applyDiscount(total)\n', ''] },
+        { save: 'checkout.js', replace: ['  if (card.checked) total = applyDiscount(total)\n', ''] }
+      ],
+      solves: false
+    }
+  ],
+  'debugging-practice-count-once': [
+    { name: 'the stamp left to placeOrder only', edits: [{ save: 'order.js', replace: ['  addStamp()\n', ''] }], solves: true }
+  ],
+  'debugging-22-misses-last-item': [
+    { name: '<= with - 1', edits: [{ save: 'receipt.js', replace: ['i < items.length - 1', 'i <= items.length - 1'] }], solves: true },
+    {
+      name: 'for…of',
+      edits: [{ save: 'receipt.js', replace: ['  for (let i = 0; i < items.length - 1; i++) {\n    const line = document.createElement(\'li\')\n    line.textContent = `${items[i].name} · ${formatPrice(items[i].price)}`\n    list.append(line)\n    total += items[i].price\n  }', '  for (const item of items) {\n    const line = document.createElement(\'li\')\n    line.textContent = `${item.name} · ${formatPrice(item.price)}`\n    list.append(line)\n    total += item.price\n  }'] }],
+      solves: true
+    },
+    { name: 'one round too many (<= items.length)', edits: [{ save: 'receipt.js', replace: ['i < items.length - 1', 'i <= items.length'] }], solves: false }
+  ],
+  'debugging-practice-no-extra-size': [
+    { name: '<= with - 1', edits: [{ save: 'sizes.js', replace: ['i <= sizes.length', 'i <= sizes.length - 1'] }], solves: true }
+  ],
+  'debugging-23-no-free-delivery': [
+    { name: 'the sum rounded to cents as it adds up', edits: [{ save: 'cart.js', replace: ['(sum, item) => sum + item.price', '(sum, item) => Math.round((sum + item.price) * 100) / 100'] }], solves: true },
+    { name: 'the total compared as the page shows it', edits: [{ save: 'delivery.js', replace: ['if (total >= FREE_FROM)', 'if (Number(total.toFixed(2)) >= FREE_FROM)'] }], solves: true },
+    { name: 'rounded down (Math.floor)', edits: [{ save: 'delivery.js', replace: ['if (total >= FREE_FROM)', 'if (Math.floor(total) >= FREE_FROM)'] }], solves: false },
+    { name: 'parseInt', edits: [{ save: 'delivery.js', replace: ['if (total >= FREE_FROM)', 'if (parseInt(total) >= FREE_FROM)'] }], solves: false },
+    { name: 'the threshold lowered to 24', edits: [{ save: 'delivery.js', replace: ['export const FREE_FROM = 25', 'export const FREE_FROM = 24'] }], solves: false },
+    { name: 'the threshold lowered to 20', edits: [{ save: 'delivery.js', replace: ['export const FREE_FROM = 25', 'export const FREE_FROM = 20'] }], solves: false }
+  ],
+  'debugging-practice-box-from-six': [
+    { name: 'from six, written out', edits: [{ save: 'box.js', replace: ['count > BOX_FROM', 'count >= 6'] }], solves: true }
+  ],
+  'debugging-24-always-pickup': [
+    { name: '== instead of ===', edits: [{ save: 'order.js', replace: ['if (order.method = \'pickup\')', 'if (order.method == \'pickup\')'] }], solves: true },
+    { name: 'the value first (\'pickup\' === order.method)', edits: [{ save: 'order.js', replace: ['if (order.method = \'pickup\')', 'if (\'pickup\' === order.method)'] }], solves: true },
+    { name: 'the assignment in extra brackets (the linter\'s "I meant it")', edits: [{ save: 'order.js', replace: ['if (order.method = \'pickup\')', 'if ((order.method = \'pickup\'))'] }], solves: false }
+  ],
+  'debugging-practice-compare-the-day': [
+    { name: '== instead of ===', edits: [{ save: 'hours.js', replace: ['if (day = \'Sunday\')', 'if (day == \'Sunday\')'] }], solves: true }
+  ],
+  'debugging-25-seventh-item': [
+    { name: 'a weight under 10 read as kilos', edits: [{ save: 'wholesale.js', replace: ['const price = bread.grams / 1000 * bread.perKg', 'const price = (bread.grams < 10 ? bread.grams * 1000 : bread.grams) / 1000 * bread.perKg'] }], solves: true },
+    { name: 'every bread at least 1 €', edits: [{ save: 'wholesale.js', replace: ['    total += price', '    total += Math.max(price, 1)'] }], solves: false }
+  ],
+  'debugging-practice-comma-price': [
+    { name: 'the price as a string with a point', edits: [{ save: 'pastries.js', replace: ['price: \'3,20\'', 'price: \'3.20\''] }], solves: true }
   ]
 }

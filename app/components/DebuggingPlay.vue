@@ -4,9 +4,10 @@ import type { DebugLevel, LevelPlace } from '#shared/levels'
 
 // The Debugging play page (the play page picks it for a Debugging level; docs/features/ui.md, "Debugging play page"):
 // in the shared PlayFrame, the level panel left, Code above the Console in the middle, the App on the right. A level
-// with a backend has a Network panel too, a level of chapter 3 an Elements panel, as tabs next to the Console (Elements
-// first, like the browser's). Below lg the panels are tabs (App, Elements, Console, Network, Code; the ones the level
-// has), all mounted, so switching never reloads the app. No layout switch.
+// with a backend has a Network panel too, a level of chapter 3 an Elements panel, one of chapter 5 the Debugger, as tabs
+// next to the Console (Elements or the Debugger first and open first). Below lg the panels are tabs (App, Elements or
+// Debugger, Console, Network, Code; the ones the level has), all mounted, so switching never reloads the app. No layout
+// switch.
 const props = defineProps<{
   level: DebugLevel
   place: LevelPlace
@@ -15,12 +16,17 @@ const props = defineProps<{
 const { t } = useI18n()
 
 const play = useDebuggingPlay(props.level)
-const { session, store, goals, next, stats, reloads, find, hasNetwork, hasElements, requests, picking, pickedAt, debriefOpen, progressBefore, sparkKey, mark, hint, reset, again } = play
+const { session, store, goals, next, stats, reloads, find, hasNetwork, hasElements, hasDebugger, requests, picking, pickedAt, recordStatus, debriefOpen, progressBefore, sparkKey, mark, hint, reset, again } = play
 
-type Lower = 'elements' | 'console' | 'network'
+type Lower = 'elements' | 'debugger' | 'console' | 'network'
 type Panel = 'app' | Lower | 'code'
-/** The panels under the code (from lg one at a time, as tabs): the ones this level has, Elements first like the browser's. */
-const LOWER: Lower[] = [...(hasElements ? ['elements' as const] : []), 'console', ...(hasNetwork ? ['network' as const] : [])]
+/** The panels under the code (from lg one at a time, as tabs): the ones this level has, Elements (or the Debugger) first. */
+const LOWER: Lower[] = [
+  ...(hasElements ? ['elements' as const] : []),
+  ...(hasDebugger ? ['debugger' as const] : []),
+  'console',
+  ...(hasNetwork ? ['network' as const] : [])
+]
 const PANELS: Panel[] = ['app', ...LOWER, 'code']
 const isLower = (name: Panel): name is Lower => (LOWER as Panel[]).includes(name)
 /** Below lg: the one panel shown. */
@@ -52,9 +58,19 @@ watch(picking, (on, was) => {
 watch(pickedAt, () => {
   if (!wide.value) panel.value = 'elements'
 })
+// recording on a phone: the App to use, then back to the Debugger to step through what it recorded
+watch(recordStatus, (status, was) => {
+  if (wide.value) return
+  if (status === 'recording') panel.value = 'app'
+  else if (status === 'recorded' && (was === 'recording' || was === 'stopping')) panel.value = 'debugger'
+})
 /** The Elements panel is the one on screen (its outline shows in the app only then). */
 const elementsShown = computed(() => hasElements && (wide.value ? lower.value === 'elements' : panel.value === 'elements'))
-const lowerLabel = computed(() => hasElements ? t(hasNetwork ? 'debugging.lowerAll' : 'debugging.lowerElements') : t('debugging.lower'))
+/** The lower tab set's name: its panels ("Console and Network", "Debugger, Console and Network"). */
+const lowerLabel = computed(() => {
+  const names = LOWER.map(name => t(`debugging.panel.${name}`))
+  return names.length > 1 ? t('debugging.lowerList', { first: names.slice(0, -1).join(', '), last: names.at(-1) }) : names[0]!
+})
 const TAB_COLUMNS: Record<number, string> = { 3: 'grid-cols-3', 4: 'grid-cols-4', 5: 'grid-cols-5' }
 
 /** Arrow keys move along a tab set (they wrap), Home and End jump to its ends; the new tab gets the focus. */
@@ -85,7 +101,8 @@ const networkFailed = computed(() => requests.value.some(entry => statusTone(ent
 const consolePanel = useTemplateRef<{ focus: () => void }>('consolePanel')
 const networkPanel = useTemplateRef<{ focus: () => void }>('networkPanel')
 const elementsPanel = useTemplateRef<{ focus: () => void }>('elementsPanel')
-const focusConsole = () => ({ console: consolePanel, network: networkPanel, elements: elementsPanel })[lower.value].value?.focus()
+const debuggerPanel = useTemplateRef<{ focus: () => void }>('debuggerPanel')
+const focusConsole = () => ({ console: consolePanel, network: networkPanel, elements: elementsPanel, debugger: debuggerPanel })[lower.value].value?.focus()
 
 const shown = (name: Panel) => panel.value === name ? '' : 'max-lg:hidden'
 /** A lower panel: shown below lg as a tab of its own, from lg as the chosen one under the code. */
@@ -103,7 +120,7 @@ const revealedHints = computed(() => props.level.kind === 'scenario' ? props.lev
         :name="find ? 'i-lucide-mouse-pointer-click' : 'i-lucide-bug'"
         class="size-4 shrink-0"
       />
-      {{ find ? t('debugging.findNote') : t('debugging.note') }}
+      {{ find ? t('debugging.findNote') : hasDebugger ? t('debugging.debuggerNote') : t('debugging.note') }}
     </p>
     <p
       class="shrink-0 rounded-md border border-default px-2.5 py-1 font-mono text-xs text-muted tabular-nums"
@@ -202,7 +219,7 @@ const revealedHints = computed(() => props.level.kind === 'scenario' ? props.lev
           aria-labelledby="debugging-tab-code"
           :play="play"
           class="max-lg:h-[28rem] lg:min-h-40"
-          :class="[shown('code'), hasElements ? 'lg:flex-[1.1_1_0]' : 'lg:flex-[1.6_1_0]']"
+          :class="[shown('code'), hasElements || hasDebugger ? 'lg:flex-[1.1_1_0]' : 'lg:flex-[1.6_1_0]']"
         />
         <div class="flex min-h-0 flex-col gap-2 max-lg:contents lg:min-h-44 lg:flex-[1_1_0]">
           <!-- from lg: Elements, Console or Network under the code -->
@@ -249,6 +266,16 @@ const revealedHints = computed(() => props.level.kind === 'scenario' ? props.lev
             :active="elementsShown"
             class="max-lg:h-[30rem] lg:min-h-0 lg:flex-1"
             :class="shownLower('elements')"
+          />
+          <DebuggingDebugger
+            v-if="hasDebugger"
+            id="debugging-debugger"
+            ref="debuggerPanel"
+            role="tabpanel"
+            :aria-labelledby="labelledBy('debugger')"
+            :play="play"
+            class="max-lg:h-[32rem] lg:min-h-0 lg:flex-1"
+            :class="shownLower('debugger')"
           />
           <DebuggingConsole
             id="debugging-console"
