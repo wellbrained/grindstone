@@ -688,7 +688,7 @@ test('plays Invented APIs 4.1 end to end: the Console names the invented method,
   await page.locator('[data-comment="cart.js:10"]').getByRole('button', { name: /^Edit the comment/ }).click()
   const form = page.getByTestId('comment-edit-form')
   await form.getByTestId('comment-category').selectOption('invented-api')
-  await expect(form).toContainText('It calls a function, option or package that doesn\'t exist, or a deprecated one.')
+  await expect(form).toContainText('It calls a function, option, export, file or package that doesn\'t exist, or a deprecated one.')
   await form.getByTestId('comment-save').click()
   await expect(page.locator('[data-comment="cart.js:10"]')).toHaveAttribute('aria-label', 'Invented API on line 10')
   await page.getByTestId('request-changes').click()
