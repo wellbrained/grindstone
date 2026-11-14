@@ -108,7 +108,14 @@ describe('the track page of Working with AI', () => {
       'untested edge', 'spot', 'verdict',
       'snapshot', 'spot', 'verdict'
     ])
-    expect(view.chapters.map(chapter => chapter.coming)).toEqual([false, false, false, true, true, true, true])
+    expect(view.chapters[3]!.rows.map(row => row.teaches ?? row.taskKind)).toEqual([
+      'invented method', 'spot', 'verdict',
+      'ignored option', 'spot', 'verdict',
+      'invented import', 'spot', 'verdict',
+      'removed API', 'spot', 'verdict',
+      'made-up package', 'spot', 'verdict'
+    ])
+    expect(view.chapters.map(chapter => chapter.coming)).toEqual([false, false, false, false, true, true, true])
     expect(taskKindOf(levelById('debugging-practice-line-that-throws')!)).toBe('find')
     expect(taskKindOf(levelById('git-01-first-commit')!)).toBeNull()
   })

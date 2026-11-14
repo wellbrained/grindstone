@@ -215,7 +215,8 @@ describe('stylesheets the browser does not apply, or applies only sometimes', ()
 })
 
 describe('hostile CSS: never throws, stays fast', () => {
-  const quick = (run: () => unknown, ms = 300) => {
+  const quick = (run: () => unknown, ms = 1000) => {
+    // 1 s: the slow parsers this guards against took 1 to 5 s; 300 ms flaked under a loaded full test run
     const started = performance.now()
     expect(run).not.toThrow()
     expect(performance.now() - started).toBeLessThan(ms)

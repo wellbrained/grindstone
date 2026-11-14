@@ -263,7 +263,7 @@ test('shows the overview radar on home once you have progress: one axis per live
   const radar = page.getByTestId('overview-radar')
   await expect(radar).toBeVisible()
   await expect(radar.locator('[data-axis-track]')).toHaveCount(3)
-  await expect(radar.locator('[data-axis-track="ai"]')).toContainText('1 of 45 solved')
+  await expect(radar.locator('[data-axis-track="ai"]')).toContainText('1 of 60 solved')
   await expect(radar.locator('[data-axis]')).toHaveCount(3)
   await expect(radar.getByTestId('radar-shape')).toBeVisible()
 })
@@ -642,5 +642,127 @@ for (const [kind, leak] of [['a timer', 'setTimeout(() => { for (;;) {} }, 0)'],
     await expect(panel.getByTestId('test-case').nth(1)).toHaveAttribute('data-status', 'passed')
     await expect(panel.getByTestId('test-case').nth(1)).toContainText('three pains au chocolat cost 8.39 €')
     await expect(panel.getByTestId('tests-stopped')).toHaveCount(0)
+  })
+}
+
+// Chapter 4, Invented APIs: running the pull request proves it (the Console names what isn't there, or the one output
+// the change is about stays as it was), and a real API that looks invented is a false alarm
+const errors = (page: Page) => page.getByTestId('console-log').locator('[data-level="error"]')
+
+test('plays Invented APIs 4.1 end to end: the Console names the invented method, a real one is a false alarm, bug is near', async ({ page }) => {
+  await page.goto('/ai#invented-apis')
+  await page.locator('[data-level="ai-16-just-added"]').click()
+  await expect(page).toHaveURL(/\/ai\/16-just-added$/)
+  await expect(page.getByRole('heading', { level: 1, name: /Just added/ })).toBeVisible()
+  await expect(page.locator('[data-row="cart.js:10"]')).toContainText('cart.items.last()')
+
+  // Run the PR: it throws as the page opens and again on Add; the counter still counts, nothing shows under the list
+  await page.getByTestId('run-pr').click()
+  const app = page.frameLocator('[data-testid="app-frame"]')
+  await expect(app.locator('.product')).toHaveCount(3)
+  await expect(errors(page).first()).toContainText('cart.items.last is not a function')
+  await app.locator('[data-id="croissant"] .add').click()
+  await expect(app.locator('#cart-count')).toHaveText('1')
+  await expect(app.locator('#just-added')).toHaveText('')
+  await expect(errors(page)).toHaveCount(2)
+  // the trace's link shows the line in the diff
+  await errors(page).last().locator('[data-frame="cart.js:10"]').first().click()
+  await expect(number(page, 'cart.js:10')).toBeFocused()
+  // main has no Just added, and no error
+  await page.getByRole('button', { name: 'main' }).click()
+  await expect(page.locator('[data-run-side="base"]')).toBeVisible()
+  await app.locator('[data-id="croissant"] .add').click()
+  await expect(app.locator('#cart-count')).toHaveText('1')
+  await expect(errors(page)).toHaveCount(0)
+
+  // findLastIndex looks invented and is real: a false alarm, told why; the right line as a bug is near
+  await comment(page, 'cart.js:22', 'invented-api', 'Is findLastIndex a thing?')
+  await comment(page, 'cart.js:10', 'bug', 'This throws.')
+  await page.getByTestId('request-changes').click()
+  await expect(page.locator('[data-comment="cart.js:22"]').getByTestId('comment-false-alarm')).toContainText('findLastIndex is real')
+  await expect(page.locator('[data-comment="cart.js:10"]').getByTestId('comment-near')).toContainText('isn\'t a problem of the kind “Bug”')
+  await expect(page.getByTestId('review-outcome')).toContainText('0 of 1 problems found')
+  await expect(page.getByTestId('false-alarms')).toHaveText('False alarms: 1')
+
+  // the right kind: an invented API, solved
+  await page.locator('[data-comment="cart.js:10"]').getByRole('button', { name: /^Edit the comment/ }).click()
+  const form = page.getByTestId('comment-edit-form')
+  await form.getByTestId('comment-category').selectOption('invented-api')
+  await expect(form).toContainText('It calls a function, option or package that doesn\'t exist, or a deprecated one.')
+  await form.getByTestId('comment-save').click()
+  await expect(page.locator('[data-comment="cart.js:10"]')).toHaveAttribute('aria-label', 'Invented API on line 10')
+  await page.getByTestId('request-changes').click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toContainText('Arrays have no last()')
+  await expect(dialog.getByTestId('debrief-stats')).toContainText('no hints · 1 false alarm')
+  await page.getByRole('button', { name: 'Stay here' }).click()
+  await expect(page.locator('[data-comment="cart.js:10"]').getByTestId('comment-found')).toContainText('arrays have no last()')
+
+  await page.goto('/ai')
+  const row = page.locator('[data-level="ai-16-just-added"]')
+  await expect(row).toContainText('Solved')
+  await expect(row).toContainText('invented method')
+  await expect(page.locator('#invented-apis')).toContainText('1 of 15 solved')
+})
+
+type Frame = ReturnType<Page['frameLocator']>
+
+// What running each other chapter 4 scenario shows, as its debrief says, and main beside it (no error there)
+const API_EVIDENCE: { level: string, head: (app: Frame, page: Page) => Promise<void>, base: (app: Frame) => Promise<void> }[] = [
+  {
+    // a made-up option is ignored: no error, and the rye loaf still shows 5.00, as on main
+    level: '17-whole-euros',
+    head: async (app, page) => {
+      await expect(app.locator('[data-id="rye"] .price')).toHaveText('5.00')
+      await expect(app.locator('[data-id="croissant"] .price')).toHaveText('2.40')
+      await expect(errors(page)).toHaveCount(0)
+    },
+    base: app => expect(app.locator('[data-id="rye"] .price')).toHaveText('5.00')
+  },
+  {
+    // an import of a name money.js doesn't export: the modules don't link, the page stays empty
+    level: '18-money-helper',
+    head: async (app, page) => {
+      await expect(errors(page).first()).toContainText('does not provide an export named \'formatEuro\'')
+      await expect(app.locator('.product')).toHaveCount(0)
+    },
+    base: app => expect(app.locator('.product')).toHaveCount(3)
+  },
+  {
+    // event.path is undefined: the first Add throws, and nothing goes in
+    level: '19-one-listener',
+    head: async (app, page) => {
+      await expect(app.locator('.product')).toHaveCount(3)
+      await app.locator('[data-id="croissant"] .add').click()
+      await expect(errors(page).first()).toContainText('Cannot read properties of undefined (reading \'find\')')
+      await expect(app.locator('#cart-count')).toHaveText('0')
+    },
+    base: async (app) => {
+      await app.locator('[data-id="croissant"] .add').click()
+      await expect(app.locator('#cart-count')).toHaveText('1')
+    }
+  },
+  {
+    // a bare package name in a page without a build step: nothing resolves it, nothing runs
+    level: '20-date-library',
+    head: async (app, page) => {
+      await expect(errors(page).first()).toContainText('Failed to resolve module specifier "friendly-day-format"')
+      await expect(app.locator('.product')).toHaveCount(0)
+      await expect(app.locator('#pickup')).toHaveText('')
+    },
+    base: app => expect(app.locator('.product')).toHaveCount(3)
+  }
+]
+
+for (const { level, head, base } of API_EVIDENCE) {
+  test(`running ${level} shows what isn't there, and main runs`, async ({ page }) => {
+    await page.goto(`/ai/${level}`)
+    await page.getByTestId('run-pr').click()
+    const app = page.frameLocator('[data-testid="app-frame"]')
+    await head(app, page)
+    await page.getByRole('button', { name: 'main' }).click()
+    await expect(page.locator('[data-run-side="base"]')).toBeVisible()
+    await base(app)
+    await expect(errors(page)).toHaveCount(0)
   })
 }

@@ -1324,6 +1324,7 @@
       "security": "Security",
       "missing-test": "Missing test",
       "false-claim": "False claim",
+      "invented-api": "Invented API",
       "scope": "Scope",
       "unclear": "Unclear"
     },
@@ -1332,6 +1333,7 @@
       "security": "Someone could misuse it.",
       "missing-test": "Nothing proves it works.",
       "false-claim": "It doesn't do what the description says.",
+      "invented-api": "It calls a function, option, export, file or package that doesn't exist, or a deprecated one.",
       "scope": "It changes more, or other things, than asked.",
       "unclear": "Hard to follow, or a name that misleads."
     },

@@ -47,7 +47,12 @@ const POINTED_AT: Record<string, [path: string, line: number, contains: string][
   'ai-12-mocked': [['discount.test.js', 9, 'vi.spyOn(pricing, \'applyDiscount\').mockReturnValue(21.6)'], ['discount.js', 7, 'if (count > BULK_FROM)']],
   'ai-13-fixed-the-test': [['prices.js', 3, 'Math.floor(line.price * line.quantity * 100) / 100'], ['prices.test.js', 9, 'toBe(8.39)']],
   'ai-14-full-coverage': [['split.js', 3, 'Math.round(total / people * 100) / 100'], ['split.test.js', 4, 'splits 9.00 € between three']],
-  'ai-15-snapshot-updated': [['receipt.js', 5, 'formatPrice(line.price)'], ['receipt.test.js', 11, '2 × Butter croissant  2.40']]
+  'ai-15-snapshot-updated': [['receipt.js', 5, 'formatPrice(line.price)'], ['receipt.test.js', 11, '2 × Butter croissant  2.40']],
+  'ai-16-just-added': [['cart.js', 10, 'cart.items.last()']],
+  'ai-17-whole-euros': [['money.js', 6, 'hideTrailingZeros: true']],
+  'ai-18-money-helper': [['summary.js', 3, 'import { formatEuro } from \'./money.js\'']],
+  'ai-19-one-listener': [['app.js', 22, 'event.path.find']],
+  'ai-20-date-library': [['pickup.js', 2, 'from \'friendly-day-format\'']]
 }
 
 /**
@@ -100,7 +105,22 @@ const DESCRIPTION_TRUTH: Record<string, (string | null)[]> = {
   'ai-practice-close-enough': [null, null, 'to-the-euro'],
   'ai-15-snapshot-updated': [null, null, 'unit-price', null, null],
   'ai-practice-snapshot-undefined': [null, null, 'undefined-in-snapshot'],
-  'ai-practice-snapshot-as-asked': [null, null, null]
+  'ai-practice-snapshot-as-asked': [null, null, null],
+  'ai-16-just-added': [null, 'no-last', null, 'no-last', null],
+  'ai-practice-no-sum': [null, 'no-sum', null],
+  'ai-practice-really-there': [null, null, null],
+  'ai-17-whole-euros': [null, 'ignored-option', null, null, null],
+  'ai-practice-pickup-format': [null, 'ignored-format', null],
+  'ai-practice-and-list': [null, null, null],
+  'ai-18-money-helper': [null, 'no-format-euro', 'no-format-euro', null, null],
+  'ai-practice-no-default': [null, 'no-default', null],
+  'ai-practice-no-extension': [null, 'no-extension', null],
+  'ai-19-one-listener': [null, null, 'no-event-path', 'no-event-path', null],
+  'ai-practice-get-year': [null, 'get-year', null],
+  'ai-practice-sorted-copy': [null, 'copy-thrown-away', null],
+  'ai-20-date-library': [null, 'made-up-package', 'made-up-package', 'made-up-package', null, null],
+  'ai-practice-open-now': [null, 'made-up-package', null],
+  'ai-practice-structured-clone': [null, null, null, null]
 }
 
 /** Lines of Sous's description the hints point at ("line 3 of the description"), with what is there. */
@@ -129,7 +149,11 @@ const COMPUTED: Record<string, string[]> = {
   'ai-12-mocked': ['mockReturnValue(21.6)'],
   'ai-13-fixed-the-test': ['839.9999999999999', 'Math.round'],
   'ai-practice-if-around-expect': ['deliveryFee(25)'],
-  'ai-practice-nan-is-a-number': ['typeof NaN']
+  'ai-practice-nan-is-a-number': ['typeof NaN'],
+  'ai-16-just-added': ['cart.items.last is not a function', 'at', 'cart.items.at(-1)'],
+  'ai-17-whole-euros': ['trailingZeroDisplay: \'stripIfInteger\''],
+  'ai-19-one-listener': ['event.composedPath()', 'event.target.closest(\'.product\')'],
+  'ai-practice-open-now': ['package.json']
 }
 
 /**
@@ -174,10 +198,10 @@ const TEST_OUTCOMES: Record<string, { head: string[], base: string[] }> = {
 }
 
 describe('the Working with AI levels', () => {
-  it('are fifteen in each of chapters 1 to 3, with unique ids, in the track\'s id forms', () => {
-    expect(aiLevels).toHaveLength(45)
-    expect(aiTrack.chapters.slice(0, 3).map(chapter => chapter.levels.length)).toEqual([15, 15, 15])
-    expect(new Set(aiLevels.map(level => level.id)).size).toBe(45)
+  it('are fifteen in each of chapters 1 to 4, with unique ids, in the track\'s id forms', () => {
+    expect(aiLevels).toHaveLength(60)
+    expect(aiTrack.chapters.slice(0, 4).map(chapter => chapter.levels.length)).toEqual([15, 15, 15, 15])
+    expect(new Set(aiLevels.map(level => level.id)).size).toBe(60)
     for (const level of aiLevels) {
       expect(level.id).toMatch(level.kind === 'scenario' ? /^ai-\d{2}-[a-z-]+$/ : /^ai-practice-[a-z-]+$/)
     }
@@ -367,10 +391,10 @@ describe('the Working with AI levels', () => {
   })
 
   // the blanket review (ADR 0008, review of 2026-11-14): comments of `size` rows tiling every hunk and the description,
-  // all of one kind (bug, false claim from chapter 2 on, missing test from chapter 3 on), whatever is in them; `aligned`: the last one ends at the
+  // all of one kind (bug, false claim from chapter 2 on, missing test from chapter 3 on, invented API from chapter 4 on), whatever is in them; `aligned`: the last one ends at the
   // hunk's end, so every comment is full size (a hunk shorter than `size` gets one comment over all of it); else the
   // last one is what is left. `kinds` gives every comment both kinds (two comments on each stretch).
-  const BLANKETS: Category[][] = [['bug'], ['false-claim'], ['missing-test'], ['bug', 'false-claim'], ['bug', 'missing-test']]
+  const BLANKETS: Category[][] = [['bug'], ['false-claim'], ['missing-test'], ['invented-api'], ['bug', 'false-claim'], ['bug', 'missing-test'], ['bug', 'invented-api']]
   function blanket(level: ReviewLevel, size: number, aligned: boolean, kinds: readonly Category[] = ['bug']): ReviewSession {
     let session = startReview(level)
     for (const file of reviewTargets(level)) {
@@ -447,6 +471,33 @@ describe('the Working with AI levels', () => {
     expect(chapter.filter(level => level.reason && level.verdict === 'approve').length).toBeGreaterThanOrEqual(2)
     // an unusual but correct test, or a claim about the tests that holds, is a tempting place in most of them
     expect(chapter.filter(level => (level.tempting ?? []).some(spot => isTestFile(spot.path) || spot.path === DESCRIPTION_PATH)).length).toBeGreaterThanOrEqual(8)
+  })
+
+  it('makes chapter 4 about invented APIs: the category is the fix, and real APIs that look invented are fine', () => {
+    const chapter = aiTrack.chapters.find(each => each.id === 'invented-apis')!.levels.filter(isReviewLevel)
+    expect(chapter).toHaveLength(15)
+    // every scenario's problem is an API that isn't there (a method, an option, an export, a removed property, a
+    // package): it accepts invented API, and bug on its lines is near (a bug is fixed in the logic, this by looking the
+    // real API up), as Run the PR shows
+    for (const level of chapter.filter(each => each.kind === 'scenario')) {
+      const invented = level.issues.filter(issue => issue.categories.includes('invented-api'))
+      expect(invented.length, level.id).toBeGreaterThan(0)
+      for (const issue of invented) {
+        expect(issue.categories, issue.id).not.toContain('bug')
+        const bug = checkReview(level, played(level, [{ comment: issue.path, lines: issue.lines, removed: issue.removed, category: 'bug', text: '' }]).state.comments, level.verdict).feedback[0]
+        expect(bug, issue.id).toMatchObject({ found: [], near: [issue.id], falseAlarm: false })
+      }
+    }
+    // a real API used the wrong way is a bug, not an invented API: the category is a choice here too
+    expect(chapter.some(level => level.issues.some(issue => issue.categories.includes('bug') && !issue.categories.includes('invented-api')))).toBe(true)
+    // pull requests that use only real APIs are approved
+    expect(chapter.filter(level => level.reason && level.verdict === 'approve').length).toBeGreaterThanOrEqual(2)
+    // a real API that looks invented (findLastIndex, Object.groupBy, structuredClone …) is a tempting place in most of them
+    expect(chapter.filter(level => (level.tempting ?? []).some(spot => spot.path !== DESCRIPTION_PATH)).length).toBeGreaterThanOrEqual(8)
+    // and only this chapter's issues are invented APIs: chapters 1 to 3 call real ones
+    for (const other of aiTrack.chapters.filter(each => each.id !== 'invented-apis')) {
+      expect(other.levels.filter(isReviewLevel).flatMap(level => level.issues).filter(issue => issue.categories.includes('invented-api')), other.id).toEqual([])
+    }
   })
 
   it.each(aiLevels.filter(level => Object.keys(level.pr.head).some(isTestFile)).map(level => [level.id, level] as const))('%s: its tests pass on its own code, and on main they do what the debrief says', async (_, level) => {

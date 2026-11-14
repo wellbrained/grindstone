@@ -1,5 +1,6 @@
 // The Working with AI track (ADR 0008): its chapters and their levels, in play order. Chapters 1 (Read the diff), 2
-// (Claims vs. code) and 3 (Tests that lie) are live, chapters 4 to 7 are coming. A practice task goes right after the scenario it trains (`practises`); defineTrack checks it.
+// (Claims vs. code), 3 (Tests that lie) and 4 (Invented APIs) are live, chapters 5 to 7 are coming. A practice task goes
+// right after the scenario it trains (`practises`); defineTrack checks it.
 import { fewestHintsThenFalseAlarms } from '../progress'
 import { defineTrack, trackLevels } from '../track'
 import { isReviewLevel } from './types'
@@ -19,6 +20,23 @@ import { mocked } from './12-mocked'
 import { fixedTheTest } from './13-fixed-the-test'
 import { fullCoverage } from './14-full-coverage'
 import { snapshotUpdated } from './15-snapshot-updated'
+import { justAdded } from './16-just-added'
+import { wholeEuros } from './17-whole-euros'
+import { moneyHelper } from './18-money-helper'
+import { oneListener } from './19-one-listener'
+import { dateLibrary } from './20-date-library'
+import {
+  andList,
+  getYear,
+  noDefault,
+  noExtension,
+  noSum,
+  openNow,
+  pickupFormat,
+  reallyThere,
+  sortedCopy,
+  structuredCopy
+} from './practice/invented-apis'
 import {
   coffeeBeans,
   emptySearch,
@@ -135,7 +153,29 @@ export const aiTrack = defineTrack({
         snapshotAsAsked
       ]
     },
-    { id: 'invented-apis', title: 'Invented APIs', description: 'Functions, options and packages that don\'t exist, and calls that are long deprecated.', colour: 3, levels: [] },
+    {
+      id: 'invented-apis',
+      title: 'Invented APIs',
+      description: 'Functions, options and packages that don\'t exist, and calls that are long deprecated: run them, and the Console says so.',
+      colour: 3,
+      levels: [
+        justAdded,
+        noSum,
+        reallyThere,
+        wholeEuros,
+        pickupFormat,
+        andList,
+        moneyHelper,
+        noDefault,
+        noExtension,
+        oneListener,
+        getYear,
+        sortedCopy,
+        dateLibrary,
+        openNow,
+        structuredCopy
+      ]
+    },
     { id: 'security', title: 'Security', description: 'HTML injection, a secret in the code, a missing check on who may do something, trusting the client.', colour: 4, levels: [] },
     { id: 'scope-and-size', title: 'Scope and size', description: 'Unrelated changes, a rewrite where a line would do, a pull request that should be two.', colour: 5, levels: [] },
     { id: 'steer', title: 'Steer the assistant', description: 'Write the review that gets Sous to the right fix.', colour: 6, levels: [] }

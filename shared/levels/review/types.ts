@@ -8,11 +8,14 @@ import type { ActResult } from '../engine'
 import type { Level, PracticeTask, Scenario, Session } from '../types'
 import type { BackendSpec } from '../debugging/types'
 
-/** What a comment says is wrong. */
-export type Category = 'bug' | 'security' | 'missing-test' | 'false-claim' | 'scope' | 'unclear'
+/**
+ * What a comment says is wrong. `invented-api` (since 0.3.6, ADR 0008 "chapter 4"): it calls a function, option,
+ * export or package that doesn't exist, or a deprecated one; a real API used the wrong way is a `bug`.
+ */
+export type Category = 'bug' | 'security' | 'missing-test' | 'false-claim' | 'invented-api' | 'scope' | 'unclear'
 
 /** Every category, in the order the comment form lists them. */
-export const CATEGORIES: readonly Category[] = ['bug', 'security', 'missing-test', 'false-claim', 'scope', 'unclear']
+export const CATEGORIES: readonly Category[] = ['bug', 'security', 'missing-test', 'false-claim', 'invented-api', 'scope', 'unclear']
 
 /** Approve: nothing is wrong, merge it. Request changes: something must change first. */
 export type Verdict = 'approve' | 'request-changes'
