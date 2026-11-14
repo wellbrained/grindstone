@@ -5,7 +5,7 @@
 // Pure and immutable, like the core; never throws on what a player sends (a comment that can't sit there is refused).
 import { act, startSession } from '../engine'
 import { checkReview } from './checks'
-import { canonicalPlace, diffOf, placeFor } from './diff'
+import { canonicalPlace, commentTargets, diffOf, placeFor } from './diff'
 import type { FileDiff } from './diff'
 import { CATEGORIES, VERDICTS } from './types'
 import type { Category, CommentDraft, Refusal, ReviewActResult, ReviewLevel, ReviewOutput, ReviewSession, ReviewStep, Verdict } from './types'
@@ -17,6 +17,9 @@ export const MAX_SUMMARY = 500
 
 /** The level's diff, worked out once per pull request. */
 export const reviewDiff = (level: ReviewLevel): FileDiff[] => diffOf(level.pr)
+
+/** Everywhere a comment can sit: Sous's description (numbered lines), then the diff's files. */
+export const reviewTargets = (level: ReviewLevel): FileDiff[] => commentTargets(level.pr)
 
 const refuse = (session: ReviewSession, refused: Refusal): ReviewActResult =>
   ({ session, output: { refused, result: null, comment: null }, notices: [], solvedNow: false })
@@ -31,12 +34,12 @@ const textOf = (text: unknown): string | null => typeof text === 'string' && tex
 export const startReview = (level: ReviewLevel): ReviewSession => startSession(level)
 
 /**
- * Adds a comment on one stretch of rows of the diff (counted), kept with every line its rows have; one that can't sit
+ * Adds a comment on one stretch of rows of the description or the diff (counted), kept with every line its rows have; one that can't sit
  * there (lines not in the diff, two stretches, too long) is refused.
  */
 export function addComment(session: ReviewSession, level: ReviewLevel, draft: CommentDraft): ReviewActResult {
   const text = textOf(draft.text)
-  const place = canonicalPlace(reviewDiff(level), { path: draft.path, head: draft.head, base: draft.base })
+  const place = canonicalPlace(reviewTargets(level), { path: draft.path, head: draft.head, base: draft.base })
   if (text === null || !isCategory(draft.category) || !place) return refuse(session, 'invalid')
   const id = session.state.nextId
   return act(session, level, {
@@ -99,7 +102,7 @@ export function submitReview(session: ReviewSession, level: ReviewLevel, verdict
 /** Plays one solution step. A comment whose lines are not one stretch of the diff is a broken level: it throws. */
 export function playReviewStep(session: ReviewSession, level: ReviewLevel, step: ReviewStep): ReviewActResult {
   if ('submit' in step) return submitReview(session, level, step.submit, step.summary ?? '')
-  const place = placeFor(reviewDiff(level), { path: step.comment, lines: step.lines, removed: step.removed })
+  const place = placeFor(reviewTargets(level), { path: step.comment, lines: step.lines, removed: step.removed })
   if (!place) throw new Error(`${level.id}: no comment can sit on ${step.comment} ${JSON.stringify({ lines: step.lines, removed: step.removed })}`)
   return addComment(session, level, { ...place, category: step.category, text: step.text })
 }

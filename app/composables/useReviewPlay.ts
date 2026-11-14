@@ -1,12 +1,16 @@
 // The Working with AI play page on top of usePlaySession (ADR 0008, docs/features/ui.md "Working with AI play page"):
-// Sous's pull request with its diff, your comments on it (one open form at a time, a new one or an edit), the review's
+// Sous's pull request with its description (numbered lines, a comment can sit on them) and its diff, your comments on
+// them (one open form at a time, a new one or an edit), the review's
 // summary and verdict, and what the last review you sent found. The session, goals, recording of the solve, stats
 // events and debrief are shared. The session, the open form and the summary live in the play state (they survive
 // leaving the page); the selection of rows being made lives as long as the page.
-import { MAX_COMMENT_LINES, addComment, deleteComment, editComment, locate, placeOf, restart, reviewDiff, startReview, submitReview, takeHint } from '#shared/levels'
+import { MAX_COMMENT_LINES, addComment, deleteComment, editComment, locate, placeOf, restart, reviewDiff, reviewTargets, startReview, submitReview, takeHint } from '#shared/levels'
 import type { Category, CommentFeedback, CommentPlace, FileDiff, ReviewActResult, ReviewComment, ReviewLevel, ReviewResult, ReviewSession, Verdict } from '#shared/levels'
 
-/** The rows a comment is being written on (one stretch of one hunk: from the row it started at to the other end). */
+/**
+ * The rows a comment is being written on (one stretch of one hunk: from the row it started at to the other end). The
+ * description's lines are rows too, of its one hunk (path `description`).
+ */
 export interface RowRange {
   path: string
   hunk: number
@@ -55,8 +59,12 @@ export function useReviewPlay(level: ReviewLevel) {
   const play = usePlaySession(level, { fresh, onRestart: () => clearPage() })
   const { store, session, next, goals, best, debriefOpen, progressBefore, sparkKey } = play
 
+  /** The changed files. */
   const diff: FileDiff[] = reviewDiff(level)
-  const fileOf = (path: string) => diff.find(file => file.path === path) ?? null
+  /** Everywhere a comment can sit: Sous's description (numbered lines), then the changed files. */
+  const targets: FileDiff[] = reviewTargets(level)
+  const description = targets[0]!
+  const fileOf = (path: string) => targets.find(file => file.path === path) ?? null
   const comments = computed(() => session.value.state.comments)
   const sent = computed(() => session.value.state.sent)
   const falseAlarms = computed(() => session.value.falseAlarms ?? 0)
@@ -72,7 +80,7 @@ export function useReviewPlay(level: ReviewLevel) {
   const anchors = computed(() => {
     const found = new Map<number, CommentAnchor>()
     for (const comment of comments.value) {
-      const at = locate(diff, comment)
+      const at = locate(targets, comment)
       if (at) found.set(comment.id, { path: at.file.path, hunk: at.hunk, from: at.from, to: at.to })
     }
     return found
@@ -260,6 +268,7 @@ export function useReviewPlay(level: ReviewLevel) {
   return {
     level,
     diff,
+    description,
     session,
     store,
     goals,

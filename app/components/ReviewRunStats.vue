@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import type { ReviewLevel, Run } from '#shared/levels'
-import { placeShort } from '~/utils/review-view'
+import { issuePlaces } from '~/utils/review-view'
 
 // The review in the debrief (DebriefDialog's `stats` slot): what was wrong in the pull request (each planted issue,
-// where and why), then this run's hints and false alarms and the best run you ever had (fewest hints, then fewest false
-// alarms; this one included). No clock (ADR 0008).
+// where, with the claim it breaks, and why), then this run's hints and false alarms and the best run you ever had
+// (fewest hints, then fewest false alarms; this one included). No clock (ADR 0008).
 const props = defineProps<{
   level: ReviewLevel
   stats: { hints: number, falseAlarms: number, best: Run | null }
@@ -12,11 +12,8 @@ const props = defineProps<{
 
 const { t } = useI18n()
 
-const where = (issue: ReviewLevel['issues'][number]) => placeShort({
-  path: issue.path,
-  head: issue.lines ? { start: issue.lines[0], end: issue.lines[1] } : null,
-  base: issue.removed ? { start: issue.removed[0], end: issue.removed[1] } : null
-})
+/** Where it was, in the page's order: the description's lines that state it, then the code ('description:3 · summary.js:12'). */
+const where = (issue: ReviewLevel['issues'][number]) => issuePlaces(issue).join(' · ')
 
 const verdict = computed(() => {
   if (props.stats.hints === 0 && props.stats.falseAlarms === 0) return t('debrief.reviewClean')

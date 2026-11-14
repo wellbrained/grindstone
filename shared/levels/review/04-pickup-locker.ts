@@ -2,8 +2,9 @@
 // adds it to the list and rewrites deliveryFee as a switch, without a case for it: the fee is undefined and the total
 // says NaN. The old `if` gave every unknown way the delivery fee; the switch gives none.
 import { reviewGoals } from './checks'
+import { claimAt, paragraphAt } from './diff'
 import { ORDER_PAGE, SUMMARY_APP, emptyReview, shopFiles, withEdits } from './shop'
-import type { ReviewScenario } from './types'
+import type { PullRequest, ReviewScenario } from './types'
 
 const DELIVERY = `// How the customer gets the order, and what that costs on top (euros).
 export const METHODS = {
@@ -59,6 +60,22 @@ const head = withEdits(base, [
   }
 ])
 
+const pr: PullRequest = {
+  number: 46,
+  title: 'Add the station locker as a way to get an order',
+  branch: 'sous/pickup-locker',
+  description: [
+    'Adds the station\'s pickup locker next to pickup and delivery. `deliveryFee` is a `switch` now, so every way is listed once and the next one is easy to add.'
+  ],
+  claims: [
+    'Three ways to get an order: the shop, delivery and the locker',
+    'The locker is free, like pickup',
+    'Delivery still costs 3.50 €'
+  ],
+  base,
+  head
+}
+
 export const pickupLocker: ReviewScenario = {
   id: 'ai-04-pickup-locker',
   track: 'ai',
@@ -71,26 +88,12 @@ export const pickupLocker: ReviewScenario = {
     'Jonas set up a pickup locker at the station, open around the clock. He asked Sous: “Add the locker as a third way to get an order. It\'s free, like picking up in the shop.”',
     'Sous added it and tidied the fee code while it was there. Review the pull request, and run it: the select under the products is where customers choose.'
   ].join('\n\n'),
-  pr: {
-    number: 46,
-    title: 'Add the station locker as a way to get an order',
-    branch: 'sous/pickup-locker',
-    description: [
-      'Adds the station\'s pickup locker next to pickup and delivery. `deliveryFee` is a `switch` now, so every way is listed once and the next one is easy to add.'
-    ],
-    claims: [
-      'Three ways to get an order: the shop, delivery and the locker',
-      'The locker is free, like pickup',
-      'Delivery still costs 3.50 €'
-    ],
-    base,
-    head
-  },
+  pr,
   issues: [{
     id: 'no-locker-case',
     path: 'delivery.js',
     lines: [9, 14],
-    also: [{ path: 'delivery.js', lines: [5, 5] }],
+    also: [{ path: 'delivery.js', lines: [5, 5] }, paragraphAt(pr, 0), claimAt(pr, 1)],
     categories: ['bug', 'false-claim'],
     title: '`deliveryFee` has no case for the locker, so its fee is `undefined`',
     explanation: 'The `switch` covers pickup and delivery only: for `\'locker\'` no case matches and the function returns `undefined`. `basketTotal() + undefined` is `NaN`, so the total reads “NaN €”. It needs `case \'locker\':` next to pickup (and a `default` that says what happens to a way nobody handled).'

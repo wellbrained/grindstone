@@ -2,10 +2,11 @@
 // of shared/git/diff.ts, as the Git track and the Deploys panel use it) between the files before and after the pull
 // request, file by file in path order, grouped into hunks with git's three lines of context, each row numbered on both
 // sides. A comment sits on one stretch of rows of one hunk; where it is is said by the lines those rows have on each
-// side (`CommentPlace`), so a level can name its planted issues by line numbers alone.
+// side (`CommentPlace`), so a level can name its planted issues by line numbers alone. Sous's description is shown as
+// numbered lines too (`descriptionFile`: the paragraphs, then the claims), so a comment can point at a claim.
 // Pure; never throws on what a player sends (a place that is not in the diff is simply null).
 import { diffLines, splitLines } from '../../git/diff'
-import type { CommentPlace, Files, LineSpan, Spot } from './types'
+import type { CommentPlace, Files, LineSpan, PullRequest, Spot } from './types'
 
 /** Lines of context around a change, as git shows them. */
 export const DIFF_CONTEXT = 3
@@ -83,6 +84,51 @@ export function diffOf(pr: { base: Files, head: Files }): FileDiff[] {
     diffs.set(pr, diff)
   }
   return diff
+}
+
+/**
+ * The path of Sous's description among the places a comment can sit (no file of the shop has it: their names have an
+ * extension).
+ */
+export const DESCRIPTION_PATH = 'description'
+
+type Description = Pick<PullRequest, 'description' | 'claims'>
+
+/**
+ * Sous's description as numbered lines, like a file nobody changed: each paragraph one line, then each claim one line,
+ * as one hunk of unchanged rows (each line has its number on both sides). A comment sits on them as on a file's rows.
+ */
+export function descriptionFile(pr: Description): FileDiff {
+  const rows: DiffRow[] = [...pr.description, ...pr.claims].map((text, index) => ({ kind: 'same', text, old: index + 1, new: index + 1 }))
+  return { path: DESCRIPTION_PATH, status: 'modified', added: 0, removed: 0, hunks: rows.length ? [{ header: '', rows }] : [] }
+}
+
+/** The line of the description a claim is on (`index` in `claims`, from 0), as a level's spot. Throws for no such claim. */
+export function claimAt(pr: Description, index: number): Spot & { lines: readonly [number, number] } {
+  if (!Number.isInteger(index) || index < 0 || index >= pr.claims.length) throw new Error(`no claim ${index} in ${JSON.stringify(pr.claims)}`)
+  const line = pr.description.length + index + 1
+  return { path: DESCRIPTION_PATH, lines: [line, line] }
+}
+
+/**
+ * The line of the description a paragraph is on (`index` in `description`, from 0), as a level's spot: for a paragraph
+ * that states what the code breaks. Throws for no such paragraph.
+ */
+export function paragraphAt(pr: Description, index: number): Spot & { lines: readonly [number, number] } {
+  if (!Number.isInteger(index) || index < 0 || index >= pr.description.length) throw new Error(`no paragraph ${index} in ${JSON.stringify(pr.description)}`)
+  return { path: DESCRIPTION_PATH, lines: [index + 1, index + 1] }
+}
+
+const targets = new WeakMap<object, FileDiff[]>()
+
+/** Everywhere a comment can sit, worked out once per pull request: the description first, then the diff's files. */
+export function commentTargets(pr: Description & { base: Files, head: Files }): FileDiff[] {
+  let found = targets.get(pr)
+  if (!found) {
+    found = [descriptionFile(pr), ...diffOf(pr)]
+    targets.set(pr, found)
+  }
+  return found
 }
 
 /** What the pull request changed, file by file in path order; files that did not change are left out. */

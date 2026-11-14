@@ -1267,18 +1267,24 @@
       "files": "1 file changed | {n} files changed",
       "filesLong": "{files}, {added} lines added, {removed} removed",
       "description": "Sous's description",
-      "assistant": "the shop's coding assistant"
+      "assistant": "the shop's coding assistant",
+      "linked": "Issue #{number}, which this pull request says it fixes",
+      "linkedTitle": "Linked issue",
+      "openedBy": "opened by {author}"
     },
     "diff": {
-      "howTo": "Click a line number to comment on it (Shift+click, or drag, for several lines). With the keyboard: Tab to a file's lines, Up and Down to move, Shift with them to pick lines, Enter to comment.",
-      "howToTouch": "Tap a line number to comment on that line. One line is enough: put it on the line that is wrong.",
+      "howTo": "Click a line number, in Sous's description or in the diff, to comment on it (Shift+click, or drag, for several lines). With the keyboard: Tab to the lines, Up and Down to move, Shift with them to pick lines, Enter to comment.",
+      "howToTouch": "Tap a line number, in Sous's description or in the diff, to comment on that line. One line is enough: put it on the line that is wrong.",
       "line": "line {line}",
       "lineRemoved": "removed line {line}",
       "rowLabel": "Comment on {path}, {where} ({kind})",
+      "descriptionLabel": "Comment on Sous's description, line {line} ({kind})",
       "kind": {
         "added": "added",
         "removed": "removed",
-        "unchanged": "unchanged"
+        "unchanged": "unchanged",
+        "claim": "a claim",
+        "paragraph": "a paragraph"
       },
       "file": "{path}: {added} lines added, {removed} removed",
       "expand": "Show the changes in {path}",
@@ -1293,7 +1299,9 @@
       "line": "line {line}",
       "lines": "lines {from} to {to}",
       "removed": "removed line {line}",
-      "removeds": "removed lines {from} to {to}"
+      "removeds": "removed lines {from} to {to}",
+      "descriptionLine": "line {line} of the description",
+      "descriptionLines": "lines {from} to {to} of the description"
     },
     "comment": {
       "add": "Add comment",
@@ -1334,6 +1342,7 @@
       "falseAlarm": "Nothing wrong here:",
       "nothingHere": "no problem in this pull request touches these lines.",
       "broad": "most of the changes this comment covers are fine. Comment on the lines that are wrong, not around them.",
+      "broadDescription": "most of the lines this comment covers hold. Point at the one that doesn't, on its own.",
       "changed": "Changed since you sent your review: send it again to see what it finds."
     },
     "submit": {
@@ -1361,7 +1370,7 @@
     },
     "list": {
       "title": "Your comments",
-      "empty": "None yet. Click a line number in the diff to comment.",
+      "empty": "None yet. Click a line number in the description or the diff to comment.",
       "found": "found",
       "near": "other kind",
       "wide": "too wide",

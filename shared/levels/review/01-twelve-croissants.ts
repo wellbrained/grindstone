@@ -3,8 +3,9 @@
 // the same mistake and is right: the tempting false alarm the debrief explains.
 import { APP } from '../debugging/bakery'
 import { reviewGoals } from './checks'
+import { claimAt, paragraphAt } from './diff'
 import { ORDER_PAGE, emptyReview, shopFiles, withEdits } from './shop'
-import type { ReviewScenario } from './types'
+import type { PullRequest, ReviewScenario } from './types'
 
 const base = shopFiles({ 'app.js': APP })
 
@@ -45,6 +46,22 @@ export function canAddMore(id) {
   }
 ])
 
+const pr: PullRequest = {
+  number: 41,
+  title: 'Limit each product to 12 per order',
+  branch: 'sous/limit-per-product',
+  description: [
+    'Adds the per-product limit Maya asked for. `addToCart` ignores an Add past the limit, and the Add button turns off once a product reaches it, so customers see why nothing happens.'
+  ],
+  claims: [
+    'At most 12 of each product per order',
+    'The Add button turns off at 12',
+    'Orders under the limit work as before'
+  ],
+  base,
+  head
+}
+
 export const twelveCroissants: ReviewScenario = {
   id: 'ai-01-twelve-croissants',
   track: 'ai',
@@ -57,25 +74,12 @@ export const twelveCroissants: ReviewScenario = {
     'Office orders of forty croissants have been emptying the tray before 8:00. Maya asked Sous, the shop\'s coding assistant: “Customers can add at most 12 of each product to one order. Turn the Add button off at 12.”',
     'Sous opened a pull request. Review it like a teammate\'s: click a line number in the diff to comment, pick what kind of problem it is, then Approve or Request changes. Run the PR on the right to try it in the shop.'
   ].join('\n\n'),
-  pr: {
-    number: 41,
-    title: 'Limit each product to 12 per order',
-    branch: 'sous/limit-per-product',
-    description: [
-      'Adds the per-product limit Maya asked for. `addToCart` ignores an Add past the limit, and the Add button turns off once a product reaches it, so customers see why nothing happens.'
-    ],
-    claims: [
-      'At most 12 of each product per order',
-      'The Add button turns off at 12',
-      'Orders under the limit work as before'
-    ],
-    base,
-    head
-  },
+  pr,
   issues: [{
     id: 'one-early',
     path: 'cart.js',
     lines: [37, 37],
+    also: [paragraphAt(pr, 0), claimAt(pr, 1)],
     categories: ['bug', 'false-claim'],
     title: '`canAddMore` turns Add off at 11, one early',
     explanation: 'With 11 in the basket, `11 < MAX_PER_PRODUCT - 1` is `11 < 11`, false: Add turns off and the 12th never goes in. `line.quantity < MAX_PER_PRODUCT` is the check Maya asked for.'

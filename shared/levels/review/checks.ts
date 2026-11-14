@@ -4,16 +4,22 @@
 // One comment can find several issues it covers. A wider comment over an issue and lines of context finds nothing
 // ("narrow it down"); a wider one that also covers changed (+/-) rows with nothing wrong in them is a false alarm, like a
 // comment that touches no issue at all: it costs the best run, it never fails the level, and on a tempting spot it is
-// told why nothing is wrong there. Solved: every issue found and the right verdict; an approval says nothing is wrong, so one
+// told why nothing is wrong there. A comment can sit on Sous's description too (its numbered lines): there only
+// `false-claim` fits, and the comment must be on the false lines alone (no slack: a line of the description is a whole
+// statement, there is no context around a claim; a line that holds counts like a fine change, so a comment over a
+// false claim and lines that hold is broad, a false alarm, and gives no "there is a problem here"). Solved: every issue found and the right verdict; an approval says nothing is wrong, so one
 // whose comments flag problems is not the right verdict. Scripted by lines and categories only: what a comment says is
 // never read.
 import type { Goal } from '../types'
-import { diffOf, rowIn } from './diff'
+import { DESCRIPTION_PATH, commentTargets, rowIn } from './diff'
 import type { DiffRow } from './diff'
 import type { CommentFeedback, CommentPlace, LineSpan, PlantedIssue, ReviewComment, ReviewFields, ReviewRecord, ReviewResult, ReviewState, Spot, Verdict } from './types'
 
 /** How many of a comment's rows may belong to no planted issue for it still to find one (a line of context either side). */
 export const FOCUS_SLACK = 2
+
+/** The same on the description: none (each line is one paragraph or one claim; a comment points at the claim itself). */
+export const DESCRIPTION_SLACK = 0
 
 const overlaps = (span: LineSpan | null, lines: readonly [number, number] | undefined) =>
   span !== null && lines !== undefined && span.start <= lines[1] && span.end >= lines[0]
@@ -34,22 +40,29 @@ const issueRow = (path: string, row: DiffRow, issue: PlantedIssue) =>
 
 type Level = Pick<ReviewFields, 'issues' | 'tempting' | 'verdict' | 'pr'>
 
-/** A comment's rows in the diff that belong to no planted issue: how many, and how many of them are changed (+/-). */
+/**
+ * A comment's rows that belong to no planted issue: how many, and how many of them are changed (+/-) rows, or lines of
+ * the description (each one a statement that holds, like a change with nothing wrong in it).
+ */
 function unrelatedRows(level: Level, place: CommentPlace): { all: number, changed: number } {
-  const file = diffOf(level.pr).find(each => each.path === place.path)
+  const file = commentTargets(level.pr).find(each => each.path === place.path)
   const rows = file ? file.hunks.flatMap(hunk => hunk.rows).filter(row => rowIn(row, place)) : []
   const unrelated = rows.filter(row => !level.issues.some(issue => issueRow(place.path, row, issue)))
-  return { all: unrelated.length, changed: unrelated.filter(row => row.kind !== 'same').length }
+  const statements = place.path === DESCRIPTION_PATH
+  return { all: unrelated.length, changed: unrelated.filter(row => statements || row.kind !== 'same').length }
 }
 
 /** What one comment found. */
 export function commentFeedback(level: Level, comment: ReviewComment): CommentFeedback {
   const touched = level.issues.filter(issue => touchesIssue(comment, issue))
   const unrelated = touched.length ? unrelatedRows(level, comment) : { all: 0, changed: 0 }
-  const focused = unrelated.all <= FOCUS_SLACK
-  // a wide comment that also covers changes with nothing wrong in them points at nothing in particular
+  const onDescription = comment.path === DESCRIPTION_PATH
+  const focused = unrelated.all <= (onDescription ? DESCRIPTION_SLACK : FOCUS_SLACK)
+  // a wide comment that also covers changes with nothing wrong in them points at nothing in particular (on the
+  // description, lines that hold: a comment over a false claim and claims that hold is broad)
   const broad = touched.length > 0 && !focused && unrelated.changed > 0
-  const fits = (issue: PlantedIssue) => issue.categories.includes(comment.category)
+  // what is wrong with a line of the description can only be that it isn't true
+  const fits = (issue: PlantedIssue) => issue.categories.includes(comment.category) && (!onDescription || comment.category === 'false-claim')
   const tempting = touched.length === 0 ? (level.tempting ?? []).find(spot => touches(comment, spot)) : undefined
   return {
     id: comment.id,

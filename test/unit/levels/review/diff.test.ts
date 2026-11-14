@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { MAX_COMMENT_LINES, canonicalPlace, placeFor, placeOf, placeRows, pullRequestDiff, rowIn } from '../../../../shared/levels/review/diff'
+import { DESCRIPTION_PATH, MAX_COMMENT_LINES, canonicalPlace, claimAt, commentTargets, descriptionFile, paragraphAt, placeFor, placeOf, placeRows, pullRequestDiff, rowIn } from '../../../../shared/levels/review/diff'
 import type { FileDiff } from '../../../../shared/levels/review/diff'
 
 // The diff of a pull request (ADR 0008): git's line diff (LCS, shared/git/diff.ts) between the files before and after
@@ -130,5 +130,42 @@ describe('where a comment sits', () => {
     expect(placeFor(diff, { path: 'x.js', removed: [2, 2], lines: [2, 2] })).toEqual({ path: 'x.js', head: { start: 2, end: 2 }, base: { start: 2, end: 2 } })
     expect(placeFor(diff, { path: 'x.js', lines: [9, 9] })).toBeNull()
     expect(placeFor(diff, { path: 'nope.js', lines: [1, 1] })).toBeNull()
+  })
+})
+
+describe('the description as numbered lines', () => {
+  const pr = { description: ['Adds the average.', 'Tested with `[]`.'], claims: ['Shows the average', 'Handles an empty basket'], base: { 'a.js': 'a\n' }, head: { 'a.js': 'b\n' } }
+
+  it('numbers the paragraphs, then the claims, as one stretch of unchanged rows', () => {
+    const file = descriptionFile(pr)
+    expect(file).toMatchObject({ path: DESCRIPTION_PATH, added: 0, removed: 0 })
+    expect(table(file)).toEqual([['', [
+      ['same', 1, 1, 'Adds the average.'],
+      ['same', 2, 2, 'Tested with `[]`.'],
+      ['same', 3, 3, 'Shows the average'],
+      ['same', 4, 4, 'Handles an empty basket']
+    ]]])
+    expect(descriptionFile({ description: [], claims: [] }).hunks).toEqual([])
+  })
+
+  it('names a paragraph by its line, from the first', () => {
+    expect(paragraphAt(pr, 1)).toEqual({ path: DESCRIPTION_PATH, lines: [2, 2] })
+    expect(() => paragraphAt(pr, 2)).toThrow(/paragraph/)
+  })
+
+  it('names a claim by its line: after the paragraphs', () => {
+    expect(claimAt(pr, 0)).toEqual({ path: DESCRIPTION_PATH, lines: [3, 3] })
+    expect(claimAt(pr, 1)).toEqual({ path: DESCRIPTION_PATH, lines: [4, 4] })
+    expect(() => claimAt(pr, 2)).toThrow(/claim/)
+  })
+
+  it('comes first among the places a comment can sit, before the changed files; worked out once', () => {
+    const targets = commentTargets(pr)
+    expect(targets.map(file => file.path)).toEqual([DESCRIPTION_PATH, 'a.js'])
+    expect(commentTargets(pr)).toBe(targets)
+    // a comment on a claim, or on two lines of the description
+    expect(placeFor(targets, claimAt(pr, 1))).toEqual({ path: DESCRIPTION_PATH, head: { start: 4, end: 4 }, base: { start: 4, end: 4 } })
+    expect(canonicalPlace(targets, { path: DESCRIPTION_PATH, head: { start: 2, end: 3 }, base: null })).toEqual({ path: DESCRIPTION_PATH, head: { start: 2, end: 3 }, base: { start: 2, end: 3 } })
+    expect(placeFor(targets, { path: DESCRIPTION_PATH, lines: [5, 5] })).toBeNull()
   })
 })

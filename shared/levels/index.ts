@@ -102,7 +102,7 @@ export { debuggingLevels, debuggingTrack } from './debugging'
 
 // the review environment (Working with AI)
 export { CATEGORIES, VERDICTS, isReviewLevel } from './review/types'
-export { MAX_COMMENT_TEXT, MAX_SUMMARY, addComment, deleteComment, editComment, playReviewSolution, playReviewStep, reviewDiff, startReview, submitReview } from './review/engine'
-export { DIFF_CONTEXT, MAX_COMMENT_LINES, canonicalPlace, locate, placeFor, placeOf, placeRows, pullRequestDiff, rowIn } from './review/diff'
-export { checkReview, reviewGoals, touches, touchesIssue } from './review/checks'
+export { MAX_COMMENT_TEXT, MAX_SUMMARY, addComment, deleteComment, editComment, playReviewSolution, playReviewStep, reviewDiff, reviewTargets, startReview, submitReview } from './review/engine'
+export { DESCRIPTION_PATH, DIFF_CONTEXT, MAX_COMMENT_LINES, canonicalPlace, claimAt, commentTargets, descriptionFile, locate, paragraphAt, placeFor, placeOf, placeRows, pullRequestDiff, rowIn } from './review/diff'
+export { DESCRIPTION_SLACK, FOCUS_SLACK, checkReview, reviewGoals, touches, touchesIssue } from './review/checks'
 export { aiLevels, aiTrack } from './review'

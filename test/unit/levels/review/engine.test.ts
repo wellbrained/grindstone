@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { restart, takeHint } from '../../../../shared/levels'
-import { MAX_COMMENT_TEXT, MAX_SUMMARY, addComment, deleteComment, editComment, playReviewSolution, playReviewStep, reviewDiff, startReview, submitReview } from '../../../../shared/levels/review/engine'
+import { MAX_COMMENT_TEXT, MAX_SUMMARY, addComment, deleteComment, editComment, playReviewSolution, playReviewStep, reviewDiff, reviewTargets, startReview, submitReview } from '../../../../shared/levels/review/engine'
 import type { CommentDraft, ReviewSession } from '../../../../shared/levels/review/types'
-import { fineFixture, fixture } from './fixture'
+import { claimFixture, fineFixture, fixture } from './fixture'
 
 // The review environment on the shared core (ADR 0008): comments added, edited and deleted, a review sent with a verdict
 // are the counted actions; a sent review decides the goals and counts its new false alarms once each.
@@ -72,6 +72,25 @@ describe('a review session', () => {
     expect(editComment(session, fixture, 9, { category: 'bug', text: '' }).output.refused).toBe('unknown')
     expect(editComment(session, fixture, 1, { category: 'nope' as 'bug', text: '' }).output.refused).toBe('invalid')
     expect(deleteComment(session, fixture, 9).output.refused).toBe('unknown')
+  })
+})
+
+describe('a comment on the description', () => {
+  it('sits on its numbered lines like on a file, with the line on both sides', () => {
+    expect(reviewTargets(claimFixture).map(file => file.path)).toEqual(['description', 'avg.js'])
+    // the diff itself is the files only
+    expect(reviewDiff(claimFixture).map(file => file.path)).toEqual(['avg.js'])
+    const added = addComment(startReview(claimFixture), claimFixture, { path: 'description', head: { start: 4, end: 4 }, base: null, category: 'false-claim', text: '' })
+    expect(added.output.refused).toBeNull()
+    expect(added.session.state.comments[0]).toMatchObject({ path: 'description', head: { start: 4, end: 4 }, base: { start: 4, end: 4 } })
+    // past its last line there is nothing to comment on
+    expect(addComment(startReview(claimFixture), claimFixture, { path: 'description', head: { start: 6, end: 6 }, base: null, category: 'false-claim', text: '' }).output.refused).toBe('invalid')
+  })
+
+  it('is a solution step like any other', () => {
+    const results = playReviewSolution(claimFixture)
+    expect(results.map(result => result.output.refused)).toEqual([null, null, null])
+    expect(results.at(-1)!.session).toMatchObject({ solved: true, falseAlarms: 0 })
   })
 })
 

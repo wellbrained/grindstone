@@ -205,12 +205,12 @@ describe('track registry', () => {
     expect(nextLevel('git-practice-release-from-develop')).toBeNull()
   })
 
-  it('gives Working with AI its seven chapters (ADR 0008): Read the diff live, the other six coming', () => {
+  it('gives Working with AI its seven chapters (ADR 0008): Read the diff and Claims vs. code live, the other five coming', () => {
     const ai = trackById('ai')!
     expect(ai).toMatchObject({ title: 'Working with AI', tagline: 'Lead the assistant, then check its work.', cheatSheet: null, bestRun: ['hints', 'falseAlarms'] })
     expect(ai.chapters.map(chapter => [chapter.number, chapter.title, chapter.levels.length])).toEqual([
       [1, 'Read the diff', 15],
-      [2, 'Claims vs. code', 0],
+      [2, 'Claims vs. code', 15],
       [3, 'Tests that lie', 0],
       [4, 'Invented APIs', 0],
       [5, 'Security', 0],
@@ -236,7 +236,26 @@ describe('track registry', () => {
       [null, 'ai-practice-rye-by-weight'],
       [null, 'ai-practice-ten-cents']
     ])
-    expect(nextLevel('ai-practice-ten-cents')).toBeNull()
+    expect(ai.chapters[1]!.levels.map(level => [levelNumber(level.id), level.id])).toEqual([
+      ['2.1', 'ai-06-empty-basket'],
+      [null, 'ai-practice-first-order'],
+      [null, 'ai-practice-empty-search'],
+      ['2.2', 'ai-07-just-a-refactor'],
+      [null, 'ai-practice-just-a-rename'],
+      [null, 'ai-practice-reduce-refactor'],
+      ['2.3', 'ai-08-all-sizes'],
+      [null, 'ai-practice-coffee-beans'],
+      [null, 'ai-practice-tested-at-twelve'],
+      ['2.4', 'ai-09-linked-issue'],
+      [null, 'ai-practice-closed-on-mondays'],
+      [null, 'ai-practice-greyed-out'],
+      ['2.5', 'ai-10-same-but-faster'],
+      [null, 'ai-practice-remembered-search'],
+      [null, 'ai-practice-today-once']
+    ])
+    // play order runs on into chapter 2
+    expect(nextLevel('ai-practice-ten-cents')).toBe(levelById('ai-06-empty-basket'))
+    expect(nextLevel('ai-practice-today-once')).toBeNull()
     expect(nextLevel('ai-01-twelve-croissants')).toBe(levelById('ai-practice-open-days'))
   })
 

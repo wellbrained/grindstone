@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { FOCUS_SLACK, checkReview, reviewGoals, touches } from '../../../../shared/levels/review/checks'
 import type { Category, CommentPlace, ReviewComment, ReviewState, Verdict } from '../../../../shared/levels/review/types'
-import { fineFixture, fixture } from './fixture'
+import { claimFixture, fineFixture, fixture } from './fixture'
 
 // Comment matching (ADR 0008): a sent review finds a planted issue when one of its comments touches the issue's lines
 // with a category that fits; a comment that touches no issue is a false alarm (told why on a tempting spot); the level
@@ -115,6 +115,46 @@ describe('what a sent review found', () => {
     const flagged = checkReview(fineFixture, [onHead('loop.js', 1)], 'approve')
     expect(flagged).toMatchObject({ verdictRight: false, flaggedApproval: true, falseAlarms: 1, solved: false })
     expect(flagged.feedback[0]).toMatchObject({ falseAlarm: true, why: 'Both stop at the last index.' })
+  })
+})
+
+describe('comments on the description (chapter 2, Claims vs. code)', () => {
+  // the claims fixture: description lines 1-2 paragraphs, 3-5 claims; avg.js:3 breaks claim 4, avg.js:4 a plain bug
+  const onClaim = (start: number, end = start, category: Category = 'false-claim') =>
+    comment('description', { head: head(start, end), base: head(start, end) }, category)
+  const review = (comments: ReviewComment[]) => checkReview(claimFixture, comments, 'request-changes')
+
+  it('finds a claim issue from the claim or from the code that breaks it, as a false claim', () => {
+    expect(review([onClaim(4)])).toMatchObject({ found: ['empty-nan'], falseAlarms: 0 })
+    expect(review([onHead('avg.js', 3, 3, 'false-claim')])).toMatchObject({ found: ['empty-nan'], falseAlarms: 0 })
+    // the plain bug next to it takes bug; with both comments the level is solved
+    expect(review([onClaim(4), onHead('avg.js', 4)])).toMatchObject({ found: ['empty-nan', 'whole-euros'], solved: true })
+  })
+
+  it('calls another category on a claim issue near, on the claim and on its code', () => {
+    expect(review([onClaim(4, 4, 'bug')]).feedback[0]).toMatchObject({ found: [], near: ['empty-nan'], falseAlarm: false })
+    expect(review([onHead('avg.js', 3)]).feedback[0]).toMatchObject({ found: [], near: ['empty-nan'], falseAlarm: false })
+    expect(review([onHead('avg.js', 4, 4, 'false-claim')]).feedback[0]).toMatchObject({ found: [], near: ['whole-euros'] })
+  })
+
+  it('takes only false claim on the description, whatever else the issue accepts', () => {
+    const level = { ...claimFixture, issues: [{ ...claimFixture.issues[0]!, categories: ['bug', 'false-claim'] as Category[] }] }
+    expect(checkReview(level, [onClaim(4, 4, 'bug')], 'request-changes').feedback[0]).toMatchObject({ found: [], near: ['empty-nan'] })
+    expect(checkReview(level, [onHead('avg.js', 3)], 'request-changes').found).toEqual(['empty-nan'])
+  })
+
+  it('wants the false claim alone: lines that hold count like fine changes, so a comment over them too is broad, a false alarm', () => {
+    expect(review([onClaim(3, 4)]).feedback[0]).toMatchObject({ found: [], wide: [], falseAlarm: true, broad: true })
+    // the whole description: no "there is a problem in these lines" for free
+    expect(review([onClaim(1, 5)]).feedback[0]).toMatchObject({ found: [], wide: [], falseAlarm: true, broad: true })
+    // two false lines of one issue side by side are focused
+    const level = { ...claimFixture, issues: [{ ...claimFixture.issues[0]!, also: [{ path: 'description', lines: [3, 4] as const }] }] }
+    expect(checkReview(level, [onClaim(3, 4)], 'request-changes').feedback[0]).toMatchObject({ found: ['empty-nan'], falseAlarm: false })
+  })
+
+  it('calls a comment on a line of the description that holds a false alarm, told why on a tempting claim', () => {
+    expect(review([onClaim(1)]).feedback[0]).toMatchObject({ falseAlarm: true, why: null })
+    expect(review([onClaim(5)]).feedback[0]).toMatchObject({ falseAlarm: true, why: 'the total is worked out as before.' })
   })
 })
 

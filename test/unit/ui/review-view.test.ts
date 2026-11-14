@@ -3,7 +3,7 @@ import { aiLevels, emptyProgress, levelById, sandboxDocument, trackById } from '
 import type { ReviewLevel } from '../../../shared/levels'
 import { highlightLines } from '../../../app/utils/review-highlight'
 import { runLevel } from '../../../app/utils/review-run'
-import { placeShort, placeText } from '../../../app/utils/review-view'
+import { issuePlaces, placeShort, placeText } from '../../../app/utils/review-view'
 import { taskKindOf, trackView } from '../../../app/utils/track-view'
 
 // The review page's helpers: how a comment's place is named, the pull request as an app to run, the syntax colours of
@@ -24,6 +24,18 @@ describe('where a comment sits, in words', () => {
     expect(placeShort({ path: 'cart.js', head: { start: 37, end: 37 }, base: null })).toBe('cart.js:37')
     expect(placeShort({ path: 'summary.js', head: { start: 10, end: 13 }, base: { start: 8, end: 9 } })).toBe('summary.js:10–13')
     expect(placeShort({ path: 'cart.js', head: null, base: { start: 9, end: 10 } })).toBe('cart.js:−9–10')
+  })
+
+  it('lists an issue\'s places in the page\'s order: the description first, then the files, each by line', () => {
+    const issue = { path: 'cart.js', lines: [19, 19] as const, also: [{ path: 'description', lines: [2, 2] as const }, { path: 'description', lines: [1, 1] as const }, { path: 'app.js', removed: [4, 4] as const }] }
+    expect(issuePlaces(issue)).toEqual(['description:1', 'description:2', 'app.js:−4', 'cart.js:19'])
+    expect(issuePlaces({ path: 'cart.js', lines: [37, 37] })).toEqual(['cart.js:37'])
+  })
+
+  it('names a place on Sous\'s description as lines of the description', () => {
+    expect(placeText(t, { path: 'description', head: { start: 3, end: 3 }, base: { start: 3, end: 3 } })).toBe('review.place.descriptionLine {"line":3}')
+    expect(placeText(t, { path: 'description', head: { start: 2, end: 4 }, base: { start: 2, end: 4 } })).toBe('review.place.descriptionLines {"from":2,"to":4}')
+    expect(placeShort({ path: 'description', head: { start: 3, end: 3 }, base: { start: 3, end: 3 } })).toBe('description:3')
   })
 })
 
@@ -82,7 +94,14 @@ describe('the track page of Working with AI', () => {
       'missing case', 'spot', 'verdict',
       'units', 'spot', 'verdict'
     ])
-    expect(view.chapters.map(chapter => chapter.coming)).toEqual([false, true, true, true, true, true, true])
+    expect(view.chapters[1]!.rows.map(row => row.teaches ?? row.taskKind)).toEqual([
+      'empty case', 'spot', 'verdict',
+      'refactor', 'spot', 'verdict',
+      'test report', 'spot', 'verdict',
+      'linked issue', 'spot', 'verdict',
+      'stale cache', 'spot', 'verdict'
+    ])
+    expect(view.chapters.map(chapter => chapter.coming)).toEqual([false, false, true, true, true, true, true])
     expect(taskKindOf(levelById('debugging-practice-line-that-throws')!)).toBe('find')
     expect(taskKindOf(levelById('git-01-first-commit')!)).toBeNull()
   })

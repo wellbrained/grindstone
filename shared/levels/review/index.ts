@@ -1,5 +1,5 @@
-// The Working with AI track (ADR 0008): its chapters and their levels, in play order. Chapter 1 (Read the diff) is live,
-// chapters 2 to 7 are coming. A practice task goes right after the scenario it trains (`practises`); defineTrack checks it.
+// The Working with AI track (ADR 0008): its chapters and their levels, in play order. Chapters 1 (Read the diff) and 2
+// (Claims vs. code) are live, chapters 3 to 7 are coming. A practice task goes right after the scenario it trains (`practises`); defineTrack checks it.
 import { fewestHintsThenFalseAlarms } from '../progress'
 import { defineTrack, trackLevels } from '../track'
 import { isReviewLevel } from './types'
@@ -9,6 +9,23 @@ import { lineTotals } from './02-line-totals'
 import { freeCoffee } from './03-free-coffee'
 import { pickupLocker } from './04-pickup-locker'
 import { officeDiscount } from './05-office-discount'
+import { emptyBasket } from './06-empty-basket'
+import { justARefactor } from './07-just-a-refactor'
+import { allSizes } from './08-all-sizes'
+import { linkedIssue } from './09-linked-issue'
+import { sameButFaster } from './10-same-but-faster'
+import {
+  coffeeBeans,
+  emptySearch,
+  firstOrder,
+  closedOnMondays,
+  greyedOut,
+  justARename,
+  reduceRefactor,
+  rememberedSearch,
+  testedAtTwelve,
+  todayOnce
+} from './practice/claims-vs-code'
 import {
   itemsNotLines,
   lockerFallsThrough,
@@ -55,7 +72,29 @@ export const aiTrack = defineTrack({
         tenCents
       ]
     },
-    { id: 'claims-vs-code', title: 'Claims vs. code', description: 'The description says one thing, the code does another: “handles empty baskets”, “no behaviour change”.', colour: 1, levels: [] },
+    {
+      id: 'claims-vs-code',
+      title: 'Claims vs. code',
+      description: 'The description says one thing, the code does another: “handles empty baskets”, “no behaviour change”, “fixes #142”.',
+      colour: 1,
+      levels: [
+        emptyBasket,
+        firstOrder,
+        emptySearch,
+        justARefactor,
+        justARename,
+        reduceRefactor,
+        allSizes,
+        coffeeBeans,
+        testedAtTwelve,
+        linkedIssue,
+        closedOnMondays,
+        greyedOut,
+        sameButFaster,
+        rememberedSearch,
+        todayOnce
+      ]
+    },
     { id: 'tests-that-lie', title: 'Tests that lie', description: 'Tests that assert nothing, mock the thing under test, or were changed to pass.', colour: 2, levels: [] },
     { id: 'invented-apis', title: 'Invented APIs', description: 'Functions, options and packages that don\'t exist, and calls that are long deprecated.', colour: 3, levels: [] },
     { id: 'security', title: 'Security', description: 'HTML injection, a secret in the code, a missing check on who may do something, trusting the client.', colour: 4, levels: [] },

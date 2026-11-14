@@ -107,3 +107,44 @@ export const fineFixture: ReviewPracticeTask = {
   why: 'Both loops end on the last index.',
   solution: [{ submit: 'approve', summary: 'Same loop: both stop at the last item.' }]
 }
+
+// A pull request whose description makes claims (chapter 2, Claims vs. code). The description shows as numbered lines:
+// the paragraphs (1, 2), then the claims (3 to 5). avg.js rows: 0 same 1/1, 1 del 2/-, 2 add -/2 (a comment), 3 add -/3
+// (the division: NaN for an empty basket), 4 add -/4 (rounds to euros), 5 same 3/5.
+const BASE_AVG = 'export function average(total, count) {\n  return 0\n}\n'
+const HEAD_AVG = 'export function average(total, count) {\n  // an empty basket averages 0\n  const average = total / count\n  return Math.round(average)\n}\n'
+
+export const claimFixture: ReviewScenario = {
+  id: 'ai-02-claim-fixture',
+  track: 'ai',
+  kind: 'scenario',
+  title: 'An average per item',
+  difficulty: 1,
+  minutes: 3,
+  story: 'Jonas asked Sous for the average price per item.',
+  teaches: 'empty case',
+  pr: {
+    number: 9,
+    title: 'Show the average per item',
+    branch: 'sous/average',
+    description: ['Adds the average price per item.', 'Tested with an empty basket.'],
+    claims: ['Shows the average under the total', 'Handles an empty basket', 'The total is unchanged'],
+    base: { 'avg.js': BASE_AVG },
+    head: { 'avg.js': HEAD_AVG }
+  },
+  issues: [
+    { id: 'empty-nan', path: 'avg.js', lines: [3, 3], also: [{ path: 'description', lines: [4, 4] }], categories: ['false-claim'], title: '0 / 0 is NaN', explanation: 'An empty basket shows NaN.' },
+    { id: 'whole-euros', path: 'avg.js', lines: [4, 4], categories: ['bug'], title: 'rounds to euros', explanation: '2.53 shows as 3.' }
+  ],
+  tempting: [{ path: 'description', lines: [5, 5], why: 'the total is worked out as before.' }],
+  verdict: 'request-changes',
+  setup: () => ({ comments: [], nextId: 1, sent: null, alarmed: [], reviews: 0 }),
+  goals: reviewGoals({ issues: 2 }),
+  hints: ['Try an empty basket.', 'What is `0 / 0`?', 'The claim on line 4 of the description does not hold.'],
+  debrief: { title: 'An empty basket', paragraphs: ['0 / 0 is NaN.'] },
+  solution: [
+    { comment: 'description', lines: [4, 4], category: 'false-claim', text: '0 / 0 is NaN.' },
+    { comment: 'avg.js', lines: [4, 4], category: 'bug', text: 'Rounds to euros.' },
+    { submit: 'request-changes' }
+  ]
+}

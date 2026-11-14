@@ -2,8 +2,9 @@
 // sets `hidden` to the condition for showing it: the note shows on small baskets (an empty one too) and hides from 20 €.
 import { SUMMARY } from '../debugging/bakery'
 import { reviewGoals } from './checks'
+import { claimAt, paragraphAt } from './diff'
 import { ORDER_PAGE, SUMMARY_APP, emptyReview, shopFiles, withEdits } from './shop'
-import type { ReviewScenario } from './types'
+import type { PullRequest, ReviewScenario } from './types'
 
 const SUMMARY_JS = `// The basket summary: the total under the products.
 import { basketTotal } from './cart.js'
@@ -33,6 +34,22 @@ const coffee = document.querySelector('#coffee')
   { path: 'summary.js', replace: ['  totalText.textContent = formatPrice(total)\n', '  totalText.textContent = formatPrice(total)\n  coffee.hidden = total >= FREE_COFFEE_FROM\n'] }
 ])
 
+const pr: PullRequest = {
+  number: 44,
+  title: 'Show the free coffee note from 20 €',
+  branch: 'sous/free-coffee-note',
+  description: [
+    'Shows the free coffee note under the total for orders of 20 € or more, as Anna asked. The threshold is a named constant, so the shop can change it in one place.'
+  ],
+  claims: [
+    'The note shows from 20.00 €',
+    'Below 20 € it stays hidden',
+    'The note\'s text stays as it is'
+  ],
+  base,
+  head
+}
+
 export const freeCoffee: ReviewScenario = {
   id: 'ai-03-free-coffee',
   track: 'ai',
@@ -45,24 +62,12 @@ export const freeCoffee: ReviewScenario = {
     'Every order of 20 € or more gets a free coffee at pickup. The page already has the note, “A free coffee comes with this order.”, hidden under the total. Anna asked Sous to show it when the order qualifies.',
     'The pull request is short: read every line of it, then send your review.'
   ].join('\n\n'),
-  pr: {
-    number: 44,
-    title: 'Show the free coffee note from 20 €',
-    branch: 'sous/free-coffee-note',
-    description: [
-      'Shows the free coffee note under the total for orders of 20 € or more, as Anna asked. The threshold is a named constant, so the shop can change it in one place.'
-    ],
-    claims: [
-      'The note shows from 20.00 €',
-      'Below 20 € it stays hidden'
-    ],
-    base,
-    head
-  },
+  pr,
   issues: [{
     id: 'inverted',
     path: 'summary.js',
     lines: [14, 14],
+    also: [paragraphAt(pr, 0), claimAt(pr, 0), claimAt(pr, 1)],
     categories: ['bug', 'false-claim'],
     title: 'the note hides from 20 € and shows below it',
     explanation: '`hidden` is true when the note should not show, so it needs the opposite condition: `coffee.hidden = total < FREE_COFFEE_FROM`. As written, an empty basket promises a free coffee and a 25 € order does not.'

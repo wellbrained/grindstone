@@ -1,56 +1,9 @@
 // Practice tasks for Read the diff (ADR 0008): two per scenario, about 30 s each, one small file. "Spot it": the pull
 // request has one problem, comment on it and request changes. "Verdict": is it fine? Approve it or request changes, with
-// a one-line reason (the review's summary); two of them are fine and should be approved.
-import { reviewGoals } from '../checks'
-import { emptyReview } from '../shop'
-import type { PlantedIssue, PullRequest, ReviewPracticeTask, ReviewStep, TemptingSpot } from '../types'
-
-interface TaskSpec {
-  id: string
-  practises: string
-  title: string
-  task: string
-  pr: PullRequest
-  issues: readonly PlantedIssue[]
-  tempting?: readonly TemptingSpot[]
-  hint: string
-  why: string
-  solution: ReviewStep[]
-  difficulty?: 1 | 2
-}
-
-/** A "spot it" task: one planted issue; find it and request changes. */
-function spotIt(spec: TaskSpec): ReviewPracticeTask {
-  return {
-    track: 'ai',
-    kind: 'practice',
-    difficulty: spec.difficulty ?? 1,
-    minutes: 0.5,
-    id: spec.id,
-    practises: spec.practises,
-    title: spec.title,
-    task: spec.task,
-    pr: spec.pr,
-    issues: spec.issues,
-    ...(spec.tempting ? { tempting: spec.tempting } : {}),
-    verdict: 'request-changes',
-    setup: emptyReview,
-    goals: reviewGoals({ issues: spec.issues.length }),
-    hints: [spec.hint],
-    why: spec.why,
-    solution: spec.solution
-  }
-}
-
-/** A "verdict" task: fine (no issue: approve) or not (request changes on it), always with a one-line reason. */
-function verdict(spec: TaskSpec): ReviewPracticeTask {
-  return {
-    ...spotIt(spec),
-    verdict: spec.issues.length ? 'request-changes' : 'approve',
-    reason: true,
-    goals: reviewGoals({ issues: spec.issues.length, verdictTask: true })
-  }
-}
+// a one-line reason (the review's summary); two of them are fine and should be approved. Where the issue makes a claim
+// false, it names that claim (`breaks`) and a paragraph that says the same (`says`): a false-claim comment there finds
+// the issue too. Each pull request also makes a claim that holds, so flagging every claim costs a false alarm.
+import { spotIt, verdict } from './tasks'
 
 const VERDICT_TASK = 'Is this pull request fine? Approve it or request changes (on the line that is wrong), and say why in one line.'
 
@@ -63,8 +16,8 @@ export const openDays = spotIt({
     number: 42,
     title: 'Build the opening days from the list of days',
     branch: 'sous/open-days',
-    description: ['The header lists the days we are open instead of a fixed text, so a change of days is one edit.'],
-    claims: ['The header says the shop is open Tuesday to Sunday'],
+    description: ['The header builds its days from `DAYS` instead of a fixed text, so a change of days is one edit.'],
+    claims: ['The header says the shop is open Tuesday to Sunday', 'Monday stays closed'],
     base: {
       'hours.js': `// The opening days for the header. We are closed on Mondays.
 const DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
@@ -92,6 +45,7 @@ export function openDaysText() {
     path: 'hours.js',
     lines: [5, 5],
     categories: ['bug', 'false-claim'],
+    breaks: [0],
     title: '`DAYS.slice(1, 6)` stops before Sunday',
     explanation: 'The end of a slice is not included: `slice(1, 6)` is Tuesday to Saturday. `DAYS.slice(1)` takes every day from Tuesday on.'
   }],
@@ -154,7 +108,7 @@ export const itemsNotLines = spotIt({
     title: 'Count the basket without the helper',
     branch: 'sous/simpler-badge',
     description: ['`cart.lines.length` is the number of items already, so the counter does not need `itemCount()`.'],
-    claims: ['The counter still shows how many items are in the basket'],
+    claims: ['The counter still shows how many items are in the basket', 'Only badge.js changes'],
     base: {
       'badge.js': `// The counter in the header: how many items are in the basket.
 import { itemCount } from './cart.js'
@@ -183,6 +137,8 @@ export function renderBadge() {
     path: 'badge.js',
     lines: [7, 7],
     categories: ['bug', 'false-claim'],
+    breaks: [0],
+    says: [0],
     title: 'the counter counts products, not items',
     explanation: '`cart.lines` has one line per product, with its quantity: two croissants are one line. `itemCount()` adds the quantities up.'
   }],
@@ -204,7 +160,7 @@ export const pickupTime = verdict({
     title: 'Use the shop\'s time format in the confirmation',
     branch: 'sous/confirmation-time',
     description: ['The confirmation shows times like the rest of the page, `7:30` instead of `07:30:00`.'],
-    claims: ['Only the format of the time changes'],
+    claims: ['Only the format of the time changes', 'Only confirm.js changes'],
     base: {
       'confirm.js': `// The message after an order goes in.
 export function confirmationText(order) {
@@ -228,6 +184,7 @@ export function confirmationText(order) {
     lines: [5, 5],
     also: [{ path: 'confirm.js', removed: [3, 3] }],
     categories: ['bug', 'false-claim'],
+    breaks: [0],
     title: 'the confirmation formats `order.createdAt`, not `order.pickupAt`',
     explanation: '`createdAt` is when the order was placed: customers would be told to come at the time they ordered. The old line used `pickupAt`.'
   }],
@@ -249,7 +206,7 @@ export const soldOut = spotIt({
     title: 'Grey out products that are sold out',
     branch: 'sous/sold-out',
     description: ['A product with nothing left is greyed out and its Add button turns off.'],
-    claims: ['Sold-out products are greyed out and can\'t be added'],
+    claims: ['Sold-out products are greyed out and can\'t be added', 'One new file, stock.js'],
     base: {},
     head: {
       'stock.js': `// Products with nothing left today: greyed out, and Add turned off (Maya).
@@ -265,6 +222,8 @@ export function markSoldOut(item, product) {
     path: 'stock.js',
     lines: [3, 4],
     categories: ['bug', 'false-claim'],
+    breaks: [0],
+    says: [0],
     title: 'the products in stock get marked sold out',
     explanation: '`product.left > 0` is true while there is stock: the products you can buy are greyed out and the sold-out ones stay clickable. Sold out is `product.left === 0`.'
   }],
@@ -325,7 +284,7 @@ export const mediumCoffee = spotIt({
     title: 'Add a medium coffee',
     branch: 'sous/medium-coffee',
     description: ['Customers can pick a medium coffee too, for 0.40 € more than a small one.'],
-    claims: ['Three sizes: small, medium and large'],
+    claims: ['Three sizes: small, medium and large', 'A medium coffee costs 2.60 €'],
     base: {
       'coffee.js': `// Coffee to go with the order: a small one, or a large one for 0.80 € more.
 export const SIZES = ['small', 'large']
@@ -350,10 +309,13 @@ export function coffeePrice(size) {
     path: 'coffee.js',
     lines: [3, 3],
     also: [{ path: 'coffee.js', lines: [2, 2] }],
-    categories: ['bug'],
+    categories: ['bug', 'false-claim'],
+    breaks: [1],
+    says: [0],
     title: '`EXTRA` has no price for `medium`',
     explanation: '`EXTRA[\'medium\']` is `undefined`, so `2.2 + undefined` is `NaN`. A new size needs its price: `medium: 0.4`.'
   }],
+  tempting: [{ claim: 0, why: 'it does: `SIZES` lists all three. What a medium coffee costs is the other claim.' }],
   hint: 'The size is new. Follow `\'medium\'` into `return 2.2 + EXTRA[size]`: what is `EXTRA[\'medium\']`? Unchanged lines in the diff count too.',
   why: '`EXTRA` has no `medium`, so its extra is `undefined` and the price `NaN`. The problem sits on a line the pull request did not change: read the lines around a change too.',
   solution: [
@@ -372,7 +334,7 @@ export const lockerFallsThrough = verdict({
     title: 'Add the locker to the delivery fee',
     branch: 'sous/locker-fee',
     description: ['`deliveryFee` knows the station locker now. It is free, like pickup.'],
-    claims: ['The locker is free'],
+    claims: ['The locker is free', 'Delivery still costs 3.50 €'],
     base: {
       'delivery.js': `// What getting the order costs on top (euros).
 export function deliveryFee(method) {
@@ -408,6 +370,8 @@ export function deliveryFee(method) {
     path: 'delivery.js',
     lines: [6, 6],
     categories: ['bug', 'false-claim'],
+    breaks: [0],
+    says: [0],
     title: '`case \'locker\'` falls through to the delivery fee',
     explanation: 'With nothing between `case \'locker\':` and `case \'delivery\':`, the locker runs into `return 3.5`. It belongs with pickup.'
   }],
@@ -429,7 +393,7 @@ export const ryeByWeight = spotIt({
     title: 'Price rye by weight',
     branch: 'sous/rye-by-weight',
     description: ['Rye costs 4.20 € a kilo; the scale at the counter reports grams.'],
-    claims: ['A 750 g loaf costs 3.15 €'],
+    claims: ['A 750 g loaf costs 3.15 €', 'The price per kilo is one constant, `RYE_PER_KG`'],
     base: {
       'rye.js': `// A rye loaf, 3.80 €.
 export function ryePrice() {
@@ -452,6 +416,7 @@ export function ryePrice(grams) {
     path: 'rye.js',
     lines: [5, 5],
     categories: ['bug', 'false-claim'],
+    breaks: [0],
     title: 'a price per kilo times grams',
     explanation: '`RYE_PER_KG * grams` treats grams as kilos: 750 g would cost 3,150 €. It needs `RYE_PER_KG * grams / 1000`.'
   }],
@@ -474,7 +439,7 @@ export const tenCents = verdict({
     title: 'Round prices before formatting them',
     branch: 'sous/round-prices',
     description: ['Rounds a price before it is formatted, so a price with half a cent shows the way the till rounds it.'],
-    claims: ['Prices still show to the cent'],
+    claims: ['Prices still show to the cent', 'Only money.js changes'],
     base: {
       'money.js': `// Turns amounts into text for the page. Amounts are euros as plain numbers (2.4 is 2.40).
 export function formatPrice(amount) {
@@ -496,6 +461,8 @@ export function formatPrice(amount) {
     path: 'money.js',
     lines: [4, 4],
     categories: ['bug', 'false-claim'],
+    breaks: [0],
+    says: [0],
     title: '`Math.round(amount * 10) / 10` rounds to ten cents',
     explanation: 'Times 10, round, divided by 10 keeps one decimal: 2.45 € shows as 2.50 €. To the cent is `* 100` and `/ 100`.'
   }],

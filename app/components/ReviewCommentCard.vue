@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { DESCRIPTION_PATH } from '#shared/levels'
 import type { ReviewComment } from '#shared/levels'
 import type { ReviewPlaySession } from '~/composables/useReviewPlay'
 import { placeShort, placeText } from '~/utils/review-view'
@@ -18,6 +19,8 @@ const { store, statusOf, issueTitle, startEdit, saveEdit, cancelEdit, removeComm
 const editing = computed(() => store.value.editing?.id === props.comment.id ? store.value.editing : null)
 const status = computed(() => statusOf(props.comment))
 const lines = computed(() => placeText(t, props.comment))
+/** On Sous's description a broad comment covers lines that hold, not changes. */
+const onDescription = props.comment.path === DESCRIPTION_PATH
 
 const card = useTemplateRef<HTMLElement>('card')
 const editButton = useTemplateRef<{ $el: HTMLElement }>('editButton')
@@ -144,7 +147,7 @@ function remove() {
           name="i-lucide-circle-minus"
           class="mt-0.5 size-4 shrink-0 text-muted"
         />
-        <span><span class="font-medium text-highlighted">{{ t('review.feedback.falseAlarm') }}</span> <InlineText :text="status.feedback.why ?? (status.feedback.broad ? t('review.feedback.broad') : t('review.feedback.nothingHere'))" /></span>
+        <span><span class="font-medium text-highlighted">{{ t('review.feedback.falseAlarm') }}</span> <InlineText :text="status.feedback.why ?? (status.feedback.broad ? t(onDescription ? 'review.feedback.broadDescription' : 'review.feedback.broad') : t('review.feedback.nothingHere'))" /></span>
       </p>
     </template>
     <p

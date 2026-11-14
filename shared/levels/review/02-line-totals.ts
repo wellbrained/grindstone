@@ -2,8 +2,9 @@
 // price by the whole basket's item count instead of the line's quantity: right as long as the basket holds one product,
 // which is all Sous tested.
 import { reviewGoals } from './checks'
+import { claimAt, paragraphAt } from './diff'
 import { ORDER_PAGE, SUMMARY_APP, emptyReview, shopFiles, withEdits } from './shop'
-import type { ReviewScenario } from './types'
+import type { PullRequest, ReviewScenario } from './types'
 
 const SUMMARY = `// The basket summary under the products: one row per product the customer picked.
 import { cart } from './cart.js'
@@ -42,6 +43,22 @@ const head = withEdits(base, [
   }
 ])
 
+const pr: PullRequest = {
+  number: 43,
+  title: 'Show a total on every basket line',
+  branch: 'sous/line-totals',
+  description: [
+    'Each basket row now ends with its total, formatted like the prices above it. The item count is worked out once per render instead of once per row.',
+    'Tested: two butter croissants show “2 × Butter croissant 4.80”.'
+  ],
+  claims: [
+    'Every basket row shows quantity × price',
+    'Prices use `formatPrice`, like the product list'
+  ],
+  base,
+  head
+}
+
 export const lineTotals: ReviewScenario = {
   id: 'ai-02-line-totals',
   track: 'ai',
@@ -54,26 +71,13 @@ export const lineTotals: ReviewScenario = {
     'Ben wants the basket to read like the paper receipt, each line with its own total: “2 × Butter croissant 4.80”. He asked Sous, and Sous says it tested it.',
     'Review the pull request: comment on what is wrong, then Approve or Request changes. Running it costs nothing.'
   ].join('\n\n'),
-  pr: {
-    number: 43,
-    title: 'Show a total on every basket line',
-    branch: 'sous/line-totals',
-    description: [
-      'Each basket row now ends with its total, formatted like the prices above it. The item count is worked out once per render instead of once per row.',
-      'Tested: two butter croissants show “2 × Butter croissant 4.80”.'
-    ],
-    claims: [
-      'Every basket row shows quantity × price',
-      'Prices use `formatPrice`, like the product list'
-    ],
-    base,
-    head
-  },
+  pr,
   issues: [{
     id: 'basket-count',
     path: 'summary.js',
     lines: [10, 13],
-    categories: ['bug'],
+    also: [paragraphAt(pr, 0), claimAt(pr, 0)],
+    categories: ['bug', 'false-claim'],
     title: 'a row\'s total multiplies by every item in the basket, not by its own quantity',
     explanation: '`count` is `itemCount()`, all items in the basket. A row\'s total is `line.price * line.quantity`: with two croissants and a sourdough loaf, the croissant row says 7.20 instead of 4.80.'
   }],

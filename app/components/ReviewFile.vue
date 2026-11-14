@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { DESCRIPTION_PATH } from '#shared/levels'
 import type { DiffRow, FileDiff } from '#shared/levels'
 import type { ReviewPlaySession } from '~/composables/useReviewPlay'
 import type { Token } from '~/utils/review-highlight'
@@ -9,7 +10,9 @@ import { highlightLines } from '~/utils/review-highlight'
 // colours (as text). The numbers are one button per row: a click (a tap) opens the comment form on that row, Shift+click
 // stretches it to another row of the hunk, a drag picks several rows. With the keyboard the file is one tab stop: Up and
 // Down move along its rows, Shift with them picks rows, Enter opens the form, Escape lets go. Your comments sit after
-// their last row, the open form after the rows it covers.
+// their last row, the open form after the rows it covers. Sous's description is drawn by it too (`file` is the
+// description's, path `description`): its lines numbered once, as prose, the claims as a list, so a comment can point
+// at a claim the same way.
 const props = defineProps<{
   play: ReviewPlaySession
   file: FileDiff
@@ -18,6 +21,14 @@ const props = defineProps<{
 const { t } = useI18n()
 const { store, commentsAfter, inComment, isActive, select, startComment, commentSelection, clearSelection, selection } = props.play
 
+/** Sous's description, not a file: one number per line, prose, the claims as a list. */
+const isDescription = props.file.path === DESCRIPTION_PATH
+const paragraphs = props.play.level.pr.description.length
+/** The row is one of the claims (they follow the paragraphs). */
+const isClaim = (row: DiffRow) => row.new !== null && row.new > paragraphs
+/** The table's columns: the description has one number column, a file two. */
+const columns = isDescription ? 2 : 3
+
 const SIGN: Record<DiffRow['kind'], string> = { add: '+', del: '−', same: ' ' }
 const ROW_TONE: Record<DiffRow['kind'], string> = { add: 'bg-success/10', del: 'bg-error/10', same: '' }
 const NUMBER_TONE: Record<DiffRow['kind'], string> = { add: 'bg-success/15 text-success', del: 'bg-error/15 text-error', same: 'text-dimmed' }
@@ -25,6 +36,7 @@ const NUMBER_TONE: Record<DiffRow['kind'], string> = { add: 'bg-success/15 text-
 // the code in the editor's colours, once each side's language has loaded
 const tokens = shallowRef<{ head: Token[][] | null, base: Token[][] | null }>({ head: null, base: null })
 onMounted(async () => {
+  if (isDescription) return
   const { base, head } = props.play.level.pr
   const path = props.file.path
   try {
@@ -56,6 +68,7 @@ function focusRow(at: number) {
 
 const KIND_KEY: Record<DiffRow['kind'], string> = { add: 'added', del: 'removed', same: 'unchanged' }
 function rowLabel(row: DiffRow): string {
+  if (isDescription) return t('review.diff.descriptionLabel', { line: row.new, kind: t(isClaim(row) ? 'review.diff.kind.claim' : 'review.diff.kind.paragraph') })
   const where = row.kind === 'del' ? t('review.diff.lineRemoved', { line: row.old }) : t('review.diff.line', { line: row.new })
   return t('review.diff.rowLabel', { where, kind: t(`review.diff.kind.${KIND_KEY[row.kind]}`), path: props.file.path })
 }
@@ -143,11 +156,26 @@ const STATUS_KEY = { added: 'added', deleted: 'deleted', modified: 'modified' } 
 
 <template>
   <section
-    class="overflow-hidden rounded-lg border border-default bg-(--app-terminal)"
-    :aria-label="t('review.diff.file', { path: file.path, added: file.added, removed: file.removed })"
+    class="overflow-hidden rounded-lg border border-default"
+    :class="isDescription ? 'bg-elevated' : 'bg-(--app-terminal)'"
+    :aria-label="isDescription ? t('review.pr.description') : t('review.diff.file', { path: file.path, added: file.added, removed: file.removed })"
     :data-file="file.path"
+    :data-testid="isDescription ? 'pr-description' : undefined"
   >
-    <header class="flex items-center gap-2 border-b border-default bg-elevated px-2 py-1.5">
+    <header
+      v-if="isDescription"
+      class="flex items-center gap-2 border-b border-default px-3 py-2 text-xs text-muted"
+    >
+      <span
+        class="grid size-5 place-items-center rounded-full bg-accented font-mono text-[11px] font-semibold text-highlighted"
+        aria-hidden="true"
+      >S</span>
+      <span><span class="font-medium text-highlighted">Sous</span> · {{ t('review.pr.assistant') }}</span>
+    </header>
+    <header
+      v-else
+      class="flex items-center gap-2 border-b border-default bg-elevated px-2 py-1.5"
+    >
       <UButton
         size="xs"
         color="neutral"
@@ -173,17 +201,23 @@ const STATUS_KEY = { added: 'added', deleted: 'deleted', modified: 'modified' } 
       v-show="!collapsed"
       ref="table"
     >
-      <table class="w-full table-fixed border-collapse font-mono text-xs leading-5 [font-variant-ligatures:none]">
+      <table
+        class="w-full table-fixed border-collapse [font-variant-ligatures:none]"
+        :class="isDescription ? 'text-sm leading-6' : 'font-mono text-xs leading-5'"
+      >
         <colgroup>
           <col class="w-8 sm:w-10">
-          <col class="w-8 sm:w-10">
+          <col
+            v-if="!isDescription"
+            class="w-8 sm:w-10"
+          >
           <col>
         </colgroup>
         <tbody
           v-for="(hunk, h) in file.hunks"
           :key="h"
         >
-          <tr>
+          <tr v-if="!isDescription">
             <td
               colspan="3"
               class="bg-info/8 px-2 py-0.5 text-info"
@@ -201,13 +235,13 @@ const STATUS_KEY = { added: 'added', deleted: 'deleted', modified: 'modified' } 
               :data-row="row.new !== null ? `${file.path}:${row.new}` : `${file.path}:-${row.old}`"
             >
               <td
-                colspan="2"
+                :colspan="isDescription ? 1 : 2"
                 class="p-0 align-top"
               >
                 <button
                   type="button"
-                  class="grid w-full cursor-pointer grid-cols-2 border-s-2 text-end tabular-nums select-none hover:bg-primary/20 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
-                  :class="[NUMBER_TONE[row.kind], isActive(file.path, h, index) ? 'border-primary bg-primary/25 text-highlighted' : inComment(file.path, h, index) ? 'border-info' : 'border-transparent']"
+                  class="grid w-full cursor-pointer border-s-2 text-end tabular-nums select-none hover:bg-primary/20 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
+                  :class="[isDescription ? 'grid-cols-1 py-0.5 font-mono text-xs leading-6' : 'grid-cols-2', NUMBER_TONE[row.kind], isActive(file.path, h, index) ? 'border-primary bg-primary/25 text-highlighted' : inComment(file.path, h, index) ? 'border-info' : 'border-transparent']"
                   :tabindex="flatIndex(h, index) === focused ? 0 : -1"
                   :aria-label="rowLabel(row)"
                   :aria-pressed="isActive(file.path, h, index)"
@@ -220,11 +254,37 @@ const STATUS_KEY = { added: 'added', deleted: 'deleted', modified: 'modified' } 
                   @pointerdown="onPointerDown($event, h, index)"
                   @pointerenter="onPointerEnter(h, index)"
                 >
-                  <span class="pe-1.5">{{ row.old ?? '' }}</span>
-                  <span class="pe-1.5">{{ row.new ?? '' }}</span>
+                  <template v-if="isDescription">
+                    <span class="pe-1.5">{{ row.new }}</span>
+                  </template>
+                  <template v-else>
+                    <span class="pe-1.5">{{ row.old ?? '' }}</span>
+                    <span class="pe-1.5">{{ row.new ?? '' }}</span>
+                  </template>
                 </button>
               </td>
-              <td class="py-0 pe-2 align-top whitespace-pre-wrap text-default [overflow-wrap:anywhere]">
+              <td
+                v-if="isDescription"
+                class="py-0.5 ps-1.5 pe-3 align-top text-pretty [overflow-wrap:anywhere]"
+                :class="isClaim(row) ? 'text-toned' : 'text-default'"
+                :data-claim="isClaim(row) ? row.new! - paragraphs - 1 : undefined"
+              >
+                <span
+                  v-if="isClaim(row)"
+                  class="flex gap-2"
+                ><span
+                  class="select-none"
+                  aria-hidden="true"
+                >•</span><InlineText :text="row.text" /></span>
+                <InlineText
+                  v-else
+                  :text="row.text"
+                />
+              </td>
+              <td
+                v-else
+                class="py-0 pe-2 align-top whitespace-pre-wrap text-default [overflow-wrap:anywhere]"
+              >
                 <span
                   class="inline-block w-4 text-center select-none"
                   :class="row.kind === 'add' ? 'text-success' : row.kind === 'del' ? 'text-error' : ''"
@@ -238,7 +298,7 @@ const STATUS_KEY = { added: 'added', deleted: 'deleted', modified: 'modified' } 
             </tr>
             <tr v-if="formAfter(h, index)">
               <td
-                colspan="3"
+                :colspan="columns"
                 class="bg-default p-2 font-sans"
               >
                 <ReviewCommentForm
@@ -257,7 +317,7 @@ const STATUS_KEY = { added: 'added', deleted: 'deleted', modified: 'modified' } 
               :key="`comment-${comment.id}`"
             >
               <td
-                colspan="3"
+                :colspan="columns"
                 class="bg-default p-2 font-sans"
               >
                 <ReviewCommentCard

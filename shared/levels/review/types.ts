@@ -64,7 +64,8 @@ export interface PlantedIssue extends Spot {
   id: string
   /**
    * Other places a comment may sit to find it, where a reviewer would rightly point at it too (the line that adds a value
-   * a `switch` elsewhere in the diff never handles).
+   * a `switch` elsewhere in the diff never handles; the claim of the description it breaks, `claimAt(pr, index)`, where
+   * only `false-claim` fits).
    */
   also?: readonly Spot[]
   /** The categories a comment on it may have to find it ('bug', and 'false-claim' when the description promises the opposite). */
@@ -83,6 +84,16 @@ export interface TemptingSpot extends Spot {
   why: string
 }
 
+/** The issue on the shop's tracker that a pull request says it fixes ("Fixes #142"), shown with it. */
+export interface LinkedIssue {
+  number: number
+  title: string
+  /** Who opened it (a teammate: 'Anna'). */
+  author: string
+  /** What it says, paragraph by paragraph (text only; `backticks` mark code). */
+  body: readonly string[]
+}
+
 /** Sous's pull request, as the level writes it. */
 export interface PullRequest {
   /** Its number on the shop's repository (#41). */
@@ -92,8 +103,13 @@ export interface PullRequest {
   branch: string
   /** What Sous wrote, paragraph by paragraph (text only; `backticks` mark code). */
   description: readonly string[]
-  /** What Sous says the change does, as a list under the description (text only). */
+  /**
+   * What Sous says the change does, as a list under the description (text only). The description is shown as numbered
+   * lines, the paragraphs and then the claims (`descriptionFile`), so a comment can sit on a claim.
+   */
   claims: readonly string[]
+  /** The issue it says it fixes, shown with the pull request (not a place to comment: Sous did not write it). */
+  fixes?: LinkedIssue
   /** The files before the pull request (main). */
   base: Files
   /** The files after it (the branch); the diff is computed from the two. */
