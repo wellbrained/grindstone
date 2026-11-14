@@ -70,6 +70,8 @@ export interface Action<S, R, O> {
   reload?: boolean
   /** A sent review's new false alarms (Working with AI): added to `falseAlarms`, which a review sets even when it is 0. */
   falseAlarms?: number
+  /** A request for changes Sous answered with a commit (Working with AI, chapter 7): added to `rounds`. */
+  rounds?: number
 }
 
 export interface ActResult<S, R, O> {
@@ -107,7 +109,8 @@ export function act<S, R, O>(session: SessionOf<S, R>, level: AnyLevel<S, R>, ac
       solved: session.solved || solvedNow,
       commandCount: session.commandCount + 1,
       ...(action.reload ? { reloads: (session.reloads ?? 0) + 1 } : {}),
-      ...(action.falseAlarms !== undefined ? { falseAlarms: (session.falseAlarms ?? 0) + action.falseAlarms } : {})
+      ...(action.falseAlarms !== undefined ? { falseAlarms: (session.falseAlarms ?? 0) + action.falseAlarms } : {}),
+      ...(action.rounds !== undefined ? { rounds: (session.rounds ?? 0) + action.rounds } : {})
     },
     output: result.output,
     notices: [...before.notices, ...after.notices],
@@ -137,11 +140,17 @@ export function undoLast<S, R>(session: SessionOf<S, R>, level: AnyLevel<S, R>):
 
 /**
  * Back to the setup as a new attempt. Revealed hints stay revealed (and counted), and so do false alarms (a review
- * track): the feedback on them says which comments found the problems, so it is as good as a hint. Commands and
- * reloads start over: what they taught has to be done again.
+ * track): the feedback on them says which comments found the problems, so it is as good as a hint; and the rounds of a
+ * steer level, whose wrong fixes showed which comment misled Sous. Commands and reloads start over: what they taught
+ * has to be done again.
  */
 export function restart<S, R>(session: SessionOf<S, R>, level: AnyLevel<S, R>): SessionOf<S, R> {
-  return { ...startSession(level), hintsUsed: session.hintsUsed, ...(session.falseAlarms !== undefined ? { falseAlarms: session.falseAlarms } : {}) }
+  return {
+    ...startSession(level),
+    hintsUsed: session.hintsUsed,
+    ...(session.falseAlarms !== undefined ? { falseAlarms: session.falseAlarms } : {}),
+    ...(session.rounds !== undefined ? { rounds: session.rounds } : {})
+  }
 }
 
 /** A hint as shown: its number (1-based), the level's hint count and its text. */

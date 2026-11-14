@@ -6,11 +6,21 @@ import type { ReviewPlaySession } from '~/composables/useReviewPlay'
 // The review box at the end of the pull request (docs/features/ui.md, "Working with AI play page"): a summary (a
 // verdict task's one-line reason, needed to send it), Approve and Request changes. Sending checks the review: what it
 // found shows under each comment, and here what the last review came to (not solved yet: you can keep reviewing and
-// send it again). Grindstone never reads what you write: the lines and categories decide.
+// send it again). Grindstone never reads what you write: the lines and categories decide. A steer level (chapter 7)
+// says which round it is; a request for changes before the last round is answered by Sous's commit (the timeline
+// shows it), one without a comment is refused, and an approval is right only once nothing is left.
 const props = defineProps<{ play: ReviewPlaySession }>()
 
 const { t } = useI18n()
-const { store, sent, comments, needsReason, reasonMissing, submit, session, level } = props.play
+const { store, sent, comments, needsReason, reasonMissing, submit, session, level, round, refused } = props.play
+const rounds = level.steer?.rounds ?? null
+
+/** A steer level's round, in words: what a request for changes does now. */
+const roundNote = computed(() => {
+  if (rounds === null) return null
+  if (round.value >= rounds) return t('review.steer.lastRound', { round: round.value, rounds })
+  return t(round.value === 1 ? 'review.steer.firstRound' : 'review.steer.nextRound', { round: round.value, rounds })
+})
 
 const id = useId()
 const reasonMissingNow = computed(() => needsReason && reasonMissing.value && !store.value.summary.trim())
@@ -25,8 +35,9 @@ const outcome = computed(() => {
   const review = sent.value
   if (!review) return null
   const result = review.result
-  const total = level.issues.length
   const verdict = t(`review.verdict.${result.verdict}`)
+  if (level.steer) return steerOutcome(result)
+  const total = level.issues.length
   if (result.solved) return { tone: 'success', text: t('review.result.solved', { verdict }) }
   const parts: string[] = []
   // a verdict task does not say how many problems there are (that is the question)
@@ -36,6 +47,25 @@ const outcome = computed(() => {
   if (result.falseAlarms > 0) parts.push(t('review.result.falseAlarms', result.falseAlarms))
   return { tone: 'warning', text: `${parts.join(' ')} ${t('review.result.again')}` }
 })
+
+/** What a steer level's last review came to: an approval (right, too early, or with comments), or a request in the last round. */
+function steerOutcome(result: NonNullable<typeof sent.value>['result']) {
+  // only an approval solves a steer level: a request for changes in the last round finds problems Sous won't fix
+  if (result.verdict === 'approve' && result.solved) return { tone: 'success', text: t('review.steer.solved') }
+  // the round's open problems: found and missed together
+  const open = result.found.length + result.missed.length
+  const parts: string[] = []
+  if (result.verdict === 'approve') {
+    if (open > 0) parts.push(t('review.steer.left', open))
+    else if (result.flaggedApproval) parts.push(t('review.result.flagged'))
+  } else {
+    if (open > 0) parts.push(t('review.result.found', { found: result.found.length, total: open }))
+    parts.push(t('review.steer.noMoreRounds'))
+  }
+  if (result.falseAlarms > 0) parts.push(t('review.result.falseAlarms', result.falseAlarms))
+  const out = rounds !== null && round.value >= rounds && (open > 0 || result.verdict === 'request-changes')
+  return { tone: 'warning', text: `${parts.join(' ')} ${out ? t('review.steer.reset') : t('review.result.again')}` }
+}
 
 const box = useTemplateRef<HTMLElement>('box')
 defineExpose({ focus: () => box.value?.focus() })
@@ -90,6 +120,13 @@ defineExpose({ focus: () => box.value?.focus() })
         {{ t('review.submit.notRead') }}
       </p>
     </div>
+    <p
+      v-if="roundNote"
+      class="text-xs text-muted"
+      data-testid="steer-round-note"
+    >
+      {{ roundNote }}
+    </p>
     <div class="flex flex-wrap gap-2">
       <UButton
         color="success"
@@ -106,6 +143,13 @@ defineExpose({ focus: () => box.value?.focus() })
         @click="send('request-changes')"
       />
     </div>
+    <p
+      v-if="refused === 'comments'"
+      class="text-xs text-error"
+      data-testid="steer-needs-comment"
+    >
+      {{ t('review.steer.needsComment') }}
+    </p>
     <p
       role="status"
       class="text-sm empty:hidden"

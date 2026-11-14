@@ -85,6 +85,8 @@ export interface PlantedIssue extends Spot {
  */
 export interface TemptingSpot extends Spot {
   why: string
+  /** A steer level's (chapter 7): which of its fine places it is, for Sous's overreach. */
+  id?: string
 }
 
 /** The issue on the shop's tracker that a pull request says it fixes ("Fixes #142"), shown with it. */
@@ -134,6 +136,93 @@ export interface RunSpec {
   baseBackend?: BackendSpec
 }
 
+/**
+ * A place a steer level names by its text (chapter 7, "Steer the assistant"): Sous's commits move lines, so where a
+ * problem is gets worked out in every round. `text` is in the file as the round has it (a line, several, or part of
+ * one), `removed` in main's file, on lines the pull request removed; either occurs exactly once in its file.
+ */
+export interface SteerSpot {
+  path: string
+  text?: string
+  removed?: string
+}
+
+/** One change Sous makes in a commit: the first occurrence of a text replaced, or the file put back as main has it. */
+export type SteerEdit
+  = | { path: string, replace: readonly [string, string] }
+    | { path: string, revert: true }
+
+/** What Sous's next commit does with one problem, or with a fine place you flagged. */
+export interface SteerReaction {
+  edits: readonly SteerEdit[]
+  /** The problems the files have afterwards in its place (none: fixed); ids of the level's `problems`. */
+  becomes?: readonly string[]
+  /** Sous's line about it in its reply (text only; `backticks` mark code). */
+  reply: string
+}
+
+/** A plausible but wrong fix: what Sous does when a comment on the problem names a kind that doesn't fit. */
+export interface SteerMisread extends SteerReaction {
+  /** The categories that make Sous do this (none fits the problem; each is in one misread at most). */
+  as: readonly Category[]
+}
+
+/** A problem a steer level's pull request can have in some round: in Sous's pull request, or brought by a commit. */
+export interface SteerProblem {
+  id: string
+  at: SteerSpot
+  /** Other places a comment may point at it. */
+  also?: readonly SteerSpot[]
+  /** Claims of the description it makes false (indexes in `claims`), where only `false-claim` fits. */
+  breaks?: readonly number[]
+  /** Paragraphs of the description it makes false (indexes in `description`). */
+  says?: readonly number[]
+  categories: readonly Category[]
+  title: string
+  explanation: string
+  /** A comment on it with a category that fits: the right fix. */
+  fix: SteerReaction
+  /** Comments on it with a category that doesn't fit; a category no misread names: Sous leaves it as it is. */
+  misread?: readonly SteerMisread[]
+}
+
+/** A place in a steer level that looks wrong and isn't, in the rounds whose files still have it. */
+export interface SteerTempting {
+  id: string
+  at: SteerSpot | { claim: number }
+  why: string
+  /** A comment on it (a false alarm) makes Sous "fix" the fine code; without one Sous leaves it. */
+  overreach?: SteerReaction
+}
+
+/** How a steer level's pull request changes with your reviews (ADR 0008, chapter 7). */
+export interface SteerSpec {
+  /** Versions of the pull request you can review: Sous's, then one per request for changes Sous answers. */
+  rounds: number
+  problems: readonly SteerProblem[]
+  /** The problems Sous's pull request has, round 1. */
+  start: readonly string[]
+  tempting?: readonly SteerTempting[]
+}
+
+/** What Sous did with one comment of a review that asked for changes. */
+export type SteerAnswer
+  /** the right fix (a fitting category), or a wrong one (`misread`: its index in the problem's misreads) */
+  = | { comment: number, kind: 'fix', problem: string }
+    | { comment: number, kind: 'misread', problem: string, misread: number }
+  /** a fine place it "fixed" (a false alarm on a tempting spot with an overreach) */
+    | { comment: number, kind: 'overreach', spot: string }
+  /** the right lines, a kind no wrong fix is scripted for: left as it is */
+    | { comment: number, kind: 'shrug', problem: string }
+  /** a comment over too much to tell which line (wide or broad), or a false alarm elsewhere: left as it is */
+    | { comment: number, kind: 'unsure' | 'nothing' }
+
+/** One commit Sous pushed: the review that asked for it, and what Sous did with each of its comments. */
+export interface SteerCommit {
+  review: SentReview
+  answers: SteerAnswer[]
+}
+
 /** What a review level adds to the shared level fields. */
 export interface ReviewFields {
   pr: PullRequest
@@ -149,6 +238,11 @@ export interface ReviewFields {
   run?: RunSpec
   /** A scenario: what it teaches you to see, its tag on the track page ('off-by-one'). */
   teaches?: string
+  /**
+   * A steer level (chapter 7): Sous answers a request for changes with a commit that follows your comments. `pr`,
+   * `issues` and `tempting` are round 1's; later rounds are worked out from this.
+   */
+  steer?: SteerSpec
 }
 
 /** What a comment of a sent review found: the feedback shown under it. */
@@ -207,6 +301,8 @@ export interface ReviewState {
   alarmed: number[]
   /** How many reviews you sent in this attempt. */
   reviews: number
+  /** A steer level: the commits Sous pushed in this attempt, oldest first (the round you review is one more). */
+  commits?: SteerCommit[]
 }
 
 /** One counted action: a comment added, edited or deleted, a review sent. */
@@ -245,8 +341,8 @@ export type ReviewSession = Session<'ai'>
 /** A level of the Working with AI track (the play page picks ReviewPlay for it). */
 export const isReviewLevel = (level: Pick<Level, 'track'>): level is ReviewLevel => level.track === 'ai'
 
-/** Why an action did nothing. */
-export type Refusal = 'invalid' | 'reason' | 'unknown'
+/** Why an action did nothing ('comments': a steer level's request for changes with nothing for Sous to act on). */
+export type Refusal = 'invalid' | 'reason' | 'unknown' | 'comments'
 
 /** What an action reports besides the new session. */
 export interface ReviewOutput {

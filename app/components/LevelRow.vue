@@ -27,7 +27,7 @@ const difficulty = computed(() => props.row.place.level.difficulty)
 
 const status = computed(() => t(`track.status.${props.row.state}`))
 // the best run by the track's own measure: git its commands, Debugging its hints and reloads
-const counters = computed(() => bestRunCounters(props.row.place.track.bestRun))
+const counters = computed(() => bestRunCounters(props.row.place.track.bestRun, best.value))
 const bestText = computed(() => {
   if (!best.value) return null
   const run = best.value

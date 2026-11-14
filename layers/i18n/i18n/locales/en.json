@@ -154,7 +154,10 @@
     "issues": "What was wrong",
     "reviewClean": "No hint and no false alarm: you read the diff, checked it against what was asked, and pointed at the line.",
     "reviewAlarms": "Solved. Before you comment next time, ask what would go wrong on that line, and for which input.",
-    "reviewHints": "Solved. Next time, try one more case by hand, or run the PR, before the next hint."
+    "reviewHints": "Solved. Next time, try one more case by hand, or run the PR, before the next hint.",
+    "rounds": "Rounds of changes",
+    "steerClean": "One review, no hint, no false alarm: you named each problem for what it is, and Sous fixed exactly that.",
+    "steerRounds": "Solved. It took Sous more than one commit: next time, ask yourself what Sous will do with each comment's kind before you send it."
   },
   "explorer": {
     "title": "Explorer",
@@ -372,6 +375,208 @@
           "2": "What is parked?",
           "3": "Bring the newest back"
         }
+      }
+    }
+  },
+  "aiCheat": {
+    "kicker": "Working with AI track",
+    "title": "Working with AI cheat sheet",
+    "intro": "What to check in an AI pull request, chapter by chapter, and how to ask for the fix. Filter, click a line to copy it, or jump to the level that practises it.",
+    "search": "Filter the sheet",
+    "sections": "Sections",
+    "none": "Nothing matches \"{query}\".",
+    "copy": "Copy {line}",
+    "practise": "Practise it in:",
+    "groups": {
+      "diff": "Read the diff",
+      "claims": "Claims vs. code",
+      "tests": "Tests that lie",
+      "apis": "Invented APIs",
+      "security": "Security",
+      "scope": "Scope and size",
+      "steering": "Steering the assistant"
+    },
+    "entries": {
+      "edges": {
+        "title": "Try the edge you were given",
+        "summary": "Assistants get the middle right and the edges wrong. Put the number from the ask through every comparison: 11 in the basket, then 12.",
+        "examples": {
+          "0": "with 11 in the basket: is 11 < 11 true?"
+        }
+      },
+      "names": {
+        "title": "Check what each name holds",
+        "summary": "A variable that holds almost the right thing reads fine. Follow each value to where it comes from.",
+        "examples": {
+          "0": "the whole basket's count, used for one line"
+        }
+      },
+      "conditions": {
+        "title": "Read a condition both ways",
+        "summary": "Say out loud when it is true, and what happens then: a show-condition assigned to hidden hides exactly the wrong time.",
+        "examples": {
+          "0": "true from 20 € on, and that hides the coffee"
+        }
+      },
+      "cases": {
+        "title": "Follow a new value everywhere",
+        "summary": "A new option, size or method has to reach every switch and lookup that knows the old ones. Search the diff for where it ends up.",
+        "examples": {
+          "0": "is there a case for the new value?"
+        }
+      },
+      "units": {
+        "title": "Keep every number with its unit",
+        "summary": "Percent or share, euros or cents, whole euros or to the cent: put a real number through each line, unit and all.",
+        "examples": {
+          "0": "10 is a percentage here, not a share",
+          "1": "whole euros, where the cent was asked for"
+        }
+      },
+      "every-claim": {
+        "title": "Hold each claim against the code",
+        "summary": "Every line of the description is a promise. Find the code that keeps it, and try the case it names.",
+        "examples": {
+          "0": "“handles an empty basket”: what is 0 / 0?"
+        }
+      },
+      "no-change": {
+        "title": "“No behaviour change” is a claim too",
+        "summary": "A refactor that sorts in place, caches or reorders changes behaviour. Compare what main does with what this does, not how it reads.",
+        "examples": {
+          "0": "sort changes the list it is called on"
+        }
+      },
+      "linked": {
+        "title": "Read the issue it says it fixes",
+        "summary": "“Fixes #142” is checked against the issue, not the title: does the change fix what the issue asks for, or another symptom?"
+      },
+      "a-check": {
+        "title": "A test needs a check",
+        "summary": "A test without a matcher passes whatever the code does. Count the checks, and ask what would make the test fail.",
+        "examples": {
+          "0": "no matcher: this checks nothing"
+        }
+      },
+      "mocked": {
+        "title": "Don't mock what you test",
+        "summary": "A mock of the function under test returns what the test says, so the test checks the mock.",
+        "examples": {
+          "0": "the test now checks its own return value"
+        }
+      },
+      "on-main": {
+        "title": "Run the tests on main too",
+        "summary": "A test that passes on main as well doesn't check the change; one bent to the bug fails on main and shows the right value."
+      },
+      "edge-tests": {
+        "title": "Coverage isn't the edge",
+        "summary": "Every line ran, and the case that breaks it never did. Test the inputs that round, split unevenly or come out empty.",
+        "examples": {
+          "0": "rounded per share: 6.50 € between three is 6.51 €"
+        }
+      },
+      "run-it": {
+        "title": "Run it: the Console names what isn't there",
+        "summary": "A made-up method, export or removed property fails at once, in so many words. Look the real one up before you trust the call.",
+        "examples": {
+          "0": "arrays have no last()"
+        }
+      },
+      "options": {
+        "title": "An unknown option is ignored quietly",
+        "summary": "Intl and most APIs ignore an option they don't know: no error, no change. Check the option's name in the documentation.",
+        "examples": {
+          "0": "no such option: the real one is trailingZeroDisplay"
+        }
+      },
+      "packages": {
+        "title": "Check a package exists before you install it",
+        "summary": "An assistant can name a package that doesn't exist, and anyone can publish one under that name. Look it up on the registry first.",
+        "examples": {
+          "0": "a package nobody published (yet)"
+        }
+      },
+      "as-text": {
+        "title": "Text from outside goes in as text",
+        "summary": "A review, a note or a name put in with innerHTML is markup, and markup can run script. Use textContent; escaping by list always misses something.",
+        "examples": {
+          "0": "the review's text becomes HTML"
+        }
+      },
+      "secrets": {
+        "title": "Anything the browser gets is public",
+        "summary": "A secret key in a page's file is everyone's key. It belongs on the server, read from its environment, and a leaked one gets rotated. Publishable keys are the exception their provider names."
+      },
+      "who": {
+        "title": "Check who may, on the server",
+        "summary": "Hiding a button is manners, not security. Every route checks who is calling, and whose thing it is.",
+        "examples": {
+          "0": "this route checks staff; does the new one?"
+        }
+      },
+      "trust": {
+        "title": "The server decides what only it may",
+        "summary": "Prices, totals and redirects that come in the request are the customer's to change. The server works them out itself.",
+        "examples": {
+          "0": "the total, as the customer's browser sent it"
+        }
+      },
+      "size": {
+        "title": "Size the diff against the ask",
+        "summary": "One word asked for, forty lines changed: something else is in there. A reformat or a rewrite hides what really changed."
+      },
+      "side": {
+        "title": "Changes on the side come out",
+        "summary": "A helper swapped, a feature nobody asked for: each is its own decision and its own pull request."
+      },
+      "rewrite": {
+        "title": "Read a rewrite's removed lines as a checklist",
+        "summary": "When a line would do and a rewrite came, check that everything the old code did is still done."
+      },
+      "two": {
+        "title": "One pull request, one change",
+        "summary": "A rename with a new rule inside is two changes: the rule needs its own review, and its own pull request."
+      },
+      "name-kind": {
+        "title": "Name the kind: it is the instruction",
+        "summary": "An assistant does what your comment says the problem is. Bug: change the code. Missing test: add a check. Invented API: use the real one. Security: move it where it is safe. Scope: take it out."
+      },
+      "real-check": {
+        "title": "Ask for the check, not a fix",
+        "summary": "When the code is right and the test checks nothing, say the test is missing: called a bug, the code gets changed or the test gets a check that checks nothing.",
+        "examples": {
+          "0": "the check the test was missing"
+        }
+      },
+      "not-caught": {
+        "title": "Look it up, don't catch it",
+        "summary": "Called a bug, an invented call gets a try around it: the error is gone, and so is the evidence. Name the API that isn't there.",
+        "examples": {
+          "0": "the real way to the last item"
+        }
+      },
+      "not-hidden": {
+        "title": "Hidden is not private",
+        "summary": "A secret split into pieces or marked with a comment still goes to every browser. Ask for it to move, not to be hidden.",
+        "examples": {
+          "0": "where the key belongs: the server's environment"
+        }
+      },
+      "out": {
+        "title": "An extra comes out",
+        "summary": "Called a bug, an extra gets repaired and stays, often with a rule of its own. Scope asks for it to come out."
+      },
+      "fine-code": {
+        "title": "Flag only what is wrong",
+        "summary": "A comment on fine code is an instruction too: the assistant changes it, and the change is the new bug.",
+        "examples": {
+          "0": "right as it is: flagged, it gets “fixed” the wrong way"
+        }
+      },
+      "commit": {
+        "title": "Review the commit like a new pull request",
+        "summary": "Read what the commit changed, run it again, and approve only what you would have approved in round 1. A confident reply is not a fix."
       }
     }
   },
@@ -831,13 +1036,15 @@
       "commands": "{n} command | {n} commands",
       "hints": "no hints | {n} hint | {n} hints",
       "reloads": "no reloads | {n} reload | {n} reloads",
-      "falseAlarms": "no false alarms | {n} false alarm | {n} false alarms"
+      "falseAlarms": "no false alarms | {n} false alarm | {n} false alarms",
+      "rounds": "no rounds | {n} round | {n} rounds"
     },
     "taskKind": {
       "find": "find",
       "fix": "quick fix",
       "spot": "spot it",
-      "verdict": "verdict"
+      "verdict": "verdict",
+      "steer": "steer"
     },
     "teaches": "Teaches: {error}",
     "kindSpoken": "Kind: {kind}"
@@ -1360,6 +1567,28 @@
     "verdict": {
       "approve": "Approve",
       "request-changes": "Request changes"
+    },
+    "steer": {
+      "round": "Round {round} of {rounds}",
+      "firstRound": "Round {round} of {rounds}. Request changes and Sous answers with a commit that does what your comments say, by their lines and their kind.",
+      "nextRound": "Round {round} of {rounds}: review the pull request as Sous's commit left it. Request changes again, or approve it once it's right.",
+      "lastRound": "Round {round} of {rounds}, the last: Sous won't push again. Approve it if it's right.",
+      "needsComment": "Add a comment first: Sous changes only what your comments point at.",
+      "solved": "Approved: the pull request is right now. Sous merges it.",
+      "left": "Not yet: {n} problem is left in the pull request. | Not yet: {n} problems are left in the pull request.",
+      "noMoreRounds": "The rounds are used up: that was the last one, and Sous won't push again.",
+      "reset": "Reset to try again from Sous's pull request.",
+      "title": "Your reviews and Sous's commits",
+      "requested": "Round {round}: you requested changes",
+      "pushed": "Sous pushed a commit",
+      "changes": "What the commit changed (round {round})",
+      "noChanges": "Nothing: Sous left every file as it was.",
+      "whole": "The whole pull request as it is now, in round {round}: comment here, on the lines Sous left.",
+      "reply": {
+        "shrug": "You called it “{category}”. I don't see that kind of problem there, so I left it as it is.",
+        "unsure": "This comment covers more than one thing: I couldn't tell which line you meant, so I left them as they are.",
+        "nothing": "I looked again and found nothing to change there."
+      }
     },
     "result": {
       "sent": "Review {n} sent.",

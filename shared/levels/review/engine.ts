@@ -2,11 +2,16 @@
 // editing and deleting a comment and sending a review are the counted actions. A sent review keeps its comments and
 // what it found (checks.ts); the goals read only that, and its new false alarms (comments that touch no planted issue,
 // each counted once per attempt) go into the session's `falseAlarms`, the measure of the best run after hints.
+// A steer level (chapter 7, steer.ts) is reviewed round by round: comments sit on the round's files, and a request for
+// changes before the last round is answered by Sous's commit (the next round, counted in `rounds`), its comments kept
+// with the commit and the new round starting with none.
 // Pure and immutable, like the core; never throws on what a player sends (a comment that can't sit there is refused).
 import { act, startSession } from '../engine'
 import { checkReview } from './checks'
 import { canonicalPlace, commentTargets, diffOf, placeFor } from './diff'
 import type { FileDiff } from './diff'
+import { reviewNow, sousAnswers, steerRound } from './steer'
+import type { SteerLevel } from './steer'
 import { CATEGORIES, VERDICTS } from './types'
 import type { Category, CommentDraft, Refusal, ReviewActResult, ReviewLevel, ReviewOutput, ReviewSession, ReviewStep, Verdict } from './types'
 
@@ -18,8 +23,11 @@ export const MAX_SUMMARY = 500
 /** The level's diff, worked out once per pull request. */
 export const reviewDiff = (level: ReviewLevel): FileDiff[] => diffOf(level.pr)
 
-/** Everywhere a comment can sit: Sous's description (numbered lines), then the diff's files. */
+/** Everywhere a comment can sit: Sous's description (numbered lines), then the diff's files (a steer level: round 1's). */
 export const reviewTargets = (level: ReviewLevel): FileDiff[] => commentTargets(level.pr)
+
+/** Everywhere a comment can sit now: in a steer level, the current round's pull request. */
+const targetsNow = (session: ReviewSession, level: ReviewLevel): FileDiff[] => commentTargets(reviewNow(level, session.state).pr)
 
 const refuse = (session: ReviewSession, refused: Refusal): ReviewActResult =>
   ({ session, output: { refused, result: null, comment: null }, notices: [], solvedNow: false })
@@ -39,7 +47,7 @@ export const startReview = (level: ReviewLevel): ReviewSession => startSession(l
  */
 export function addComment(session: ReviewSession, level: ReviewLevel, draft: CommentDraft): ReviewActResult {
   const text = textOf(draft.text)
-  const place = canonicalPlace(reviewTargets(level), { path: draft.path, head: draft.head, base: draft.base })
+  const place = canonicalPlace(targetsNow(session, level), { path: draft.path, head: draft.head, base: draft.base })
   if (text === null || !isCategory(draft.category) || !place) return refuse(session, 'invalid')
   const id = session.state.nextId
   return act(session, level, {
@@ -79,15 +87,40 @@ export function deleteComment(session: ReviewSession, level: ReviewLevel, id: nu
 /**
  * Sends the review with a verdict and a summary (counted): what its comments found decides the goals, and its false
  * alarms that were not counted before go into the session's count. A verdict task refuses a review without a reason.
- * You can send again as often as you like; the comments stay.
+ * You can send again as often as you like; the comments stay. In a steer level a request for changes needs a comment
+ * (Sous changes only what comments point at), and before the last round Sous answers it with a commit: the review and
+ * what Sous did with each comment are kept with it, and the next round starts with no comments and nothing sent.
  */
 export function submitReview(session: ReviewSession, level: ReviewLevel, verdict: Verdict, summary: string): ReviewActResult {
   if (!(VERDICTS as readonly string[]).includes(verdict)) return refuse(session, 'invalid')
   const kept = typeof summary === 'string' ? summary.trim().slice(0, MAX_SUMMARY) : ''
   if (level.reason && !kept) return refuse(session, 'reason')
+  if (level.steer && verdict === 'request-changes' && !session.state.comments.length) return refuse(session, 'comments')
   const comments = session.state.comments.map(each => ({ ...each }))
-  const result = checkReview(level, comments, verdict)
+  const view = reviewNow(level, session.state)
+  const result = checkReview(view, comments, verdict)
   const alarms = result.feedback.filter(each => each.falseAlarm && !session.state.alarmed.includes(each.id)).map(each => each.id)
+  const commits = session.state.commits ?? []
+  if (level.steer && verdict === 'request-changes' && commits.length + 1 < level.steer.rounds) {
+    const answers = sousAnswers(level.steer, steerRound(level as SteerLevel, commits), comments, result)
+    return act(session, level, {
+      commands: ['submit'],
+      falseAlarms: alarms.length,
+      rounds: 1,
+      execute: state => ({
+        state: {
+          ...state,
+          comments: [],
+          sent: null,
+          commits: [...commits, { review: { verdict, summary: kept, comments, result }, answers }],
+          alarmed: [...state.alarmed, ...alarms],
+          reviews: state.reviews + 1
+        },
+        record: { kind: 'submit', verdict },
+        output: { ...DONE, result }
+      })
+    })
+  }
   return act(session, level, {
     commands: ['submit'],
     falseAlarms: alarms.length,
@@ -102,7 +135,7 @@ export function submitReview(session: ReviewSession, level: ReviewLevel, verdict
 /** Plays one solution step. A comment whose lines are not one stretch of the diff is a broken level: it throws. */
 export function playReviewStep(session: ReviewSession, level: ReviewLevel, step: ReviewStep): ReviewActResult {
   if ('submit' in step) return submitReview(session, level, step.submit, step.summary ?? '')
-  const place = placeFor(reviewTargets(level), { path: step.comment, lines: step.lines, removed: step.removed })
+  const place = placeFor(targetsNow(session, level), { path: step.comment, lines: step.lines, removed: step.removed })
   if (!place) throw new Error(`${level.id}: no comment can sit on ${step.comment} ${JSON.stringify({ lines: step.lines, removed: step.removed })}`)
   return addComment(session, level, { ...place, category: step.category, text: step.text })
 }

@@ -4,15 +4,18 @@ import type { ReviewPlaySession } from '~/composables/useReviewPlay'
 // Sous's pull request (docs/features/ui.md, "Working with AI play page"), GitHub-like and without its chrome: the title
 // with its number and branches, Sous's description and claims as numbered lines (ReviewFile, so a comment can sit on a
 // claim), the issue it says it fixes, the diff file by file (ReviewFile) with your comments in it, and at the end the
-// review box (ReviewSubmit). Everything Sous wrote is text: `backticks` become code, nothing else is markup.
+// review box (ReviewSubmit). Everything Sous wrote is text: `backticks` become code, nothing else is markup. A steer
+// level (chapter 7) shows its round in the header and, once Sous has pushed, the rounds so far (SteerTimeline) before
+// the diff, which is the whole pull request as the current round has it (ReviewPlay mounts this anew each round).
 const props = defineProps<{ play: ReviewPlaySession }>()
 
 const { t } = useI18n()
-const { level, diff, description } = props.play
+const { level, diff, description, round, commits } = props.play
 const pr = level.pr
+const rounds = level.steer?.rounds ?? null
 
-const added = diff.reduce((sum, file) => sum + file.added, 0)
-const removed = diff.reduce((sum, file) => sum + file.removed, 0)
+const added = computed(() => diff.value.reduce((sum, file) => sum + file.added, 0))
+const removed = computed(() => diff.value.reduce((sum, file) => sum + file.removed, 0))
 
 const review = useTemplateRef<{ focus: () => void }>('review')
 defineExpose({ focusReview: () => review.value?.focus() })
@@ -36,6 +39,11 @@ defineExpose({ focusReview: () => review.value?.focus() })
           />
           {{ t('review.pr.open') }}
         </span>
+        <span
+          v-if="rounds"
+          class="rounded-full border border-default px-2 py-0.5 font-mono text-xs text-highlighted tabular-nums"
+          data-testid="steer-round-badge"
+        >{{ t('review.steer.round', { round, rounds }) }}</span>
         <span>
           <span class="font-medium text-highlighted">Sous</span>
           {{ t('review.pr.wants') }}
@@ -90,6 +98,19 @@ defineExpose({ focusReview: () => review.value?.focus() })
         </p>
       </div>
     </section>
+
+    <!-- a steer level: your reviews so far, Sous's answers and commits -->
+    <SteerTimeline
+      v-if="level.steer && commits.length"
+      :play="play"
+    />
+    <p
+      v-if="level.steer && commits.length"
+      class="text-xs text-muted"
+      data-testid="steer-whole"
+    >
+      {{ t('review.steer.whole', { round }) }}
+    </p>
 
     <ReviewFile
       v-for="file in diff"

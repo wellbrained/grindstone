@@ -128,3 +128,22 @@ export function reviewGoals(options: { issues: number, verdictTask?: boolean }):
     { id: 'verdict', label: 'Send your review with the right verdict', check: ({ state }) => state.sent?.result.verdictRight === true }
   ]
 }
+
+/**
+ * A steer level's goals (chapter 7), both decided by an approval, so no round says whether Sous got it right before you
+ * looked: the pull request you approved has no problem left (its found and missed are the round's open problems), and
+ * the approval is the right verdict (no comments). A request for changes never meets them, not even in the last round,
+ * where a review that finds every open problem is graded "solved" by `checkReview` (its verdict is the round's) and
+ * Sous pushes nothing more (review of chapter 7). The round limit is in the label; the engine keeps to it.
+ */
+export function steerGoals(options: { problems: number, rounds: number }): ReviewGoal[] {
+  const { problems, rounds } = options
+  return [
+    {
+      id: 'fixed',
+      label: problems === 1 ? 'Steer Sous to fix the problem (1)' : `Steer Sous to fix the problems (${problems})`,
+      check: ({ state }) => state.sent?.verdict === 'approve' && state.sent.result.found.length + state.sent.result.missed.length === 0
+    },
+    { id: 'verdict', label: `Approve it once it is right, by round ${rounds}`, check: ({ state }) => state.sent?.verdict === 'approve' && state.sent.result.solved }
+  ]
+}

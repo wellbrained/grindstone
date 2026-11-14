@@ -40,8 +40,9 @@ describe('navigation', () => {
       { label: 'Cheat sheet', to: '/debugging/cheat-sheet' }
     ])
     expect(navigationItems('/debugging/01-add-to-cart', tracks, labels).find(item => item.active)?.to).toBe('/debugging')
-    // Working with AI has no cheat sheet yet (ADR 0008: after chapter 7)
-    expect(navigationItems('/ai/01-twelve-croissants', tracks, labels).find(item => item.active)).toMatchObject({ to: '/ai', children: [{ label: 'Levels', to: '/ai' }] })
+    // Working with AI's came after chapter 7 too (ADR 0008)
+    expect(navigationItems('/ai/01-twelve-croissants', tracks, labels).find(item => item.active)).toMatchObject({ to: '/ai', children: [{ label: 'Levels', to: '/ai' }, { label: 'Cheat sheet', to: '/ai/cheat-sheet' }] })
+    expect(navigationItems('/ai/cheat-sheet', tracks, labels).find(item => item.active)?.to).toBe('/ai')
     // the fixture track has no cheat sheet; home and About are plain links
     const items = navigationItems('/', withWeb, labels)
     expect(items.find(item => item.to === '/web')?.children).toEqual([{ label: 'Levels', to: '/web' }])

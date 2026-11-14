@@ -3,9 +3,11 @@
 // them (one open form at a time, a new one or an edit), the review's
 // summary and verdict, and what the last review you sent found. The session, goals, recording of the solve, stats
 // events and debrief are shared. The session, the open form and the summary live in the play state (they survive
-// leaving the page); the selection of rows being made lives as long as the page.
-import { MAX_COMMENT_LINES, addComment, deleteComment, editComment, locate, placeOf, restart, reviewDiff, reviewTargets, startReview, submitReview, takeHint } from '#shared/levels'
-import type { Category, CommentFeedback, CommentPlace, FileDiff, ReviewActResult, ReviewComment, ReviewLevel, ReviewResult, ReviewSession, Verdict } from '#shared/levels'
+// leaving the page); the selection of rows being made lives as long as the page. A steer level (chapter 7) is
+// reviewed round by round: the pull request, its diff and where comments sit are the current round's (`view`), and
+// Sous's commits so far are in `commits`.
+import { MAX_COMMENT_LINES, addComment, commentTargets, deleteComment, diffOf, editComment, locate, placeOf, restart, reviewNow, startReview, submitReview, takeHint } from '#shared/levels'
+import type { Category, CommentFeedback, CommentPlace, FileDiff, Refusal, ReviewActResult, ReviewComment, ReviewLevel, ReviewResult, ReviewSession, Verdict } from '#shared/levels'
 
 /**
  * The rows a comment is being written on (one stretch of one hunk: from the row it started at to the other end). The
@@ -59,12 +61,26 @@ export function useReviewPlay(level: ReviewLevel) {
   const play = usePlaySession(level, { fresh, onRestart: () => clearPage() })
   const { store, session, next, goals, best, debriefOpen, progressBefore, sparkKey } = play
 
+  /** What is reviewed now: the level, or a steer level's current round (its pull request, open problems, fine places). */
+  const view = computed(() => reviewNow(level, session.value.state))
+  /** The pull request as it is now (a steer level: after Sous's commits). */
+  const pr = computed(() => view.value.pr)
   /** The changed files. */
-  const diff: FileDiff[] = reviewDiff(level)
+  const diff = computed<FileDiff[]>(() => diffOf(pr.value))
   /** Everywhere a comment can sit: Sous's description (numbered lines), then the changed files. */
-  const targets: FileDiff[] = reviewTargets(level)
-  const description = targets[0]!
-  const fileOf = (path: string) => targets.find(file => file.path === path) ?? null
+  const targets = computed<FileDiff[]>(() => commentTargets(pr.value))
+  const description = computed(() => targets.value[0]!)
+  const fileOf = (path: string) => targets.value.find(file => file.path === path) ?? null
+  /** A steer level's commits so far (none for any other level). */
+  const commits = computed(() => session.value.state.commits ?? [])
+  /** The round you review (1 before Sous's first commit); every review level stays in round 1. */
+  const round = computed(() => commits.value.length + 1)
+  /** The last action that did nothing, and why (a steer level's request for changes without a comment). */
+  const refused = ref<Refusal | null>(null)
+  /**
+   * The level Run the PR runs: this round's files, under an id of its own per round, so a commit gives a fresh app.
+   */
+  const runnable = computed<ReviewLevel>(() => level.steer ? { ...level, id: `${level.id}-round-${round.value}`, pr: pr.value } : level)
   const comments = computed(() => session.value.state.comments)
   const sent = computed(() => session.value.state.sent)
   const falseAlarms = computed(() => session.value.falseAlarms ?? 0)
@@ -80,7 +96,7 @@ export function useReviewPlay(level: ReviewLevel) {
   const anchors = computed(() => {
     const found = new Map<number, CommentAnchor>()
     for (const comment of comments.value) {
-      const at = locate(targets, comment)
+      const at = locate(targets.value, comment)
       if (at) found.set(comment.id, { path: at.file.path, hunk: at.hunk, from: at.from, to: at.to })
     }
     return found
@@ -213,10 +229,16 @@ export function useReviewPlay(level: ReviewLevel) {
     if (!result.output.refused) apply(result)
   }
 
-  /** Sends the review (counted): a verdict task without a reason is refused, and the reason field says so. */
+  /**
+   * Sends the review (counted): a verdict task without a reason is refused, and the reason field says so; so is a steer
+   * level's request for changes without a comment. A request Sous answers with a commit starts the next round: the
+   * summary is cleared with the comments.
+   */
   function submit(verdict: Verdict): ReviewResult | null {
     play.markPlayed()
+    const before = commits.value.length
     const result = submitReview(session.value, level, verdict, store.value.summary)
+    refused.value = result.output.refused
     if (result.output.refused === 'reason') {
       reasonMissing.value = true
       return null
@@ -224,6 +246,12 @@ export function useReviewPlay(level: ReviewLevel) {
     if (result.output.refused) return null
     reasonMissing.value = false
     apply(result)
+    if (commits.value.length > before) {
+      store.value.summary = ''
+      store.value.draft = null
+      store.value.editing = null
+      selection.value = null
+    }
     return result.output.result
   }
 
@@ -237,7 +265,8 @@ export function useReviewPlay(level: ReviewLevel) {
     return feedback ? { kind: 'sent', feedback } : { kind: 'unsent' }
   }
 
-  const issueTitle = (id: string) => level.issues.find(issue => issue.id === id)?.title ?? id
+  // a steer level's problems are the current round's
+  const issueTitle = (id: string) => view.value.issues.find(issue => issue.id === id)?.title ?? level.steer?.problems.find(problem => problem.id === id)?.title ?? id
 
   function hint() {
     play.update(takeHint(session.value, level).session)
@@ -247,6 +276,7 @@ export function useReviewPlay(level: ReviewLevel) {
   function clearPage() {
     selection.value = null
     reasonMissing.value = false
+    refused.value = null
   }
 
   /** Reset: no comments, nothing sent, as a new attempt; hints stay revealed (and counted). */
@@ -261,14 +291,22 @@ export function useReviewPlay(level: ReviewLevel) {
   const stats = computed(() => ({
     hints: session.value.hintsUsed,
     falseAlarms: falseAlarms.value,
+    // a steer level: the rounds of changes Sous pushed in this attempt (kept across Reset)
+    ...(level.steer ? { rounds: session.value.rounds ?? 0 } : {}),
     // the best run so far (this one included, once it is recorded)
     best: best.value
   }))
 
   return {
     level,
+    view,
+    pr,
     diff,
     description,
+    commits,
+    round,
+    refused,
+    runnable,
     session,
     store,
     goals,

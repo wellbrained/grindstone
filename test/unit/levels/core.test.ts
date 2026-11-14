@@ -233,6 +233,52 @@ describe('false alarms, the run measure of reviews (ADR 0008)', () => {
   })
 })
 
+describe('rounds, the last measure of a steer level (ADR 0008, chapter 7)', () => {
+  /** A request for changes Sous answered with a commit: one more round, and its false alarms. */
+  const steer = (session: Counter, falseAlarms = 0) => act(session, counterLevel, {
+    commands: ['review'],
+    falseAlarms,
+    rounds: 1,
+    execute: state => ({ state, record: { action: 'inc' }, output: '' })
+  }).session
+
+  it('counts them from the first answered request on, through undo and across Reset, like false alarms', () => {
+    const start = startSession(counterLevel)
+    expect(start.rounds).toBeUndefined()
+    const twice = steer(steer(start), 1)
+    expect(twice).toMatchObject({ rounds: 2, falseAlarms: 1, commandCount: 2 })
+    expect(step(twice, 'inc').session.rounds).toBe(2)
+    expect(undoLast(twice, counterLevel)!.session.rounds).toBe(2)
+    // Reset keeps them: the wrong fix Sous made showed which comment misled it, as good as a hint
+    expect(restart(twice, counterLevel)).toMatchObject({ rounds: 2, falseAlarms: 1, commandCount: 0 })
+    expect(restart(start, counterLevel).rounds).toBeUndefined()
+  })
+
+  it('picks the best run by fewest hints, then fewest false alarms, then fewest rounds; a review level has none', () => {
+    const solved = (falseAlarms: number, rounds: number | undefined) => ({ solved: true, hintsUsed: 0, falseAlarms, commandCount: 5, ...(rounds === undefined ? {} : { rounds }) })
+    let progress = recordSolve(emptyProgress(), 'ai-x', solved(0, 3), fewestHintsThenFalseAlarms)
+    expect(progress.levels['ai-x']!.best).toEqual({ commands: 5, hints: 0, falseAlarms: 0, rounds: 3 })
+    progress = recordSolve(progress, 'ai-x', solved(0, 1), fewestHintsThenFalseAlarms)
+    expect(progress.levels['ai-x']!.best).toEqual({ commands: 5, hints: 0, falseAlarms: 0, rounds: 1 })
+    // a false alarm weighs more than a round
+    progress = recordSolve(progress, 'ai-x', solved(1, 1), fewestHintsThenFalseAlarms)
+    expect(progress.levels['ai-x']!.best).toMatchObject({ falseAlarms: 0, rounds: 1 })
+    expect(fewestHintsThenFalseAlarms).toEqual(['hints', 'falseAlarms', 'rounds'])
+    // a review level's run has no rounds, and stays as it was stored
+    expect(recordSolve(emptyProgress(), 'ai-y', solved(1, undefined), fewestHintsThenFalseAlarms).levels['ai-y']!.best).toEqual({ commands: 5, hints: 0, falseAlarms: 1 })
+  })
+
+  it('stores rounds with the run and reads them back; a broken count is left out', () => {
+    const progress = recordSolve(emptyProgress(), 'ai-x', { solved: true, hintsUsed: 0, falseAlarms: 0, rounds: 2, commandCount: 6 }, fewestHintsThenFalseAlarms)
+    const read = readProgress(serializeProgress(progress))
+    expect(read.ok && read.progress.levels['ai-x']!.best).toEqual({ commands: 6, hints: 0, falseAlarms: 0, rounds: 2 })
+    for (const broken of [-1, 1.5, '2', null]) {
+      const result = readProgress(JSON.stringify({ version: 3, levels: { a: { solved: true, best: { commands: 2, hints: 0, rounds: broken }, latest: null } } }))
+      expect(result.ok && result.progress.levels.a!.best).toEqual({ commands: 2, hints: 0 })
+    }
+  })
+})
+
 describe('progress saved by 0.3.2 and read by it (ADR 0008: no new progress version)', () => {
   const saved = {
     version: 3,

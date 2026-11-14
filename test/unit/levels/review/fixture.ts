@@ -1,6 +1,7 @@
 // Small review levels for the environment's tests: a pull request with three planted issues in two files (two on added
 // lines, one on removed lines) and a tempting spot, and a verdict task whose pull request is fine.
 import { reviewGoals } from '../../../../shared/levels/review/checks'
+import { steerScenario } from '../../../../shared/levels/review/steer'
 import type { ReviewPracticeTask, ReviewScenario } from '../../../../shared/levels/review/types'
 
 const BASE_CART = [
@@ -148,3 +149,84 @@ export const claimFixture: ReviewScenario = {
     { submit: 'request-changes' }
   ]
 }
+
+// A steer level (chapter 7): Sous's saving line shows `String(full - total)` (a bug: no rounding). A bug comment on it
+// gets the right fix; a security comment makes Sous escape it instead (a new problem, `escaped`); an unclear one changes
+// nothing. `total === full` looks risky and is fine: flag it and Sous "fixes" it to `total < full` (a new bug, `loose`).
+// price.js rows (round 1): 0 same 1/1, 1 same 2/2, 2 del 3/-, 3 add -/3 (hidden), 4 add -/4 (text: the bug), 5 same 4/5,
+// 6 same 5/6, 7 same 6/7.
+const BASE_PRICE = [
+  '// the saving under the total',
+  'export function saving(full, total) {',
+  '  return { hidden: true, text: \'\' }',
+  '}',
+  '',
+  'export const LABEL = \'You save\'',
+  'export const UNIT = \'€\'',
+  ''
+].join('\n')
+const HEAD_PRICE = BASE_PRICE.replace('  return { hidden: true, text: \'\' }', '  const hidden = total === full\n  return { hidden, text: String(full - total) }')
+
+export const steerFixture = steerScenario({
+  id: 'ai-31-steer-fixture',
+  track: 'ai',
+  kind: 'scenario',
+  title: 'You save',
+  difficulty: 1,
+  minutes: 4,
+  story: 'Maya asked Sous to show what an office saves.',
+  teaches: 'name the kind',
+  pr: {
+    number: 10,
+    title: 'Show the saving',
+    branch: 'sous/saving',
+    description: ['Shows what the discount saves.'],
+    claims: ['The saving hides when there is none'],
+    base: { 'price.js': BASE_PRICE },
+    head: { 'price.js': HEAD_PRICE }
+  },
+  steer: {
+    rounds: 3,
+    start: ['raw'],
+    problems: [
+      {
+        id: 'raw',
+        at: { path: 'price.js', text: 'String(full - total)' },
+        categories: ['bug'],
+        title: 'the saving is not rounded',
+        explanation: '2.3999999999999986 €.',
+        fix: { edits: [{ path: 'price.js', replace: ['String(full - total)', '(full - total).toFixed(2)'] }], reply: 'Rounded it to cents.' },
+        misread: [{ as: ['security'], edits: [{ path: 'price.js', replace: ['String(full - total)', 'escape(String(full - total))'] }], becomes: ['escaped'], reply: 'Escaped it.' }]
+      },
+      {
+        id: 'escaped',
+        at: { path: 'price.js', text: 'escape(String(full - total))' },
+        categories: ['bug', 'scope'],
+        title: 'escaped, still not rounded',
+        explanation: 'Escaping a number changes nothing.',
+        fix: { edits: [{ path: 'price.js', replace: ['escape(String(full - total))', '(full - total).toFixed(2)'] }], reply: 'Rounded it, and took the escaping out.' }
+      },
+      {
+        id: 'loose',
+        at: { path: 'price.js', text: 'total < full' },
+        categories: ['bug'],
+        title: 'the saving hides when there is one',
+        explanation: 'Inverted.',
+        fix: { edits: [{ path: 'price.js', replace: ['total < full', 'total === full'] }], reply: 'Put the check back.' }
+      }
+    ],
+    tempting: [{
+      id: 'strict',
+      at: { path: 'price.js', text: 'total === full' },
+      why: 'no discount means the same number: nothing to show.',
+      overreach: { edits: [{ path: 'price.js', replace: ['total === full', 'total < full'] }], becomes: ['loose'], reply: 'Compared them with < instead.' }
+    }]
+  },
+  hints: ['Say what kind it is.', 'Run it with ten croissants.', '`price.js:4` is a bug.'],
+  debrief: { title: 'Name the kind', paragraphs: ['Sous does what the category says.'] },
+  solution: [
+    { comment: 'price.js', lines: [4, 4], category: 'bug', text: 'Round it.' },
+    { submit: 'request-changes' },
+    { submit: 'approve' }
+  ]
+})

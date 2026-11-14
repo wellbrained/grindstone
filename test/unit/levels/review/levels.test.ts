@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { CATEGORIES, DESCRIPTION_PATH, addComment, aiLevels, aiTrack, checkReview, isReviewLevel, placeFor, placeOf, playReviewSolution, playReviewStep, reviewDiff, reviewTargets, startReview, submitReview, touchesIssue } from '../../../../shared/levels'
+import { CATEGORIES, DESCRIPTION_PATH, addComment, aiLevels, aiTrack, checkReview, commentTargets, isReviewLevel, placeFor, placeOf, playReviewSolution, playReviewStep, reviewDiff, reviewNow, reviewTargets, startReview, submitReview, touchesIssue } from '../../../../shared/levels'
 import type { Category, ReviewLevel, ReviewSession, ReviewStep, Spot, Verdict } from '../../../../shared/levels'
 import { isTestFile, testRunFiles } from '../../../../shared/levels/review/test-sandbox'
 import { sandboxDocument } from '../../../../shared/levels/debugging/sandbox'
@@ -9,6 +9,8 @@ import { runOnNode } from './run-tests'
 // Every Working with AI level (ADR 0008): its shape, where its planted issues and tempting spots sit in the diff (or on
 // Sous's description), a start that solves nothing, its solution replayed, and the reviews that must not solve it (the
 // right comments with the wrong verdict or category, only false alarms, blankets); every hint points at real content.
+// A steer level (chapter 7) is checked here on its round 1 (Sous's pull request); its rounds, the reactions and every
+// path through them are in steer.test.ts.
 
 const other = (verdict: Verdict): Verdict => verdict === 'approve' ? 'request-changes' : 'approve'
 const summaryFor = (level: ReviewLevel) => level.reason ? 'A one-line reason.' : ''
@@ -60,7 +62,12 @@ const POINTED_AT: Record<string, [path: string, line: number, contains: string][
   'ai-23-staff-button': [['server/menu-routes.js', 12, 'app.delete(\'/api/menu/:id\', async (req, res)']],
   'ai-24-price-from-basket': [['server/order-routes.js', 10, 'const { items, total } = req.body']],
   'ai-25-order-by-number': [['server/order-routes.js', 13, 'db.orders.find(Number(req.params.number))']],
-  'ai-29-cart-to-basket': [['cart.js', 27, 'Math.min(line.quantity + 1, MAX_PER_PRODUCT)'], ['cart.js', 4, 'const MAX_PER_PRODUCT = 10']]
+  'ai-29-cart-to-basket': [['cart.js', 27, 'Math.min(line.quantity + 1, MAX_PER_PRODUCT)'], ['cart.js', 4, 'const MAX_PER_PRODUCT = 10']],
+  'ai-31-what-offices-save': [['summary.js', 15, 'savedText.textContent = String(full - total)']],
+  'ai-32-afternoon-deal': [['prices.test.js', 14, 'expect(total)']],
+  'ai-33-undo-last-add': [['cart.js', 32, 'const line = cart.lines.last()']],
+  'ai-34-order-by-email': [['confirm.js', 5, 'const MAIL_KEY = \'mk_live_']],
+  'ai-35-raise-free-delivery': [['delivery.js', 7, 'total > FREE_FROM'], ['delivery.js', 4, 'export const EXPRESS_FEE = 5']]
 }
 
 /**
@@ -158,7 +165,18 @@ const DESCRIPTION_TRUTH: Record<string, (string | null)[]> = {
   'ai-practice-renamed-and-raised': [null, 'raised', null],
   'ai-practice-renamed-everywhere': [null, null, null],
   'ai-practice-closing-countdown': [null, null, null],
-  'ai-practice-dark-mode-too': [null, null, 'dark-look']
+  'ai-practice-dark-mode-too': [null, null, 'dark-look'],
+  // chapter 7: round 1, Sous's pull request (later rounds: steer.test.ts)
+  'ai-31-what-offices-save': [null, null, null],
+  'ai-practice-fixed-not-pinned': ['twenty-pays', 'twenty-pays', null],
+  'ai-32-afternoon-deal': [null, null, 'no-check'],
+  'ai-practice-a-real-check': [null, 'truthy', null],
+  'ai-33-undo-last-add': ['no-last', 'no-last', null],
+  'ai-practice-not-a-fallback': ['sum-by', 'sum-by', null],
+  'ai-34-order-by-email': [null, null, 'mail-key'],
+  'ai-practice-not-a-filter': [null, null, 'note-html'],
+  'ai-35-raise-free-delivery': [null, 'above-25', null],
+  'ai-practice-take-it-out': [null, null, 'sorted']
 }
 
 /** Lines of Sous's description the hints point at ("line 3 of the description"), with what is there. */
@@ -197,7 +215,8 @@ const COMPUTED: Record<string, string[]> = {
   'ai-25-order-by-number': ['fetch(\'/api/orders/1041\')'],
   'ai-practice-back-where-you-were': ['//bakery-deals.example/login'],
   'ai-practice-own-pages-only': ['//bakery-deals.example', '/orders'],
-  'ai-28-five-cents': ['Math.round(total * 20) / 20']
+  'ai-28-five-cents': ['Math.round(total * 20) / 20'],
+  'ai-33-undo-last-add': ['TypeError: cart.lines.last is not a function']
 }
 
 /**
@@ -239,14 +258,19 @@ const TEST_OUTCOMES: Record<string, { head: string[], base: string[] }> = {
   'ai-15-snapshot-updated': { head: ['passed: prints a line per product and the total'], base: ['failed: prints a line per product and the total'] },
   'ai-practice-snapshot-undefined': { head: ['passed: thanks the customer'], base: ['failed: thanks the customer'] },
   'ai-practice-snapshot-as-asked': { head: ['passed: prints a line per product'], base: ['failed: prints a line per product'] },
-  'ai-26-menu-typo': { head: ['passed: pain au chocolat is spelled right'], base: ['failed: pain au chocolat is spelled right'] }
+  'ai-26-menu-typo': { head: ['passed: pain au chocolat is spelled right'], base: ['failed: pain au chocolat is spelled right'] },
+  'ai-32-afternoon-deal': {
+    head: ['passed: one croissant costs 2.40 €', 'passed: two loaves cost 13.00 €', 'passed: three pains au chocolat cost 7.50 € (no checks)'],
+    base: ['passed: one croissant costs 2.40 €', 'passed: two loaves cost 13.00 €', 'passed: three pains au chocolat cost 7.50 € (no checks)']
+  },
+  'ai-practice-a-real-check': { head: ['passed: prices show two decimals'], base: ['passed: prices show two decimals'] }
 }
 
 describe('the Working with AI levels', () => {
-  it('are fifteen in each of chapters 1 to 6, with unique ids, in the track\'s id forms', () => {
-    expect(aiLevels).toHaveLength(90)
-    expect(aiTrack.chapters.slice(0, 6).map(chapter => chapter.levels.length)).toEqual([15, 15, 15, 15, 15, 15])
-    expect(new Set(aiLevels.map(level => level.id)).size).toBe(90)
+  it('are fifteen in each of chapters 1 to 6 and ten in chapter 7, with unique ids, in the track\'s id forms', () => {
+    expect(aiLevels).toHaveLength(100)
+    expect(aiTrack.chapters.map(chapter => chapter.levels.length)).toEqual([15, 15, 15, 15, 15, 15, 10])
+    expect(new Set(aiLevels.map(level => level.id)).size).toBe(100)
     for (const level of aiLevels) {
       expect(level.id).toMatch(level.kind === 'scenario' ? /^ai-\d{2}-[a-z-]+$/ : /^ai-practice-[a-z-]+$/)
     }
@@ -262,7 +286,17 @@ describe('the Working with AI levels', () => {
       expect(level.run, 'a scenario can run in the sandbox').toBeDefined()
       expect(level.teaches).toBeTruthy()
       expect(level.reason).toBeUndefined()
-      expect(level.goals.map(goal => goal.id)).toEqual(['found', 'verdict'])
+      expect(level.goals.map(goal => goal.id)).toEqual(level.steer ? ['fixed', 'verdict'] : ['found', 'verdict'])
+      // a steer scenario takes three rounds at most: Sous's pull request and two commits
+      if (level.steer) expect(level.steer.rounds).toBe(3)
+    } else if (level.steer) {
+      // a steer practice task: one problem, one comment, Sous's commit, the approval (two rounds, about a minute)
+      expect(level.minutes).toBe(1)
+      expect(level.why).not.toBe('')
+      expect(level.reason).toBeUndefined()
+      expect(level.goals.map(goal => goal.id)).toEqual(['fixed', 'verdict'])
+      expect(level.issues).toHaveLength(1)
+      expect(level.steer.rounds).toBe(2)
     } else {
       expect(level.minutes).toBe(0.5)
       expect(level.why).not.toBe('')
@@ -279,7 +313,14 @@ describe('the Working with AI levels', () => {
     }
     // Sous's texts are plain text: no markup, no vue-i18n syntax
     const linked = level.pr.fixes ? [level.pr.fixes.title, level.pr.fixes.author, ...level.pr.fixes.body] : []
-    const texts = [level.pr.title, ...level.pr.description, ...level.pr.claims, ...linked, ...level.hints, ...level.issues.flatMap(issue => [issue.title, issue.explanation]), ...(level.tempting ?? []).map(spot => spot.why)]
+    // a steer level's every problem (whichever round has it), every reply of Sous's and every fine place too
+    const steer = level.steer
+      ? [
+          ...level.steer.problems.flatMap(problem => [problem.title, problem.explanation, problem.fix.reply, ...(problem.misread ?? []).map(each => each.reply)]),
+          ...(level.steer.tempting ?? []).flatMap(spot => [spot.why, ...(spot.overreach ? [spot.overreach.reply] : [])])
+        ]
+      : []
+    const texts = [level.pr.title, ...level.pr.description, ...level.pr.claims, ...linked, ...level.hints, ...level.issues.flatMap(issue => [issue.title, issue.explanation]), ...(level.tempting ?? []).map(spot => spot.why), ...steer]
     for (const text of texts) expect(text).not.toMatch(/<\/?[a-z][^>]*>|[{}|@]/i)
   })
 
@@ -395,7 +436,9 @@ describe('the Working with AI levels', () => {
     expect(results.at(-1)!.solvedNow).toBe(true)
     expect(results.slice(0, -1).some(result => result.solvedNow)).toBe(false)
     expect(results.at(-1)!.session).toMatchObject({ solved: true, falseAlarms: 0 })
-    expect(level.solution.at(-1)).toMatchObject({ submit: level.verdict })
+    // a steer level's solution asks for changes, then approves Sous's commit: one round of changes
+    expect(level.solution.at(-1)).toMatchObject({ submit: level.steer ? 'approve' : level.verdict })
+    if (level.steer) expect(results.at(-1)!.session.rounds).toBe(1)
     // one comment per planted issue at most: the solution shows the short way
     expect(comments(level).length).toBe(level.issues.length)
   })
@@ -544,7 +587,8 @@ describe('the Working with AI levels', () => {
     // a real API that looks invented (findLastIndex, Object.groupBy, structuredClone …) is a tempting place in most of them
     expect(chapter.filter(level => (level.tempting ?? []).some(spot => spot.path !== DESCRIPTION_PATH)).length).toBeGreaterThanOrEqual(8)
     // and only this chapter's issues are invented APIs: chapters 1 to 3 call real ones
-    for (const other of aiTrack.chapters.filter(each => each.id !== 'invented-apis')) {
+    // (chapter 7 steers every kind on purpose)
+    for (const other of aiTrack.chapters.filter(each => each.id !== 'invented-apis' && each.id !== 'steer')) {
       expect(other.levels.filter(isReviewLevel).flatMap(level => level.issues).filter(issue => issue.categories.includes('invented-api')), other.id).toEqual([])
     }
   })
@@ -609,7 +653,7 @@ describe('the Working with AI levels', () => {
     expect(chapter.filter(level => (level.tempting ?? []).some(spot => spot.path !== DESCRIPTION_PATH)).length).toBeGreaterThanOrEqual(8)
     for (const level of chapter.filter(each => each.kind === 'scenario')) expect((level.tempting ?? []).length, level.id).toBeGreaterThan(0)
     // and only this chapter's issues are scope: the earlier ones change what was asked
-    for (const other of aiTrack.chapters.filter(each => each.id !== 'scope-and-size')) {
+    for (const other of aiTrack.chapters.filter(each => each.id !== 'scope-and-size' && each.id !== 'steer')) {
       expect(other.levels.filter(isReviewLevel).flatMap(level => level.issues).filter(issue => issue.categories.includes('scope')), other.id).toEqual([])
     }
   })
@@ -674,7 +718,11 @@ describe('the Working with AI levels', () => {
   })
 
   it.each(aiLevels.map(level => [level.id, level] as const))('%s points its hints at real content', (_, level) => {
-    const shownRows = reviewDiff(level).flatMap(file => file.hunks.flatMap(hunk => hunk.rows.map(row => row.text)))
+    // a steer level's hints may quote what its rounds show on the way the solution takes (Sous's commit)
+    const rounds = level.steer
+      ? playReviewSolution(level).map(result => commentTargets(reviewNow(level, result.session.state).pr).slice(1))
+      : [reviewDiff(level)]
+    const shownRows = rounds.flat().flatMap(file => file.hunks.flatMap(hunk => hunk.rows.map(row => row.text)))
     const linked = level.pr.fixes ? [`#${level.pr.fixes.number}`, level.pr.fixes.title, ...level.pr.fixes.body] : []
     const prText = [level.pr.title, ...level.pr.description, ...level.pr.claims, ...linked].join('\n')
     const descriptionLines = [...level.pr.description, ...level.pr.claims]

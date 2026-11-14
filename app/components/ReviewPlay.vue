@@ -6,6 +6,8 @@ import { testFilesOf } from '#shared/levels'
 // AI play page"): in the shared PlayFrame, the level panel left (the story, the goals, your comments, the hints), Sous's
 // pull request in the middle (its description, the diff file by file with your comments, the review box), and Run the
 // PR on the right (the Debugging sandbox's App and Console). Below lg the three stack in that order. No layout switch.
+// A steer level (chapter 7) changes with Sous's commits: the pull request and Run the PR are mounted anew for each
+// round (keyed by it), and after a commit the focus goes to its round in the timeline.
 const props = defineProps<{
   level: ReviewLevel
   place: LevelPlace
@@ -14,10 +16,15 @@ const props = defineProps<{
 const { t } = useI18n()
 
 const play = useReviewPlay(props.level)
-const { session, goals, next, stats, falseAlarms, debriefOpen, progressBefore, sparkKey, hint, reset, again } = play
+const { session, goals, next, stats, falseAlarms, debriefOpen, progressBefore, sparkKey, hint, reset, again, round, runnable } = play
 
 /** Run the PR with the Tests panel (chapter 3) needs a taller column on phones. */
-const hasTests = props.level.run !== undefined && testFilesOf(props.level.pr.head).length > 0
+const hasTests = computed(() => props.level.run !== undefined && testFilesOf(runnable.value.pr.head).length > 0)
+
+// Sous answered a request for changes: show what it did (its round in the timeline), not the top of the page
+watch(round, (now, before) => {
+  if (now > before) nextTick(() => document.getElementById(`steer-round-${before}`)?.focus())
+})
 
 const revealedHints = computed(() => props.level.kind === 'scenario' ? props.level.hints.slice(0, session.value.hintsUsed) : [])
 
@@ -93,6 +100,7 @@ const focusReview = () => pullRequest.value?.focusReview()
     <template #default>
       <ReviewPullRequest
         ref="pullRequest"
+        :key="round"
         :play="play"
         class="min-w-0 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1"
       />
@@ -103,7 +111,10 @@ const focusReview = () => pullRequest.value?.focusReview()
         class="relative h-full"
         :class="hasTests ? 'max-lg:h-[46rem]' : 'max-lg:h-[36rem]'"
       >
-        <ReviewRun :level="level" />
+        <ReviewRun
+          :key="round"
+          :level="runnable"
+        />
         <SparkBurst :trigger="sparkKey" />
       </div>
     </template>

@@ -1,6 +1,7 @@
-// The Working with AI track (ADR 0008): its chapters and their levels, in play order. Chapters 1 (Read the diff), 2
-// (Claims vs. code), 3 (Tests that lie), 4 (Invented APIs), 5 (Security) and 6 (Scope and size) are live, chapter 7
-// is coming. A practice task goes right after the scenario it trains (`practises`); defineTrack checks it.
+// The Working with AI track (ADR 0008): its chapters and their levels, in play order. All seven chapters are live:
+// Read the diff, Claims vs. code, Tests that lie, Invented APIs, Security, Scope and size, and Steer the assistant
+// (chapter 7: you steer Sous's commits with your review, steer.ts). A practice task goes right after the scenario it
+// trains (`practises`); defineTrack checks it.
 import { fewestHintsThenFalseAlarms } from '../progress'
 import { defineTrack, trackLevels } from '../track'
 import { isReviewLevel } from './types'
@@ -35,6 +36,12 @@ import { pickupNote } from './27-pickup-note'
 import { fiveCents } from './28-five-cents'
 import { cartToBasket } from './29-cart-to-basket'
 import { soldOutLabel } from './30-sold-out-label'
+import { whatOfficesSave } from './31-what-offices-save'
+import { afternoonDeal } from './32-afternoon-deal'
+import { undoLastAdd } from './33-undo-last-add'
+import { orderByEmail } from './34-order-by-email'
+import { raiseFreeDelivery } from './35-raise-free-delivery'
+import { aRealCheck, fixedNotPinned, notAFallback, notAFilter, takeItOut } from './practice/steer'
 import {
   backWhereYouWere,
   checkedInPage,
@@ -115,7 +122,9 @@ export const aiTrack = defineTrack({
   tagline: 'Lead the assistant, then check its work.',
   description: 'Sous, Corner Bakery\'s coding assistant, opens pull requests: fast, confident and usually right. Review them like a teammate\'s: comment on the lines that are wrong, say what kind of problem it is, run the change in the shop, then approve it or request changes. Sous is scripted, no AI is called, so every review is fair and the same.',
   status: 'live',
+  cheatSheet: '/ai/cheat-sheet',
   // fewest hints, then fewest false alarms (ADR 0008): comments that found nothing cost, a long look costs nothing
+  // fewest hints, then fewest false alarms, then (chapter 7) fewest rounds
   bestRun: fewestHintsThenFalseAlarms,
   chapters: [
     {
@@ -256,7 +265,24 @@ export const aiTrack = defineTrack({
         darkModeToo
       ]
     },
-    { id: 'steer', title: 'Steer the assistant', description: 'Write the review that gets Sous to the right fix.', colour: 6, levels: [] }
+    {
+      id: 'steer',
+      title: 'Steer the assistant',
+      description: 'Write the review that gets Sous to the right fix: its next commit does what your comments say, by their lines and their kind.',
+      colour: 6,
+      levels: [
+        whatOfficesSave,
+        fixedNotPinned,
+        afternoonDeal,
+        aRealCheck,
+        undoLastAdd,
+        notAFallback,
+        orderByEmail,
+        notAFilter,
+        raiseFreeDelivery,
+        takeItOut
+      ]
+    }
   ]
 })
 

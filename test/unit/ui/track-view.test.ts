@@ -96,6 +96,10 @@ describe('track view', () => {
   it('shows the counters of a best run: git its commands, Debugging hints and reloads', () => {
     expect(bestRunCounters(git.bestRun)).toEqual(['commands'])
     expect(bestRunCounters(trackById('debugging')!.bestRun)).toEqual(['hints', 'reloads'])
+    // Working with AI: rounds only for a steer level's run (chapter 7)
+    const ai = trackById('ai')!.bestRun
+    expect(bestRunCounters(ai, { commands: 3, hints: 0, falseAlarms: 1 })).toEqual(['hints', 'falseAlarms'])
+    expect(bestRunCounters(ai, { commands: 3, hints: 0, falseAlarms: 0, rounds: 2 })).toEqual(['hints', 'falseAlarms', 'rounds'])
   })
 
   it('holds a 58-level track: rows per chapter, one next up across chapters', () => {

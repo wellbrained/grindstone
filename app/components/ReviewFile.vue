@@ -37,7 +37,8 @@ const NUMBER_TONE: Record<DiffRow['kind'], string> = { add: 'bg-success/15 text-
 const tokens = shallowRef<{ head: Token[][] | null, base: Token[][] | null }>({ head: null, base: null })
 onMounted(async () => {
   if (isDescription) return
-  const { base, head } = props.play.level.pr
+  // the pull request as this round has it (a steer level's files change with Sous's commits)
+  const { base, head } = props.play.pr.value
   const path = props.file.path
   try {
     const [after, before] = await Promise.all([

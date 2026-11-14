@@ -20,10 +20,12 @@ export interface Run {
   reloads?: number
   /** Working with AI: review comments that found nothing, each counted once (ADR 0008). */
   falseAlarms?: number
+  /** Working with AI, chapter 7: requests for changes Sous answered with a commit (absent in every other run). */
+  rounds?: number
 }
 
 /** A count a best run is chosen by. */
-export type RunCounter = 'commands' | 'hints' | 'reloads' | 'falseAlarms'
+export type RunCounter = 'commands' | 'hints' | 'reloads' | 'falseAlarms' | 'rounds'
 
 /** How a track picks its best run: the counters in order, fewer wins, each later one breaks a tie (a missing count is 0). */
 export type RunMeasure = readonly RunCounter[]
@@ -34,11 +36,14 @@ export const fewestCommands: RunMeasure = ['commands', 'hints']
 /** Debugging: fewest hints, then fewest reloads (ADR 0007). */
 export const fewestHintsThenReloads: RunMeasure = ['hints', 'reloads']
 
-/** Working with AI: fewest hints, then fewest false alarms (ADR 0008). */
-export const fewestHintsThenFalseAlarms: RunMeasure = ['hints', 'falseAlarms']
+/**
+ * Working with AI: fewest hints, then fewest false alarms (ADR 0008), then, in a steer level (chapter 7), fewest rounds
+ * (a review level's run has none: 0 for all).
+ */
+export const fewestHintsThenFalseAlarms: RunMeasure = ['hints', 'falseAlarms', 'rounds']
 
 /** What a solve needs from a session, whatever its environment. */
-export type Attempt = Pick<SessionOf<unknown, unknown>, 'solved' | 'commandCount' | 'hintsUsed' | 'reloads' | 'falseAlarms'>
+export type Attempt = Pick<SessionOf<unknown, unknown>, 'solved' | 'commandCount' | 'hintsUsed' | 'reloads' | 'falseAlarms' | 'rounds'>
 
 export interface LevelProgress {
   /** Stays true once solved; only a reset clears it. */
@@ -102,12 +107,13 @@ export function isBetterRun(run: Run, than: Run | null, measure: RunMeasure = fe
   return false
 }
 
-/** The run a solved attempt stands for (`reloads` and `falseAlarms` only when the attempt counted them). */
+/** The run a solved attempt stands for (`reloads`, `falseAlarms` and `rounds` only when the attempt counted them). */
 export const runOf = (attempt: Attempt): Run => ({
   commands: attempt.commandCount,
   hints: attempt.hintsUsed,
   ...(attempt.reloads !== undefined ? { reloads: attempt.reloads } : {}),
-  ...(attempt.falseAlarms !== undefined ? { falseAlarms: attempt.falseAlarms } : {})
+  ...(attempt.falseAlarms !== undefined ? { falseAlarms: attempt.falseAlarms } : {}),
+  ...(attempt.rounds !== undefined ? { rounds: attempt.rounds } : {})
 })
 
 /** Marks an entry as the one you last played. */
@@ -179,13 +185,14 @@ export const MAX_FUTURE_MS = 24 * 60 * 60 * 1000
 
 const isCount = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 0
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
-/** A stored run; `reloads` and `falseAlarms` are kept when they are counts and left out otherwise (git runs have neither). */
+/** A stored run; `reloads`, `falseAlarms` and `rounds` are kept when they are counts and left out otherwise (git runs have none). */
 const asRun = (value: unknown): Run | null => isObject(value) && isCount(value.commands) && isCount(value.hints)
   ? {
       commands: value.commands,
       hints: value.hints,
       ...(isCount(value.reloads) ? { reloads: value.reloads } : {}),
-      ...(isCount(value.falseAlarms) ? { falseAlarms: value.falseAlarms } : {})
+      ...(isCount(value.falseAlarms) ? { falseAlarms: value.falseAlarms } : {}),
+      ...(isCount(value.rounds) ? { rounds: value.rounds } : {})
     }
   : null
 

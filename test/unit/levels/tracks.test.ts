@@ -205,9 +205,9 @@ describe('track registry', () => {
     expect(nextLevel('git-practice-release-from-develop')).toBeNull()
   })
 
-  it('gives Working with AI its seven chapters (ADR 0008): Read the diff to Scope and size live, Steer the assistant coming', () => {
+  it('gives Working with AI its seven chapters (ADR 0008), all live: Read the diff to Steer the assistant, and its cheat sheet', () => {
     const ai = trackById('ai')!
-    expect(ai).toMatchObject({ title: 'Working with AI', tagline: 'Lead the assistant, then check its work.', cheatSheet: null, bestRun: ['hints', 'falseAlarms'] })
+    expect(ai).toMatchObject({ title: 'Working with AI', tagline: 'Lead the assistant, then check its work.', cheatSheet: '/ai/cheat-sheet', bestRun: ['hints', 'falseAlarms', 'rounds'] })
     expect(ai.chapters.map(chapter => [chapter.number, chapter.title, chapter.levels.length])).toEqual([
       [1, 'Read the diff', 15],
       [2, 'Claims vs. code', 15],
@@ -215,7 +215,7 @@ describe('track registry', () => {
       [4, 'Invented APIs', 15],
       [5, 'Security', 15],
       [6, 'Scope and size', 15],
-      [7, 'Steer the assistant', 0]
+      [7, 'Steer the assistant', 10]
     ])
     expect(new Set(ai.chapters.map(chapter => chapter.colour)).size).toBe(7)
     expect(ai.chapters.every(chapter => chapter.description !== '')).toBe(true)
@@ -321,13 +321,27 @@ describe('track registry', () => {
       [null, 'ai-practice-closing-countdown'],
       [null, 'ai-practice-dark-mode-too']
     ])
-    // play order runs on into chapters 2 to 6
+    // chapter 7: a scenario, then its one steer practice task
+    expect(ai.chapters[6]!.levels.map(level => [levelNumber(level.id), level.id])).toEqual([
+      ['7.1', 'ai-31-what-offices-save'],
+      [null, 'ai-practice-fixed-not-pinned'],
+      ['7.2', 'ai-32-afternoon-deal'],
+      [null, 'ai-practice-a-real-check'],
+      ['7.3', 'ai-33-undo-last-add'],
+      [null, 'ai-practice-not-a-fallback'],
+      ['7.4', 'ai-34-order-by-email'],
+      [null, 'ai-practice-not-a-filter'],
+      ['7.5', 'ai-35-raise-free-delivery'],
+      [null, 'ai-practice-take-it-out']
+    ])
+    // play order runs on into chapters 2 to 7
     expect(nextLevel('ai-practice-ten-cents')).toBe(levelById('ai-06-empty-basket'))
     expect(nextLevel('ai-practice-today-once')).toBe(levelById('ai-11-all-tests-pass'))
     expect(nextLevel('ai-practice-snapshot-as-asked')).toBe(levelById('ai-16-just-added'))
     expect(nextLevel('ai-practice-structured-clone')).toBe(levelById('ai-21-customer-reviews'))
     expect(nextLevel('ai-practice-your-orders-only')).toBe(levelById('ai-26-menu-typo'))
-    expect(nextLevel('ai-practice-dark-mode-too')).toBeNull()
+    expect(nextLevel('ai-practice-dark-mode-too')).toBe(levelById('ai-31-what-offices-save'))
+    expect(nextLevel('ai-practice-take-it-out')).toBeNull()
     expect(nextLevel('ai-01-twelve-croissants')).toBe(levelById('ai-practice-open-days'))
   })
 

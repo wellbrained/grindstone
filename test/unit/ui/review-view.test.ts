@@ -129,7 +129,15 @@ describe('the track page of Working with AI', () => {
       'two in one', 'spot', 'verdict',
       'unasked feature', 'spot', 'verdict'
     ])
-    expect(view.chapters.map(chapter => chapter.coming)).toEqual([false, false, false, false, false, false, true])
+    // chapter 7: the kind to name instead of the one that misleads Sous, and steer practice tasks
+    expect(view.chapters[6]!.rows.map(row => row.teaches ?? row.taskKind)).toEqual([
+      'bug, not security', 'steer',
+      'missing test, not bug', 'steer',
+      'invented API, not bug', 'steer',
+      'security, not bug', 'steer',
+      'scope, not bug', 'steer'
+    ])
+    expect(view.chapters.map(chapter => chapter.coming)).toEqual([false, false, false, false, false, false, false])
     expect(taskKindOf(levelById('debugging-practice-line-that-throws')!)).toBe('find')
     expect(taskKindOf(levelById('git-01-first-commit')!)).toBeNull()
   })

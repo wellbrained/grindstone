@@ -4,10 +4,11 @@ import { issuePlaces } from '~/utils/review-view'
 
 // The review in the debrief (DebriefDialog's `stats` slot): what was wrong in the pull request (each planted issue,
 // where, with the claim it breaks, and why), then this run's hints and false alarms and the best run you ever had
-// (fewest hints, then fewest false alarms; this one included). No clock (ADR 0008).
+// (fewest hints, then fewest false alarms; this one included). No clock (ADR 0008). A steer level (chapter 7) adds its
+// rounds: the rounds of changes Sous pushed (Sous's pull request's problems are what was wrong).
 const props = defineProps<{
   level: ReviewLevel
-  stats: { hints: number, falseAlarms: number, best: Run | null }
+  stats: { hints: number, falseAlarms: number, rounds?: number, best: Run | null }
 }>()
 
 const { t } = useI18n()
@@ -16,6 +17,7 @@ const { t } = useI18n()
 const where = (issue: ReviewLevel['issues'][number]) => issuePlaces(issue).join(' · ')
 
 const verdict = computed(() => {
+  if (props.stats.rounds !== undefined && props.stats.hints === 0 && props.stats.falseAlarms === 0) return t(props.stats.rounds <= 1 ? 'debrief.steerClean' : 'debrief.steerRounds')
   if (props.stats.hints === 0 && props.stats.falseAlarms === 0) return t('debrief.reviewClean')
   if (props.stats.falseAlarms > 0) return t('debrief.reviewAlarms')
   return t('debrief.reviewHints')
@@ -72,12 +74,25 @@ const verdict = computed(() => {
         {{ stats.falseAlarms }}
       </dd>
     </div>
+    <div v-if="stats.rounds !== undefined">
+      <dt class="text-muted">
+        {{ t('debrief.rounds') }}
+      </dt>
+      <dd
+        class="font-mono text-lg font-semibold text-highlighted"
+        data-testid="debrief-rounds"
+      >
+        {{ stats.rounds }}
+      </dd>
+    </div>
     <div v-if="stats.best">
       <dt class="text-muted">
         {{ t('debrief.best') }}
       </dt>
       <dd class="font-mono text-sm font-semibold text-highlighted">
-        {{ t('track.counter.hints', stats.best.hints) }} · {{ t('track.counter.falseAlarms', stats.best.falseAlarms ?? 0) }}
+        {{ t('track.counter.hints', stats.best.hints) }} · {{ t('track.counter.falseAlarms', stats.best.falseAlarms ?? 0) }}<template v-if="stats.best.rounds !== undefined">
+          · {{ t('track.counter.rounds', stats.best.rounds) }}
+        </template>
       </dd>
     </div>
     <p class="col-span-2 text-muted sm:col-span-3">
