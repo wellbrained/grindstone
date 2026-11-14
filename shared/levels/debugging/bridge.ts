@@ -1,10 +1,15 @@
-// The bridge: a small script that runs first inside the sealed frame, before the level's own code (docs/features/ui.md,
-// "Sandbox and bridge"). It is the only way the frame talks to Grindstone: it posts plain data to the parent page and
-// answers only the parent's Console input. It
+// The bridge: a small script that runs first inside the sealed frame, before anything of the level's own (docs/features/ui.md,
+// "Sandbox and bridge"). It is the only way the frame talks to Grindstone: before any of the app's code can run it takes
+// its own text off the page, keeps the browser's own functions it relies on, and hands the page two ports of its own (in
+// its first message, with the load's token); everything else goes over those ports, and the port to the page lives
+// only in the bridge's closure, so nothing in the frame (the app's code, the Console input) can post to the page as the
+// bridge, or forge a check run's results. It posts plain data to the page and answers only what the page sends over its
+// port. It
 // - loads the level's modules from blob URLs made inside the frame (so they share its sealed origin) through an import map,
 // - reports console calls, uncaught errors and unhandled rejections with their raw stacks (the page maps them to files),
 // - runs a check run's probes once the app has loaded (scripted clicks, typing and pauses, then reads the page) and says
-//   when it is done,
+//   when it is done; the probes use only the browser's functions taken before the app ran and the config's own data, so
+//   a built-in the app replaced or a property it put on a prototype can't change what they do or read,
 // - evaluates Console input in the app's global scope,
 // - keeps the app on its page (links do not navigate),
 // - answers the app's `fetch` with the level's scripted backend (backend.ts) when it has one, inside the frame,
@@ -13,9 +18,11 @@
 // - in a Performance level (chapter 6), watches what the app changes on the page and keeps the server's clock (answers
 //   move it by their scripted delays); a recorded profile also reports the customer's actions to the counting recorder.
 // It is JavaScript in a string, injected as one line (it never shifts index.html's lines), so it uses no line comments
-// and ends every statement with a semicolon. Tested in a real browser: e2e/debugging-levels.spec.ts.
+// and ends every statement with a semicolon. Tested in a real browser: e2e/debugging-levels.spec.ts, and
+// e2e/debugging-cheat.spec.ts (the app's code tries to post a check run's results itself).
 import { BACKEND_SOURCE } from './backend'
 import { INSPECTOR_SOURCE } from './inspector'
+import { BRIDGE_HELLO } from './messages'
 import { RECORDER_GLOBAL, RECORDER_SOURCE } from './recorder'
 
 /** The longest pause a probe may take (`{ wait }`): a check run gives up after 5 s. */
@@ -23,22 +30,184 @@ export const MAX_PROBE_WAIT_MS = 2000
 
 const SOURCE = String.raw`(function (config) {
   'use strict';
-  var host = window.parent;
-  var token = config.token;
-  var post = function (message) {
-    message.grindstone = token;
-    try { host.postMessage(message, '*'); } catch (error) { /* only plain data is posted; nothing else can fail */ }
+
+  /* First, before any of the app's code can run (the bridge is the first thing on the page): its own text (the config
+     with the load's token) goes off the page, the browser's own functions it relies on are kept (the app's code may
+     replace any built-in it can reach, later), and the page gets the two ports this load talks over. The port to the
+     page lives only in this closure and is only used through the postMessage bound here, so no code in the frame can
+     post to the page as the bridge; the port from the page is only read. */
+  var script = document.currentScript;
+  try { script.textContent = ''; } catch (error) { /* nothing to take off */ }
+  var FP = Function.prototype;
+  var uncurry = FP.bind.bind(FP.call);
+  var createObject = Object.create;
+  var keysOf = Object.keys;
+  var describeProperty = Object.getOwnPropertyDescriptor;
+  var protoOf = Object.getPrototypeOf;
+  var isArray = Array.isArray;
+  var isInstance = uncurry(FP[Symbol.hasInstance]);
+  /* A property's getter or setter as a plain function of the object (from where the browser defines it); null: none. */
+  var accessor = function (object, name, kind) {
+    for (var at = object; at; at = protoOf(at)) {
+      var found = describeProperty(at, name);
+      if (found) return found[kind] ? uncurry(found[kind]) : null;
+    }
+    return null;
   };
-  var wait = function (ms) { return new Promise(function (resolve) { setTimeout(resolve, ms); }); };
+  var getterOf = function (object, name) {
+    return accessor(object, name, 'get') || function (target) { return target[name]; };
+  };
+  /* The config as data without prototypes: a property it lacks can't come from something the app put on Object.prototype. */
+  var pure = function (value) {
+    if (value === null || typeof value !== 'object') return value;
+    var copy;
+    var i;
+    if (isArray(value)) {
+      copy = [];
+      for (i = 0; i < value.length; i++) copy[i] = pure(value[i]);
+      return copy;
+    }
+    copy = createObject(null);
+    var keys = keysOf(value);
+    for (i = 0; i < keys.length; i++) copy[keys[i]] = pure(value[keys[i]]);
+    return copy;
+  };
+  config = pure(config);
+
+  var host = window.parent;
+  var toPage = new MessageChannel();
+  var fromPage = new MessageChannel();
+  var send = toPage.port1.postMessage.bind(toPage.port1);
+  host.postMessage({ type: '${BRIDGE_HELLO}', token: config.token }, '*', [toPage.port2, fromPage.port2]);
+  /* Every message is a fresh object of plain data, never changed once made (no setter the app defines ever sees it). */
+  var post = function (message) {
+    try { send(message); } catch (error) { /* only plain data is posted; a value that can't be copied is lost */ }
+  };
+
+  /* The browser's own functions the probes, the page watch and the error reports use, taken before the app runs. */
+  var win = window;
+  var doc = document;
+  var later = setTimeout;
+  var globalEval = eval;
+  var listen = uncurry(EventTarget.prototype.addEventListener);
+  var dispatch = uncurry(EventTarget.prototype.dispatchEvent);
+  var NativeEvent = Event;
+  var NativeErrorEvent = ErrorEvent;
+  var NativeMouseEvent = MouseEvent;
+  var NativeKeyboardEvent = KeyboardEvent;
+  var NativeInputEvent = typeof InputEvent === 'function' ? InputEvent : null;
+  var NativeMutationObserver = typeof MutationObserver === 'function' ? MutationObserver : null;
+  var mathMin = Math.min;
+  var mathMax = Math.max;
+  var mathPow = Math.pow;
+  var mathRound = Math.round;
+  var toNumber = parseFloat;
+  var toText = String;
+  var lowerCase = uncurry(String.prototype.toLowerCase);
+  var sliceText = uncurry(String.prototype.slice);
+  var execPattern = uncurry(RegExp.prototype.exec);
+  var perfNow = uncurry(Performance.prototype.now);
+  var timing = performance;
+  var now = function () { return perfNow(timing); };
+  var querySelector = uncurry(Document.prototype.querySelector);
+  var querySelectorAll = uncurry(Document.prototype.querySelectorAll);
+  var listLength = getterOf(NodeList.prototype, 'length');
+  var textOf = getterOf(Node.prototype, 'textContent');
+  var parentOf = getterOf(Node.prototype, 'parentElement');
+  var nodeTypeOf = getterOf(Node.prototype, 'nodeType');
+  var nodeDataOf = getterOf(CharacterData.prototype, 'data');
+  var contains = uncurry(Node.prototype.contains);
+  var tagOf = getterOf(Element.prototype, 'tagName');
+  var idOf = getterOf(Element.prototype, 'id');
+  var classesOf = getterOf(Element.prototype, 'classList');
+  var tokenCount = getterOf(DOMTokenList.prototype, 'length');
+  var rootOf = getterOf(Document.prototype, 'documentElement');
+  var readyStateOf = getterOf(Document.prototype, 'readyState');
+  var clientWidthOf = getterOf(Element.prototype, 'clientWidth');
+  var scrollWidthOf = getterOf(Element.prototype, 'scrollWidth');
+  var boxOf = uncurry(Element.prototype.getBoundingClientRect);
+  var boxesOf = uncurry(Element.prototype.getClientRects);
+  var sampleBox = boxOf(rootOf(doc));
+  var boxLeft = getterOf(sampleBox, 'left');
+  var boxTop = getterOf(sampleBox, 'top');
+  var boxWidth = getterOf(sampleBox, 'width');
+  var boxHeight = getterOf(sampleBox, 'height');
+  var boxCount = getterOf(boxesOf(rootOf(doc)), 'length');
+  var styleOf = win.getComputedStyle;
+  var styleValue = uncurry(CSSStyleDeclaration.prototype.getPropertyValue);
+  var scrollYOf = getterOf(win, 'scrollY');
+  var innerHeightOf = getterOf(win, 'innerHeight');
+  var scrollWindow = uncurry(win.scrollTo);
+  var elementAt = uncurry(Document.prototype.elementFromPoint);
+  var clickOn = uncurry(HTMLElement.prototype.click);
+  var valueSetters = [accessor(HTMLInputElement.prototype, 'value', 'set'), accessor(HTMLTextAreaElement.prototype, 'value', 'set'), accessor(HTMLSelectElement.prototype, 'value', 'set')];
+  var valueGetters = [accessor(HTMLInputElement.prototype, 'value', 'get'), accessor(HTMLTextAreaElement.prototype, 'value', 'get'), accessor(HTMLSelectElement.prototype, 'value', 'get')];
+  var eventTargetOf = getterOf(NativeEvent.prototype, 'target');
+  var errorOf = getterOf(NativeErrorEvent.prototype, 'error');
+  var errorMessageOf = getterOf(NativeErrorEvent.prototype, 'message');
+  var errorFileOf = getterOf(NativeErrorEvent.prototype, 'filename');
+  var errorLineOf = getterOf(NativeErrorEvent.prototype, 'lineno');
+  var errorColumnOf = getterOf(NativeErrorEvent.prototype, 'colno');
+  var reasonOf = typeof PromiseRejectionEvent === 'function' ? getterOf(PromiseRejectionEvent.prototype, 'reason') : function (event) { return event.reason; };
+  var records = NativeMutationObserver ? MutationRecord.prototype : null;
+  var recordTypeOf = records ? getterOf(records, 'type') : null;
+  var recordTargetOf = records ? getterOf(records, 'target') : null;
+  var recordAddedOf = records ? getterOf(records, 'addedNodes') : null;
+  var recordRemovedOf = records ? getterOf(records, 'removedNodes') : null;
+  var takeRecordsOf = NativeMutationObserver ? uncurry(NativeMutationObserver.prototype.takeRecords) : null;
+  var observeWith = NativeMutationObserver ? uncurry(NativeMutationObserver.prototype.observe) : null;
+  /* A listener the bridge sets now, capturing on the window: it runs before any the app sets, which can't stop it. */
+  var onWindow = function (type, listener) { listen(win, type, listener, true); };
+  /* An object without a prototype for the browser to read (an event's init, scroll options): no member of it comes from the app. */
+  var fields = function (names, values) {
+    var made = createObject(null);
+    for (var i = 0; i < names.length; i++) made[names[i]] = values[i];
+    return made;
+  };
+
+  /* Text helpers that use no built-in the app could have replaced. */
+  var SPACE = /^\s$/;
+  var isSpace = function (character) { return execPattern(SPACE, character) !== null; };
+  /* Whitespace collapsed to one space and none at either end (what .replace(/\s+/g, ' ').trim() gives). */
+  var squash = function (text) {
+    var out = '';
+    var gap = false;
+    for (var i = 0; i < text.length; i++) {
+      var character = text[i];
+      if (isSpace(character)) {
+        gap = out !== '';
+        continue;
+      }
+      if (gap) out += ' ';
+      gap = false;
+      out += character;
+    }
+    return out;
+  };
+  var trimText = function (text) {
+    var from = 0;
+    var to = text.length;
+    while (from < to && isSpace(text[from])) from++;
+    while (to > from && isSpace(text[to - 1])) to--;
+    return sliceText(text, from, to);
+  };
+  var hasText = function (text) {
+    for (var i = 0; i < text.length; i++) if (!isSpace(text[i])) return true;
+    return false;
+  };
+  var wait = function (ms, then) { later(then, ms); };
+  var probes = config.probes;
 
   /* What the Console shows for a value: one short line, like the browser's own preview. */
   var quote = function (text) {
     return "'" + text.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/\n/g, '\\n') + "'";
   };
   var describe = function (element) {
-    var text = element.tagName.toLowerCase();
-    if (element.id) text += '#' + element.id;
-    if (element.classList && element.classList.length) text += '.' + Array.prototype.join.call(element.classList, '.');
+    var text = lowerCase(tagOf(element));
+    var id = idOf(element);
+    if (id) text += '#' + id;
+    var classes = classesOf(element);
+    for (var i = 0, count = classes ? tokenCount(classes) : 0; i < count; i++) text += '.' + classes[i];
     return text;
   };
   var functionText = function (fn) {
@@ -89,55 +258,67 @@ const SOURCE = String.raw`(function (config) {
   /* Performance (chapter 6): what the app changes on the page, watched by a MutationObserver from the moment the page is
      parsed (readyState 'interactive', before any module runs); a change counts the elements and texts it adds or
      removes, or one attribute or text it sets. And the server's clock: it moves only when an answer arrives, to the time
-     its request went out plus its scripted delay, so the same run reads the same times in every browser. */
+     its request went out plus its scripted delay, so the same run reads the same times in every browser. A check run
+     keeps the changes (by number, without a prototype) for its changes probes. */
   var perf = config.perf || null;
   var recorder = null;
-  var clock = { now: 0, times: Object.create(null), count: 0, active: 0 };
-  var domLog = [];
+  var clock = { now: 0, times: createObject(null), count: 0, active: 0 };
+  var domLog = createObject(null);
   var domBase = 0;
+  var domEnd = 0;
   var watcher = null;
   var lateDom = null;
-  var visibleNode = function (node) { return node.nodeType === 1 || (node.nodeType === 3 && /\S/.test(node.data)); };
+  var noChanges = function () { return fields(['length'], [0]); };
+  var visibleNode = function (node) {
+    var type = nodeTypeOf(node);
+    return type === 1 || (type === 3 && hasText(nodeDataOf(node)));
+  };
   var countNodes = function (list) {
     var n = 0;
-    for (var i = 0; i < list.length; i++) if (visibleNode(list[i])) n++;
+    for (var i = 0, length = listLength(list); i < length; i++) if (visibleNode(list[i])) n++;
     return n;
   };
-  var logDom = function (records) {
-    var counts = [];
-    for (var i = 0; i < records.length; i++) {
-      var record = records[i];
-      var nodes = record.type === 'childList' ? countNodes(record.addedNodes) + countNodes(record.removedNodes) : 1;
+  var logDom = function (changes) {
+    var counts = noChanges();
+    for (var i = 0; i < changes.length; i++) {
+      var record = changes[i];
+      var nodes = recordTypeOf(record) === 'childList' ? countNodes(recordAddedOf(record)) + countNodes(recordRemovedOf(record)) : 1;
       if (!nodes) continue;
-      counts.push(nodes);
-      if (config.probes) domLog.push({ target: record.target, added: Array.prototype.slice.call(record.addedNodes, 0, 20), nodes: nodes });
+      counts[counts.length] = nodes;
+      counts.length += 1;
+      if (!probes) continue;
+      var list = recordAddedOf(record);
+      var added = fields(['length'], [mathMin(listLength(list), 20)]);
+      for (var j = 0; j < added.length; j++) added[j] = list[j];
+      domLog[domEnd] = fields(['target', 'added', 'nodes'], [recordTargetOf(record), added, nodes]);
+      domEnd += 1;
     }
-    if (domLog.length > 20000) {
-      domBase += domLog.length - 20000;
-      domLog.splice(0, domLog.length - 20000);
+    while (domEnd - domBase > 20000) {
+      delete domLog[domBase];
+      domBase += 1;
     }
     return counts;
   };
-  var takeDom = function () { return watcher ? logDom(watcher.takeRecords()) : []; };
+  var takeDom = function () { return watcher ? logDom(takeRecordsOf(watcher)) : noChanges(); };
   /* A look from the bridge's side (a probe): what changed is logged, and counted for the statement that made it. */
   var takeAll = function () {
     var counts = takeDom();
     if (lateDom) lateDom(counts);
   };
-  if (perf && typeof MutationObserver === 'function') {
+  if (perf && NativeMutationObserver) {
     var watch = function () {
-      if (watcher || document.readyState === 'loading') return;
-      watcher = new MutationObserver(function (records) {
-        var counts = logDom(records);
+      if (watcher || readyStateOf(doc) === 'loading') return;
+      watcher = new NativeMutationObserver(function (changes) {
+        var counts = logDom(changes);
         if (lateDom) lateDom(counts);
       });
-      watcher.observe(document, { childList: true, subtree: true, attributes: true, characterData: true });
+      observeWith(watcher, doc, fields(['childList', 'subtree', 'attributes', 'characterData'], [true, true, true, true]));
     };
     watch();
-    document.addEventListener('readystatechange', watch);
+    onWindow('readystatechange', watch);
   }
   var sentAt = function (id, delay) {
-    clock.active = performance.now();
+    clock.active = now();
     if (clock.count < 200) {
       clock.count += 1;
       clock.times[id] = [clock.now, -1, delay];
@@ -145,14 +326,14 @@ const SOURCE = String.raw`(function (config) {
     if (recorder && recorder.request) recorder.request(id);
   };
   var arrivedAt = function (id) {
-    clock.active = performance.now();
+    clock.active = now();
     var times = clock.times[id];
     if (!times) return;
     times[1] = times[0] + times[2];
     if (times[1] > clock.now) clock.now = times[1];
   };
   var abortedAt = function (id) {
-    clock.active = performance.now();
+    clock.active = now();
     var times = clock.times[id];
     if (times) times[1] = clock.now;
   };
@@ -167,7 +348,7 @@ const SOURCE = String.raw`(function (config) {
   if (config.record) {
     recorder = (${RECORDER_SOURCE})(config.record, {
       post: post,
-      now: function () { return performance.now(); },
+      now: now,
       describe: describe,
       takeDom: perf ? takeDom : null,
       requests: requestTimes,
@@ -202,7 +383,7 @@ const SOURCE = String.raw`(function (config) {
       setTimeout(function () { acting = false; }, 0);
       recorder.action(event.type, target ? describe(target) : '', target ? actionLabel(event.type, target) : '');
     };
-    ['click', 'input', 'change', 'keydown', 'submit'].forEach(function (type) { window.addEventListener(type, onAction, true); });
+    ['click', 'input', 'change', 'keydown', 'submit'].forEach(function (type) { onWindow(type, onAction); });
   }
 
   /* The level's modules: blob URLs made here, and an import map from each file's name (and ./name) to its URL. */
@@ -218,9 +399,9 @@ const SOURCE = String.raw`(function (config) {
   var map = document.createElement('script');
   map.type = 'importmap';
   map.textContent = JSON.stringify({ imports: imports });
-  document.currentScript.after(map);
+  script.after(map);
   /* What Grindstone put on the page (the base, the policy, the bridge, the import map): never shown in the Elements panel. */
-  var own = [document.currentScript, map, document.querySelector('base'), document.querySelector('meta[http-equiv]')];
+  var own = [script, map, document.querySelector('base'), document.querySelector('meta[http-equiv]')];
 
   /* The Console: every call is posted with its call stack (an Error argument brings its own), then goes on as usual. */
   ['log', 'info', 'warn', 'error', 'debug'].forEach(function (level) {
@@ -235,43 +416,65 @@ const SOURCE = String.raw`(function (config) {
     };
   });
 
-  /* Uncaught errors (with the error's own stack, or where a syntax error was found) and files that failed to load. */
-  window.addEventListener('error', function (event) {
-    if (!(event instanceof ErrorEvent)) {
-      var target = event.target;
-      if (target && target !== window && target.tagName) {
-        post({ type: 'error', kind: 'error', name: null, message: target.tagName === 'LINK' ? 'Failed to load stylesheet' : 'Failed to load module script', stack: null, url: null, line: null, column: null });
-      }
+  /* Uncaught errors (with the error's own stack, or where a syntax error was found) and files that failed to load. The
+     listeners are the first on the window and read the events through the browser's own getters, so the app's code
+     can't keep an uncaught error from being reported. */
+  /* An error's fields read without trusting it: the app may have planted a getter (or a toString) that throws, which
+     must never stop the error from being reported. */
+  function safeField(value, key) {
+    try {
+      var field = value[key];
+      return field === undefined || field === null ? null : String(field);
+    } catch (failed) {
+      return null;
+    }
+  }
+
+  onWindow('error', function (event) {
+    if (!isInstance(NativeErrorEvent, event)) {
+      var tag = null;
+      try {
+        var target = eventTargetOf(event);
+        tag = target && target !== win && nodeTypeOf(target) === 1 ? tagOf(target) : null;
+      } catch (error) { tag = null; }
+      if (tag) post({ type: 'error', kind: 'error', name: null, message: tag === 'LINK' ? 'Failed to load stylesheet' : 'Failed to load module script', stack: null, url: null, line: null, column: null });
       return;
     }
-    var error = event.error;
+    var error = errorOf(event);
     var known = error && typeof error === 'object';
+    var message = errorMessageOf(event);
+    var name = known ? safeField(error, 'name') : null;
+    var text = known ? safeField(error, 'message') : null;
     post({
       type: 'error',
       kind: 'error',
-      name: known && error.name ? String(error.name) : null,
-      message: known && error.message !== undefined ? String(error.message) : String(event.message || '').replace(/^Uncaught /, ''),
-      stack: known && error.stack ? String(error.stack) : null,
-      url: event.filename || null,
-      line: event.lineno || null,
-      column: event.colno || null
+      name: name || null,
+      message: text !== null ? text : String(message || '').replace(/^Uncaught /, ''),
+      stack: known ? safeField(error, 'stack') || null : null,
+      url: errorFileOf(event) || null,
+      line: errorLineOf(event) || null,
+      column: errorColumnOf(event) || null
     });
-  }, true);
-  window.addEventListener('unhandledrejection', function (event) {
-    var reason = event.reason;
-    var isError = reason instanceof Error;
-    post({ type: 'error', kind: 'rejection', name: isError ? reason.name : null, message: isError ? reason.message : preview(reason, false), stack: isError && reason.stack ? String(reason.stack) : null, url: null, line: null, column: null });
   });
-  document.addEventListener('securitypolicyviolation', function (event) {
+  onWindow('unhandledrejection', function (event) {
+    var reason = reasonOf(event);
+    var isError = false;
+    try { isError = reason instanceof Error; } catch (failed) { isError = false; }
+    var text = isError ? safeField(reason, 'message') : null;
+    var shown = '';
+    if (!isError) { try { shown = preview(reason, false); } catch (failed) { shown = 'a value that could not be shown'; } }
+    post({ type: 'error', kind: 'rejection', name: isError ? safeField(reason, 'name') : null, message: isError ? (text !== null ? text : '') : shown, stack: isError ? safeField(reason, 'stack') : null, url: null, line: null, column: null });
+  });
+  onWindow('securitypolicyviolation', function (event) {
     if (event.blockedURI === 'inline' || event.blockedURI === 'eval') return;
     post({ type: 'console', level: 'error', args: ["Refused to load '" + event.blockedURI + "': the practice app runs in a sealed frame without network."], stack: '' });
   });
 
   /* The app stays on its page: a link does not navigate the frame away. */
-  window.addEventListener('click', function (event) {
+  onWindow('click', function (event) {
     var link = event.target && event.target.closest ? event.target.closest('a[href]') : null;
     if (link && (link.getAttribute('href') || '').charAt(0) !== '#') event.preventDefault();
-  }, true);
+  });
 
   /* The fake backend (ADR 0007, chapter 2): a level with one gets every fetch answered here, from its scripted routes;
      it posts each request and answer (the Network panel) and the browser's lines for failed ones. Without one, requests
@@ -279,7 +482,7 @@ const SOURCE = String.raw`(function (config) {
   var backend = config.backend
     ? (${BACKEND_SOURCE})(config.backend, {
         post: post,
-        now: function () { return performance.now(); },
+        now: now,
         sent: perf ? sentAt : null,
         arrived: perf ? arrivedAt : null,
         aborted: perf ? abortedAt : null
@@ -292,38 +495,42 @@ const SOURCE = String.raw`(function (config) {
   /* Until the backend has answered everything the app asked (at most 3 s): a check run reads the page after that. In
      chapter 6 also 50 ms without a request sent or answered, so a page that loads one request after another is not
      taken for quiet in the moment between an answer and the next request (reading it takes a slow machine a while). */
-  var idle = function (left) {
-    if (!backend || left <= 0) return Promise.resolve();
-    if (backend.pending() === 0 && (!perf || performance.now() - clock.active >= 50)) return Promise.resolve();
-    return wait(10).then(function () { return idle(left - 10); });
+  var idle = function (left, then) {
+    if (!backend || left <= 0) return then();
+    if (backend.pending() === 0 && (!perf || now() - clock.active >= 50)) return then();
+    wait(10, function () { idle(left - 10, then); });
   };
-  var settle = function (ms) {
-    return wait(ms).then(function () { return idle(3000); }).then(function () { return backend ? wait(20) : null; });
+  var settle = function (ms, then) {
+    wait(ms, function () {
+      idle(3000, function () {
+        if (backend) wait(20, then);
+        else then();
+      });
+    });
   };
 
   /* The Elements panel (chapter 3), in levels that use it: snapshots, matching rules, the outline and pick mode. */
   var inspector = config.elements ? (${INSPECTOR_SOURCE})(config.elements, { post: post, describe: describe, own: own }) : null;
 
-  /* Messages from the page (only the parent, with this load's token): Console input, the Elements panel's requests and
-     the Debugger's Stop. */
-  window.addEventListener('message', function (event) {
-    if (event.source !== host) return;
-    var data = event.data;
-    if (!data || data.grindstone !== token) return;
+  /* Messages from the page, over its own port: Console input, the Elements panel's requests and the Debugger's Stop. */
+  var messageData = getterOf(MessageEvent.prototype, 'data');
+  fromPage.port1.onmessage = function (event) {
+    var data = messageData(event);
+    if (!data || typeof data !== 'object') return;
     if (inspector && data.type === 'dom') { inspector.snapshot(); return; }
     if (inspector && data.type === 'inspect' && typeof data.node === 'number' && typeof data.seq === 'number') { inspector.inspect(data.node, data.seq); return; }
     if (inspector && data.type === 'highlight' && typeof data.node === 'number') { inspector.highlight(data.node); return; }
     if (inspector && data.type === 'pick') { inspector.pick(data.on === true); return; }
     if (recorder && data.type === 'recordStop') { recorder.stop('stopped'); return; }
     if (data.type === 'eval' && typeof data.code === 'string') evaluate(data);
-  });
+  };
 
   /* Console input: evaluated in the app's global scope; an object literal works as in DevTools, and so does a top-level
      await (await fetch('/api/menu')): the input runs in an async function and the Console shows what it settles to. A
      trailing semicolon is dropped first, so it stays an expression. One declaration of one name (const total = await …)
      defines it for later inputs, as a property of the window (the Console shows undefined, like DevTools). */
   var DECLARATION = /^\s*(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*([^;]*?)\s*;?\s*$/;
-  var asExpression = function (code) { return (0, eval)('(async () => (' + code + '\n))()'); };
+  var asExpression = function (code) { return (0, globalEval)('(async () => (' + code + '\n))()'); };
   var awaited = function (code) {
     var declared = DECLARATION.exec(code);
     if (declared) {
@@ -334,7 +541,7 @@ const SOURCE = String.raw`(function (config) {
     }
     try { return asExpression(code.replace(/;\s*$/, '')); } catch (error) {
       if (!(error instanceof SyntaxError)) throw error;
-      return (0, eval)('(async () => {' + code + '\n})()');
+      return (0, globalEval)('(async () => {' + code + '\n})()');
     }
   };
   var evaluate = function (data) {
@@ -348,7 +555,7 @@ const SOURCE = String.raw`(function (config) {
     };
     var value;
     try {
-      value = literal ? (0, eval)('(' + code + ')') : (0, eval)(code);
+      value = literal ? (0, globalEval)('(' + code + ')') : (0, globalEval)(code);
     } catch (first) {
       if (first instanceof SyntaxError && /\bawait\b/.test(code)) {
         var running;
@@ -357,38 +564,49 @@ const SOURCE = String.raw`(function (config) {
         return;
       }
       if (!literal || !(first instanceof SyntaxError)) { fail(first); return; }
-      try { value = (0, eval)(code); } catch (error) { fail(error); return; }
+      try { value = (0, globalEval)(code); } catch (error) { fail(error); return; }
     }
     done(value);
   };
 
-  /* A check run: once the app has loaded, each probe clicks and reads like a customer, then the run is done. */
+  /* A check run: once the app has loaded, each probe clicks and reads like a customer, then the run is done. From here
+     on only the functions taken above, the config's own data and callbacks on the kept timer (no promise, no array
+     method), so nothing the app's code changed in the frame's built-ins changes which probes run, what they do or read,
+     or when the run is done. */
   var find = function (selector) {
-    try { return document.querySelector(selector); } catch (error) { return null; }
+    try { return querySelector(doc, selector); } catch (error) { return null; }
+  };
+  /* A click as element.click() does it; an element without click() (SVG) gets the event. */
+  var press = function (element, point) {
+    try { clickOn(element); } catch (error) {
+      dispatch(element, new NativeMouseEvent('click', fields(['bubbles', 'cancelable', 'view', 'clientX', 'clientY'], [true, true, win, point ? point.x : 0, point ? point.y : 0])));
+    }
   };
 
   /* Layout probes (chapter 3): what a customer can see and tap, from the browser's own layout. */
   var scrollTo = function (top) {
-    try { window.scrollTo({ top: top, left: 0, behavior: 'instant' }); } catch (error) { window.scrollTo(0, top); }
+    try { scrollWindow(win, fields(['top', 'left', 'behavior'], [top, 0, 'instant'])); } catch (error) { scrollWindow(win, 0, top); }
   };
   /* The centre of an element, scrolled into view vertically only (sideways is where a too wide layout hides things); null without a box. */
   var centre = function (element) {
-    var rect = element.getBoundingClientRect();
-    if (!element.getClientRects().length || rect.width < 1 || rect.height < 1) return null;
-    scrollTo(window.scrollY + rect.top + rect.height / 2 - window.innerHeight / 2);
-    rect = element.getBoundingClientRect();
-    return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    var rect = boxOf(element);
+    if (!boxCount(boxesOf(element)) || boxWidth(rect) < 1 || boxHeight(rect) < 1) return null;
+    scrollTo(scrollYOf(win) + boxTop(rect) + boxHeight(rect) / 2 - innerHeightOf(win) / 2);
+    rect = boxOf(element);
+    return { x: boxLeft(rect) + boxWidth(rect) / 2, y: boxTop(rect) + boxHeight(rect) / 2 };
   };
-  var onScreen = function (point) { return point.x >= 0 && point.x < document.documentElement.clientWidth && point.y >= 0 && point.y < window.innerHeight; };
+  var onScreen = function (point) { return point.x >= 0 && point.x < clientWidthOf(rootOf(doc)) && point.y >= 0 && point.y < innerHeightOf(win); };
+  var styleOfNode = function (node, property) { return styleValue(styleOf(node), property); };
+  var isElement = function (node) { return !!node && nodeTypeOf(node) === 1; };
   var visibility = function (element) {
     var node;
-    for (node = element; node && node.nodeType === 1; node = node.parentElement) {
-      if (getComputedStyle(node).display === 'none') return node === element ? 'display: none' : 'display: none on ' + describe(node);
+    for (node = element; isElement(node); node = parentOf(node)) {
+      if (styleOfNode(node, 'display') === 'none') return node === element ? 'display: none' : 'display: none on ' + describe(node);
     }
-    var hidden = getComputedStyle(element).visibility;
+    var hidden = styleOfNode(element, 'visibility');
     if (hidden !== 'visible') return 'visibility: ' + hidden;
-    for (node = element; node && node.nodeType === 1; node = node.parentElement) {
-      if (parseFloat(getComputedStyle(node).opacity) === 0) return node === element ? 'opacity: 0' : 'opacity: 0 on ' + describe(node);
+    for (node = element; isElement(node); node = parentOf(node)) {
+      if (toNumber(styleOfNode(node, 'opacity')) === 0) return node === element ? 'opacity: 0' : 'opacity: 0 on ' + describe(node);
     }
     var point = centre(element);
     if (!point) return 'no size';
@@ -398,156 +616,190 @@ const SOURCE = String.raw`(function (config) {
     var point = centre(element);
     if (!point) return 'no box';
     if (!onScreen(point)) return 'off screen';
-    var top = document.elementFromPoint(point.x, point.y);
+    var top = elementAt(doc, point.x, point.y);
     if (!top) return 'nothing';
-    return top === element || element.contains(top) ? 'itself' : describe(top);
+    return top === element || contains(element, top) ? 'itself' : describe(top);
   };
   var tap = function (element) {
     var point = centre(element);
-    var top = point && onScreen(point) ? document.elementFromPoint(point.x, point.y) : null;
-    if (!top) return;
-    if (typeof top.click === 'function') top.click();
-    else top.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true, view: window, clientX: point.x, clientY: point.y }));
+    var top = point && onScreen(point) ? elementAt(doc, point.x, point.y) : null;
+    if (top) press(top, point);
   };
+  var RGBA = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)(?:\s*[,/]\s*([\d.]+)(%?))?\s*\)$/;
   var rgba = function (text) {
-    var match = /^rgba?\(\s*([\d.]+)[\s,]+([\d.]+)[\s,]+([\d.]+)(?:\s*[,/]\s*([\d.]+)(%?))?\s*\)$/.exec(text);
+    var match = execPattern(RGBA, text);
     if (!match) return null;
-    var alpha = match[4] === undefined ? 1 : parseFloat(match[4]) / (match[5] ? 100 : 1);
-    return [parseFloat(match[1]), parseFloat(match[2]), parseFloat(match[3]), alpha];
+    var alpha = match[4] === undefined ? 1 : toNumber(match[4]) / (match[5] ? 100 : 1);
+    return [toNumber(match[1]), toNumber(match[2]), toNumber(match[3]), alpha];
   };
   var over = function (top, below) {
-    return [0, 1, 2].map(function (i) { return top[i] * top[3] + below[i] * (1 - top[3]); }).concat([1]);
+    var a = top[3];
+    return [top[0] * a + below[0] * (1 - a), top[1] * a + below[1] * (1 - a), top[2] * a + below[2] * (1 - a), 1];
   };
-  var luminance = function (colour) {
-    var channel = colour.slice(0, 3).map(function (value) {
-      value /= 255;
-      return value <= 0.03928 ? value / 12.92 : Math.pow((value + 0.055) / 1.055, 2.4);
-    });
-    return 0.2126 * channel[0] + 0.7152 * channel[1] + 0.0722 * channel[2];
+  var channel = function (value) {
+    value /= 255;
+    return value <= 0.03928 ? value / 12.92 : mathPow((value + 0.055) / 1.055, 2.4);
   };
+  var luminance = function (colour) { return 0.2126 * channel(colour[0]) + 0.7152 * channel(colour[1]) + 0.0722 * channel(colour[2]); };
   /* The text's colour against what is behind it: the backgrounds of the element and its ancestors over a white page. */
   var contrastOf = function (element) {
-    var layers = [];
-    for (var node = element; node && node.nodeType === 1; node = node.parentElement) layers.unshift(getComputedStyle(node).backgroundColor);
+    var layers = createObject(null);
+    var count = 0;
+    for (var node = element; isElement(node); node = parentOf(node)) layers[count++] = styleOfNode(node, 'background-color');
     var ground = [255, 255, 255, 1];
-    for (var i = 0; i < layers.length; i++) {
+    for (var i = count - 1; i >= 0; i--) {
       var colour = rgba(layers[i]);
       if (!colour) return null;
       ground = over(colour, ground);
     }
-    var text = rgba(getComputedStyle(element).color);
+    var text = rgba(styleOfNode(element, 'color'));
     if (!text) return null;
     var a = luminance(over(text, ground));
     var b = luminance(ground);
-    return Math.round((Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05) * 100) / 100;
+    return mathRound((mathMax(a, b) + 0.05) / (mathMin(a, b) + 0.05) * 100) / 100;
   };
+  /* A field's value through its own setter (an input, a text area, a select); anything else gets a property, as before. */
+  var setValue = function (field, value) {
+    for (var i = 0; i < 3; i++) {
+      if (!valueSetters[i]) continue;
+      try { valueSetters[i](field, value); return; } catch (error) { /* not this kind of field */ }
+    }
+    field.value = value;
+  };
+  var valueOf = function (field) {
+    for (var i = 0; i < 3; i++) {
+      if (!valueGetters[i]) continue;
+      try { return valueGetters[i](field); } catch (error) { /* not this kind of field */ }
+    }
+    return field.value;
+  };
+  var inputEvent = function (data) {
+    if (NativeInputEvent) {
+      try { return new NativeInputEvent('input', fields(['bubbles', 'inputType', 'data'], [true, 'insertText', data])); } catch (error) { /* an old browser */ }
+    }
+    return new NativeEvent('input', fields(['bubbles'], [true]));
+  };
+  var changeEvent = function () { return new NativeEvent('change', fields(['bubbles'], [true])); };
   /* Typing, as a customer does it: the field gets the whole value at once, then input and change. It never takes the
      focus: a check run must not take the keyboard from Grindstone (Firefox lets a script in a sealed frame do that). */
   var typeInto = function (field, value) {
-    field.value = value;
-    var input;
-    try { input = new InputEvent('input', { bubbles: true, inputType: 'insertText', data: value }); } catch (error) { input = new Event('input', { bubbles: true }); }
-    field.dispatchEvent(input);
-    field.dispatchEvent(new Event('change', { bubbles: true }));
+    setValue(field, value);
+    dispatch(field, inputEvent(value));
+    dispatch(field, changeEvent());
   };
   /* A key event (true: nothing prevented it). */
   var keyEvent = function (target, type, key) {
-    return target.dispatchEvent(new KeyboardEvent(type, { key: key, bubbles: true, cancelable: true }));
+    return dispatch(target, new NativeKeyboardEvent(type, fields(['key', 'bubbles', 'cancelable'], [key, true, true])));
   };
   /* One letter as a customer types it: keydown, the letter in the field with an input event (unless the keydown was
      prevented), keyup. Never the focus, never a change. */
   var typeLetter = function (field, letter) {
     if (keyEvent(field, 'keydown', letter)) {
-      field.value = (typeof field.value === 'string' ? field.value : '') + letter;
-      var input;
-      try { input = new InputEvent('input', { bubbles: true, inputType: 'insertText', data: letter }); } catch (error) { input = new Event('input', { bubbles: true }); }
-      field.dispatchEvent(input);
+      var current = valueOf(field);
+      setValue(field, (typeof current === 'string' ? current : '') + letter);
+      dispatch(field, inputEvent(letter));
     }
     keyEvent(field, 'keyup', letter);
   };
-  var LOOKS = { style: 1, visible: 1, hit: 1, overflows: 1, contrast: 1 };
-  var runProbe = function (probe) {
+  var LOOKS = ['style', 'visible', 'hit', 'overflows', 'contrast'];
+  /* One probe: its steps in order, then its result is posted and the run goes on (callbacks only, no promises). */
+  var runProbe = function (probe, then) {
     var value = null;
     var problem = null;
-    var steps = probe.steps.slice();
+    var steps = probe.steps;
+    var at = 0;
     takeAll();
     /* where the page's changes, the server's clock and the work were when this probe started */
-    var start = { dom: domBase + domLog.length, clock: clock.now, work: workNow() };
+    var startDom = domEnd;
+    var startClock = clock.now;
+    var startWork = workNow();
+    var finish = function () {
+      post({ type: 'probe', id: probe.id, ok: problem === null, value: problem === null ? value : null, error: problem });
+      then();
+    };
+    var fail = function (text) {
+      problem = text;
+      finish();
+    };
+    var missing = function (selector) { fail('Nothing on the page matches ' + selector); };
     var next = function () {
-      if (problem !== null || !steps.length) return Promise.resolve();
-      var step = steps.shift();
+      if (problem !== null || at >= steps.length) return finish();
+      var step = steps[at];
+      at += 1;
       if (typeof step.keys === 'string') {
         var typed = find(step.keys);
-        if (!typed) { problem = 'Nothing on the page matches ' + step.keys; return Promise.resolve(); }
-        var letters = String(step.value).split('');
-        var gap = Math.min(Math.max(typeof step.gap === 'number' ? step.gap : 80, 0), ${MAX_PROBE_WAIT_MS});
+        if (!typed) return missing(step.keys);
+        var letters = toText(step.value);
+        var letterAt = 0;
+        var gap = mathMin(mathMax(typeof step.gap === 'number' ? step.gap : 80, 0), ${MAX_PROBE_WAIT_MS});
         var typeOn = function () {
-          if (!letters.length) return next();
-          typeLetter(typed, letters.shift());
-          return wait(gap).then(typeOn);
+          if (letterAt >= letters.length) return next();
+          typeLetter(typed, letters[letterAt]);
+          letterAt += 1;
+          wait(gap, typeOn);
         };
         return typeOn();
       }
       if (typeof step.press === 'string') {
         var pressed = find(step.press);
-        if (!pressed) { problem = 'Nothing on the page matches ' + step.press; return Promise.resolve(); }
+        if (!pressed) return missing(step.press);
+        var key = toText(step.key);
         /* Enter in a text field commits it, as in the browser: a change (no form is submitted in a sealed frame) */
-        if (keyEvent(pressed, 'keydown', String(step.key)) && step.key === 'Enter' && pressed.tagName === 'INPUT') pressed.dispatchEvent(new Event('change', { bubbles: true }));
-        keyEvent(pressed, 'keyup', String(step.key));
-        return wait(20).then(next);
+        if (keyEvent(pressed, 'keydown', key) && key === 'Enter' && tagOf(pressed) === 'INPUT') dispatch(pressed, changeEvent());
+        keyEvent(pressed, 'keyup', key);
+        return wait(20, next);
       }
       if (typeof step.changes === 'string') {
-        if (!perf) { problem = 'The page is not watched in this run'; return Promise.resolve(); }
+        if (!perf) return fail('The page is not watched in this run');
         takeAll();
         var area = find(step.changes);
-        if (!area) { problem = 'Nothing on the page matches ' + step.changes; return Promise.resolve(); }
+        if (!area) return missing(step.changes);
         var changed = 0;
-        var holds = function (node) { return node.contains(area); };
-        for (var at = Math.max(start.dom - domBase, 0); at < domLog.length; at++) {
-          var entry = domLog[at];
-          if (area.contains(entry.target) || entry.added.some(holds)) changed += entry.nodes;
+        for (var index = mathMax(startDom, domBase); index < domEnd; index++) {
+          var entry = domLog[index];
+          var inside = contains(area, entry.target);
+          for (var k = 0; !inside && k < entry.added.length; k++) inside = contains(entry.added[k], area);
+          if (inside) changed += entry.nodes;
         }
         value = changed;
         return next();
       }
       if (typeof step.work === 'string') {
         var counted = workNow();
-        var from = step.work === 'load' ? 0 : start.work;
+        var from = step.work === 'load' ? 0 : startWork;
         var upTo = step.work === 'load' ? loadWork : counted;
-        if (counted === null) problem = 'The app\'s work is not counted in this run';
-        else if (counted < 0 || from < 0 || upTo < 0) problem = 'The app did more work than is counted: counting stopped';
-        else value = upTo - from;
+        if (counted === null) return fail('The app\'s work is not counted in this run');
+        if (counted < 0 || from < 0 || upTo < 0) return fail('The app did more work than is counted: counting stopped');
+        value = upTo - from;
         return next();
       }
       if (typeof step.waited === 'string') {
-        if (!perf) { problem = 'The server\'s time is not kept in this run'; return Promise.resolve(); }
-        value = step.waited === 'load' ? loadClock : clock.now - start.clock;
+        if (!perf) return fail('The server\'s time is not kept in this run');
+        value = step.waited === 'load' ? loadClock : clock.now - startClock;
         return next();
       }
       if (typeof step.click === 'string') {
         var target = find(step.click);
-        if (!target) { problem = 'Nothing on the page matches ' + step.click; return Promise.resolve(); }
-        for (var times = Math.min(Math.max(step.times || 1, 1), 10); times > 0; times--) target.click();
-        return (step.settle === false ? wait(20) : settle(20)).then(next);
+        if (!target) return missing(step.click);
+        for (var times = mathMin(mathMax(step.times || 1, 1), 10); times > 0; times--) press(target, null);
+        return step.settle === false ? wait(20, next) : settle(20, next);
       }
       if (typeof step.type === 'string') {
         var field = find(step.type);
-        if (!field) { problem = 'Nothing on the page matches ' + step.type; return Promise.resolve(); }
-        typeInto(field, String(step.value));
-        return wait(20).then(next);
+        if (!field) return missing(step.type);
+        typeInto(field, toText(step.value));
+        return wait(20, next);
       }
-      if (typeof step.wait === 'number') {
-        return wait(Math.min(Math.max(step.wait, 0), ${MAX_PROBE_WAIT_MS})).then(next);
-      }
-      if (step.settle === true) return settle(20).then(next);
+      if (typeof step.wait === 'number') return wait(mathMin(mathMax(step.wait, 0), ${MAX_PROBE_WAIT_MS}), next);
+      if (step.settle === true) return settle(20, next);
       if (typeof step.text === 'string') {
         var element = find(step.text);
-        if (!element) { problem = 'Nothing on the page matches ' + step.text; return Promise.resolve(); }
-        value = (element.textContent || '').replace(/\s+/g, ' ').trim();
+        if (!element) return missing(step.text);
+        value = squash(textOf(element) || '');
         return next();
       }
       if (typeof step.count === 'string') {
-        try { value = document.querySelectorAll(step.count).length; } catch (error) { value = 0; }
+        try { value = listLength(querySelectorAll(doc, step.count)); } catch (error) { value = 0; }
         return next();
       }
       if (typeof step.requests === 'string') {
@@ -560,40 +812,45 @@ const SOURCE = String.raw`(function (config) {
       }
       if (typeof step.tap === 'string') {
         var tapped = find(step.tap);
-        if (!tapped) { problem = 'Nothing on the page matches ' + step.tap; return Promise.resolve(); }
+        if (!tapped) return missing(step.tap);
         tap(tapped);
-        return settle(20).then(next);
+        return settle(20, next);
       }
-      var look = Object.keys(LOOKS).filter(function (kind) { return typeof step[kind] === 'string'; })[0];
-      if (look) {
+      for (var l = 0; l < LOOKS.length; l++) {
+        var look = LOOKS[l];
+        if (typeof step[look] !== 'string') continue;
         var seen = find(step[look]);
-        if (!seen) { problem = 'Nothing on the page matches ' + step[look]; return Promise.resolve(); }
-        if (look === 'style') value = getComputedStyle(seen).getPropertyValue(String(step.property)).trim();
+        if (!seen) return missing(step[look]);
+        if (look === 'style') value = trimText(styleOfNode(seen, toText(step.property)));
         else if (look === 'visible') value = visibility(seen);
         else if (look === 'hit') value = hitOf(seen);
-        else if (look === 'overflows') value = seen.scrollWidth > seen.clientWidth + 1 ? 'overflows' : 'fits';
+        else if (look === 'overflows') value = scrollWidthOf(seen) > clientWidthOf(seen) + 1 ? 'overflows' : 'fits';
         else value = contrastOf(seen);
         return next();
       }
       return next();
     };
-    return next().then(function () {
-      post({ type: 'probe', id: probe.id, ok: problem === null, value: problem === null ? value : null, error: problem });
-    });
+    next();
   };
-  /* What loading cost (chapter 6): the work counted and the server's time once the loaded page is quiet. */
+  /* Every probe in turn, then (a moment later, for what the last one set off) the run is done. */
+  var runProbes = function (index) {
+    if (index >= probes.length) return wait(60, function () { post({ type: 'done' }); });
+    runProbe(probes[index], function () { runProbes(index + 1); });
+  };
+  /* What loading cost (chapter 6): the work counted and the server's time once the loaded page is quiet. Only the
+     browser's own load event starts the probes, once. */
   var loadWork = null;
   var loadClock = 0;
-  window.addEventListener('load', function () {
-    settle(30).then(function () {
+  var loaded = false;
+  onWindow('load', function (event) {
+    if (loaded || event.isTrusted !== true) return;
+    loaded = true;
+    settle(30, function () {
       loadWork = workNow();
       loadClock = clock.now;
       post({ type: 'ready' });
       if (inspector) inspector.snapshot();
-      if (!config.probes) return null;
-      return config.probes.reduce(function (done, probe) {
-        return done.then(function () { return runProbe(probe); });
-      }, Promise.resolve()).then(function () { return wait(60); }).then(function () { post({ type: 'done' }); });
+      if (probes) runProbes(0);
     });
   });
 })`

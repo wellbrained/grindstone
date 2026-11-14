@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { BRIDGE_SOURCE } from '../../../../shared/levels/debugging/bridge'
 import { COMPUTED_PROPERTIES } from '../../../../shared/levels/debugging/elements'
 import { INSPECTOR_SOURCE } from '../../../../shared/levels/debugging/inspector'
+import { BRIDGE_HELLO } from '../../../../shared/levels/debugging/messages'
 import { RECORDER_SOURCE, RECORD_LIMITS } from '../../../../shared/levels/debugging/recorder'
 import { CHECK_VIEWPORT, COUNTING_CSP, SANDBOX_CSP, SHOP_ORIGIN, checkFrames, resolveImport, rewriteImports, sandboxDocument } from '../../../../shared/levels/debugging/sandbox'
 
@@ -65,11 +66,32 @@ describe('sandboxDocument', () => {
     expect(lines[9]).toBe('</body>')
   })
 
-  it('puts the base, the Content-Security-Policy and the bridge on the <head> line', () => {
-    expect(built.bridgeLine).toBe(3)
-    expect(lines[2]).toMatch(/^<head><base href="https:\/\/cornerbakery\.shop\/"><meta http-equiv="Content-Security-Policy" content="[^"]+"><script>.*<\/script>$/)
-    expect(lines[2]).toContain(SANDBOX_CSP)
+  it('puts the base, the Content-Security-Policy and the bridge first, right after the doctype on line 1', () => {
+    expect(built.bridgeLine).toBe(1)
+    expect(lines[0]).toMatch(/^<!doctype html><base href="https:\/\/cornerbakery\.shop\/"><meta http-equiv="Content-Security-Policy" content="[^"]+"><script>.*<\/script>$/)
+    expect(lines[0]).toContain(SANDBOX_CSP)
+    expect(lines[1]).toBe('<html lang="en">')
+    expect(lines[2]).toBe('<head>')
     expect(SHOP_ORIGIN).toBe('https://cornerbakery.shop/')
+  })
+
+  // The level's files are the player's: nothing in index.html may run before the bridge, or hide it in a comment.
+  it('goes in front of everything of index.html but its doctype: no script of the page runs before it', () => {
+    const first = (page: string) => {
+      const { html } = sandboxDocument({ 'index.html': page }, { token: 't' })
+      return html.slice(0, html.indexOf('<base '))
+    }
+    expect(first('<!doctype html>\n<html>')).toBe('<!doctype html>')
+    expect(first('\n  <!DOCTYPE html SYSTEM "about:legacy-compat">\n<html>')).toBe('\n  <!DOCTYPE html SYSTEM "about:legacy-compat">')
+    // a script before <head>, or a <head> inside a comment or a script, used to come before the bridge
+    expect(first('<!doctype html><script>parent.postMessage(1, "*")</script><head></head>')).toBe('<!doctype html>')
+    expect(first('<!doctype html>\n<!-- <head> -->\n<head>')).toBe('<!doctype html>')
+    expect(first('<script>var head = "<head>"</script>\n<head>')).toBe('')
+    // `<!-->` is a whole (empty) comment to the browser: what follows it is not in one
+    expect(first('<!--><script>x()</script>--><!doctype html>')).toBe('')
+    // a space the browser does not skip (no-break) is text: nothing before it
+    expect(first(' <!doctype html>')).toBe('')
+    expect(sandboxDocument({ 'index.html': '<!doctype html><script>x()</script>' }, { token: 't' }).html).toMatch(/^<!doctype html><base [^\n]*<\/script><script>x\(\)<\/script>$/)
   })
 
   it('seals the frame: no network, no other scripts, eval only for the Console', () => {
@@ -87,7 +109,7 @@ describe('sandboxDocument', () => {
   })
 
   it('hands the bridge the token, the rewritten modules and no raw "<" that could close its script', () => {
-    const script = lines[2]!.slice(lines[2]!.indexOf('<script>') + 8, lines[2]!.lastIndexOf('</script>'))
+    const script = lines[0]!.slice(lines[0]!.indexOf('<script>') + 8, lines[0]!.lastIndexOf('</script>'))
     expect(script).not.toMatch(/<\/script|<!--/i)
     expect(script).toContain('"tok-123"')
     expect(script).toContain('import { cart } from \'cart.js\'')
@@ -120,6 +142,20 @@ describe('the bridge', () => {
       expect(() => new Function(`return ${source}`)).not.toThrow()
     }
     expect(BRIDGE_SOURCE).toContain(INSPECTOR_SOURCE)
+  })
+
+  // the bridge runs before anything of the app's: it takes its text (the token) off the page, then hands the page its
+  // ports; it never listens to the window's messages and never changes a message after making it
+  it('takes its text off the page, then posts to the window once: the hello with the load\'s two ports', () => {
+    const at = (text: string) => BRIDGE_SOURCE.indexOf(text)
+    const takenOff = at('var script = document.currentScript; try { script.textContent = \'\'; }')
+    expect(takenOff).toBeGreaterThan(0)
+    expect(BRIDGE_SOURCE.slice(0, takenOff).replace(/\/\*.*?\*\//g, '').trim()).toBe('(function (config) { \'use strict\';')
+    expect(at('host.postMessage(')).toBeGreaterThan(takenOff)
+    expect(BRIDGE_SOURCE.match(/postMessage\(/g)).toEqual(['postMessage('])
+    expect(BRIDGE_SOURCE).toContain(`host.postMessage({ type: '${BRIDGE_HELLO}', token: config.token }, '*', [toPage.port2, fromPage.port2]);`)
+    expect(BRIDGE_SOURCE).toContain('var send = toPage.port1.postMessage.bind(toPage.port1);')
+    expect(BRIDGE_SOURCE).not.toMatch(/addEventListener\('message'|\.grindstone\b/)
   })
 })
 

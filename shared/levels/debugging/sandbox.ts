@@ -1,6 +1,7 @@
 // The document a Debugging level's app runs as, in a sealed iframe (`sandbox="allow-scripts"`, no same-origin, `srcdoc`):
-// the level's index.html with the bridge, a Content-Security-Policy and the shop's base URL on its <head> line
-// (docs/features/ui.md, "Sandbox and bridge"). Every line of index.html stays where it was, so traces into it are right.
+// the level's index.html with the shop's base URL, a Content-Security-Policy and the bridge in front of everything but
+// its doctype, on its first line (docs/features/ui.md, "Sandbox and bridge"): nothing of the level's files can run
+// before the bridge or hide it in a comment. Every line of index.html stays where it was, so traces into it are right.
 // Modules run from blob URLs the bridge makes inside the frame; relative imports of the level's files are pointed at
 // each file's own name, which the import map resolves (a blob URL has no folder to resolve "./cart.js" against). The
 // stylesheet becomes a data URL. Pure string work: no DOM.
@@ -40,7 +41,10 @@ export const SANDBOX_CSP = [
 export const COUNTING_CSP = SANDBOX_CSP.replace(' \'unsafe-eval\'', '')
 
 export interface SandboxOptions {
-  /** A fresh random token per load: the page ignores messages that do not carry it (an older load, anything else). */
+  /**
+   * A fresh random token per load: the bridge's first message carries it with the ports the load talks over, so the page
+   * takes this load's ports only. The bridge reads it before any of the app's code runs and takes it off the page.
+   */
   token: string
   /** A check run's probes; none for the app you see. */
   probes?: readonly Probe[]
@@ -122,6 +126,16 @@ export interface SandboxDocument {
   bridgeLine: number
 }
 
+/**
+ * Where Grindstone's part goes: after the doctype (and the HTML whitespace before it), before anything else. A doctype
+ * keeps the page out of quirks mode and runs nothing; any other text, tag or comment could be (or hide) the level's own
+ * script, so the bridge goes in front of it. The parser then makes the `<head>` for the base, the policy and the bridge,
+ * and the page's own `<html>` and `<head>` tags land on those it made (their attributes kept), as in any browser.
+ */
+function injectionPoint(page: string): number {
+  return /^[\t\n\f\r ]*(?:<!doctype\b[^>]*>)?/i.exec(page)![0].length
+}
+
 // `from './x.js'`, `import './x.js'`, `import('./x.js')`: a relative specifier in quotes
 const IMPORT = /(\bfrom\s*|\bimport\s*\(\s*|\bimport\s*)(['"])(\.\.?\/[^'"\n]*)\2/g
 
@@ -170,9 +184,7 @@ export function sandboxDocument(files: Readonly<Record<string, string>>, options
   const injected = `<base href="${SHOP_ORIGIN}"><meta http-equiv="Content-Security-Policy" content="${options.count === 'check' ? COUNTING_CSP : SANDBOX_CSP}"><script>${BRIDGE_SOURCE}(${config});</script>`
 
   const page = rewriteStylesheets(rewriteScripts(files['index.html'] ?? '', files), files)
-  const head = /<head\b[^>]*>/i.exec(page)
-  if (!head) return { html: injected + page, bridgeLine: 1 }
-  const at = head.index + head[0].length
+  const at = injectionPoint(page)
   return {
     html: page.slice(0, at) + injected + page.slice(at),
     bridgeLine: (page.slice(0, at).match(/\n/g) ?? []).length + 1

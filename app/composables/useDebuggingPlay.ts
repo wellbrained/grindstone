@@ -8,17 +8,17 @@
 // app again).
 import {
   MAX_LOG_LINES, RECORD_LIMITS, consoleEntry, cssRules, deployById, differingPaths, fittingProfile, fittingSteps, historyEntries, lineIn, liveEntries, needsCounting, frameStep, hitCounts, nextHit,
-  nodeAtPath, nodePath, pickDeploy, pickLine, previousHit, readBridgeMessage, reload, requestEntry, restart, restoreFiles, rollback, saveDebugFile, scopeAt, scopeValues, startDebugLevel, startExpanded, stepBack,
+  nodeAtPath, nodePath, pickDeploy, pickLine, previousHit, reload, requestEntry, restart, restoreFiles, rollback, saveDebugFile, scopeAt, scopeValues, startDebugLevel, startExpanded, stepBack,
   stepInto, stepLine, stepOut, stepOver, takeHint, versionOf, withAncestors, withResponse, withoutInstrumentation
 } from '#shared/levels'
 import type {
-  Breakpoint, ColleagueMessage, ConsoleEntryBody, CssRule, DebugLevel, DebugResult, DebugSession, DeployPick, DomNode, Inspected, Instrumented, LogEntry, LoggedRequest, NetworkEntry, PickVerdict,
+  Breakpoint, BridgeMessage, ColleagueMessage, ConsoleEntryBody, CssRule, DebugLevel, DebugResult, DebugSession, DeployPick, DomNode, Inspected, Instrumented, LogEntry, LoggedRequest, NetworkEntry, PickVerdict,
   Profile, RecordEndReason, RecordedStep, ScopeEntries, SourceLine, SourceMapping
 } from '#shared/levels'
 import type { CompiledCondition } from '#shared/levels/debugging/condition'
 import type { LineTone } from '~/editor/codemirror'
-import type { AppLoad } from '~/utils/sandbox-host'
-import { appLoad, runCheck } from '~/utils/sandbox-host'
+import type { AppLoad, BridgeLink } from '~/utils/sandbox-host'
+import { appLoad, bridgeLink, runCheck } from '~/utils/sandbox-host'
 import { fileOrder } from '~/utils/debug-files'
 
 export type ConsoleEntry = ConsoleEntryBody & { id: number }
@@ -147,11 +147,14 @@ export function useDebuggingPlay(level: DebugLevel) {
   let nextId = 0
   let nextEval = 0
   let frameWindow: () => Window | null = () => null
+  /** This load's bridge: its messages come over its own port only (an older load's link is closed). */
+  let link: BridgeLink | null = null
   let disposed = false
   /** Goes up with every new attempt (Reset, Again): a check run that outlives its attempt is dropped. */
   let attempt = 0
   onScopeDispose(() => {
     disposed = true
+    link?.close()
   })
 
   /** The saved files differ from what the app runs: Reload runs them. */
@@ -240,14 +243,21 @@ export function useDebuggingPlay(level: DebugLevel) {
     hovered.value = null
     awaitingDom = hasElements
     mapping.value = { urls: {}, bridgeLine: 0 }
-    load.value = appLoad(files, { backend, elements: hasElements, record: recorded, profile, logs: logsSpec ?? undefined })
-    mapping.value = { urls: {}, bridgeLine: load.value.bridgeLine }
+    const started = appLoad(files, { backend, elements: hasElements, record: recorded, profile, logs: logsSpec ?? undefined })
+    link?.close()
+    link = bridgeLink(() => frameWindow(), started.token, message => onBridgeMessage(message, started))
+    load.value = started
+    mapping.value = { urls: {}, bridgeLine: started.bridgeLine }
   }
 
-  /** A message to this load's bridge (the frame's origin is opaque, so '*' is the only target; the token tells it is us). */
+  /** A message to this load's bridge, over its own port (kept until the bridge has said hello). */
   function toFrame(message: Record<string, unknown>) {
-    const target = frameWindow()
-    if (target && load.value) target.postMessage({ ...message, grindstone: load.value.token }, '*')
+    link?.send(message)
+  }
+
+  /** Every message the page's window gets (AppPanel passes them on): only this load's bridge's hello is taken. */
+  function onFrameEvent(event: MessageEvent) {
+    link?.take(event)
   }
 
   /** A new snapshot: the same element stays selected when it is still there (also after a reload). */
@@ -296,12 +306,9 @@ export function useDebuggingPlay(level: DebugLevel) {
     toFrame({ type: 'pick', on })
   }
 
-  /** A message from the app's frame (AppPanel checks it came from its iframe); anything not of this load is ignored. */
-  function onFrameMessage(data: unknown) {
-    const current = load.value
-    if (!current) return
-    const message = readBridgeMessage(data, current.token)
-    if (!message) return
+  /** A message of this load's bridge (read from its port, checked by readBridgeMessage). */
+  function onBridgeMessage(message: BridgeMessage, current: AppLoad) {
+    if (current !== load.value) return
     if (message.type === 'files') mapping.value = { urls: message.urls, bridgeLine: current.bridgeLine }
     else if (message.type === 'ready') ready.value = true
     else if (message.type === 'dom') {
@@ -781,10 +788,8 @@ export function useDebuggingPlay(level: DebugLevel) {
     if (!code.trim()) return
     play.markPlayed()
     push({ level: 'input', text: code, source: null, frames: [] })
-    const target = frameWindow()
-    if (!target || !load.value) return
-    // the frame's origin is opaque ("null"), so '*' is the only target; the token tells the bridge it is us
-    target.postMessage({ grindstone: load.value.token, type: 'eval', id: nextEval++, code }, '*')
+    // over the load's own port: only the bridge reads it
+    toFrame({ type: 'eval', id: nextEval++, code })
   }
 
   function clearConsole() {
@@ -949,7 +954,7 @@ export function useDebuggingPlay(level: DebugLevel) {
     checking,
     stale,
     mark,
-    onFrameMessage,
+    onFrameEvent,
     connectFrame,
     evaluate,
     clearConsole,

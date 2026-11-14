@@ -5,7 +5,7 @@
 // whose profile is posted once the probes are done, as Stop would); `performance` watches the page and keeps the server's
 // clock, like every load of a Performance level.
 import type { Page } from '@playwright/test'
-import { checkFrames, consoleEntry, mergeObservations, observe, readBridgeMessage, requestAddress, requestEntry, sandboxDocument, statusLabel, withResponse } from '../../shared/levels'
+import { BRIDGE_HELLO, checkFrames, consoleEntry, mergeObservations, observe, readBridgeMessage, requestAddress, requestEntry, sandboxDocument, statusLabel, withResponse } from '../../shared/levels'
 import type { BackendSpec, BridgeMessage, ConsoleEntryBody, LogsSpec, NetworkEntry, Observation, Probe, Profile, RecordedStep, ServerLogMessage } from '../../shared/levels'
 import { checkFrameStyle } from '../../app/utils/sandbox-host'
 
@@ -37,19 +37,27 @@ export interface RunOptions {
 async function runFrame(page: Page, files: Readonly<Record<string, string>>, probes: readonly Probe[], width: number, height: number, backend: BackendSpec | undefined, options: RunOptions): Promise<CheckResult> {
   const token = `t-${Math.random().toString(36).slice(2)}`
   const document = sandboxDocument(files, { token, probes, backend, record: options.record, count: options.count, performance: options.performance, logs: options.logs })
-  const raw = await page.evaluate(async ({ html, style, token, profile }) => {
+  const raw = await page.evaluate(async ({ html, style, token, profile, hello }) => {
     const messages: unknown[] = []
     const frame = window.document.createElement('iframe')
     frame.setAttribute('sandbox', 'allow-scripts')
     Object.assign(frame.style, style)
-    const seen = (type: string) => new Promise<void>((resolve) => {
-      window.addEventListener('message', (event) => {
-        if (event.source === frame.contentWindow && (event.data as { type?: string })?.type === type) resolve()
-      })
-    })
-    window.addEventListener('message', (event) => {
-      if (event.source === frame.contentWindow) messages.push(event.data)
-    })
+    // as the page does (bridgeLink): the load's messages come over the port its bridge's first message hands over
+    const waiting: { type: string, resolve: () => void }[] = []
+    const seen = (type: string) => new Promise<void>(resolve => waiting.push({ type, resolve }))
+    let toBridge: MessagePort | null = null
+    const onHello = (event: MessageEvent) => {
+      const data = event.data as { type?: unknown, token?: unknown } | null
+      if (toBridge || event.source !== frame.contentWindow || data?.type !== hello || data.token !== token || event.ports.length !== 2) return
+      const [up, down] = event.ports as [MessagePort, MessagePort]
+      toBridge = down
+      up.onmessage = (message: MessageEvent) => {
+        messages.push(message.data)
+        const type = (message.data as { type?: unknown } | null)?.type
+        for (const each of waiting) if (each.type === type) each.resolve()
+      }
+    }
+    window.addEventListener('message', onHello)
     const done = seen('done')
     const profiled = seen('profile')
     frame.srcdoc = html
@@ -57,13 +65,14 @@ async function runFrame(page: Page, files: Readonly<Record<string, string>>, pro
     await Promise.race([done, new Promise(resolve => setTimeout(resolve, 5000))])
     if (profile) {
       // Stop, as the Performance panel's button does: the profile comes once
-      frame.contentWindow?.postMessage({ grindstone: token, type: 'recordStop' }, '*')
+      ;(toBridge as MessagePort | null)?.postMessage({ type: 'recordStop' })
       await Promise.race([profiled, new Promise(resolve => setTimeout(resolve, 2000))])
     }
+    window.removeEventListener('message', onHello)
     frame.remove()
     return messages
-  }, { html: document.html, style: checkFrameStyle(width, height), token, profile: options.count === 'profile' })
-  const messages = raw.map(data => readBridgeMessage(data, token)).filter((message): message is BridgeMessage => message !== null)
+  }, { html: document.html, style: checkFrameStyle(width, height), token, profile: options.count === 'profile', hello: BRIDGE_HELLO })
+  const messages = raw.map(data => readBridgeMessage(data)).filter((message): message is BridgeMessage => message !== null)
   const urls = messages.find(message => message.type === 'files')
   const mapping = { urls: urls?.type === 'files' ? urls.urls : {}, bridgeLine: document.bridgeLine }
   let requests: NetworkEntry[] = []

@@ -62,8 +62,8 @@ describe('readProfile', () => {
     expect(read.actions[1]!.renders[0]).toEqual({ fn: 1, renders: 1, nodes: 50 })
     expect(read.requests.at(-1)).toEqual({ id: 4, start: 700, end: null })
     // through the bridge's reader, with this load's token
-    expect(readBridgeMessage({ ...RAW, grindstone: 't' }, 't')).toEqual({ type: 'profile', profile: read })
-    expect(readBridgeMessage({ type: 'profileTick', work: 1024, actions: 2, grindstone: 't' }, 't')).toEqual({ type: 'profileTick', work: 1024, actions: 2 })
+    expect(readBridgeMessage(RAW)).toEqual({ type: 'profile', profile: read })
+    expect(readBridgeMessage({ type: 'profileTick', work: 1024, actions: 2 })).toEqual({ type: 'profileTick', work: 1024, actions: 2 })
   })
 
   it('cuts long texts', () => {
@@ -93,8 +93,8 @@ describe('readProfile', () => {
       { ...RAW, requests: Array.from({ length: PROFILE_LIMITS.maxRequests + 1 }, (_, i) => [i, 0, 1]) }
     ]
     for (const raw of broken) expect(readProfile(raw as Record<string, unknown>), JSON.stringify(raw).slice(0, 80)).toBeNull()
-    expect(readBridgeMessage({ type: 'profileTick', work: -1, actions: 1, grindstone: 't' }, 't')).toBeNull()
-    expect(readBridgeMessage({ type: 'profile', grindstone: 't' }, 't')).toBeNull()
+    expect(readBridgeMessage({ type: 'profileTick', work: -1, actions: 1 })).toBeNull()
+    expect(readBridgeMessage({ type: 'profile' })).toBeNull()
   })
 
   it('refuses a request id sent twice or more ids than the recorder keeps, quickly; the largest real profile stays quick to show', () => {

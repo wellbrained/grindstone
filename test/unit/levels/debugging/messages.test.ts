@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { consoleEntry, mergeObservations, observe, readBridgeMessage } from '../../../../shared/levels/debugging/messages'
+import { BRIDGE_HELLO, consoleEntry, isBridgeHello, mergeObservations, observe, readBridgeMessage } from '../../../../shared/levels/debugging/messages'
 import type { BridgeMessage } from '../../../../shared/levels/debugging/messages'
 
 // Messages as the bridge posts them (recorded from Chromium, e2e/debugging-levels.spec.ts checks the real thing).
@@ -22,35 +22,52 @@ const typeError: BridgeMessage = {
 }
 const syntaxError: BridgeMessage = { type: 'error', kind: 'error', name: 'SyntaxError', message: 'Unexpected token \'export\'', stack: 'SyntaxError: Unexpected token \'export\'', url: CART, line: 20, column: 1 }
 
+// The bridge's first message hands the page the load's ports (with the token); everything after it comes over the port.
+describe('isBridgeHello', () => {
+  it('is the hello of the load with this token only', () => {
+    expect(BRIDGE_HELLO).toBe('grindstone:bridge')
+    expect(isBridgeHello({ type: BRIDGE_HELLO, token }, token)).toBe(true)
+    expect(isBridgeHello({ type: BRIDGE_HELLO, token: 'tok-old' }, token)).toBe(false)
+    expect(isBridgeHello({ type: BRIDGE_HELLO }, token)).toBe(false)
+    expect(isBridgeHello({ type: 'ready', token }, token)).toBe(false)
+    expect(isBridgeHello({ type: BRIDGE_HELLO, token: { toString: () => token } }, token)).toBe(false)
+    expect(isBridgeHello(BRIDGE_HELLO, token)).toBe(false)
+    expect(isBridgeHello(null, token)).toBe(false)
+  })
+
+  it('is no message of the load: the hello itself is never read as one', () => {
+    expect(readBridgeMessage({ type: BRIDGE_HELLO, token })).toBeNull()
+  })
+})
+
 describe('readBridgeMessage', () => {
-  it('takes a well-formed message that carries this load\'s token, without the token', () => {
-    expect(readBridgeMessage({ ...typeError, grindstone: token }, token)).toEqual(typeError)
-    expect(readBridgeMessage({ type: 'ready', grindstone: token }, token)).toEqual({ type: 'ready' })
-    expect(readBridgeMessage({ type: 'probe', id: 'badge', ok: true, value: '1', error: null, grindstone: token }, token))
+  it('takes a well-formed message as plain data, leaving out anything else it carries', () => {
+    expect(readBridgeMessage(typeError)).toEqual(typeError)
+    expect(readBridgeMessage({ ...typeError, grindstone: 'old', extra: '<b>' })).toEqual(typeError)
+    expect(readBridgeMessage({ type: 'ready' })).toEqual({ type: 'ready' })
+    expect(readBridgeMessage({ type: 'probe', id: 'badge', ok: true, value: '1', error: null }))
       .toEqual({ type: 'probe', id: 'badge', ok: true, value: '1', error: null })
-    expect(readBridgeMessage({ type: 'result', id: 3, ok: true, value: '{items: Array(0)}', grindstone: token }, token))
+    expect(readBridgeMessage({ type: 'result', id: 3, ok: true, value: '{items: Array(0)}' }))
       .toEqual({ type: 'result', id: 3, ok: true, value: '{items: Array(0)}' })
   })
 
-  it('ignores anything else: another load\'s token, no token, other shapes, wrong field types', () => {
-    expect(readBridgeMessage({ ...typeError, grindstone: 'old' }, token)).toBeNull()
-    expect(readBridgeMessage({ type: 'ready' }, token)).toBeNull()
-    expect(readBridgeMessage('ready', token)).toBeNull()
-    expect(readBridgeMessage(null, token)).toBeNull()
-    expect(readBridgeMessage({ type: 'navigate', grindstone: token }, token)).toBeNull()
-    expect(readBridgeMessage({ type: 'console', level: 'table', args: [], stack: '', grindstone: token }, token)).toBeNull()
-    expect(readBridgeMessage({ type: 'console', level: 'log', args: [{ html: '<b>' }], stack: '', grindstone: token }, token)).toBeNull()
-    expect(readBridgeMessage({ type: 'error', kind: 'error', name: 1, message: 'x', stack: null, url: null, line: null, column: null, grindstone: token }, token)).toBeNull()
-    expect(readBridgeMessage({ type: 'probe', id: 'x', ok: true, value: { no: 1 }, error: null, grindstone: token }, token)).toBeNull()
+  it('ignores anything else: other shapes, wrong field types', () => {
+    expect(readBridgeMessage('ready')).toBeNull()
+    expect(readBridgeMessage(null)).toBeNull()
+    expect(readBridgeMessage({ type: 'navigate' })).toBeNull()
+    expect(readBridgeMessage({ type: 'console', level: 'table', args: [], stack: '' })).toBeNull()
+    expect(readBridgeMessage({ type: 'console', level: 'log', args: [{ html: '<b>' }], stack: '' })).toBeNull()
+    expect(readBridgeMessage({ type: 'error', kind: 'error', name: 1, message: 'x', stack: null, url: null, line: null, column: null })).toBeNull()
+    expect(readBridgeMessage({ type: 'probe', id: 'x', ok: true, value: { no: 1 }, error: null })).toBeNull()
   })
 
   it('keeps only blob URLs in the file list', () => {
-    expect(readBridgeMessage({ type: 'files', urls: { [APP]: 'app.js', 'https://evil.example/x.js': 'cart.js' }, grindstone: token }, token))
+    expect(readBridgeMessage({ type: 'files', urls: { [APP]: 'app.js', 'https://evil.example/x.js': 'cart.js' } }))
       .toEqual({ type: 'files', urls: { [APP]: 'app.js' } })
   })
 
   it('cuts very long texts and very many console arguments', () => {
-    const read = readBridgeMessage({ type: 'console', level: 'log', args: Array.from({ length: 80 }, () => 'x'.repeat(20000)), stack: '', grindstone: token }, token)
+    const read = readBridgeMessage({ type: 'console', level: 'log', args: Array.from({ length: 80 }, () => 'x'.repeat(20000)), stack: '' })
     expect(read?.type === 'console' && read.args).toHaveLength(50)
     expect(read?.type === 'console' && read.args[0]!.length).toBeLessThanOrEqual(10001)
   })
@@ -163,15 +180,15 @@ describe('the fake backend\'s messages', () => {
   const netlog = { type: 'netlog', text: 'GET https://cornerbakery.shop/api/products 404 (Not Found)', stack: sentFrom }
 
   it('reads a request, its answer and the browser\'s line for it', () => {
-    expect(readBridgeMessage({ ...request, grindstone: token }, token)).toEqual(request)
-    expect(readBridgeMessage({ ...response, grindstone: token }, token)).toEqual(response)
-    expect(readBridgeMessage({ ...netlog, grindstone: token }, token)).toEqual(netlog)
+    expect(readBridgeMessage(request)).toEqual(request)
+    expect(readBridgeMessage(response)).toEqual(response)
+    expect(readBridgeMessage(netlog)).toEqual(netlog)
     const cors = { ...response, status: null, statusText: '', headers: [], body: null, failure: 'cors' }
-    expect(readBridgeMessage({ ...cors, grindstone: token }, token)).toEqual(cors)
+    expect(readBridgeMessage(cors)).toEqual(cors)
   })
 
   it('refuses malformed ones: a made-up failure, headers that are not pairs of text, a status that is not one, a method that is not a word', () => {
-    const read = (message: object) => readBridgeMessage({ ...message, grindstone: token }, token)
+    const read = (message: object) => readBridgeMessage(message)
     expect(read({ ...response, failure: 'teapot' })).toBeNull()
     expect(read({ ...response, headers: [['a']] })).toBeNull()
     expect(read({ ...response, headers: [['a', 1]] })).toBeNull()
@@ -185,7 +202,7 @@ describe('the fake backend\'s messages', () => {
   })
 
   it('caps the headers it keeps', () => {
-    const many = readBridgeMessage({ ...request, headers: Array.from({ length: 80 }, (_, index) => [`x-${index}`, 'v']), grindstone: token }, token)
+    const many = readBridgeMessage({ ...request, headers: Array.from({ length: 80 }, (_, index) => [`x-${index}`, 'v']) })
     expect(many?.type === 'request' && many.headers).toHaveLength(50)
   })
 
@@ -203,7 +220,7 @@ describe('the fake backend\'s messages', () => {
 })
 
 describe('the Elements panel\'s messages', () => {
-  const read = (message: object) => readBridgeMessage({ ...message, grindstone: token }, token)
+  const read = (message: object) => readBridgeMessage(message)
   const nodes = [
     { id: 0, parent: -1, tag: 'html', attrs: [['lang', 'en']], text: null, shown: true, overflows: false },
     { id: 1, parent: 0, tag: 'body', attrs: [], text: null, shown: true, overflows: false },
@@ -269,16 +286,14 @@ describe('the Elements panel\'s messages', () => {
 describe('reading a recording\'s messages (chapter 5)', () => {
   it('reads a batch of steps and the end of a recording, and drops what is malformed', () => {
     const step = [3, 7, [[7, 2, 3]], -1, [{ t: 'number', v: 4.8 }]]
-    expect(readBridgeMessage({ type: 'steps', steps: [step], grindstone: token }, token)).toEqual({
+    expect(readBridgeMessage({ type: 'steps', steps: [step] })).toEqual({
       type: 'steps',
       steps: [{ point: 3, inv: 7, frames: [{ inv: 7, fn: 2, point: 3, async: false }], values: [{ t: 'number', v: 4.8 }] }]
     })
-    expect(readBridgeMessage({ type: 'recordEnd', reason: 'steps', count: 2000, grindstone: token }, token)).toEqual({ type: 'recordEnd', reason: 'steps', count: 2000 })
+    expect(readBridgeMessage({ type: 'recordEnd', reason: 'steps', count: 2000 })).toEqual({ type: 'recordEnd', reason: 'steps', count: 2000 })
     for (const bad of [{ type: 'steps', steps: [[3]] }, { type: 'steps', steps: 'many' }, { type: 'recordEnd', reason: 'bored', count: 1 }, { type: 'recordEnd', reason: 'stopped', count: -1 }]) {
-      expect(readBridgeMessage({ ...bad, grindstone: token }, token)).toBeNull()
+      expect(readBridgeMessage(bad)).toBeNull()
     }
-    // another load's steps are not this one's
-    expect(readBridgeMessage({ type: 'steps', steps: [step], grindstone: 'other' }, token)).toBeNull()
   })
 
   it('leaves steps out of the Console and the check run', () => {
@@ -292,13 +307,13 @@ describe('the server\'s log messages (chapter 7)', () => {
   const log = { type: 'serverlog', id: 2, route: 1, answer: 0, status: 500, at: 200, time: 120 }
 
   it('reads the numbers of a serverlog, and nothing else of it', () => {
-    expect(readBridgeMessage({ ...log, grindstone: token }, token)).toEqual(log)
-    expect(readBridgeMessage({ ...log, route: -1, answer: -1, message: 'forged text', grindstone: token }, token)).toEqual({ ...log, route: -1, answer: -1 })
+    expect(readBridgeMessage(log)).toEqual(log)
+    expect(readBridgeMessage({ ...log, route: -1, answer: -1, message: 'forged text' })).toEqual({ ...log, route: -1, answer: -1 })
   })
 
   it('refuses one whose numbers are not whole numbers in range', () => {
     for (const bad of [{ id: -1 }, { id: 1.5 }, { route: -2 }, { answer: 'x' }, { status: 1000 }, { at: 1e10 }, { time: Number.NaN }, { route: 1e7 }]) {
-      expect(readBridgeMessage({ ...log, ...bad, grindstone: token }, token), JSON.stringify(bad)).toBeNull()
+      expect(readBridgeMessage({ ...log, ...bad }), JSON.stringify(bad)).toBeNull()
     }
   })
 

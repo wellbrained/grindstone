@@ -1,7 +1,10 @@
 // What the bridge in the sealed frame posts, read on Grindstone's side (docs/features/ui.md, "Sandbox and bridge").
-// Everything from the frame is untrusted: `readBridgeMessage` keeps only well-formed messages of the current load (its
-// token) and only plain strings and numbers; the page shows them as text, never as HTML. From the messages come the
-// Console's entries (`consoleEntry`) and what a check run saw (`observe`), which the goals read. Pure: no DOM.
+// The bridge talks to the page over a port of its own, which it hands over in its first message (`isBridgeHello`, with
+// the load's token) before any of the app's code runs, so the page reads a load's messages from that port only and
+// nothing else in the frame can post them. Everything from the frame is still untrusted: `readBridgeMessage` keeps
+// only well-formed messages and only plain strings and numbers; the page shows them as text, never as HTML. From the
+// messages come the Console's entries (`consoleEntry`) and what a check run saw (`observe`), which the goals read.
+// Pure: no DOM.
 import { MAX_CSS_RULES } from './css'
 import { MAX_DOM_NODES } from './elements'
 import type { BoxModel, DomNode, Inspected, InspectedLevel, InspectedMatch, ScrollSize, Sides } from './elements'
@@ -234,11 +237,20 @@ function inspectedMessage(raw: Record<string, unknown>): InspectedMessage | null
   return { type: 'inspected', seq, node, found: raw.found, chain: chain as InspectedLevel[], invalid, box, computed, scroll }
 }
 
-/** The message as plain data when it is a well-formed bridge message of this load; null for anything else. */
-export function readBridgeMessage(data: unknown, token: string): BridgeMessage | null {
+/** What the bridge's first message says (it carries the ports the load's messages come over). */
+export const BRIDGE_HELLO = 'grindstone:bridge'
+
+/** The bridge's first message of the load with this token: the page takes its two ports (to the page, to the bridge). */
+export function isBridgeHello(data: unknown, token: string): boolean {
+  if (typeof data !== 'object' || data === null) return false
+  const raw = data as Record<string, unknown>
+  return raw.type === BRIDGE_HELLO && typeof raw.token === 'string' && raw.token === token
+}
+
+/** The message as plain data when it is a well-formed bridge message (read from the load's own port); null for anything else. */
+export function readBridgeMessage(data: unknown): BridgeMessage | null {
   if (typeof data !== 'object' || data === null) return null
   const raw = data as Record<string, unknown>
-  if (raw.grindstone !== token) return null
   switch (raw.type) {
     case 'files': {
       if (typeof raw.urls !== 'object' || raw.urls === null) return null

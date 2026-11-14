@@ -62,7 +62,7 @@ export { deployVerdict, editedText, pickDeploy, pickLine, pickVerdict, playSolut
 export { LOG_LEVELS, MAX_LOG_HISTORY, MAX_LOG_LINES, accessLevel, checkLogs, clockText, filterLogs, historyEntries, liveEntries, requestLabel } from './debugging/logs'
 export { MAX_DEPLOYS, deployById, deployChanges, deployHistory, differingPaths, filesBefore, lineIn, liveFiles, versionOf } from './debugging/deploys'
 export { isDebugLevel } from './debugging/types'
-export { consoleEntry, mergeObservations, observe, readBridgeMessage } from './debugging/messages'
+export { BRIDGE_HELLO, consoleEntry, isBridgeHello, mergeObservations, observe, readBridgeMessage } from './debugging/messages'
 export { mapFrames, parseStack, sourceOf } from './debugging/trace'
 export { CHECK_VIEWPORT, SANDBOX_CSP, SHOP_ORIGIN, checkFrames, sandboxDocument } from './debugging/sandbox'
 export { MAX_CSS_RULES, compareSpecificity, cssRules, isInherited, longhandsOf, parseCss, parseDeclarations, specificity, splitSelectorList, styleSheets } from './debugging/css'

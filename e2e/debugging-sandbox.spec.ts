@@ -35,7 +35,7 @@ test('the app cannot reach Grindstone\'s storage, page or the network', async ({
 
 // A level with a scripted backend (chapter 2): its fetch is answered inside the frame, so no request ever reaches a
 // server, not the shop's, not any other; anything that is not fetch is still refused by the frame's policy.
-test('a level\'s fake backend answers inside the frame: nothing leaves it', async ({ page }) => {
+test('a level\'s fake backend answers inside the frame: nothing leaves it', async ({ page, browserName }) => {
   // what reached a server (a response came back), and how the browser stopped the rest
   const outside: string[] = []
   const stopped: string[] = []
@@ -60,6 +60,24 @@ test('a level\'s fake backend answers inside the frame: nothing leaves it', asyn
   await expect(log).toContainText('GET https://example.com/ net::ERR_NAME_NOT_RESOLVED')
   await run('new Image().src = "https://example.com/pixel.png"')
   await expect(log).toContainText('Refused to load')
+  // what proves nothing left the frame: no request reached a server, and the frame said it refused the image. Only
+  // Chromium also reports a policy-blocked image to Playwright as a failed request ('csp'); Firefox and WebKit don't.
   expect(outside).toEqual([])
-  expect(stopped).toEqual(['csp'])
+  if (browserName === 'chromium') expect(stopped).toEqual(['csp'])
+  else expect(stopped.every(reason => reason === 'csp')).toBe(true)
+})
+
+// The app reloads itself (here from the Console): the reloaded page's bridge says hello again, so the Console keeps
+// answering instead of going dead until the player presses Reload (a regression of 0.3.1's bridge link, review).
+test('the panels keep working after the app reloads itself', async ({ page }) => {
+  await page.goto('/debugging/06-menu-wont-load')
+  const log = page.getByTestId('console-log')
+  await expect(log).toContainText('GET https://cornerbakery.shop/api/products 404 (Not Found)')
+  const input = page.getByTestId('console-input')
+  await input.fill('location.reload()')
+  await input.press('Enter')
+  await page.waitForTimeout(800)
+  await input.fill('6 * 9')
+  await input.press('Enter')
+  await expect(log.locator('[data-level="result"]').last()).toHaveText(/54/)
 })

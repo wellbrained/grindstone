@@ -219,14 +219,25 @@ test('Undo roll back is gone once you save on top of the rollback: it never thro
   await expect(page.getByTestId('deploys-saved')).toContainText('none of these versions')
 })
 
-test('drops a second server report for a request it already logged (review 2026-11-13)', async ({ page }) => {
-  // the page's own record of the reports that arrive (the top window only)
+test('drops a second server report for a request it already logged; the app\'s code can\'t send one (review 2026-11-13)', async ({ page }) => {
+  // the page's own record of the reports that arrive over the load's port (the top window only), and a way to hand the
+  // page's port handler a message again, as a second report from the bridge would arrive
   await page.addInitScript(() => {
     if (window !== window.top) return
     const reports: unknown[] = []
-    Object.assign(window, { gsReports: reports })
-    window.addEventListener('message', (event) => {
-      if ((event.data as { type?: unknown } | null)?.type === 'serverlog') reports.push(event.data)
+    let deliver: ((data: unknown) => void) | null = null
+    Object.assign(window, { gsReports: reports, gsDeliver: (data: unknown) => deliver?.(data) })
+    const property = Object.getOwnPropertyDescriptor(MessagePort.prototype, 'onmessage')!
+    Object.defineProperty(MessagePort.prototype, 'onmessage', {
+      ...property,
+      set(handler: ((event: MessageEvent) => void) | null) {
+        const wrapped = handler && ((event: MessageEvent) => {
+          if ((event.data as { type?: unknown } | null)?.type === 'serverlog') reports.push(event.data)
+          handler(event)
+        })
+        if (handler) deliver = data => handler({ data } as MessageEvent)
+        property.set!.call(this, wrapped)
+      }
     })
   })
   await page.goto('/debugging/31-checkout-errors')
@@ -234,19 +245,17 @@ test('drops a second server report for a request it already logged (review 2026-
   const before = await lines(page).count()
   const report = await page.evaluate(() => (window as unknown as { gsReports: unknown[] }).gsReports.at(-1))
   expect(report).toMatchObject({ type: 'serverlog' })
-  // the app's own code can read its load's token from the bridge's script, so it can send that report again
-  await page.evaluate(() => {
-    Object.assign(window, {
-      gsNext: new Promise<void>(resolve => window.addEventListener('message', (event) => {
-        if ((event.data as { type?: unknown } | null)?.type === 'serverlog') requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
-      }))
-    })
-  })
+  // the app's own code finds no token on its page, and what it posts to the page is never read, token or not
   const frame = await (await page.getByTestId('app-frame').elementHandle())!.contentFrame()
-  await frame!.evaluate((copy) => {
-    const token = /\{"token":"([^"]+)"/.exec([...document.scripts].map(script => script.textContent).join('\n'))?.[1]
-    parent.postMessage({ ...(copy as object), grindstone: token }, '*')
+  const token = await frame!.evaluate((copy) => {
+    const found = /"token":"([^"]+)"/.exec(document.documentElement.outerHTML)?.[1] ?? null
+    parent.postMessage({ ...(copy as object), grindstone: found }, '*')
+    parent.postMessage({ ...(copy as object), grindstone: 'any' }, '*')
+    return found
   }, report)
-  await page.evaluate(() => (window as unknown as { gsNext: Promise<void> }).gsNext)
+  expect(token).toBeNull()
+  // the same report again over the load's own port is dropped too
+  await page.evaluate(copy => (window as unknown as { gsDeliver: (data: unknown) => void }).gsDeliver(copy), report)
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))
   await expect(lines(page)).toHaveCount(before)
 })

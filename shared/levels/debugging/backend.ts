@@ -148,7 +148,24 @@ export const BACKEND_SOURCE = String.raw`(function (config, hooks) {
   var routes = config.routes;
   var calls = routes.map(function () { return 0; });
   var hosts = [origin].concat(routes.map(function (route) { return new URL(route.where).origin; }));
-  var sent = [];
+  /* What the probes read (requests and sent: where each request went, what it sent) is kept and read with the built-ins
+     taken here, when the backend is made (before any of the app's code runs in the frame), in an object without a
+     prototype: a built-in the app replaced later can't change what they count or read. */
+  var FP = Function.prototype;
+  var uncurry = FP.bind.bind(FP.call);
+  var NativeURL = URL;
+  var originOf = uncurry(Object.getOwnPropertyDescriptor(NativeURL.prototype, 'origin').get);
+  var pathOf = uncurry(Object.getOwnPropertyDescriptor(NativeURL.prototype, 'pathname').get);
+  var upperCase = uncurry(String.prototype.toUpperCase);
+  var indexOfText = uncurry(String.prototype.indexOf);
+  var sliceText = uncurry(String.prototype.slice);
+  var hasOwn = uncurry(Object.prototype.hasOwnProperty);
+  var parseJson = JSON.parse;
+  var stringify = JSON.stringify;
+  var keysOf = Object.keys;
+  var isArray = Array.isArray;
+  var sent = Object.create(null);
+  var sentCount = 0;
   var pending = 0;
   var nextId = 1;
   var logs = config.logs || null;
@@ -159,10 +176,10 @@ export const BACKEND_SOURCE = String.raw`(function (config, hooks) {
   var SIMPLE_TYPES = ['application/x-www-form-urlencoded', 'multipart/form-data', 'text/plain'];
   var OPAQUE = " If an opaque response serves your needs, set the request's mode to 'no-cors' to fetch the resource with CORS disabled.";
 
-  var placeOf = function (method, url) { return method.toUpperCase() + ' ' + url.origin + url.pathname; };
+  var placeOf = function (method, url) { return upperCase(method) + ' ' + originOf(url) + pathOf(url); };
   var keyOf = function (key) {
-    var space = key.indexOf(' ');
-    return placeOf(key.slice(0, space), new URL(key.slice(space + 1), origin + '/'));
+    var space = indexOfText(key, ' ');
+    return placeOf(sliceText(key, 0, space), new NativeURL(sliceText(key, space + 1), origin + '/'));
   };
   var parses = function (input) {
     try { new URL(String(input), origin + '/'); return true; } catch (error) { return false; }
@@ -258,7 +275,7 @@ export const BACKEND_SOURCE = String.raw`(function (config, hooks) {
       var message = error && error.message ? String(error.message).replace("Failed to construct 'Request': ", '') : String(error);
       return Promise.reject(new TypeError(FETCH + message));
     }
-    var url = new URL(request.url);
+    var url = new NativeURL(request.url);
     var href = url.href;
     var method = request.method;
     var body = init && init.body !== undefined && init.body !== null ? bodyText(init.body) : null;
@@ -267,7 +284,8 @@ export const BACKEND_SOURCE = String.raw`(function (config, hooks) {
     var noCors = request.mode === 'no-cors';
     var preflight = cross && !noCors && (SIMPLE_METHODS.indexOf(method) < 0 || headers.some(notSimple));
     var id = nextId++;
-    sent.push({ place: placeOf(method, url), body: body });
+    sent[sentCount] = { place: placeOf(method, url), body: body };
+    sentCount += 1;
     hooks.post({ type: 'request', id: id, method: method, url: href, headers: headers, body: body, stack: stack });
     var found = answerFor(method, url, body);
     var answer = found.answer;
@@ -286,17 +304,15 @@ export const BACKEND_SOURCE = String.raw`(function (config, hooks) {
     return new Promise(function (resolve, reject) {
       var open = true;
       var timer = null;
-      var report = function (fields) {
-        fields.type = 'response';
-        fields.id = id;
-        fields.time = Math.max(0, Math.round(hooks.now() - started));
-        hooks.post(fields);
+      /* a message is made whole, never changed afterwards */
+      var report = function (status, statusText, headers, body, failure) {
+        hooks.post({ type: 'response', id: id, status: status, statusText: statusText, headers: headers, body: body, failure: failure, time: Math.max(0, Math.round(hooks.now() - started)) });
       };
       var netlog = function (text, at) { hooks.post({ type: 'netlog', text: text, stack: at }); };
       var onAbort = function () {
         if (!close()) return;
         if (hooks.aborted) hooks.aborted(id);
-        report({ status: null, statusText: '', headers: [], body: null, failure: 'aborted' });
+        report(null, '', [], null, 'aborted');
         reject(signal.reason !== undefined ? signal.reason : new DOMException('signal is aborted without reason', 'AbortError'));
       };
       var close = function () {
@@ -315,7 +331,7 @@ export const BACKEND_SOURCE = String.raw`(function (config, hooks) {
         if (logged) hooks.post({ type: 'serverlog', id: id, route: found.route, answer: found.index, status: answer.status, at: at, time: answer.delay });
         if (answer.fail) {
           netlog(method + ' ' + href + ' ' + answer.error, stack);
-          report({ status: null, statusText: '', headers: [], body: null, failure: 'network' });
+          report(null, '', [], null, 'network');
           reject(failed);
           return;
         }
@@ -324,11 +340,11 @@ export const BACKEND_SOURCE = String.raw`(function (config, hooks) {
         if (problem) {
           netlog(problem, '');
           netlog(method + ' ' + href + ' net::ERR_FAILED' + (preflight ? '' : ' ' + answer.status + ' (' + answer.statusText + ')'), stack);
-          report({ status: preflight ? null : answer.status, statusText: preflight ? '' : answer.statusText, headers: preflight ? [] : headerPairs, body: null, failure: 'cors' });
+          report(preflight ? null : answer.status, preflight ? '' : answer.statusText, preflight ? [] : headerPairs, null, 'cors');
           reject(failed);
           return;
         }
-        report({ status: answer.status, statusText: answer.statusText, headers: headerPairs, body: answer.body, failure: null });
+        report(answer.status, answer.statusText, headerPairs, answer.body, null);
         if (answer.status >= 400) netlog(method + ' ' + href + ' ' + answer.status + ' (' + answer.statusText + ')', stack);
         resolve(cross && noCors ? opaqueResponse() : toResponse(answer, answerHeaders, href, cross ? 'cors' : 'basic'));
       };
@@ -338,29 +354,50 @@ export const BACKEND_SOURCE = String.raw`(function (config, hooks) {
     });
   };
 
+  /* JSON text of a parsed value, as JSON.stringify writes it, without asking anything for a toJSON. */
+  var jsonText = function (value) {
+    if (value === null || typeof value !== 'object') return stringify(value);
+    var text = '';
+    var i;
+    if (isArray(value)) {
+      for (i = 0; i < value.length; i++) text += (i ? ',' : '') + jsonText(value[i]);
+      return '[' + text + ']';
+    }
+    var keys = keysOf(value);
+    for (i = 0; i < keys.length; i++) text += (i ? ',' : '') + stringify(keys[i]) + ':' + jsonText(value[keys[i]]);
+    return '{' + text + '}';
+  };
   var readPath = function (text, path) {
     var value;
-    try { value = JSON.parse(text); } catch (error) { return null; }
-    var parts = path.split('.');
-    for (var i = 0; i < parts.length; i++) {
-      if (value === null || typeof value !== 'object' || !Object.prototype.hasOwnProperty.call(value, parts[i])) return null;
-      value = value[parts[i]];
+    try { value = parseJson(text); } catch (error) { return null; }
+    for (var from = 0; ;) {
+      var dot = indexOfText(path, '.', from);
+      var part = dot < 0 ? sliceText(path, from) : sliceText(path, from, dot);
+      if (value === null || typeof value !== 'object' || !hasOwn(value, part)) return null;
+      value = value[part];
+      if (dot < 0) break;
+      from = dot + 1;
     }
     if (value === null || typeof value === 'string' || typeof value === 'number') return value;
-    return JSON.stringify(value);
+    return jsonText(value);
+  };
+  /* The requests sent to a place so far, oldest first. */
+  var sentTo = function (key, each) {
+    var place = keyOf(key);
+    for (var i = 0; i < sentCount; i++) if (sent[i].place === place) each(sent[i]);
   };
 
   return {
     fetch: fetch,
     pending: function () { return pending; },
     count: function (key) {
-      var place = keyOf(key);
-      return sent.filter(function (each) { return each.place === place; }).length;
+      var count = 0;
+      sentTo(key, function () { count += 1; });
+      return count;
     },
     sent: function (key, path) {
-      var place = keyOf(key);
       var last = null;
-      sent.forEach(function (each) { if (each.place === place) last = each; });
+      sentTo(key, function (each) { last = each; });
       if (!last || last.body === null) return null;
       return path ? readPath(last.body, path) : last.body;
     }

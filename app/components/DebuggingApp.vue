@@ -4,14 +4,15 @@ import type { DebuggingPlaySession } from '~/composables/useDebuggingPlay'
 
 // Debugging's App panel (docs/features/ui.md, "Sandbox and bridge"): a slim address bar, Reload, and the level's app in
 // a sealed iframe (sandbox="allow-scripts" only: an opaque origin, so it can't read Grindstone's storage, cookies or
-// DOM). Only messages from this iframe reach the play page, which still checks each one (its load's token, its shape).
+// DOM). The play page takes only this iframe's bridge's first message (its load's token), and from then on reads the
+// load from the port the bridge handed over, checking each message's shape.
 // In levels with the Elements panel the header shows the app's width (media queries hold by it), and pick mode says
 // what the next click does. While the Debugger records (chapter 5) or the Performance panel counts (chapter 6) a line
 // says so, with Stop.
 const props = defineProps<{ play: DebuggingPlaySession }>()
 
 const { t } = useI18n()
-const { level, load, checking, stale, hasNetwork, hasElements, picking, setPicking, reloadApp, onFrameMessage, connectFrame, recordStatus, stepCount, stopRecording, profileStatus, profileWork, stopProfile } = props.play
+const { level, load, checking, stale, hasNetwork, hasElements, picking, setPicking, reloadApp, onFrameEvent, connectFrame, recordStatus, stepCount, stopRecording, profileStatus, profileWork, stopProfile } = props.play
 
 /** A recording is on (the Debugger's steps, or the Performance panel's count), and what its banner counts. */
 const counting = computed(() => profileStatus.value === 'recording' || profileStatus.value === 'stopping')
@@ -29,9 +30,8 @@ useEventListener(window, 'keydown', (event: KeyboardEvent) => {
   if (picking.value && event.key === 'Escape') setPicking(false)
 })
 
-useEventListener(window, 'message', (event: MessageEvent) => {
-  if (frame.value && event.source === frame.value.contentWindow) onFrameMessage(event.data)
-})
+// the load's link takes its bridge's hello from this iframe only
+useEventListener(window, 'message', (event: MessageEvent) => onFrameEvent(event))
 
 const address = `${SHOP_ORIGIN.replace(/^https:\/\//, '').replace(/\/$/, '')}${level.sandbox.page}`
 </script>
