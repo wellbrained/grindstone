@@ -125,7 +125,13 @@ export interface RunSpec {
   page: string
   /** The file whose trace links matter most (the run's own editor never shows; it names the file a Console link opens). */
   open: string
+  /**
+   * The shop's server as the pull request leaves it, scripted (the fake backend; Run the PR then has the Network panel).
+   * When the pull request changes the server's code too (chapter 5, `server/…` files), it answers as that code would.
+   */
   backend?: BackendSpec
+  /** main's server, when the pull request changes what it answers (a route it adds); without it main runs on `backend` too. */
+  baseBackend?: BackendSpec
 }
 
 /** What a review level adds to the shared level fields. */

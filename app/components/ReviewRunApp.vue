@@ -7,7 +7,9 @@ import type { RunSide } from '~/utils/review-run'
 // goals, nothing recorded). A new instance per side, so switching starts the app from scratch. A file:line link in the
 // Console (which opens Code in the Debugging track) is handed up: Run the PR shows that line in the diff. A pull request
 // with test files (chapter 3) also has the Tests panel (`tests`: the files its tests run on, this side's), as a tab
-// before the Console, open first; it runs its tests when it opens.
+// before the Console, open first; it runs its tests when it opens. One that makes requests (a fake backend, chapter 5)
+// also has the Network panel, as a tab after the Console: what the page sent and what came back, as text; its Sent from
+// link shows the line in the diff like a Console link.
 const props = defineProps<{
   level: DebugLevel
   side: RunSide
@@ -22,8 +24,9 @@ watch(play.mark, (mark) => {
   if (mark) emit('line', { path: mark.path, line: mark.line })
 })
 
-type Lower = 'tests' | 'console'
-const LOWER: Lower[] = props.tests ? ['tests', 'console'] : ['console']
+type Lower = 'tests' | 'console' | 'network'
+const LOWER: Lower[] = [...(props.tests ? ['tests' as const] : []), 'console', ...(props.level.sandbox.backend ? ['network' as const] : [])]
+const TAB_LABEL: Record<Lower, string> = { tests: 'review.tests.label', console: 'debugging.panel.console', network: 'debugging.panel.network' }
 const lower = ref<Lower>(LOWER[0]!)
 const tabList = useTemplateRef<HTMLElement>('tabList')
 
@@ -58,7 +61,7 @@ function onTabKey(event: KeyboardEvent) {
       v-if="LOWER.length > 1"
       ref="tabList"
       role="tablist"
-      :aria-label="t('review.tests.tabs')"
+      :aria-label="t(tests ? (LOWER.includes('network') ? 'review.run.panelsAll' : 'review.tests.tabs') : 'review.run.panels')"
       class="flex gap-1 self-start rounded-lg border border-default bg-elevated p-0.5"
       @keydown="onTabKey"
     >
@@ -77,7 +80,7 @@ function onTabKey(event: KeyboardEvent) {
         :class="lower === name ? 'bg-accented font-medium text-highlighted' : 'text-muted hover:text-highlighted'"
         @click="lower = name"
       >
-        {{ name === 'tests' ? t('review.tests.label') : t('debugging.panel.console') }}
+        {{ t(TAB_LABEL[name]) }}
       </button>
     </div>
     <ReviewTests
@@ -98,6 +101,15 @@ function onTabKey(event: KeyboardEvent) {
       :aria-labelledby="LOWER.length > 1 ? `review-run-tab-${side}-console` : undefined"
       :play="play"
       class="min-h-40 flex-[1_1_0]"
+    />
+    <DebuggingNetwork
+      v-if="LOWER.includes('network')"
+      v-show="lower === 'network'"
+      :id="`review-run-${side}-network`"
+      role="tabpanel"
+      :aria-labelledby="`review-run-tab-${side}-network`"
+      :play="play"
+      class="min-h-40 flex-[1.3_1_0]"
     />
   </div>
 </template>

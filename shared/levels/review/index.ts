@@ -1,5 +1,5 @@
 // The Working with AI track (ADR 0008): its chapters and their levels, in play order. Chapters 1 (Read the diff), 2
-// (Claims vs. code), 3 (Tests that lie) and 4 (Invented APIs) are live, chapters 5 to 7 are coming. A practice task goes
+// (Claims vs. code), 3 (Tests that lie), 4 (Invented APIs) and 5 (Security) are live, chapters 6 and 7 are coming. A practice task goes
 // right after the scenario it trains (`practises`); defineTrack checks it.
 import { fewestHintsThenFalseAlarms } from '../progress'
 import { defineTrack, trackLevels } from '../track'
@@ -25,6 +25,23 @@ import { wholeEuros } from './17-whole-euros'
 import { moneyHelper } from './18-money-helper'
 import { oneListener } from './19-one-listener'
 import { dateLibrary } from './20-date-library'
+import { customerReviews } from './21-customer-reviews'
+import { paymentKey } from './22-payment-key'
+import { staffButton } from './23-staff-button'
+import { priceFromBasket } from './24-price-from-basket'
+import { orderByNumber } from './25-order-by-number'
+import {
+  backWhereYouWere,
+  checkedInPage,
+  escapedTwice,
+  mailKey,
+  ownPagesOnly,
+  publishableKey,
+  refundAnyone,
+  welcomeBack,
+  whoseId,
+  yourOrdersOnly
+} from './practice/security'
 import {
   andList,
   getYear,
@@ -176,7 +193,29 @@ export const aiTrack = defineTrack({
         structuredCopy
       ]
     },
-    { id: 'security', title: 'Security', description: 'HTML injection, a secret in the code, a missing check on who may do something, trusting the client.', colour: 4, levels: [] },
+    {
+      id: 'security',
+      title: 'Security',
+      description: 'HTML injection, a secret in the code, a missing check on who may do something, trusting the client.',
+      colour: 4,
+      levels: [
+        customerReviews,
+        welcomeBack,
+        escapedTwice,
+        paymentKey,
+        mailKey,
+        publishableKey,
+        staffButton,
+        refundAnyone,
+        checkedInPage,
+        priceFromBasket,
+        backWhereYouWere,
+        ownPagesOnly,
+        orderByNumber,
+        whoseId,
+        yourOrdersOnly
+      ]
+    },
     { id: 'scope-and-size', title: 'Scope and size', description: 'Unrelated changes, a rewrite where a line would do, a pull request that should be two.', colour: 5, levels: [] },
     { id: 'steer', title: 'Steer the assistant', description: 'Write the review that gets Sous to the right fix.', colour: 6, levels: [] }
   ]

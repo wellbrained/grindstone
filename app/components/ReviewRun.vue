@@ -12,6 +12,8 @@ import { runLevel } from '~/utils/review-run'
 // line the diff does not show is said so under the toggle. A pull request with test files (chapter 3) also gets the
 // Tests panel: on This PR its tests run on its code, on main on main's code (a test that passes there too doesn't prove
 // the change); its links show their lines the same way (a test file's by the pull request's numbers on either side).
+// A pull request whose page makes requests (chapter 5) runs on its scripted server, main's on main (`run.baseBackend`),
+// with the Network panel.
 const props = defineProps<{ level: ReviewLevel }>()
 
 const { t } = useI18n()
@@ -24,6 +26,9 @@ const hasTests = runs && testFilesOf(props.level.pr.head).length > 0
 /** The files the Tests panel runs on this side: null without tests. */
 const tests = computed(() => hasTests ? testRunFiles(props.level.pr, side.value) : null)
 const SIDES: RunSide[] = ['head', 'base']
+/** What the intro names: the tests (chapter 3), the scripted server (chapter 5), both, or neither. */
+const server = props.level.run?.backend !== undefined
+const INTRO = hasTests ? (server ? 'review.run.introTestsServer' : 'review.run.introTests') : server ? 'review.run.introServer' : 'review.run.intro'
 
 /** The last Console link that pointed at a line the diff does not show. */
 const missing = ref<string | null>(null)
@@ -94,7 +99,7 @@ function start() {
       v-else-if="!started"
       class="flex flex-col items-start gap-3 rounded-lg border border-default bg-elevated p-4 text-sm text-toned"
     >
-      <p>{{ t(hasTests ? 'review.run.introTests' : 'review.run.intro') }}</p>
+      <p>{{ t(INTRO) }}</p>
       <UButton
         color="neutral"
         icon="i-lucide-play"

@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { CATEGORIES, DESCRIPTION_PATH, addComment, aiLevels, aiTrack, checkReview, isReviewLevel, placeFor, placeOf, playReviewSolution, playReviewStep, reviewDiff, reviewTargets, startReview, submitReview, touchesIssue } from '../../../../shared/levels'
 import type { Category, ReviewLevel, ReviewSession, ReviewStep, Spot, Verdict } from '../../../../shared/levels'
 import { isTestFile, testRunFiles } from '../../../../shared/levels/review/test-sandbox'
+import { sandboxDocument } from '../../../../shared/levels/debugging/sandbox'
+import { PAYLOAD_TAGLINE, REVIEW_PAYLOAD } from '../../../../shared/levels/review/21-customer-reviews'
 import { runOnNode } from './run-tests'
 
 // Every Working with AI level (ADR 0008): its shape, where its planted issues and tempting spots sit in the diff (or on
@@ -52,7 +54,12 @@ const POINTED_AT: Record<string, [path: string, line: number, contains: string][
   'ai-17-whole-euros': [['money.js', 6, 'hideTrailingZeros: true']],
   'ai-18-money-helper': [['summary.js', 3, 'import { formatEuro } from \'./money.js\'']],
   'ai-19-one-listener': [['app.js', 22, 'event.path.find']],
-  'ai-20-date-library': [['pickup.js', 2, 'from \'friendly-day-format\'']]
+  'ai-20-date-library': [['pickup.js', 2, 'from \'friendly-day-format\'']],
+  'ai-21-customer-reviews': [['reviews.js', 15, 'item.innerHTML = `<p>${review.text}</p>`']],
+  'ai-22-payment-key': [['payment.js', 7, 'const SECRET_KEY = \'sk_live_'], ['payment.js', 21, 'Math.round(total * 100)']],
+  'ai-23-staff-button': [['server/menu-routes.js', 12, 'app.delete(\'/api/menu/:id\', async (req, res)']],
+  'ai-24-price-from-basket': [['server/order-routes.js', 10, 'const { items, total } = req.body']],
+  'ai-25-order-by-number': [['server/order-routes.js', 13, 'db.orders.find(Number(req.params.number))']]
 }
 
 /**
@@ -120,7 +127,22 @@ const DESCRIPTION_TRUTH: Record<string, (string | null)[]> = {
   'ai-practice-sorted-copy': [null, 'copy-thrown-away', null],
   'ai-20-date-library': [null, 'made-up-package', 'made-up-package', 'made-up-package', null, null],
   'ai-practice-open-now': [null, 'made-up-package', null],
-  'ai-practice-structured-clone': [null, null, null, null]
+  'ai-practice-structured-clone': [null, null, null, null],
+  'ai-21-customer-reviews': [null, null, null, 'review-html', null],
+  'ai-practice-welcome-back': [null, null, null],
+  'ai-practice-escaped-twice': [null, null, 'double-escape'],
+  'ai-22-payment-key': [null, 'secret-key', null, 'secret-key', null, null],
+  'ai-practice-mail-key': [null, null, 'mail-key'],
+  'ai-practice-publishable-key': [null, null, null, null],
+  'ai-23-staff-button': [null, null, null, 'no-staff-check', null, null],
+  'ai-practice-refund-anyone': [null, null, 'login-not-staff'],
+  'ai-practice-checked-in-page': ['check-removed', null, 'check-removed'],
+  'ai-24-price-from-basket': [null, 'client-price', null, 'client-price', null, null],
+  'ai-practice-back-where-you-were': [null, null, 'protocol-relative'],
+  'ai-practice-own-pages-only': [null, null, null],
+  'ai-25-order-by-number': [null, null, null, null, 'other-orders', null],
+  'ai-practice-whose-id': ['id-from-address', null, 'id-from-address'],
+  'ai-practice-your-orders-only': [null, null, null]
 }
 
 /** Lines of Sous's description the hints point at ("line 3 of the description"), with what is there. */
@@ -153,7 +175,12 @@ const COMPUTED: Record<string, string[]> = {
   'ai-16-just-added': ['cart.items.last is not a function', 'at', 'cart.items.at(-1)'],
   'ai-17-whole-euros': ['trailingZeroDisplay: \'stripIfInteger\''],
   'ai-19-one-listener': ['event.composedPath()', 'event.target.closest(\'.product\')'],
-  'ai-practice-open-now': ['package.json']
+  'ai-practice-open-now': ['package.json'],
+  'ai-23-staff-button': ['await removeProduct(\'croissant\')'],
+  'ai-24-price-from-basket': ['cart.items[0].price = 0.01'],
+  'ai-25-order-by-number': ['fetch(\'/api/orders/1041\')'],
+  'ai-practice-back-where-you-were': ['//bakery-deals.example/login'],
+  'ai-practice-own-pages-only': ['//bakery-deals.example', '/orders']
 }
 
 /**
@@ -198,10 +225,10 @@ const TEST_OUTCOMES: Record<string, { head: string[], base: string[] }> = {
 }
 
 describe('the Working with AI levels', () => {
-  it('are fifteen in each of chapters 1 to 4, with unique ids, in the track\'s id forms', () => {
-    expect(aiLevels).toHaveLength(60)
-    expect(aiTrack.chapters.slice(0, 4).map(chapter => chapter.levels.length)).toEqual([15, 15, 15, 15])
-    expect(new Set(aiLevels.map(level => level.id)).size).toBe(60)
+  it('are fifteen in each of chapters 1 to 5, with unique ids, in the track\'s id forms', () => {
+    expect(aiLevels).toHaveLength(75)
+    expect(aiTrack.chapters.slice(0, 5).map(chapter => chapter.levels.length)).toEqual([15, 15, 15, 15, 15])
+    expect(new Set(aiLevels.map(level => level.id)).size).toBe(75)
     for (const level of aiLevels) {
       expect(level.id).toMatch(level.kind === 'scenario' ? /^ai-\d{2}-[a-z-]+$/ : /^ai-practice-[a-z-]+$/)
     }
@@ -391,10 +418,11 @@ describe('the Working with AI levels', () => {
   })
 
   // the blanket review (ADR 0008, review of 2026-11-14): comments of `size` rows tiling every hunk and the description,
-  // all of one kind (bug, false claim from chapter 2 on, missing test from chapter 3 on, invented API from chapter 4 on), whatever is in them; `aligned`: the last one ends at the
+  // all of one kind (bug, false claim from chapter 2 on, missing test from chapter 3 on, invented API from chapter 4 on,
+  // security from chapter 5 on), whatever is in them; `aligned`: the last one ends at the
   // hunk's end, so every comment is full size (a hunk shorter than `size` gets one comment over all of it); else the
   // last one is what is left. `kinds` gives every comment both kinds (two comments on each stretch).
-  const BLANKETS: Category[][] = [['bug'], ['false-claim'], ['missing-test'], ['invented-api'], ['bug', 'false-claim'], ['bug', 'missing-test'], ['bug', 'invented-api']]
+  const BLANKETS: Category[][] = [['bug'], ['false-claim'], ['missing-test'], ['invented-api'], ['security'], ['bug', 'false-claim'], ['bug', 'missing-test'], ['bug', 'invented-api'], ['bug', 'security'], ['security', 'false-claim']]
   function blanket(level: ReviewLevel, size: number, aligned: boolean, kinds: readonly Category[] = ['bug']): ReviewSession {
     let session = startReview(level)
     for (const file of reviewTargets(level)) {
@@ -500,6 +528,49 @@ describe('the Working with AI levels', () => {
     }
   })
 
+  it('makes chapter 5 about security: a hole is security (not a bug), a bug is no hole, and safe code is approved', () => {
+    const chapter = aiTrack.chapters.find(each => each.id === 'security')!.levels.filter(isReviewLevel)
+    expect(chapter).toHaveLength(15)
+    // every scenario's problem is something someone could misuse: it accepts security, and bug on its lines is near
+    for (const level of chapter.filter(each => each.kind === 'scenario')) {
+      expect(level.issues.length, level.id).toBeGreaterThan(0)
+      for (const issue of level.issues) {
+        expect(issue.categories, issue.id).toContain('security')
+        expect(issue.categories, issue.id).not.toContain('bug')
+        const bug = checkReview(level, played(level, [{ comment: issue.path, lines: issue.lines, removed: issue.lines ? undefined : issue.removed, category: 'bug', text: '' }]).state.comments, level.verdict).feedback[0]
+        expect(bug, issue.id).toMatchObject({ found: [], near: [issue.id], falseAlarm: false })
+      }
+      // and the description says it is safe where it isn't: a false claim too
+      expect(level.issues.some(issue => issue.categories.includes('false-claim') && claimLines(level, issue).length), level.id).toBe(true)
+    }
+    // the other way round: text escaped twice is safe and wrong, a bug and no hole (the category is a choice)
+    expect(chapter.some(level => level.issues.some(issue => issue.categories.includes('bug') && !issue.categories.includes('security')))).toBe(true)
+    // safe pull requests are approved, and safe code that looks risky is a tempting place in most of them
+    expect(chapter.filter(level => level.reason && level.verdict === 'approve').length).toBeGreaterThanOrEqual(2)
+    expect(chapter.filter(level => (level.tempting ?? []).some(spot => spot.path !== DESCRIPTION_PATH)).length).toBeGreaterThanOrEqual(8)
+    // server code is a file of the diff, never a module the page loads; a scenario that changes it runs on a scripted
+    // server (main's where the pull request adds routes)
+    for (const level of chapter) {
+      const pages = Object.entries(level.pr.head).filter(([path]) => path.endsWith('.js') && !path.startsWith('server/'))
+      for (const [path, source] of pages) expect(source, `${level.id}: ${path}`).not.toMatch(/['"](?:\.\/)?server\//)
+      if (level.kind === 'scenario' && Object.keys(level.pr.head).some(path => path.startsWith('server/'))) expect(level.run?.backend, level.id).toBeDefined()
+    }
+  })
+
+  it('keeps 5.1\'s review as data until the pull request\'s innerHTML makes it markup, in the sealed frame', () => {
+    const level = aiLevels.find(each => each.id === 'ai-21-customer-reviews')!
+    // the review comes from the scripted server, not from a file of the pull request
+    expect(Object.values(level.pr.head).some(source => source.includes('onerror'))).toBe(false)
+    expect(JSON.stringify(level.run!.backend)).toContain('onerror')
+    expect(REVIEW_PAYLOAD).toContain(PAYLOAD_TAGLINE)
+    // in the frame's document the server's data is JSON with no raw "<": none of it is markup before the app makes it so
+    for (const files of [level.pr.head, level.pr.base]) {
+      const { html } = sandboxDocument(files, { token: 't', backend: level.run!.backend })
+      expect(html).not.toContain('<img src="x"')
+      expect(html).toContain('\\u003cimg src=')
+    }
+  })
+
   it.each(aiLevels.filter(level => Object.keys(level.pr.head).some(isTestFile)).map(level => [level.id, level] as const))('%s: its tests pass on its own code, and on main they do what the debrief says', async (_, level) => {
     const expected = TEST_OUTCOMES[level.id]
     expect(expected, 'pinned in TEST_OUTCOMES').toBeDefined()
@@ -531,14 +602,14 @@ describe('the Working with AI levels', () => {
     const descriptionLines = [...level.pr.description, ...level.pr.claims]
     for (const hint of level.hints) {
       // `cart.js:37`: a file of the pull request, and a line it has (after the pull request)
-      for (const [, path, line] of hint.matchAll(/([\w.-]+\.(?:js|css|html|md)):(\d+)/g)) {
+      for (const [, path, line] of hint.matchAll(/([\w./-]+\.(?:js|css|html|md)):(\d+)/g)) {
         expect(Object.hasOwn(level.pr.head, path!), `${path} in ${level.id}`).toBe(true)
         expect(Number(line)).toBeLessThanOrEqual(lineCount(level.pr.head[path!]))
         expect(POINTED_AT[level.id]?.some(([p, l]) => p === path && l === Number(line)), `${path}:${line} is in POINTED_AT`).toBe(true)
       }
       // quoted code is in what the page shows: a row of the diff or the pull request's text, unless it is worked out
       for (const [, code] of hint.matchAll(/`([^`]+)`/g)) {
-        const shown = shownRows.some(text => text.includes(code!)) || prText.includes(code!) || /^[\w.-]+\.(?:js|css|html|md)(?::\d+)?$/.test(code!)
+        const shown = shownRows.some(text => text.includes(code!)) || prText.includes(code!) || /^[\w./-]+\.(?:js|css|html|md)(?::\d+)?$/.test(code!)
         expect(shown || COMPUTED[level.id]?.includes(code!), `${level.id}: \`${code}\` is not in the diff`).toBe(true)
       }
       // "line 3 of the description": a line it has, and in CLAIMS_POINTED_AT

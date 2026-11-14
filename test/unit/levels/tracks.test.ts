@@ -205,7 +205,7 @@ describe('track registry', () => {
     expect(nextLevel('git-practice-release-from-develop')).toBeNull()
   })
 
-  it('gives Working with AI its seven chapters (ADR 0008): Read the diff, Claims vs. code, Tests that lie and Invented APIs live, the other three coming', () => {
+  it('gives Working with AI its seven chapters (ADR 0008): Read the diff, Claims vs. code, Tests that lie, Invented APIs and Security live, the other two coming', () => {
     const ai = trackById('ai')!
     expect(ai).toMatchObject({ title: 'Working with AI', tagline: 'Lead the assistant, then check its work.', cheatSheet: null, bestRun: ['hints', 'falseAlarms'] })
     expect(ai.chapters.map(chapter => [chapter.number, chapter.title, chapter.levels.length])).toEqual([
@@ -213,7 +213,7 @@ describe('track registry', () => {
       [2, 'Claims vs. code', 15],
       [3, 'Tests that lie', 15],
       [4, 'Invented APIs', 15],
-      [5, 'Security', 0],
+      [5, 'Security', 15],
       [6, 'Scope and size', 0],
       [7, 'Steer the assistant', 0]
     ])
@@ -287,11 +287,29 @@ describe('track registry', () => {
       [null, 'ai-practice-open-now'],
       [null, 'ai-practice-structured-clone']
     ])
-    // play order runs on into chapters 2, 3 and 4
+    expect(ai.chapters[4]!.levels.map(level => [levelNumber(level.id), level.id])).toEqual([
+      ['5.1', 'ai-21-customer-reviews'],
+      [null, 'ai-practice-welcome-back'],
+      [null, 'ai-practice-escaped-twice'],
+      ['5.2', 'ai-22-payment-key'],
+      [null, 'ai-practice-mail-key'],
+      [null, 'ai-practice-publishable-key'],
+      ['5.3', 'ai-23-staff-button'],
+      [null, 'ai-practice-refund-anyone'],
+      [null, 'ai-practice-checked-in-page'],
+      ['5.4', 'ai-24-price-from-basket'],
+      [null, 'ai-practice-back-where-you-were'],
+      [null, 'ai-practice-own-pages-only'],
+      ['5.5', 'ai-25-order-by-number'],
+      [null, 'ai-practice-whose-id'],
+      [null, 'ai-practice-your-orders-only']
+    ])
+    // play order runs on into chapters 2 to 5
     expect(nextLevel('ai-practice-ten-cents')).toBe(levelById('ai-06-empty-basket'))
     expect(nextLevel('ai-practice-today-once')).toBe(levelById('ai-11-all-tests-pass'))
     expect(nextLevel('ai-practice-snapshot-as-asked')).toBe(levelById('ai-16-just-added'))
-    expect(nextLevel('ai-practice-structured-clone')).toBeNull()
+    expect(nextLevel('ai-practice-structured-clone')).toBe(levelById('ai-21-customer-reviews'))
+    expect(nextLevel('ai-practice-your-orders-only')).toBeNull()
     expect(nextLevel('ai-01-twelve-croissants')).toBe(levelById('ai-practice-open-days'))
   })
 

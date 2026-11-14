@@ -11,6 +11,8 @@ export function runLevel(level: ReviewLevel, side: RunSide): DebugLevel | null {
   const run: RunSpec | undefined = level.run
   if (!run) return null
   const files = side === 'head' ? level.pr.head : level.pr.base
+  // main's server where the pull request changes the server's code (a route it adds), else the one backend
+  const backend = side === 'base' ? run.baseBackend ?? run.backend : run.backend
   return {
     id: `${level.id}--run-${side}`,
     track: 'debugging',
@@ -22,7 +24,7 @@ export function runLevel(level: ReviewLevel, side: RunSide): DebugLevel | null {
     task: '',
     hints: [''],
     why: '',
-    sandbox: { page: run.page, open: run.open, probes: [], ...(run.backend ? { backend: run.backend } : {}) },
+    sandbox: { page: run.page, open: run.open, probes: [], ...(backend ? { backend } : {}) },
     setup: () => ({ files: { ...files }, observed: null, picked: null }),
     goals: [],
     solution: []

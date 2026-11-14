@@ -263,7 +263,7 @@ test('shows the overview radar on home once you have progress: one axis per live
   const radar = page.getByTestId('overview-radar')
   await expect(radar).toBeVisible()
   await expect(radar.locator('[data-axis-track]')).toHaveCount(3)
-  await expect(radar.locator('[data-axis-track="ai"]')).toContainText('1 of 60 solved')
+  await expect(radar.locator('[data-axis-track="ai"]')).toContainText('1 of 75 solved')
   await expect(radar.locator('[data-axis]')).toHaveCount(3)
   await expect(radar.getByTestId('radar-shape')).toBeVisible()
 })
@@ -764,5 +764,192 @@ for (const { level, head, base } of API_EVIDENCE) {
     await expect(page.locator('[data-run-side="base"]')).toBeVisible()
     await base(app)
     await expect(errors(page)).toHaveCount(0)
+  })
+}
+
+// Chapter 5, Security: running the pull request shows the hole (a customer's review running its code, a secret key
+// going out, a staff route anyone can call, a price the browser sets, someone else's order), always inside the sealed
+// frame; its scripted server answers as the pull request's server code would (main's on main)
+const network = (page: Page) => page.getByTestId('network-list')
+const openNetwork = (page: Page) => page.locator('[data-testid="run-tab"][data-panel="network"]').click()
+const consoleResult = (page: Page) => page.getByTestId('console-log').locator('[data-level="result"]').last()
+
+async function runInConsole(page: Page, line: string) {
+  const input = page.getByTestId('console-input')
+  await input.fill(line)
+  await input.press('Enter')
+}
+
+test('plays Security 5.1 end to end: a review\'s markup runs in the sealed frame and never in the page, a fixed innerHTML is a false alarm, bug is near', async ({ page }) => {
+  await page.goto('/ai#security')
+  await page.locator('[data-level="ai-21-customer-reviews"]').click()
+  await expect(page).toHaveURL(/\/ai\/21-customer-reviews$/)
+  await expect(page.getByRole('heading', { level: 1, name: /Show customer reviews/ })).toBeVisible()
+  await expect(page.locator('[data-row="reviews.js:15"]')).toContainText('item.innerHTML = `<p>${review.text}</p>`')
+
+  // a bait in Grindstone's own page: what the review's code changes, had it run here
+  await page.evaluate(() => {
+    const bait = document.createElement('p')
+    bait.className = 'tagline'
+    bait.dataset.testid = 'bait'
+    bait.textContent = 'Grindstone'
+    document.body.append(bait)
+  })
+  const title = await page.title()
+
+  await expect(page.getByTestId('review-run')).toContainText('The shop\'s server is scripted')
+  await page.getByTestId('run-pr').click()
+  const app = page.frameLocator('[data-testid="app-frame"]')
+  await expect(app.locator('#reviews .review')).toHaveCount(3)
+  // Tom's review ran its code in the frame: the image failed, its onerror rewrote the tagline
+  await expect(app.locator('.tagline')).toHaveText('Card payments are down today: pay at bakery-deals.example')
+  await expect(app.locator('#reviews img[onerror]')).toHaveCount(1)
+  await expect(page.getByTestId('console-log')).toContainText('Refused to load \'https://cornerbakery.shop/x\'')
+  // and only there: the frame is sealed, the page's bait and title are untouched, no markup of it in the page
+  await expect(page.getByTestId('app-frame')).toHaveAttribute('sandbox', 'allow-scripts')
+  await expect(page.getByTestId('bait')).toHaveText('Grindstone')
+  await expect(page.locator('img[onerror]')).toHaveCount(0)
+  expect(await page.title()).toBe(title)
+  // the Network panel shows the review as the server sent it, as text
+  await openNetwork(page)
+  await network(page).getByRole('option', { name: /GET https:\/\/cornerbakery\.shop\/api\/reviews\?newest=3, 200 OK/ }).click()
+  await expect(page.getByTestId('network-response-body')).toContainText('<img src=\\"x\\" onerror=')
+  await expect(page.getByTestId('network-response-body').locator('img')).toHaveCount(0)
+  await expect(page.locator('img[onerror]')).toHaveCount(0)
+  await expect(page.getByTestId('bait')).toHaveText('Grindstone')
+  // Sent from: the line that asked, in the diff
+  await page.getByTestId('network-initiator').click()
+  await expect(number(page, 'reviews.js:5')).toBeFocused()
+
+  // main: no reviews, Maya's tagline
+  await page.getByRole('button', { name: 'main' }).click()
+  await expect(page.locator('[data-run-side="base"]')).toBeVisible()
+  await expect(app.locator('.product')).toHaveCount(3)
+  await expect(app.locator('.tagline')).toHaveText('Order today, pick up tomorrow from 7:00')
+  await expect(app.locator('#reviews')).toHaveCount(0)
+
+  // the fixed innerHTML of the no-reviews note is a false alarm, told why; the right line as a bug is near
+  await comment(page, 'reviews.js:9', 'security', 'innerHTML!')
+  await comment(page, 'reviews.js:15', 'bug', 'Reviews as HTML.')
+  await page.getByTestId('request-changes').click()
+  await expect(page.locator('[data-comment="reviews.js:9"]').getByTestId('comment-false-alarm')).toContainText('fixed text written in the code')
+  await expect(page.locator('[data-comment="reviews.js:15"]').getByTestId('comment-near')).toContainText('isn\'t a problem of the kind “Bug”')
+  await expect(page.getByTestId('review-outcome')).toContainText('0 of 1 problems found')
+  await expect(page.getByTestId('false-alarms')).toHaveText('False alarms: 1')
+
+  // the right kind: security, solved
+  await page.locator('[data-comment="reviews.js:15"]').getByRole('button', { name: /^Edit the comment/ }).click()
+  const form = page.getByTestId('comment-edit-form')
+  await form.getByTestId('comment-category').selectOption('security')
+  await form.getByTestId('comment-save').click()
+  await expect(page.locator('[data-comment="reviews.js:15"]')).toHaveAttribute('aria-label', 'Security on line 15')
+  await page.getByTestId('request-changes').click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toContainText('Text from customers is not HTML')
+  await expect(dialog.getByTestId('debrief-stats')).toContainText('no hints · 1 false alarm')
+  await page.getByRole('button', { name: 'Stay here' }).click()
+  await expect(page.locator('[data-comment="reviews.js:15"]').getByTestId('comment-found')).toContainText('markup a customer writes becomes part of the page')
+
+  await page.goto('/ai')
+  const row = page.locator('[data-level="ai-21-customer-reviews"]')
+  await expect(row).toContainText('Solved')
+  await expect(row).toContainText('HTML injection')
+  await expect(page.locator('#security')).toContainText('1 of 15 solved')
+})
+
+// What running each other chapter 5 scenario shows, as its debrief says, and main beside it
+const SECURITY_EVIDENCE: { level: string, head: (app: Frame, page: Page) => Promise<void>, base: (app: Frame, page: Page) => Promise<void> }[] = [
+  {
+    // the secret key goes out from the customer's browser with every Pay
+    level: '22-payment-key',
+    head: async (app, page) => {
+      await expect(app.locator('#pay-methods')).toHaveText('We take cards and bank transfers.')
+      await app.locator('[data-id="croissant"] .add').click()
+      await app.locator('#pay').click()
+      await expect(app.locator('#pay-status a')).toHaveText('Pay 2.40 € on Crumbpay')
+      await openNetwork(page)
+      await network(page).getByRole('option', { name: /POST https:\/\/api\.crumbpay\.example\/v1\/payment-links, 201 Created/ }).click()
+      await expect(page.getByTestId('network-request')).toContainText('Bearer sk_live_cb-7Hq2-Lw9R-t4Xn')
+      // and the amount the browser worked out from its basket
+      await expect(page.getByTestId('network-request-body')).toContainText('"amount": 240')
+    },
+    base: async (app, page) => {
+      await expect(app.locator('.product')).toHaveCount(3)
+      await expect(app.locator('#pay')).toHaveCount(0)
+      await openNetwork(page)
+      await expect(network(page).getByRole('option')).toHaveCount(0)
+    }
+  },
+  {
+    // Sam is a customer: no Remove button, and the server takes the croissant off anyway
+    level: '23-staff-button',
+    head: async (app, page) => {
+      await expect(app.locator('#who')).toHaveText('Signed in as Sam')
+      await expect(app.locator('.product')).toHaveCount(3)
+      await expect(app.locator('.product .action')).toHaveCount(0)
+      await runInConsole(page, 'await removeProduct(\'croissant\')')
+      await expect(consoleResult(page)).toHaveText(/true$/)
+      await openNetwork(page)
+      await expect(network(page).getByRole('option', { name: /DELETE https:\/\/cornerbakery\.shop\/api\/menu\/croissant, 204 No Content/ })).toBeVisible()
+    },
+    base: async (app, page) => {
+      await expect(app.locator('.product')).toHaveCount(3)
+      await runInConsole(page, 'await fetch(\'/api/menu/croissant\', { method: \'DELETE\' }).then(response => response.status)')
+      await expect(consoleResult(page)).toHaveText(/404$/)
+    }
+  },
+  {
+    // the order carries the price the browser says: 0.01 goes out, and the server takes the order
+    level: '24-price-from-basket',
+    head: async (app, page) => {
+      await app.locator('[data-id="sourdough"] .add').click()
+      await runInConsole(page, 'cart.items[0].price = 0.01')
+      await app.locator('#order').click()
+      await expect(app.locator('#order-status')).toHaveText('Thanks! Order 1043 is in. Pick it up tomorrow from 7:00.')
+      await openNetwork(page)
+      await network(page).getByRole('option', { name: /POST https:\/\/cornerbakery\.shop\/api\/orders, 201 Created/ }).click()
+      await expect(page.getByTestId('network-request-body')).toContainText('"price": 0.01')
+      await expect(page.getByTestId('network-request-body')).toContainText('"total": 0.01')
+    },
+    base: async (app, page) => {
+      await app.locator('[data-id="sourdough"] .add').click()
+      await runInConsole(page, 'cart.items[0].price = 0.01')
+      await app.locator('#order').click()
+      await expect(app.locator('#order-status')).toHaveText('Thanks! Order 1043 is in. Pick it up tomorrow from 7:00.')
+      await openNetwork(page)
+      await network(page).getByRole('option', { name: /POST https:\/\/cornerbakery\.shop\/api\/orders, 201 Created/ }).click()
+      await expect(page.getByTestId('network-request-body')).toContainText('"id": "sourdough"')
+      await expect(page.getByTestId('network-request-body')).not.toContainText('price')
+    }
+  },
+  {
+    // Sam's own receipt, then Lena's: any order to anyone signed in
+    level: '25-order-by-number',
+    head: async (app, page) => {
+      await app.getByRole('button', { name: 'Order 1042 · yesterday' }).click()
+      await expect(app.locator('#receipt li')).toHaveText(['2 × Butter croissant  4.80', '1 × Sourdough loaf  6.50', 'Total  11.30 €'])
+      await runInConsole(page, 'fetch(\'/api/orders/1041\')')
+      await openNetwork(page)
+      await network(page).getByRole('option', { name: /GET https:\/\/cornerbakery\.shop\/api\/orders\/1041, 200 OK/ }).click()
+      await expect(page.getByTestId('network-response-body')).toContainText('lena.b@example.com')
+    },
+    base: async (app, page) => {
+      await expect(app.locator('#orders li')).toHaveText(['Order 1042 · yesterday', 'Order 1036 · last Saturday'])
+      await runInConsole(page, 'await fetch(\'/api/orders/1041\').then(response => response.status)')
+      await expect(consoleResult(page)).toHaveText(/404$/)
+    }
+  }
+]
+
+for (const { level, head, base } of SECURITY_EVIDENCE) {
+  test(`running ${level} shows the hole, and main does not have it`, async ({ page }) => {
+    await page.goto(`/ai/${level}`)
+    await page.getByTestId('run-pr').click()
+    const app = page.frameLocator('[data-testid="app-frame"]')
+    await head(app, page)
+    await page.getByRole('button', { name: 'main' }).click()
+    await expect(page.locator('[data-run-side="base"]')).toBeVisible()
+    await page.locator('[data-run-side="base"] [data-testid="run-tab"][data-panel="console"]').click()
+    await base(app, page)
   })
 }

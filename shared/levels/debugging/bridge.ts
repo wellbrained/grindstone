@@ -437,7 +437,8 @@ const SOURCE = String.raw`(function (config) {
         var target = eventTargetOf(event);
         tag = target && target !== win && nodeTypeOf(target) === 1 ? tagOf(target) : null;
       } catch (error) { tag = null; }
-      if (tag) post({ type: 'error', kind: 'error', name: null, message: tag === 'LINK' ? 'Failed to load stylesheet' : 'Failed to load module script', stack: null, url: null, line: null, column: null });
+      /* a stylesheet or a module that failed; an image that failed (the CSP's line says why) is no error of the page's */
+      if (tag === 'LINK' || tag === 'SCRIPT') post({ type: 'error', kind: 'error', name: null, message: tag === 'LINK' ? 'Failed to load stylesheet' : 'Failed to load module script', stack: null, url: null, line: null, column: null });
       return;
     }
     var error = errorOf(event);

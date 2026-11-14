@@ -3,6 +3,7 @@
 // product and its quantity. A level writes the files before its pull request and the edits Sous made (`withEdits`), so
 // its head files are always the base with exactly those changes, and a level never drifts from what its hints quote.
 import { orderSite } from '../debugging/bakery'
+import { MENU_JS, networkSite } from '../debugging/shop-server'
 import type { OrderPageOptions } from '../debugging/bakery'
 import type { Files, ReviewState } from './types'
 
@@ -102,4 +103,68 @@ export function withEdits(base: Files, edits: readonly Edit[]): Record<string, s
     files[path] = files[path]!.replace(from, () => to)
   }
   return files
+}
+
+/** How the shop's order page looks when its menu comes from the server (chapter 5, `serverShop`). */
+export interface ServerShopOptions {
+  /** app.js asks the server who is signed in (account.js's `whoAmI`, `me`) and says so in the header. */
+  whoAmI?: true
+  /** More of the shop's own modules app.js imports for what they do (`'./order.js'`). */
+  imports?: readonly string[]
+  /** More lines at the end of the page (in `<main>`, after the product list). */
+  main?: readonly string[]
+}
+
+/**
+ * The order page's entry module when the menu comes from the server: each product drawn from a fixed template, its
+ * name and price put in with `textContent` (text from the server is never HTML), then the counter.
+ */
+function serverApp(options: ServerShopOptions): string {
+  return [
+    '// The order page: loads today\'s menu from the server and wires up the Add buttons.',
+    'import { loadMenu } from \'./menu.js\'',
+    ...(options.whoAmI ? ['import { whoAmI } from \'./account.js\''] : []),
+    'import { addToCart, cart, renderBadge } from \'./cart.js\'',
+    'import { formatPrice } from \'./money.js\'',
+    ...(options.imports ?? []).map(path => `import '${path}'`),
+    '',
+    'const list = document.querySelector(\'#products\')',
+    ...(options.whoAmI ? ['const me = await whoAmI()'] : []),
+    '',
+    'function renderMenu(products) {',
+    '  for (const product of products) {',
+    '    const item = document.createElement(\'li\')',
+    '    item.className = \'product\'',
+    '    item.dataset.id = product.id',
+    '    item.innerHTML = `',
+    '      <span class="photo" aria-hidden="true"></span>',
+    '      <span><span class="name"></span> <span class="price"></span></span>',
+    '      <button class="add" type="button">Add</button>`',
+    '    item.querySelector(\'.name\').textContent = product.name',
+    '    item.querySelector(\'.price\').textContent = formatPrice(product.price)',
+    '    item.querySelector(\'.add\').addEventListener(\'click\', () => addToCart(product))',
+    '    list.append(item)',
+    '  }',
+    '}',
+    '',
+    ...(options.whoAmI ? ['document.querySelector(\'#who\').textContent = `Signed in as ${me.name}`'] : []),
+    'renderBadge()',
+    'renderMenu(await loadMenu())',
+    '',
+    '// Handy while trying it: type cart in the Console.',
+    'Object.assign(window, { cart })',
+    ''
+  ].join('\n')
+}
+
+/**
+ * The shop when its menu comes from the server (chapter 5): Debugging's Network shop (`networkSite`: no products.js,
+ * menu.js loads `/api/menu`) with a safe app.js (`serverApp`) and the level's own files, server code among them
+ * (`server/…`, shown in the diff, never run in the browser).
+ */
+export function serverShop(files: Files, options: ServerShopOptions = {}): Record<string, string> {
+  return networkSite(
+    { 'app.js': serverApp(options), 'menu.js': MENU_JS, ...files },
+    { header: options.whoAmI ? ['<p class="hours" id="who"></p>'] : [], main: options.main ?? [] }
+  )
 }

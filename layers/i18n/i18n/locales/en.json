@@ -1390,6 +1390,10 @@
       "none": "This change has no page to run: read the diff.",
       "intro": "Runs the shop with this pull request's code in a sealed frame, App and Console as in the Debugging track. Nothing leaves the frame, and nothing you do there counts.",
       "introTests": "Runs the shop with this pull request's code in a sealed frame, App and Console as in the Debugging track, and runs its tests. Nothing leaves the frame, and nothing you do there counts.",
+      "introServer": "Runs the shop with this pull request's code in a sealed frame, App, Console and Network as in the Debugging track. The shop's server is scripted: it answers as this pull request's server code would (main's on main). Nothing leaves the frame, and nothing you do there counts.",
+      "panels": "Console and Network",
+      "panelsAll": "Tests, Console and Network",
+      "introTestsServer": "Runs the shop with this pull request's code in a sealed frame, App, Console and Network as in the Debugging track, and runs its tests. The shop's server is scripted: it answers as this pull request's server code would (main's on main). Nothing leaves the frame, and nothing you do there counts.",
       "start": "Run the PR",
       "running": {
         "head": "The shop with Sous's change.",

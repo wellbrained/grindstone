@@ -59,7 +59,8 @@ function verdictOf(id: number): { icon: string, tone: string, text: string } | n
           class="flex w-full cursor-pointer items-start gap-2 rounded-md px-2 py-1 text-start text-sm hover:bg-elevated focus-visible:outline-2 focus-visible:outline-primary"
           @click="show(comment.id)"
         >
-          <span class="shrink-0 font-mono text-xs leading-5 text-muted">{{ placeShort(comment) }}</span>
+          <!-- a long path (server/menu-routes.js:12) wraps instead of pushing the category under the verdict -->
+          <span class="max-w-[45%] shrink-0 font-mono text-xs leading-5 break-all text-muted">{{ placeShort(comment) }}</span>
           <span class="min-w-0 flex-1">
             <span class="font-medium text-highlighted">{{ t(`review.category.${comment.category}`) }}</span>
             <span
