@@ -5,6 +5,7 @@ import {
   act,
   emptyProgress,
   fewestCommands,
+  fewestHintsThenFalseAlarms,
   fewestHintsThenReloads,
   isBetterRun,
   levelCredit,
@@ -175,6 +176,99 @@ describe('the shared core with a non-git environment', () => {
   })
 })
 
+describe('false alarms, the run measure of reviews (ADR 0008)', () => {
+  /** A review action of the counter environment: it raises this many new false alarms. */
+  const review = (session: Counter, falseAlarms: number) => act(session, counterLevel, {
+    commands: ['review'],
+    falseAlarms,
+    execute: state => ({ state, record: { action: 'inc' }, output: '' })
+  }).session
+
+  it('counts them in the session from the first review on, through undo and across Reset, like hints', () => {
+    const start = startSession(counterLevel)
+    expect(start.falseAlarms).toBeUndefined()
+    // a review with none still says so: the run of a reviewed level always has the count
+    const clean = review(start, 0)
+    expect(clean.falseAlarms).toBe(0)
+    const twice = review(review(clean, 2), 1)
+    expect(twice).toMatchObject({ falseAlarms: 3, commandCount: 3 })
+    // other actions leave it alone, and undo keeps the effort of the attempt
+    expect(step(twice, 'inc').session.falseAlarms).toBe(3)
+    expect(undoLast(twice, counterLevel)!.session.falseAlarms).toBe(3)
+    // Reset keeps them (the feedback named the comments that found something); reloads and commands start over
+    const restarted = restart(step(twice, 'reload').session, counterLevel)
+    expect(restarted).toMatchObject({ falseAlarms: 3, commandCount: 0 })
+    expect(restarted.reloads).toBeUndefined()
+    expect(restart(start, counterLevel).falseAlarms).toBeUndefined()
+    // a reload is not a review
+    expect(step(start, 'reload').session.falseAlarms).toBeUndefined()
+  })
+
+  it('picks the best run by fewest hints, then fewest false alarms', () => {
+    const solved = (hints: number, falseAlarms: number, commandCount: number) => ({ solved: true, hintsUsed: hints, falseAlarms, commandCount })
+    let progress = recordSolve(emptyProgress(), 'ai-x', solved(1, 0, 3), fewestHintsThenFalseAlarms)
+    expect(progress.levels['ai-x']!.best).toEqual({ commands: 3, hints: 1, falseAlarms: 0 })
+    // no hints beats fewer false alarms
+    progress = recordSolve(progress, 'ai-x', solved(0, 4, 9), fewestHintsThenFalseAlarms)
+    expect(progress.levels['ai-x']!.best).toEqual({ commands: 9, hints: 0, falseAlarms: 4 })
+    // same hints: fewer false alarms wins, however many actions it took
+    progress = recordSolve(progress, 'ai-x', solved(0, 1, 20), fewestHintsThenFalseAlarms)
+    expect(progress.levels['ai-x']).toMatchObject({ best: { commands: 20, hints: 0, falseAlarms: 1 }, latest: { commands: 20, hints: 0, falseAlarms: 1 }, fewestHints: 0 })
+    expect(isBetterRun({ commands: 1, hints: 0, falseAlarms: 2 }, { commands: 1, hints: 0, falseAlarms: 2 }, fewestHintsThenFalseAlarms)).toBe(false)
+    // a run without the count (it can't happen in a review track) compares as 0
+    expect(isBetterRun({ commands: 5, hints: 0 }, { commands: 1, hints: 0, falseAlarms: 1 }, fewestHintsThenFalseAlarms)).toBe(true)
+    // git's measure never looks at it
+    expect(isBetterRun({ commands: 2, hints: 0, falseAlarms: 9 }, { commands: 3, hints: 0, falseAlarms: 0 }, fewestCommands)).toBe(true)
+  })
+
+  it('stores false alarms with the run and reads them back; a broken count is left out', () => {
+    const progress = recordSolve(emptyProgress(), 'ai-x', { solved: true, hintsUsed: 0, falseAlarms: 2, commandCount: 6 }, fewestHintsThenFalseAlarms)
+    const read = readProgress(serializeProgress(progress))
+    expect(read.ok && read.progress.levels['ai-x']).toMatchObject({ best: { commands: 6, hints: 0, falseAlarms: 2 }, latest: { commands: 6, hints: 0, falseAlarms: 2 } })
+    for (const broken of [-1, 1.5, '2', null]) {
+      const text = JSON.stringify({ version: 3, levels: { a: { solved: true, best: { commands: 2, hints: 0, falseAlarms: broken }, latest: null } } })
+      const result = readProgress(text)
+      expect(result.ok && result.progress.levels.a!.best).toEqual({ commands: 2, hints: 0 })
+    }
+  })
+})
+
+describe('progress saved by 0.3.2 and read by it (ADR 0008: no new progress version)', () => {
+  const saved = {
+    version: 3,
+    levels: {
+      'git-01-first-commit': { solved: true, best: { commands: 3, hints: 0 }, latest: { commands: 5, hints: 3 }, practiseAgain: true, lastPlayed: 1700000000000, fewestHints: 0 },
+      'debugging-01-add-to-cart': { solved: true, best: { commands: 2, hints: 0, reloads: 1 }, latest: { commands: 4, hints: 1, reloads: 2 }, practiseAgain: false, lastPlayed: 1700000002000, fewestHints: 0 }
+    }
+  }
+
+  it('loads a 0.3.2 file unchanged and writes it back byte for byte', () => {
+    const read = readProgress(JSON.stringify(saved), 1700000010000)
+    expect(read.ok).toBe(true)
+    if (!read.ok) return
+    expect({ ...read.progress, levels: { ...read.progress.levels } }).toEqual(saved)
+    expect(serializeProgress(read.progress)).toBe(JSON.stringify(saved))
+  })
+
+  it('writes a file 0.3.2 reads: still version 3, every run with its counts, the new one beside them', () => {
+    const read = readProgress(JSON.stringify(saved), 1700000010000)
+    if (!read.ok) throw new Error('the 0.3.2 file did not load')
+    const progress = recordSolve(read.progress, 'ai-01-twelve-croissants', { solved: true, hintsUsed: 1, falseAlarms: 1, commandCount: 4 }, fewestHintsThenFalseAlarms)
+    const file = JSON.parse(serializeProgress(progress)) as { version: number, levels: Record<string, { best: unknown, latest: unknown }> }
+    // 0.3.2's reader takes a version 3 file, and of a run its commands, hints and reloads (anything else is ignored)
+    const runIn032 = (value: unknown) => {
+      const run = value as Record<string, unknown>
+      const count = (field: unknown) => typeof field === 'number' && Number.isInteger(field) && field >= 0
+      return count(run.commands) && count(run.hints) ? { commands: run.commands, hints: run.hints, ...(count(run.reloads) ? { reloads: run.reloads } : {}) } : null
+    }
+    expect(file.version).toBe(3)
+    expect(runIn032(file.levels['ai-01-twelve-croissants']!.best)).toEqual({ commands: 4, hints: 1 })
+    expect(file.levels['ai-01-twelve-croissants']!.best).toEqual({ commands: 4, hints: 1, falseAlarms: 1 })
+    expect(runIn032(file.levels['debugging-01-add-to-cart']!.latest)).toEqual({ commands: 4, hints: 1, reloads: 2 })
+    expect(file.levels['git-01-first-commit']).toEqual(saved.levels['git-01-first-commit'])
+  })
+})
+
 describe('progress saved by 0.2.6', () => {
   it('loads unchanged: git runs stay { commands, hints }, nothing is added', () => {
     const saved = {
@@ -200,6 +294,6 @@ describe('the shared core stays apart from git (ADR 0001)', () => {
 
   it.each(coreFiles)('%s imports no environment', (name) => {
     const imports = [...readFileSync(join(core, name), 'utf8').matchAll(/from '([^']+)'/g)].map(match => match[1]!)
-    expect(imports.filter(path => !/^\.\/[a-z-]+$/.test(path) || ['./git', './debugging', './tracks', './index'].includes(path))).toEqual([])
+    expect(imports.filter(path => !/^\.\/[a-z-]+$/.test(path) || ['./git', './debugging', './review', './tracks', './index'].includes(path))).toEqual([])
   })
 })

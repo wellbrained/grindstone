@@ -13,7 +13,7 @@
   },
   "home": {
     "title": "Practice real developer skills, one short level at a time",
-    "intro": "Each level drops you into a situation you meet at work, and you solve it with real tools, right here in the browser. Git and Debugging are live; more tracks are on the way.",
+    "intro": "Each level drops you into a situation you meet at work, and you solve it with real tools, right here in the browser. Git, Debugging and Working with AI are live; more tracks are on the way.",
     "local": "No account. Your progress stays on this device.",
     "coming": {
       "title": "More tracks on the way",
@@ -25,6 +25,11 @@
       "continue": "Continue: {name}",
       "open": "Open {track} track",
       "chapters": "See all chapters"
+    },
+    "radar": {
+      "title": "Your skills",
+      "intro": "One axis per track: the share of its levels you solved. A solve that needed the last hint counts half.",
+      "track": "{solved} of {total} solved"
     }
   },
   "play": {
@@ -144,7 +149,12 @@
     "radarGainLong": "Skill radar, {chapter}: {from} to {to} of {total}",
     "reloads": "Reloads",
     "debugClean": "Solved without a hint. That is the skill: read the error, follow the trace, fix the line.",
-    "debugHints": "Solved. Next time, try one more look at the Console before the next hint."
+    "debugHints": "Solved. Next time, try one more look at the Console before the next hint.",
+    "falseAlarms": "False alarms",
+    "issues": "What was wrong",
+    "reviewClean": "No hint and no false alarm: you read the diff, checked it against what was asked, and pointed at the line.",
+    "reviewAlarms": "Solved. Before you comment next time, ask what would go wrong on that line, and for which input.",
+    "reviewHints": "Solved. Next time, try one more case by hand, or run the PR, before the next hint."
   },
   "explorer": {
     "title": "Explorer",
@@ -770,10 +780,10 @@
       }
     },
     "howTitle": "How it works",
-    "how": "Everything runs in your browser: Grindstone has its own git simulation in TypeScript, so levels are predictable, undo is instant and what you type never leaves your browser. Debugging levels run a small real app in a sealed frame that can't see Grindstone, your progress or the network. Your progress stays on your device. To see which levels are too hard, Grindstone counts visits and which levels are started and solved, anonymously and without cookies, on its own server (Umami). If your browser sends Do Not Track, nothing is counted. The code is open source.",
+    "how": "Everything runs in your browser: Grindstone has its own git simulation in TypeScript, so levels are predictable, undo is instant and what you type never leaves your browser. Debugging levels run a small real app in a sealed frame that can't see Grindstone, your progress or the network. In Working with AI the assistant is scripted: no AI is called, and nothing you write in a review leaves your browser. Your progress stays on your device. To see which levels are too hard, Grindstone counts visits and which levels are started and solved, anonymously and without cookies, on its own server (Umami). If your browser sends Do Not Track, nothing is counted. The code is open source.",
     "laterTitle": "Coming later",
     "later": {
-      "tracks": "More tracks: working with AI, web fundamentals, framework deep dives",
+      "tracks": "More tracks: web fundamentals, framework deep dives; the next chapters of Working with AI",
       "profile": "A skill profile that shows where you are strong and what to practise next"
     },
     "byTitle": "Who builds it",
@@ -820,11 +830,14 @@
     "counter": {
       "commands": "{n} command | {n} commands",
       "hints": "no hints | {n} hint | {n} hints",
-      "reloads": "no reloads | {n} reload | {n} reloads"
+      "reloads": "no reloads | {n} reload | {n} reloads",
+      "falseAlarms": "no false alarms | {n} false alarm | {n} false alarms"
     },
     "taskKind": {
       "find": "find",
-      "fix": "quick fix"
+      "fix": "quick fix",
+      "spot": "spot it",
+      "verdict": "verdict"
     },
     "teaches": "Teaches: {error}",
     "kindSpoken": "Kind: {kind}"
@@ -1241,6 +1254,136 @@
     "team": {
       "heading": "Messages",
       "label": "Messages from the team"
+    }
+  },
+  "review": {
+    "note": "Sous is scripted: its pull requests are written into the level, no AI is called. Comment on lines, then send your review.",
+    "falseAlarms": "False alarms: {n}",
+    "pr": {
+      "label": "Pull request #{number}: {title}",
+      "open": "Open",
+      "wants": "wants to merge",
+      "into": "into",
+      "files": "1 file changed | {n} files changed",
+      "filesLong": "{files}, {added} lines added, {removed} removed",
+      "description": "Sous's description",
+      "assistant": "the shop's coding assistant"
+    },
+    "diff": {
+      "howTo": "Click a line number to comment on it (Shift+click, or drag, for several lines). With the keyboard: Tab to a file's lines, Up and Down to move, Shift with them to pick lines, Enter to comment.",
+      "howToTouch": "Tap a line number to comment on that line. One line is enough: put it on the line that is wrong.",
+      "line": "line {line}",
+      "lineRemoved": "removed line {line}",
+      "rowLabel": "Comment on {path}, {where} ({kind})",
+      "kind": {
+        "added": "added",
+        "removed": "removed",
+        "unchanged": "unchanged"
+      },
+      "file": "{path}: {added} lines added, {removed} removed",
+      "expand": "Show the changes in {path}",
+      "collapse": "Hide the changes in {path}",
+      "status": {
+        "added": "new file",
+        "deleted": "deleted",
+        "modified": "changed"
+      }
+    },
+    "place": {
+      "line": "line {line}",
+      "lines": "lines {from} to {to}",
+      "removed": "removed line {line}",
+      "removeds": "removed lines {from} to {to}"
+    },
+    "comment": {
+      "add": "Add comment",
+      "save": "Save",
+      "cancel": "Cancel",
+      "formLabel": "Comment on {lines}",
+      "on": "Commenting on {lines}",
+      "category": "What's wrong",
+      "text": "Comment for Sous",
+      "placeholder": "What's the problem? (optional: the category is what counts)",
+      "label": "{category} on {lines}",
+      "edit": "Edit",
+      "editLabel": "Edit the comment on {lines}",
+      "delete": "Delete",
+      "deleteLabel": "Delete the comment on {lines}",
+      "noText": "No text."
+    },
+    "category": {
+      "bug": "Bug",
+      "security": "Security",
+      "missing-test": "Missing test",
+      "false-claim": "False claim",
+      "scope": "Scope",
+      "unclear": "Unclear"
+    },
+    "categoryHelp": {
+      "bug": "It does the wrong thing.",
+      "security": "Someone could misuse it.",
+      "missing-test": "Nothing proves it works.",
+      "false-claim": "It doesn't do what the description says.",
+      "scope": "It changes more, or other things, than asked.",
+      "unclear": "Hard to follow, or a name that misleads."
+    },
+    "feedback": {
+      "found": "Found:",
+      "near": "Something is wrong on these lines, but it isn't a problem of the kind “{category}”: try another category.",
+      "wide": "There is a problem in these lines, but this comment covers too much around it: narrow it down to the lines that are wrong.",
+      "falseAlarm": "Nothing wrong here:",
+      "nothingHere": "no problem in this pull request touches these lines.",
+      "broad": "most of the changes this comment covers are fine. Comment on the lines that are wrong, not around them.",
+      "changed": "Changed since you sent your review: send it again to see what it finds."
+    },
+    "submit": {
+      "title": "Your review",
+      "comments": "no comments | 1 comment | {n} comments",
+      "summary": "Summary (optional)",
+      "reason": "Why? One line for Sous",
+      "summaryPlaceholder": "Anything you want to tell Sous about the whole change",
+      "reasonPlaceholder": "Approve or request changes, and say why",
+      "reasonMissing": "Say why in one line before you send it.",
+      "notRead": "Grindstone doesn't read what you write: the lines you comment on and their categories decide."
+    },
+    "verdict": {
+      "approve": "Approve",
+      "request-changes": "Request changes"
+    },
+    "result": {
+      "sent": "Review {n} sent.",
+      "solved": "{verdict}: that's it. Every problem found.",
+      "found": "{found} of {total} problems found.",
+      "flagged": "You approved, but your comments flag problems: an approval says nothing is wrong.",
+      "verdictWrong": "{verdict} isn't the right verdict.",
+      "falseAlarms": "{n} comment found nothing (a false alarm). | {n} comments found nothing (false alarms).",
+      "again": "Keep reviewing and send it again."
+    },
+    "list": {
+      "title": "Your comments",
+      "empty": "None yet. Click a line number in the diff to comment.",
+      "found": "found",
+      "near": "other kind",
+      "wide": "too wide",
+      "falseAlarm": "false alarm",
+      "finish": "Finish your review"
+    },
+    "run": {
+      "label": "Run the PR",
+      "title": "Run the PR",
+      "which": "Which code runs",
+      "side": {
+        "head": "This PR",
+        "base": "main"
+      },
+      "none": "This change has no page to run: read the diff.",
+      "intro": "Runs the shop with this pull request's code in a sealed frame, App and Console as in the Debugging track. Nothing leaves the frame, and nothing you do there counts.",
+      "start": "Run the PR",
+      "running": {
+        "head": "The shop with Sous's change.",
+        "base": "The shop on main, before the change."
+      },
+      "notInDiff": "{where} isn't in the diff: the pull request doesn't change it."
     }
   }
 }

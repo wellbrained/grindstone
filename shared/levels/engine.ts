@@ -68,6 +68,8 @@ export interface Action<S, R, O> {
   execute: (state: S) => Outcome<S, R, O>
   /** A reload of the level's app (Debugging): counted in `reloads` as well. */
   reload?: boolean
+  /** A sent review's new false alarms (Working with AI): added to `falseAlarms`, which a review sets even when it is 0. */
+  falseAlarms?: number
 }
 
 export interface ActResult<S, R, O> {
@@ -104,7 +106,8 @@ export function act<S, R, O>(session: SessionOf<S, R>, level: AnyLevel<S, R>, ac
       goalsMet,
       solved: session.solved || solvedNow,
       commandCount: session.commandCount + 1,
-      ...(action.reload ? { reloads: (session.reloads ?? 0) + 1 } : {})
+      ...(action.reload ? { reloads: (session.reloads ?? 0) + 1 } : {}),
+      ...(action.falseAlarms !== undefined ? { falseAlarms: (session.falseAlarms ?? 0) + action.falseAlarms } : {})
     },
     output: result.output,
     notices: [...before.notices, ...after.notices],
@@ -132,9 +135,13 @@ export function undoLast<S, R>(session: SessionOf<S, R>, level: AnyLevel<S, R>):
   }
 }
 
-/** Back to the setup as a new attempt. Revealed hints stay revealed (and counted). */
+/**
+ * Back to the setup as a new attempt. Revealed hints stay revealed (and counted), and so do false alarms (a review
+ * track): the feedback on them says which comments found the problems, so it is as good as a hint. Commands and
+ * reloads start over: what they taught has to be done again.
+ */
 export function restart<S, R>(session: SessionOf<S, R>, level: AnyLevel<S, R>): SessionOf<S, R> {
-  return { ...startSession(level), hintsUsed: session.hintsUsed }
+  return { ...startSession(level), hintsUsed: session.hintsUsed, ...(session.falseAlarms !== undefined ? { falseAlarms: session.falseAlarms } : {}) }
 }
 
 /** A hint as shown: its number (1-based), the level's hint count and its text. */

@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { isDebugLevel, isGitLevel, levelPlace } from '#shared/levels'
+import { isDebugLevel, isGitLevel, isReviewLevel, levelPlace } from '#shared/levels'
 
 definePageMeta({ key: route => route.fullPath })
 
 const route = useRoute()
 
 // any live track's level: /<track>/<slug>. The page picks the track's play component (git: GitPlay, Debugging:
-// DebuggingPlay); they share the level panel, the frame, the debrief with the radar, progress and the stats events
-// (usePlaySession).
+// DebuggingPlay, Working with AI: ReviewPlay); they share the level panel, the frame, the debrief with the radar,
+// progress and the stats events (usePlaySession).
 const level = levelFromRoute(String(route.params.track), String(route.params.level))
 const place = level ? levelPlace(level.id) : null
 if (!level || !place) throw createError({ statusCode: 404, statusMessage: 'Level not found', fatal: true })
@@ -15,7 +15,8 @@ useHead({ title: level.title })
 
 const gitLevel = isGitLevel(level) ? level : null
 const debugLevel = isDebugLevel(level) ? level : null
-if (!gitLevel && !debugLevel) throw createError({ statusCode: 404, statusMessage: 'Level not found', fatal: true })
+const reviewLevel = isReviewLevel(level) ? level : null
+if (!gitLevel && !debugLevel && !reviewLevel) throw createError({ statusCode: 404, statusMessage: 'Level not found', fatal: true })
 </script>
 
 <template>
@@ -28,6 +29,11 @@ if (!gitLevel && !debugLevel) throw createError({ statusCode: 404, statusMessage
     <DebuggingPlay
       v-else-if="debugLevel"
       :level="debugLevel"
+      :place="place"
+    />
+    <ReviewPlay
+      v-else-if="reviewLevel"
+      :level="reviewLevel"
       :place="place"
     />
   </div>

@@ -3,23 +3,27 @@
 // Version 3 keeps a best and a latest run, the fewest hints any solve used (for the skill radar), a "practise again" flag
 // and when an entry was last played. Versions 1 and 2 are migrated on read; version 3 data from before `fewestHints`
 // gets it from its runs (docs/features/levels.md, "Progress"). Which run is best is the track's measure (`RunMeasure`):
-// Git fewest commands, Debugging fewest hints then fewest reloads. Track-agnostic: never imports an environment.
+// Git fewest commands, Debugging fewest hints then fewest reloads, Working with AI fewest hints then fewest false alarms.
+// Track-agnostic: never imports an environment.
 import type { SessionOf } from './types'
 
 export const PROGRESS_VERSION = 3
 
 /**
  * One solve: how many counted actions it took (git: commands; undone ones included), how many hints were revealed and,
- * in a track with reloads (Debugging), how many reloads. `reloads` is absent in git runs, so their stored form did not change.
+ * in a track with reloads (Debugging), how many reloads, or in a track with reviews (Working with AI), how many false
+ * alarms. Both are absent in git runs, so their stored form did not change.
  */
 export interface Run {
   commands: number
   hints: number
   reloads?: number
+  /** Working with AI: review comments that found nothing, each counted once (ADR 0008). */
+  falseAlarms?: number
 }
 
 /** A count a best run is chosen by. */
-export type RunCounter = 'commands' | 'hints' | 'reloads'
+export type RunCounter = 'commands' | 'hints' | 'reloads' | 'falseAlarms'
 
 /** How a track picks its best run: the counters in order, fewer wins, each later one breaks a tie (a missing count is 0). */
 export type RunMeasure = readonly RunCounter[]
@@ -30,8 +34,11 @@ export const fewestCommands: RunMeasure = ['commands', 'hints']
 /** Debugging: fewest hints, then fewest reloads (ADR 0007). */
 export const fewestHintsThenReloads: RunMeasure = ['hints', 'reloads']
 
+/** Working with AI: fewest hints, then fewest false alarms (ADR 0008). */
+export const fewestHintsThenFalseAlarms: RunMeasure = ['hints', 'falseAlarms']
+
 /** What a solve needs from a session, whatever its environment. */
-export type Attempt = Pick<SessionOf<unknown, unknown>, 'solved' | 'commandCount' | 'hintsUsed' | 'reloads'>
+export type Attempt = Pick<SessionOf<unknown, unknown>, 'solved' | 'commandCount' | 'hintsUsed' | 'reloads' | 'falseAlarms'>
 
 export interface LevelProgress {
   /** Stays true once solved; only a reset clears it. */
@@ -95,11 +102,12 @@ export function isBetterRun(run: Run, than: Run | null, measure: RunMeasure = fe
   return false
 }
 
-/** The run a solved attempt stands for (`reloads` only when the attempt counted any). */
+/** The run a solved attempt stands for (`reloads` and `falseAlarms` only when the attempt counted them). */
 export const runOf = (attempt: Attempt): Run => ({
   commands: attempt.commandCount,
   hints: attempt.hintsUsed,
-  ...(attempt.reloads !== undefined ? { reloads: attempt.reloads } : {})
+  ...(attempt.reloads !== undefined ? { reloads: attempt.reloads } : {}),
+  ...(attempt.falseAlarms !== undefined ? { falseAlarms: attempt.falseAlarms } : {})
 })
 
 /** Marks an entry as the one you last played. */
@@ -171,9 +179,14 @@ export const MAX_FUTURE_MS = 24 * 60 * 60 * 1000
 
 const isCount = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 0
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
-/** A stored run; `reloads` is kept when it is a count and left out otherwise (git runs never have one). */
+/** A stored run; `reloads` and `falseAlarms` are kept when they are counts and left out otherwise (git runs have neither). */
 const asRun = (value: unknown): Run | null => isObject(value) && isCount(value.commands) && isCount(value.hints)
-  ? { commands: value.commands, hints: value.hints, ...(isCount(value.reloads) ? { reloads: value.reloads } : {}) }
+  ? {
+      commands: value.commands,
+      hints: value.hints,
+      ...(isCount(value.reloads) ? { reloads: value.reloads } : {}),
+      ...(isCount(value.falseAlarms) ? { falseAlarms: value.falseAlarms } : {})
+    }
   : null
 
 /**

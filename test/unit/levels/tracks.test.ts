@@ -31,11 +31,11 @@ import { BIG_CHAPTER_SIZES, bigTrack, fakePractice, practiceTrack, solvedProgres
 const git = trackById('git')!
 
 describe('track registry', () => {
-  it('lists git and Debugging as the live tracks and the upcoming ones as coming, without chapters', () => {
+  it('lists Git, Debugging and Working with AI as the live tracks and the upcoming ones as coming, without chapters', () => {
     expect(tracks.map(track => [track.id, track.status])).toEqual([
       ['git', 'live'],
       ['debugging', 'live'],
-      ['ai', 'coming'],
+      ['ai', 'live'],
       ['web', 'coming'],
       ['frameworks', 'coming']
     ])
@@ -203,6 +203,41 @@ describe('track registry', () => {
     // the whole track is live: no chapter is coming any more
     expect(debugging.chapters.every(chapter => chapter.levels.length > 0)).toBe(true)
     expect(nextLevel('git-practice-release-from-develop')).toBeNull()
+  })
+
+  it('gives Working with AI its seven chapters (ADR 0008): Read the diff live, the other six coming', () => {
+    const ai = trackById('ai')!
+    expect(ai).toMatchObject({ title: 'Working with AI', tagline: 'Lead the assistant, then check its work.', cheatSheet: null, bestRun: ['hints', 'falseAlarms'] })
+    expect(ai.chapters.map(chapter => [chapter.number, chapter.title, chapter.levels.length])).toEqual([
+      [1, 'Read the diff', 15],
+      [2, 'Claims vs. code', 0],
+      [3, 'Tests that lie', 0],
+      [4, 'Invented APIs', 0],
+      [5, 'Security', 0],
+      [6, 'Scope and size', 0],
+      [7, 'Steer the assistant', 0]
+    ])
+    expect(new Set(ai.chapters.map(chapter => chapter.colour)).size).toBe(7)
+    expect(ai.chapters.every(chapter => chapter.description !== '')).toBe(true)
+    expect(ai.chapters[0]!.levels.map(level => [levelNumber(level.id), level.id])).toEqual([
+      ['1.1', 'ai-01-twelve-croissants'],
+      [null, 'ai-practice-open-days'],
+      [null, 'ai-practice-same-loop'],
+      ['1.2', 'ai-02-line-totals'],
+      [null, 'ai-practice-items-not-lines'],
+      [null, 'ai-practice-pickup-time'],
+      ['1.3', 'ai-03-free-coffee'],
+      [null, 'ai-practice-sold-out'],
+      [null, 'ai-practice-no-double-negative'],
+      ['1.4', 'ai-04-pickup-locker'],
+      [null, 'ai-practice-medium-coffee'],
+      [null, 'ai-practice-locker-falls-through'],
+      ['1.5', 'ai-05-office-discount'],
+      [null, 'ai-practice-rye-by-weight'],
+      [null, 'ai-practice-ten-cents']
+    ])
+    expect(nextLevel('ai-practice-ten-cents')).toBeNull()
+    expect(nextLevel('ai-01-twelve-croissants')).toBe(levelById('ai-practice-open-days'))
   })
 
   it('maps the levels to their chapters', () => {
@@ -486,7 +521,7 @@ describe('progress counts', () => {
       { solved: 0, total: 11 },
       { solved: 0, total: 12 }
     ])
-    expect(trackProgress(trackById('ai')!, progress)).toEqual({ solved: 0, total: 0 })
+    expect(trackProgress(trackById('web')!, progress)).toEqual({ solved: 0, total: 0 })
   })
 })
 

@@ -5,14 +5,15 @@
 // colleagues' messages), the code with its drafts, Reload with its check run, and find tasks' clicks. The session, goals, recording of the solve, stats events and debrief are shared.
 // The session, the drafts, the open file and the last click live in the play state (they survive leaving the page); the
 // app you see, its Console, its requests, its DOM and the marked line live as long as the page (coming back loads the
-// app again).
+// app again). `runOnly` (Working with AI's Run the PR) runs an app outside any level: the same sandbox and panels, a
+// session kept by the component alone, nothing recorded.
 import {
   MAX_LOG_LINES, RECORD_LIMITS, consoleEntry, cssRules, deployById, differingPaths, fittingProfile, fittingSteps, historyEntries, lineIn, liveEntries, needsCounting, frameStep, hitCounts, nextHit,
   nodeAtPath, nodePath, pickDeploy, pickLine, previousHit, reload, requestEntry, restart, restoreFiles, rollback, saveDebugFile, scopeAt, scopeValues, startDebugLevel, startExpanded, stepBack,
   stepInto, stepLine, stepOut, stepOver, takeHint, versionOf, withAncestors, withResponse, withoutInstrumentation
 } from '#shared/levels'
 import type {
-  Breakpoint, BridgeMessage, ColleagueMessage, ConsoleEntryBody, CssRule, DebugLevel, DebugResult, DebugSession, DeployPick, DomNode, Inspected, Instrumented, LogEntry, LoggedRequest, NetworkEntry, PickVerdict,
+  Breakpoint, BridgeMessage, ColleagueMessage, ConsoleEntryBody, CssRule, DebugLevel, DebugRecord, DebugResult, DebugSession, DebugState, DeployPick, DomNode, Inspected, Instrumented, LogEntry, LoggedRequest, NetworkEntry, PickVerdict,
   Profile, RecordEndReason, RecordedStep, ScopeEntries, SourceLine, SourceMapping
 } from '#shared/levels'
 import type { CompiledCondition } from '#shared/levels/debugging/condition'
@@ -97,12 +98,49 @@ function loadRecordTools(): Promise<RecordTools> {
   return toolsLoading
 }
 
-export function useDebuggingPlay(level: DebugLevel) {
+type PlaySession = ReturnType<typeof usePlaySession<DebugState, DebugRecord, PlayState>>
+
+/**
+ * The play session of an app that only runs, outside any level (Working with AI's Run the PR): kept in memory for the
+ * component, never recorded, no progress, no stats, no debrief.
+ */
+function runOnlySession(fresh: () => PlayState, restartApp: () => void): PlaySession {
+  const store = ref(fresh()) as PlaySession['store']
+  return {
+    store,
+    session: computed(() => store.value.session),
+    next: null,
+    goals: computed(() => []),
+    best: computed(() => null),
+    debriefOpen: ref(false),
+    progressBefore: shallowRef(null),
+    sparkKey: ref(0),
+    markPlayed: () => {},
+    update: (updated) => {
+      store.value.session = updated
+    },
+    solved: () => {},
+    again: () => {
+      store.value = fresh()
+      nextTick(restartApp)
+    }
+  }
+}
+
+export interface DebuggingPlayOptions {
+  /**
+   * Only run the app (Working with AI's Run the PR): the same panels, bridge and sandbox, but the session lives in the
+   * component alone and nothing is recorded (no progress, no stats, no debrief).
+   */
+  runOnly?: boolean
+}
+
+export function useDebuggingPlay(level: DebugLevel, options: DebuggingPlayOptions = {}) {
   const fresh = (): PlayState => {
     const session = startDebugLevel(level)
     return { session, drafts: { ...session.state.files }, active: level.sandbox.open, answer: null, undoFiles: null }
   }
-  const play = usePlaySession(level, { fresh, onRestart: () => nextTick(restartApp) })
+  const play = options.runOnly ? runOnlySession(fresh, () => restartApp()) : usePlaySession(level, { fresh, onRestart: () => nextTick(restartApp) })
   const { store, session, next, goals, best, debriefOpen, progressBefore, sparkKey } = play
 
   const find = level.sandbox.find ?? null

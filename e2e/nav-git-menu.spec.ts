@@ -28,12 +28,13 @@ test('shows Levels and Cheat sheet under Git in the mobile menu', async ({ page 
   await page.getByRole('button', { name: /menu/i }).click()
 
   const menu = page.getByRole('dialog')
-  // one Levels link per live track: Git's and Debugging's
+  // one Levels link per live track: Git's, Debugging's and Working with AI's
   const levels = menu.getByRole('link', { name: 'Levels', exact: true })
-  await expect(levels).toHaveCount(2)
-  await expect(levels.first()).toHaveAttribute('href', '/git')
-  await expect(levels.last()).toHaveAttribute('href', '/debugging')
-  // one Cheat sheet link per live track too
+  await expect(levels).toHaveCount(3)
+  await expect(levels.nth(0)).toHaveAttribute('href', '/git')
+  await expect(levels.nth(1)).toHaveAttribute('href', '/debugging')
+  await expect(levels.nth(2)).toHaveAttribute('href', '/ai')
+  // one Cheat sheet link per track that has one (Working with AI's comes after chapter 7)
   const sheets = menu.getByRole('link', { name: 'Cheat sheet', exact: true })
   await expect(sheets).toHaveCount(2)
   await expect(sheets.last()).toHaveAttribute('href', '/debugging/cheat-sheet')

@@ -115,6 +115,8 @@ export interface SessionOf<S, R> {
   commandCount: number
   /** Reloads of this attempt (Debugging), including undone ones; absent until the first. */
   reloads?: number
+  /** False alarms of this attempt (Working with AI: review comments that found nothing, each once); absent until a review is sent. */
+  falseAlarms?: number
 }
 
 export interface Notice {

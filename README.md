@@ -4,6 +4,8 @@ Practice real developer skills in short, game-like scenarios. The first track is
 
 The second track is **Debugging**: small real apps from a bakery's ordering site, with real bugs. Read the Console, follow the stack trace to the line, fix the code and reload; the app runs in a sealed frame in your browser.
 
+The third is **Working with AI**: review the pull requests of Sous, the bakery's (scripted) coding assistant. Comment on the lines that are wrong, say what kind of problem it is, run the change, then approve it or request changes.
+
 Status: in development (v0.1 in progress). Plan: [docs/adr/0001-plan.md](docs/adr/0001-plan.md).
 
 ## Why another git trainer?

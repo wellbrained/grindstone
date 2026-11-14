@@ -1,10 +1,12 @@
-// Public API of the levels: the shared core (track-agnostic) and its environments, git and Debugging
-// (docs/features/levels.md).
+// Public API of the levels: the shared core (track-agnostic) and its environments, git, Debugging and the review
+// environment of Working with AI (docs/features/levels.md).
 // The core modules (types, engine, progress, track, radar) never import an environment; this barrel and the registry
 // (tracks.ts) are where the tracks come together.
 export type * from './types'
 export type * from './git/types'
 export type * from './debugging/types'
+export type * from './review/types'
+export type { DiffHunk as ReviewDiffHunk, DiffRow, FileDiff } from './review/diff'
 export type { BridgeMessage, ConsoleEntryBody, ConsoleLevel, HeaderPair, InspectedMessage, RequestFailure, RequestMessage, ResponseMessage } from './debugging/messages'
 export type { CssCondition, CssDeclaration, CssRule, CssSheet, Specificity } from './debugging/css'
 export type { BoxModel, DeclarationStatus, DeclarationView, DomNode, ElementStyles, InheritedView, Inspected, InspectedLevel, InspectedMatch, RuleView, ScrollSize, Sides, TreeMove, TreeRow } from './debugging/elements'
@@ -34,6 +36,7 @@ export {
   emptyProgress,
   entryOf,
   fewestCommands,
+  fewestHintsThenFalseAlarms,
   fewestHintsThenReloads,
   isBetterRun,
   lastPlayed,
@@ -48,7 +51,7 @@ export {
   summarizeProgress
 } from './progress'
 export { chapterProgress, continueTarget, defineTrack, nextUp, placeIn, placeName, practiseAgainIn, trackLevels, trackPlaces, trackProgress } from './track'
-export { formatCredit, isRadarEmpty, levelCredit, radarGain, trackRadar } from './radar'
+export { formatCredit, isRadarEmpty, levelCredit, overviewRadar, radarGain, trackRadar } from './radar'
 export { chapterOf, hasProgress, levelById, levelNumber, levelPlace, levels, nextLevel, trackById, trackToContinue, tracks } from './tracks'
 
 // the git environment
@@ -96,3 +99,10 @@ export {
 } from './debugging/recording'
 export { bodyView, durationText, requestAddress, requestEntry, requestName, statusLabel, statusTone, withResponse } from './debugging/network'
 export { debuggingLevels, debuggingTrack } from './debugging'
+
+// the review environment (Working with AI)
+export { CATEGORIES, VERDICTS, isReviewLevel } from './review/types'
+export { MAX_COMMENT_TEXT, MAX_SUMMARY, addComment, deleteComment, editComment, playReviewSolution, playReviewStep, reviewDiff, startReview, submitReview } from './review/engine'
+export { DIFF_CONTEXT, MAX_COMMENT_LINES, canonicalPlace, locate, placeFor, placeOf, placeRows, pullRequestDiff, rowIn } from './review/diff'
+export { checkReview, reviewGoals, touches, touchesIssue } from './review/checks'
+export { aiLevels, aiTrack } from './review'

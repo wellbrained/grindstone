@@ -2,6 +2,7 @@
 // The lookups take the registry as a parameter (default: the real one), so tests can run them on a 58-level fixture.
 import { debuggingTrack } from './debugging'
 import { gitTrack } from './git'
+import { aiTrack } from './review'
 import { lastPlayed } from './progress'
 import { defineTrack, placeIn, trackLevels, trackProgress } from './track'
 import type { Chapter, LevelPlace, Track } from './track'
@@ -11,13 +12,7 @@ import type { Level } from './types'
 export const tracks: readonly Track[] = [
   gitTrack,
   debuggingTrack,
-  defineTrack({
-    id: 'ai',
-    title: 'Working with AI',
-    scope: 'Lead the AI instead of letting it do the work, and review the code it writes.',
-    description: 'Lead an AI assistant instead of letting it do the work, and review AI-written code before it ships.',
-    status: 'coming'
-  }),
+  aiTrack,
   defineTrack({
     id: 'web',
     title: 'Web fundamentals',

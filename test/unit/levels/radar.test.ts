@@ -5,14 +5,16 @@ import {
   gitTrack,
   isRadarEmpty,
   levelCredit,
+  overviewRadar,
   parseProgress,
   radarGain,
   recordPlay,
   recordSolve,
   resetEntries,
-  trackRadar
+  trackRadar,
+  tracks
 } from '../../../shared/levels'
-import type { Level, LevelProgress, Progress, Session } from '../../../shared/levels'
+import type { Level, LevelProgress, Progress, Session, Track } from '../../../shared/levels'
 import { bigTrack, practiceTrack } from './fixtures'
 
 // practiceTrack: chapter A is s1 (practice p1a, p1b), s2, s3 (practice p3a); chapter B is t1 (practice q1a).
@@ -147,5 +149,27 @@ describe('what a solve changed on the radar', () => {
 
   it('writes values without a trailing .0', () => {
     expect([0, 0.5, 4.5, 5, 10].map(formatCredit)).toEqual(['0', '0.5', '4.5', '5', '10'])
+  })
+})
+
+describe('the overview radar (ADR 0008): one axis per live track', () => {
+  const coming = (id: Track['id']): Track => ({ ...practiceTrack(), id, status: 'coming', chapters: [] })
+
+  it('has an axis per live track, in registry order, each over every level of its track; coming tracks are left out', () => {
+    const live = { ...practiceTrack(), id: 'ai' as const, title: 'Practice' }
+    const axes = overviewRadar([gitTrack, coming('web'), live], solves({ s1: 0, p1a: 1, s2: 3, t1: 0 }))
+    expect(axes.map(axis => [axis.chapter.id, axis.chapter.title, axis.chapter.colour])).toEqual([['git', gitTrack.title, 0], ['ai', 'Practice', 1]])
+    // the same half credit as a chapter's axis: s1 1, p1a 0.5 (its one hint), s2 0.5 (the last hint), t1 1
+    expect(axes[1]).toMatchObject({ value: 3, total: 8, solved: 4, share: 3 / 8, coming: false })
+    expect(axes[1]!.chapter.levels).toHaveLength(8)
+    expect(axes[0]).toMatchObject({ value: 0, total: gitTrack.chapters.flatMap(chapter => chapter.levels).length, share: 0 })
+    expect(isRadarEmpty(overviewRadar([gitTrack, live], emptyProgress()))).toBe(true)
+  })
+
+  it('covers the real registry: Git, Debugging and Working with AI, the coming tracks not drawn', () => {
+    const axes = overviewRadar(tracks, emptyProgress())
+    expect(axes.map(axis => axis.chapter.id)).toEqual(['git', 'debugging', 'ai'])
+    expect(axes.map(axis => axis.chapter.colour)).toEqual([0, 1, 2])
+    expect(axes.every(axis => !axis.coming && axis.total > 0)).toBe(true)
   })
 })
