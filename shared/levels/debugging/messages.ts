@@ -60,6 +60,22 @@ export type BridgeMessage
     | { type: 'profileTick', work: number, actions: number }
   /** Chapter 7: the shop's server answered a request (numbers only; the Logs panel's lines come from the level's data). */
     | ServerLogMessage
+  /** The Tests panel (Working with AI): a test file loaded (how many tests it registered), failed to load or hung loading. */
+    | { type: 'testFile', path: string, tests: number, error: TestError | null, timeout: boolean }
+  /**
+   * The Tests panel: one test's result (where it was registered, how many checks ran in it, why it failed); `leaked`:
+   * it ended, but something it started kept the runner busy afterwards (the run went on without it).
+   */
+    | { type: 'test', index: number, path: string, name: string, at: string, status: 'passed' | 'failed' | 'unfinished', checks: number, error: TestError | null, leaked: boolean }
+  /** The Tests panel: the run is over (`finished`: the runner got through every test), with how many tests were over the cap. */
+    | { type: 'testsDone', finished: boolean, dropped: number }
+
+/** What a test threw: an error's name, message and stack (cut), or what it threw, printed (no name, no stack). */
+export interface TestError {
+  name: string | null
+  message: string
+  stack: string | null
+}
 
 export interface InspectedMessage extends Inspected {
   type: 'inspected'
@@ -136,6 +152,24 @@ const cut = (value: unknown, max: number): string | null => typeof value === 'st
 const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value)
 /** A whole number from -1 (none) up. */
 const nodeId = (value: unknown): number | undefined => value === -1 ? -1 : whole(value, Number.MAX_SAFE_INTEGER)
+const TEST_STATUSES = ['passed', 'failed', 'unfinished'] as const
+/** The test messages' caps (test-runner.ts's TEST_LIMITS, read again here: the frame is not trusted). */
+const MAX_TEST_PATH = 200
+const MAX_TEST_NAME = 200
+const MAX_TEST_MESSAGE = 2000
+const MAX_TEST_STACK = 4000
+
+/** A test's error as plain text, cut; undefined when it is not one. */
+function testError(value: unknown): TestError | null | undefined {
+  if (value === null) return null
+  const raw = typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
+  const message = raw ? cut(raw.message, MAX_TEST_MESSAGE) : null
+  const name = raw?.name === null ? null : cut(raw?.name, 100)
+  const stack = raw?.stack === null ? null : cut(raw?.stack, MAX_TEST_STACK)
+  if (!raw || message === null || (raw.name !== null && name === null) || (raw.stack !== null && stack === null)) return undefined
+  return { name, message, stack }
+}
+
 const record = (value: unknown): Record<string, unknown> | null => typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null
 
 /** Pairs of plain text, at most `max`, each cut at `length`; null when they are not that. */
@@ -368,6 +402,28 @@ export function readBridgeMessage(data: unknown): BridgeMessage | null {
       if (id === undefined || route === undefined || answer === undefined || status === undefined || at === undefined || time === undefined) return null
       return { type: 'serverlog', id, route, answer, status, at, time }
     }
+    case 'testFile': {
+      const path = cut(raw.path, MAX_TEST_PATH)
+      const tests = whole(raw.tests, 1e9)
+      const error = testError(raw.error)
+      if (path === null || tests === undefined || error === undefined || typeof raw.timeout !== 'boolean') return null
+      return { type: 'testFile', path, tests, error, timeout: raw.timeout }
+    }
+    case 'test': {
+      const index = whole(raw.index, 1e9)
+      const path = cut(raw.path, MAX_TEST_PATH)
+      const name = cut(raw.name, MAX_TEST_NAME)
+      const at = cut(raw.at, MAX_TEST_STACK)
+      const status = TEST_STATUSES.find(each => each === raw.status)
+      const checks = whole(raw.checks, 1e9)
+      const error = testError(raw.error)
+      if (index === undefined || path === null || name === null || at === null || !status || checks === undefined || error === undefined || typeof raw.leaked !== 'boolean') return null
+      return { type: 'test', index, path, name, at, status, checks, error, leaked: raw.leaked }
+    }
+    case 'testsDone': {
+      const dropped = whole(raw.dropped, 1e9)
+      return typeof raw.finished === 'boolean' && dropped !== undefined ? { type: 'testsDone', finished: raw.finished, dropped } : null
+    }
     case 'recordEnd': {
       const reason = RECORD_ENDS.find(each => each === raw.reason)
       const total = whole(raw.count, Number.MAX_SAFE_INTEGER)
@@ -391,7 +447,7 @@ export interface ConsoleEntryBody {
 const errorText = (name: string | null, message: string) => name ? (message ? `${name}: ${message}` : name) : message
 
 /** A message that names a module by its blob URL (Firefox: "The requested module 'blob:null/…'") names the file instead. */
-const withFileNames = (text: string, mapping: SourceMapping) =>
+export const withFileNames = (text: string, mapping: SourceMapping) =>
   text.includes('blob:') ? text.replace(/blob:[^\s'"`)]+/g, url => mapping.urls[url] ?? url) : text
 
 const lineOf = (frame: TraceFrame | undefined): SourceLine | null => frame ? { path: frame.path, line: frame.line } : null

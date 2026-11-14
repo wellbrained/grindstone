@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { ReviewLevel, SourceLine } from '#shared/levels'
+import { testFilesOf, testRunFiles } from '#shared/levels'
 import type { RunSide } from '~/utils/review-run'
 import { runLevel } from '~/utils/review-run'
 
@@ -8,7 +9,9 @@ import { runLevel } from '~/utils/review-run'
 // frame loads nothing before); "This PR" and "main" switch between the files after and before it, each a fresh load.
 // A level whose change has no page to run (a practice task's one file) says so instead. A file:line link in its Console
 // shows that line in the diff (the side's numbers: after the change, or before it on main) and focuses its number; a
-// line the diff does not show is said so under the toggle.
+// line the diff does not show is said so under the toggle. A pull request with test files (chapter 3) also gets the
+// Tests panel: on This PR its tests run on its code, on main on main's code (a test that passes there too doesn't prove
+// the change); its links show their lines the same way (a test file's by the pull request's numbers on either side).
 const props = defineProps<{ level: ReviewLevel }>()
 
 const { t } = useI18n()
@@ -17,6 +20,9 @@ const runs = props.level.run !== undefined
 const started = ref(false)
 const side = ref<RunSide>('head')
 const app = computed(() => runLevel(props.level, side.value))
+const hasTests = runs && testFilesOf(props.level.pr.head).length > 0
+/** The files the Tests panel runs on this side: null without tests. */
+const tests = computed(() => hasTests ? testRunFiles(props.level.pr, side.value) : null)
 const SIDES: RunSide[] = ['head', 'base']
 
 /** The last Console link that pointed at a line the diff does not show. */
@@ -25,8 +31,8 @@ watch(side, () => {
   missing.value = null
 })
 
-function showLine({ path, line }: SourceLine) {
-  const numbers = side.value === 'head' ? 'new' : 'old'
+function showLine({ path, line }: SourceLine, which?: 'new' | 'old') {
+  const numbers = which ?? (side.value === 'head' ? 'new' : 'old')
   const button = document.querySelector<HTMLElement>(`[data-file="${CSS.escape(path)}"] [data-testid="diff-number"][data-${numbers}="${line}"]`)
   // a collapsed file's rows are not on screen
   if (!button || button.offsetParent === null) {
@@ -88,7 +94,7 @@ function start() {
       v-else-if="!started"
       class="flex flex-col items-start gap-3 rounded-lg border border-default bg-elevated p-4 text-sm text-toned"
     >
-      <p>{{ t('review.run.intro') }}</p>
+      <p>{{ t(hasTests ? 'review.run.introTests' : 'review.run.intro') }}</p>
       <UButton
         color="neutral"
         icon="i-lucide-play"
@@ -110,6 +116,7 @@ function start() {
       :key="side"
       :level="app"
       :side="side"
+      :tests="tests"
       class="min-h-0 flex-1"
       @line="showLine"
     />

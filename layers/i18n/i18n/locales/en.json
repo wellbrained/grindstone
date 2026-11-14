@@ -1387,12 +1387,47 @@
       },
       "none": "This change has no page to run: read the diff.",
       "intro": "Runs the shop with this pull request's code in a sealed frame, App and Console as in the Debugging track. Nothing leaves the frame, and nothing you do there counts.",
+      "introTests": "Runs the shop with this pull request's code in a sealed frame, App and Console as in the Debugging track, and runs its tests. Nothing leaves the frame, and nothing you do there counts.",
       "start": "Run the PR",
       "running": {
         "head": "The shop with Sous's change.",
         "base": "The shop on main, before the change."
       },
       "notInDiff": "{where} isn't in the diff: the pull request doesn't change it."
+    },
+    "tests": {
+      "label": "Tests",
+      "tabs": "Tests and Console",
+      "again": "Run again",
+      "running": "Running the tests…",
+      "on": {
+        "head": "This pull request's tests, on its own code.",
+        "base": "This pull request's tests, on main's code: a test that passes here too doesn't prove the change."
+      },
+      "summary": {
+        "passed": "{n} passed",
+        "failed": "{n} failed",
+        "unfinished": "{n} did not finish",
+        "broken": "{n} file could not run | {n} files could not run",
+        "none": "No tests ran."
+      },
+      "status": {
+        "passed": "passed",
+        "failed": "failed",
+        "unfinished": "did not finish"
+      },
+      "checks": "no checks | 1 check | {n} checks",
+      "noChecks": "passed without checking anything",
+      "unfinished": "Stopped after {s} s: it never finished (an endless loop, or a promise that never settles).",
+      "leaked": "It ended, but something it started (a timer, a loop it didn't wait for) kept running: stopped, and the run went on after it.",
+      "fileError": "Could not run:",
+      "fileTimeout": "Did not finish loading within {s} s, so its tests did not run.",
+      "notReached": "The run stopped before it got to this file.",
+      "stopped": "The run stopped before every test had finished.",
+      "dropped": "{n} more tests were left out: a run keeps the first {max}.",
+      "at": "at",
+      "open": "Show {path}, line {line}, in the diff",
+      "note": "Tests run in a sealed frame, in a worker of their own: a test that takes longer than {s} s is stopped. They get test, expect and vi, as in Vitest, with a small set of matchers."
     }
   }
 }

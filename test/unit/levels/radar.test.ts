@@ -171,15 +171,15 @@ describe('the overview radar (ADR 0008): one axis per live track', () => {
     expect(axes.map(axis => axis.chapter.id)).toEqual(['git', 'debugging', 'ai'])
     expect(axes.map(axis => axis.chapter.colour)).toEqual([0, 1, 2])
     expect(axes.every(axis => !axis.coming && axis.total > 0)).toBe(true)
-    expect(axes[2]!.total).toBe(30)
+    expect(axes[2]!.total).toBe(45)
   })
 
-  it('draws Working with AI\'s live chapters solid: Read the diff and Claims vs. code, the rest dashed', () => {
+  it('draws Working with AI\'s live chapters solid: Read the diff, Claims vs. code and Tests that lie, the rest dashed', () => {
     const ai = tracks.find(track => track.id === 'ai')!
     expect(trackRadar(ai, emptyProgress()).map(axis => [axis.chapter.id, axis.coming, axis.total])).toEqual([
       ['read-the-diff', false, 15],
       ['claims-vs-code', false, 15],
-      ['tests-that-lie', true, 0],
+      ['tests-that-lie', false, 15],
       ['invented-apis', true, 0],
       ['security', true, 0],
       ['scope-and-size', true, 0],

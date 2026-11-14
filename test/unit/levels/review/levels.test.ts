@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { CATEGORIES, DESCRIPTION_PATH, addComment, aiLevels, aiTrack, checkReview, isReviewLevel, placeFor, placeOf, playReviewSolution, playReviewStep, reviewDiff, reviewTargets, startReview, submitReview, touchesIssue } from '../../../../shared/levels'
 import type { Category, ReviewLevel, ReviewSession, ReviewStep, Spot, Verdict } from '../../../../shared/levels'
+import { isTestFile, testRunFiles } from '../../../../shared/levels/review/test-sandbox'
+import { runOnNode } from './run-tests'
 
 // Every Working with AI level (ADR 0008): its shape, where its planted issues and tempting spots sit in the diff (or on
 // Sous's description), a start that solves nothing, its solution replayed, and the reviews that must not solve it (the
@@ -40,7 +42,12 @@ const POINTED_AT: Record<string, [path: string, line: number, contains: string][
   'ai-07-just-a-refactor': [['tip.js', 3, 'products.sort((a, b) => a.price - b.price)[0]']],
   'ai-08-all-sizes': [['coffee.js', 12, '\'meduim\'']],
   'ai-09-linked-issue': [['cart.js', 19, 'cart.lines.length'], ['cart.js', 20, '${count} products']],
-  'ai-10-same-but-faster': [['cart.js', 19, 'if (cart.lines.length === cachedLines) return cachedTotal']]
+  'ai-10-same-but-faster': [['cart.js', 19, 'if (cart.lines.length === cachedLines) return cachedTotal']],
+  'ai-11-all-tests-pass': [['prices.test.js', 14, 'expect(total)']],
+  'ai-12-mocked': [['discount.test.js', 9, 'vi.spyOn(pricing, \'applyDiscount\').mockReturnValue(21.6)'], ['discount.js', 7, 'if (count > BULK_FROM)']],
+  'ai-13-fixed-the-test': [['prices.js', 3, 'Math.floor(line.price * line.quantity * 100) / 100'], ['prices.test.js', 9, 'toBe(8.39)']],
+  'ai-14-full-coverage': [['split.js', 3, 'Math.round(total / people * 100) / 100'], ['split.test.js', 4, 'splits 9.00 € between three']],
+  'ai-15-snapshot-updated': [['receipt.js', 5, 'formatPrice(line.price)'], ['receipt.test.js', 11, '2 × Butter croissant  2.40']]
 }
 
 /**
@@ -78,7 +85,22 @@ const DESCRIPTION_TRUTH: Record<string, (string | null)[]> = {
   'ai-practice-greyed-out': [null, 'still-orderable', null],
   'ai-10-same-but-faster': [null, 'stale-total', 'stale-total', null],
   'ai-practice-remembered-search': [null, null, 'first-letter'],
-  'ai-practice-today-once': [null, 'day-of-loading', null]
+  'ai-practice-today-once': [null, 'day-of-loading', null],
+  'ai-11-all-tests-pass': [null, null, null, 'no-assertion', null],
+  'ai-practice-if-around-expect': [null, 'if-guard', null],
+  'ai-practice-honest-test': [null, null, null],
+  'ai-12-mocked': [null, 'from-eleven', null, 'mocked'],
+  'ai-practice-mocked-total': [null, 'mock-not-code', null],
+  'ai-practice-mock-the-till': [null, null, null],
+  'ai-13-fixed-the-test': [null, 'floor', 'floor', null, null],
+  'ai-practice-new-expected': [null, null, null],
+  'ai-practice-flaky-test': [null, 'deleted-test', null],
+  'ai-14-full-coverage': [null, null, 'lost-cent', null],
+  'ai-practice-nan-is-a-number': [null, 'typeof-number', null],
+  'ai-practice-close-enough': [null, null, 'to-the-euro'],
+  'ai-15-snapshot-updated': [null, null, 'unit-price', null, null],
+  'ai-practice-snapshot-undefined': [null, null, 'undefined-in-snapshot'],
+  'ai-practice-snapshot-as-asked': [null, null, null]
 }
 
 /** Lines of Sous's description the hints point at ("line 3 of the description"), with what is there. */
@@ -103,14 +125,59 @@ const COMPUTED: Record<string, string[]> = {
   'ai-08-all-sizes': ['coffeePrice(\'medium\')'],
   'ai-practice-empty-search': ['\'Sourdough loaf\'.includes(\'\')'],
   'ai-practice-tested-at-twelve': ['deliveryFee(12)'],
-  'ai-practice-remembered-search': ['c', 'cro']
+  'ai-practice-remembered-search': ['c', 'cro'],
+  'ai-12-mocked': ['mockReturnValue(21.6)'],
+  'ai-13-fixed-the-test': ['839.9999999999999', 'Math.round'],
+  'ai-practice-if-around-expect': ['deliveryFee(25)'],
+  'ai-practice-nan-is-a-number': ['typeof NaN']
+}
+
+/**
+ * Chapter 3: what each pull request's tests do on Node with the Tests panel's runner, on its own code (This PR) and on
+ * main's code (main: main's files with the pull request's test files). Every pull request's tests pass on its own code
+ * (that is the chapter: the tests pass, and still lie); main shows what the debrief says the panel shows.
+ */
+const TEST_OUTCOMES: Record<string, { head: string[], base: string[] }> = {
+  'ai-11-all-tests-pass': {
+    head: ['passed: one croissant costs 2.40 €', 'passed: two loaves cost 13.00 €', 'passed: six croissants cost 12.00 € (no checks)'],
+    base: ['passed: one croissant costs 2.40 €', 'passed: two loaves cost 13.00 €', 'passed: six croissants cost 12.00 € (no checks)']
+  },
+  'ai-practice-if-around-expect': { head: ['passed: orders from 20 € deliver free'], base: ['passed: orders from 20 € deliver free'] },
+  'ai-practice-honest-test': { head: ['passed: prices show two decimals', 'passed: nothing costs 0.00'], base: ['passed: prices show two decimals', 'passed: nothing costs 0.00'] },
+  'ai-12-mocked': {
+    head: ['passed: small orders pay the full price', 'passed: ten items get 10 % off'],
+    base: ['passed: small orders pay the full price', 'passed: ten items get 10 % off']
+  },
+  'ai-practice-mocked-total': { head: ['passed: adds up every line'], base: ['passed: adds up every line'] },
+  'ai-practice-mock-the-till': { head: ['passed: sends the items and the total to the till'], base: ['passed: sends the items and the total to the till'] },
+  'ai-13-fixed-the-test': {
+    head: ['passed: one croissant costs 2.40 €', 'passed: three pains au chocolat cost 8.39 €'],
+    base: ['passed: one croissant costs 2.40 €', 'failed: three pains au chocolat cost 8.39 €']
+  },
+  'ai-practice-new-expected': {
+    head: ['passed: orders under 20 € pay 3.50 € delivery', 'passed: orders from 20 € deliver free'],
+    base: ['passed: orders under 20 € pay 3.50 € delivery', 'passed: orders from 20 € deliver free']
+  },
+  'ai-practice-flaky-test': { head: ['passed: finds a product by a word in its name'], base: ['passed: finds a product by a word in its name'] },
+  'ai-14-full-coverage': {
+    head: ['passed: splits 9.00 € between three', 'passed: one person pays it all'],
+    base: ['cannot run split.test.js: Failed to load ./split.js from split.test.js: no such file.']
+  },
+  'ai-practice-nan-is-a-number': {
+    head: ['passed: two croissants average 2.40 €', 'passed: an empty basket has an average'],
+    base: ['cannot run average.test.js: Failed to load ./average.js from average.test.js: no such file.']
+  },
+  'ai-practice-close-enough': { head: ['passed: three pains au chocolat cost 8.40 €'], base: ['passed: three pains au chocolat cost 8.40 €'] },
+  'ai-15-snapshot-updated': { head: ['passed: prints a line per product and the total'], base: ['failed: prints a line per product and the total'] },
+  'ai-practice-snapshot-undefined': { head: ['passed: thanks the customer'], base: ['failed: thanks the customer'] },
+  'ai-practice-snapshot-as-asked': { head: ['passed: prints a line per product'], base: ['failed: prints a line per product'] }
 }
 
 describe('the Working with AI levels', () => {
-  it('are fifteen in chapter 1 and fifteen in chapter 2, with unique ids, in the track\'s id forms', () => {
-    expect(aiLevels).toHaveLength(30)
-    expect(aiTrack.chapters.slice(0, 2).map(chapter => chapter.levels.length)).toEqual([15, 15])
-    expect(new Set(aiLevels.map(level => level.id)).size).toBe(30)
+  it('are fifteen in each of chapters 1 to 3, with unique ids, in the track\'s id forms', () => {
+    expect(aiLevels).toHaveLength(45)
+    expect(aiTrack.chapters.slice(0, 3).map(chapter => chapter.levels.length)).toEqual([15, 15, 15])
+    expect(new Set(aiLevels.map(level => level.id)).size).toBe(45)
     for (const level of aiLevels) {
       expect(level.id).toMatch(level.kind === 'scenario' ? /^ai-\d{2}-[a-z-]+$/ : /^ai-practice-[a-z-]+$/)
     }
@@ -300,10 +367,10 @@ describe('the Working with AI levels', () => {
   })
 
   // the blanket review (ADR 0008, review of 2026-11-14): comments of `size` rows tiling every hunk and the description,
-  // all of one kind (bug, or false claim from chapter 2 on), whatever is in them; `aligned`: the last one ends at the
+  // all of one kind (bug, false claim from chapter 2 on, missing test from chapter 3 on), whatever is in them; `aligned`: the last one ends at the
   // hunk's end, so every comment is full size (a hunk shorter than `size` gets one comment over all of it); else the
   // last one is what is left. `kinds` gives every comment both kinds (two comments on each stretch).
-  const BLANKETS: Category[][] = [['bug'], ['false-claim'], ['bug', 'false-claim']]
+  const BLANKETS: Category[][] = [['bug'], ['false-claim'], ['missing-test'], ['bug', 'false-claim'], ['bug', 'missing-test']]
   function blanket(level: ReviewLevel, size: number, aligned: boolean, kinds: readonly Category[] = ['bug']): ReviewSession {
     let session = startReview(level)
     for (const file of reviewTargets(level)) {
@@ -359,6 +426,43 @@ describe('the Working with AI levels', () => {
     }
   })
 
+  it('makes chapter 3 about tests: every pull request has test files, and every one with a problem a test that lies', () => {
+    const chapter = aiTrack.chapters.find(each => each.id === 'tests-that-lie')!.levels.filter(isReviewLevel)
+    expect(chapter).toHaveLength(15)
+    for (const level of chapter) {
+      expect(Object.keys(level.pr.head).some(isTestFile), level.id).toBe(true)
+      if (level.verdict === 'approve') continue
+      // a problem in a test is a missing test (maybe a false claim, when the description says it is tested), never a bug
+      const inTests = level.issues.filter(issue => isTestFile(issue.path))
+      expect(inTests.length, level.id).toBeGreaterThan(0)
+      for (const issue of inTests) {
+        expect(issue.categories, issue.id).toContain('missing-test')
+        expect(issue.categories, issue.id).not.toContain('bug')
+      }
+      // a problem in the code is a bug, never a missing test: the category says which file is wrong
+      for (const issue of level.issues.filter(each => !isTestFile(each.path))) expect(issue.categories, issue.id).not.toContain('missing-test')
+    }
+    // the code is wrong too in most scenarios, and some tests are honest: approve them
+    expect(chapter.filter(level => level.kind === 'scenario' && level.issues.some(issue => issue.categories.includes('bug'))).length).toBeGreaterThanOrEqual(3)
+    expect(chapter.filter(level => level.reason && level.verdict === 'approve').length).toBeGreaterThanOrEqual(2)
+    // an unusual but correct test, or a claim about the tests that holds, is a tempting place in most of them
+    expect(chapter.filter(level => (level.tempting ?? []).some(spot => isTestFile(spot.path) || spot.path === DESCRIPTION_PATH)).length).toBeGreaterThanOrEqual(8)
+  })
+
+  it.each(aiLevels.filter(level => Object.keys(level.pr.head).some(isTestFile)).map(level => [level.id, level] as const))('%s: its tests pass on its own code, and on main they do what the debrief says', async (_, level) => {
+    const expected = TEST_OUTCOMES[level.id]
+    expect(expected, 'pinned in TEST_OUTCOMES').toBeDefined()
+    for (const side of ['head', 'base'] as const) {
+      const run = await runOnNode(testRunFiles(level.pr, side))
+      const lines = [
+        ...run.plan.problems.map(problem => `cannot run ${problem.path}: ${problem.message}`),
+        ...run.files.filter(file => file.error).map(file => `cannot load ${file.path}: ${file.error}`),
+        ...run.tests.map(test => `${test.ok ? 'passed' : 'failed'}: ${test.name}${test.checks === 0 ? ' (no checks)' : ''}`)
+      ]
+      expect(lines, side).toEqual(expected![side])
+    }
+  })
+
   it('keeps the category from being decorative after chapter 1: there, not every issue accepts bug', () => {
     // Read the diff is about plain bugs, so every issue there accepts `bug` (ADR 0008); a later chapter's issues are
     // claims, tests, invented APIs, security and scope, and a chapter whose every issue took `bug` would grade nothing
@@ -376,14 +480,14 @@ describe('the Working with AI levels', () => {
     const descriptionLines = [...level.pr.description, ...level.pr.claims]
     for (const hint of level.hints) {
       // `cart.js:37`: a file of the pull request, and a line it has (after the pull request)
-      for (const [, path, line] of hint.matchAll(/([\w-]+\.(?:js|css|html|md)):(\d+)/g)) {
+      for (const [, path, line] of hint.matchAll(/([\w.-]+\.(?:js|css|html|md)):(\d+)/g)) {
         expect(Object.hasOwn(level.pr.head, path!), `${path} in ${level.id}`).toBe(true)
         expect(Number(line)).toBeLessThanOrEqual(lineCount(level.pr.head[path!]))
         expect(POINTED_AT[level.id]?.some(([p, l]) => p === path && l === Number(line)), `${path}:${line} is in POINTED_AT`).toBe(true)
       }
       // quoted code is in what the page shows: a row of the diff or the pull request's text, unless it is worked out
       for (const [, code] of hint.matchAll(/`([^`]+)`/g)) {
-        const shown = shownRows.some(text => text.includes(code!)) || prText.includes(code!) || /^[\w-]+\.(?:js|css|html|md)(?::\d+)?$/.test(code!)
+        const shown = shownRows.some(text => text.includes(code!)) || prText.includes(code!) || /^[\w.-]+\.(?:js|css|html|md)(?::\d+)?$/.test(code!)
         expect(shown || COMPUTED[level.id]?.includes(code!), `${level.id}: \`${code}\` is not in the diff`).toBe(true)
       }
       // "line 3 of the description": a line it has, and in CLAIMS_POINTED_AT

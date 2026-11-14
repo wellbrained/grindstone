@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { LevelPlace, ReviewLevel } from '#shared/levels'
+import { testFilesOf } from '#shared/levels'
 
 // The Working with AI play page (the play page picks it for a level of the track; docs/features/ui.md, "Working with
 // AI play page"): in the shared PlayFrame, the level panel left (the story, the goals, your comments, the hints), Sous's
@@ -14,6 +15,9 @@ const { t } = useI18n()
 
 const play = useReviewPlay(props.level)
 const { session, goals, next, stats, falseAlarms, debriefOpen, progressBefore, sparkKey, hint, reset, again } = play
+
+/** Run the PR with the Tests panel (chapter 3) needs a taller column on phones. */
+const hasTests = props.level.run !== undefined && testFilesOf(props.level.pr.head).length > 0
 
 const revealedHints = computed(() => props.level.kind === 'scenario' ? props.level.hints.slice(0, session.value.hintsUsed) : [])
 
@@ -95,7 +99,10 @@ const focusReview = () => pullRequest.value?.focusReview()
     </template>
 
     <template #side>
-      <div class="relative h-full max-lg:h-[36rem]">
+      <div
+        class="relative h-full"
+        :class="hasTests ? 'max-lg:h-[46rem]' : 'max-lg:h-[36rem]'"
+      >
         <ReviewRun :level="level" />
         <SparkBurst :trigger="sparkKey" />
       </div>

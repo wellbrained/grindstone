@@ -263,7 +263,7 @@ test('shows the overview radar on home once you have progress: one axis per live
   const radar = page.getByTestId('overview-radar')
   await expect(radar).toBeVisible()
   await expect(radar.locator('[data-axis-track]')).toHaveCount(3)
-  await expect(radar.locator('[data-axis-track="ai"]')).toContainText('1 of 30 solved')
+  await expect(radar.locator('[data-axis-track="ai"]')).toContainText('1 of 45 solved')
   await expect(radar.locator('[data-axis]')).toHaveCount(3)
   await expect(radar.getByTestId('radar-shape')).toBeVisible()
 })
@@ -427,5 +427,220 @@ for (const { level, act, read, head, base } of EVIDENCE) {
     await expect(app.locator(read)).toHaveText(base)
     // main has no free coffee note yet: it stays hidden
     if (level === '03-free-coffee') await expect(app.locator('#coffee')).toBeHidden()
+  })
+}
+
+// Chapter 3, Tests that lie: the Tests panel runs the pull request's tests in a sealed frame, on This PR's code and on
+// main's (main's files with the pull request's tests on top)
+const tests = (page: Page, side: 'head' | 'base') => page.locator(`[data-run-side="${side}"] [data-testid="tests-panel"]`)
+
+test('plays Tests that lie 3.3 end to end: the tests on This PR and on main, a failure into the diff, the review', async ({ page }) => {
+  await page.goto('/ai#tests-that-lie')
+  await page.locator('[data-level="ai-13-fixed-the-test"]').click()
+  await expect(page).toHaveURL(/\/ai\/13-fixed-the-test$/)
+  await expect(page.getByTestId('review-run')).toContainText('and runs its tests')
+  await page.getByTestId('run-pr').click()
+  // the Tests tab is open first and runs on This PR's code: every test passes
+  await expect(page.locator('[data-testid="run-tab"][aria-selected="true"]')).toHaveText('Tests')
+  await expect(tests(page, 'head').getByTestId('tests-summary')).toHaveText('2 passed')
+  await expect(tests(page, 'head').getByTestId('test-case')).toHaveCount(2)
+  await expect(tests(page, 'head').getByTestId('test-case').nth(1)).toContainText('three pains au chocolat cost 8.39 €')
+  await expect(tests(page, 'head').getByTestId('test-case').nth(1)).toContainText('1 check')
+  // a test's own line shows in the diff
+  await tests(page, 'head').getByTestId('test-link').nth(1).click()
+  await expect(number(page, 'prices.test.js:8')).toBeFocused()
+
+  // on main's code the pull request's test fails: main still gives 8.399999999999999, which shows as 8.40
+  await page.getByRole('button', { name: 'main' }).click()
+  await expect(tests(page, 'base').getByTestId('tests-summary')).toHaveText('1 failed · 1 passed')
+  await expect(tests(page, 'base')).toContainText('This pull request\'s tests, on main\'s code')
+  const failed = tests(page, 'base').locator('[data-testid="test-case"][data-status="failed"]')
+  await expect(failed.getByTestId('test-failure')).toHaveText('expect(received).toBe(expected)\n\nExpected: 8.39\nReceived: 8.399999999999999')
+  // the failure's link shows the test file's line by the pull request's numbers, on main too
+  await failed.getByTestId('test-failure-link').click()
+  await expect(number(page, 'prices.test.js:9')).toBeFocused()
+  await expect(page.getByTestId('run-line-missing')).toHaveCount(0)
+  // the Console is the other tab, and running counts for nothing
+  await page.locator('[data-run-side="base"] [data-testid="run-tab"][data-panel="console"]').click()
+  await expect(page.locator('[data-run-side="base"]').getByTestId('console-log')).toBeVisible()
+  await expect(page.locator('[data-goal][data-met="true"]')).toHaveCount(0)
+
+  // the review: the rounding in the code is a bug, the bent test a missing test (a bug there is the other kind)
+  await comment(page, 'prices.test.js:9', 'bug', 'Three at 2.80 cost 8.40.')
+  await comment(page, 'prices.js:3', 'bug', 'Math.floor cuts 839.9999999999999 down.')
+  await page.getByTestId('request-changes').click()
+  await expect(page.locator('[data-comment="prices.test.js:9"]').getByTestId('comment-near')).toContainText('isn\'t a problem of the kind “Bug”')
+  await expect(page.getByTestId('review-outcome')).toContainText('1 of 2 problems found')
+  await page.locator('[data-comment="prices.test.js:9"]').getByTestId('comment-delete').click()
+  await comment(page, 'prices.test.js:9', 'missing-test', 'The test was changed to match the bug.')
+  await page.getByTestId('request-changes').click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toContainText('When a test fails, ask which one is wrong')
+  await expect(dialog.getByTestId('debrief-stats')).toContainText('no hints · no false alarms')
+  await page.getByRole('button', { name: 'Stay here' }).click()
+
+  await page.goto('/ai')
+  const row = page.locator('[data-level="ai-13-fixed-the-test"]')
+  await expect(row).toContainText('Solved')
+  await expect(row).toContainText('test bent to the bug')
+  await expect(page.locator('#tests-that-lie')).toContainText('1 of 15 solved')
+})
+
+test('stops a test that never ends and goes on with the next; a huge failure is cut', async ({ page }) => {
+  // the level's tests, made hostile on their way into the test frame: an endless loop, then a megabyte of message
+  await page.addInitScript(() => {
+    if (window !== window.top) return
+    const property = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'srcdoc')!
+    Object.defineProperty(HTMLIFrameElement.prototype, 'srcdoc', {
+      ...property,
+      set(html: string) {
+        const hostile = html.includes('testsDone') ? html.replace('toBe(2.4)', 'toBe(2.4); for (;;) {}').replace('toBe(8.39)', 'toBe(8.39); throw new Error(\'boom \'.repeat(200000))') : html
+        property.set!.call(this, hostile)
+      }
+    })
+  })
+  await page.goto('/ai/13-fixed-the-test')
+  await page.getByTestId('run-pr').click()
+  const panel = tests(page, 'head')
+  await expect(panel.getByTestId('tests-summary')).toHaveText('1 failed · 1 did not finish', { timeout: 20_000 })
+  await expect(panel.locator('[data-status="unfinished"]')).toContainText('Stopped after 2 s: it never finished')
+  const message = await panel.getByTestId('test-failure').textContent()
+  expect(message!.startsWith('Error: boom boom')).toBe(true)
+  expect(message!.length).toBeLessThanOrEqual(2010)
+  // the page never froze: the review still works after the frame's worker looped
+  await number(page, 'prices.js:3').click()
+  await expect(page.getByTestId('comment-form')).toBeVisible()
+  // and Run again runs it again, the same way
+  await panel.getByTestId('tests-run').click()
+  await expect(panel.getByTestId('tests-summary')).toHaveText('Running the tests…')
+  await expect(panel.getByTestId('tests-summary')).toHaveText('1 failed · 1 did not finish', { timeout: 20_000 })
+})
+
+// What each chapter 3 scenario's tests say in the panel, on This PR and on main (as its debrief says)
+const TEST_EVIDENCE: { level: string, head: string, base: string, check?: (page: Page) => Promise<void> }[] = [
+  {
+    level: '11-all-tests-pass',
+    head: '3 passed',
+    base: '3 passed',
+    // the new test passed without a check, on main too
+    check: page => expect(tests(page, 'base').getByTestId('test-case').nth(2).getByTestId('test-checks')).toHaveText('passed without checking anything')
+  },
+  { level: '12-mocked', head: '2 passed', base: '2 passed' },
+  { level: '13-fixed-the-test', head: '2 passed', base: '1 failed · 1 passed' },
+  {
+    level: '14-full-coverage',
+    head: '2 passed',
+    base: '1 file could not run',
+    check: async (page) => {
+      await expect(tests(page, 'base').getByTestId('test-file-error')).toHaveText('Could not run: Failed to load ./split.js from split.test.js: no such file.')
+      // nothing could run, so nothing was cut short
+      await expect(tests(page, 'base').getByTestId('tests-stopped')).toHaveCount(0)
+    }
+  },
+  {
+    level: '15-snapshot-updated',
+    head: '1 passed',
+    base: '1 failed',
+    check: page => expect(tests(page, 'base').getByTestId('test-failure')).toContainText('Snapshot:\n  2 × Butter croissant  2.40\n  1 × Pain au chocolat  2.80\n  Total  7.60\n\nReceived:\n  Butter croissant  4.80')
+  }
+]
+
+for (const { level, head, base, check } of TEST_EVIDENCE) {
+  test(`running ${level}'s tests: This PR passes, main shows what the debrief says`, async ({ page }) => {
+    await page.goto(`/ai/${level}`)
+    await page.getByTestId('run-pr').click()
+    await expect(tests(page, 'head').getByTestId('tests-summary')).toHaveText(head)
+    await page.getByRole('button', { name: 'main' }).click()
+    await expect(tests(page, 'base').getByTestId('tests-summary')).toHaveText(base)
+    await check?.(page)
+  })
+}
+
+// what running each chapter 3 scenario's app shows: the bug where the code is wrong, the deal where it is right
+test('running chapter 3\'s apps shows what the debriefs say', async ({ page }) => {
+  const app = page.frameLocator('[data-testid="app-frame"]')
+  const add = async (id: string, times: number) => {
+    for (let i = 0; i < times; i++) await app.locator(`[data-id="${id}"] .add`).click()
+  }
+  await page.goto('/ai/11-all-tests-pass')
+  await page.getByTestId('run-pr').click()
+  await add('croissant', 7)
+  await expect(app.locator('#order-total')).toHaveText('14.40')
+  await page.goto('/ai/12-mocked')
+  await page.getByTestId('run-pr').click()
+  await add('croissant', 10)
+  await expect(app.locator('#order-total')).toHaveText('24.00')
+  await add('croissant', 1)
+  await expect(app.locator('#order-total')).toHaveText('23.76')
+  await page.goto('/ai/13-fixed-the-test')
+  await page.getByTestId('run-pr').click()
+  await add('pain-au-chocolat', 3)
+  await expect(app.locator('#order-total')).toHaveText('8.39')
+  await page.goto('/ai/14-full-coverage')
+  await page.getByTestId('run-pr').click()
+  await add('sourdough', 1)
+  await app.locator('#people').selectOption('3')
+  await expect(app.locator('#shares')).toHaveText('2.17 + 2.17 + 2.17')
+  await page.goto('/ai/15-snapshot-updated')
+  await page.getByTestId('run-pr').click()
+  await add('croissant', 2)
+  await expect(app.locator('#receipt')).toHaveText('2 × Butter croissant  2.40\nTotal  4.80')
+  await page.locator('[data-testid="run-tab"][data-panel="console"]').click()
+  await expect(page.getByTestId('console-log').locator('[data-level="error"]')).toHaveCount(0)
+})
+
+for (const colorScheme of ['dark', 'light'] as const) {
+  test(`fits the Tests panel on a phone in ${colorScheme}`, async ({ browser }) => {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, colorScheme })
+    const page = await context.newPage()
+    await page.goto('/ai/11-all-tests-pass')
+    const noSideways = () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
+    await page.getByTestId('run-pr').tap()
+    await expect(tests(page, 'head').getByTestId('tests-summary')).toHaveText('3 passed')
+    expect(await noSideways()).toBe(true)
+    await page.getByRole('button', { name: 'main' }).tap()
+    await expect(tests(page, 'base').getByTestId('tests-summary')).toHaveText('3 passed')
+    // a test's link shows its line in the diff, by tapping
+    await tests(page, 'base').getByTestId('test-link').nth(2).tap()
+    await expect(number(page, 'prices.test.js:12')).toBeFocused()
+    expect(await noSideways()).toBe(true)
+    await number(page, 'prices.test.js:14').tap()
+    await page.getByTestId('comment-category').selectOption('missing-test')
+    await page.getByTestId('comment-save').tap()
+    await page.getByTestId('request-changes').tap()
+    await expect(page.getByRole('dialog')).toContainText('An expect without a matcher checks nothing')
+    expect(await noSideways()).toBe(true)
+    await context.close()
+  })
+}
+
+// review of 2026-11-14: a test that ends but leaves a loop running (a timer, an un-awaited async loop) kept the worker
+// busy between tests, and the run ended there, the next test unlisted, the summary green
+for (const [kind, leak] of [['a timer', 'setTimeout(() => { for (;;) {} }, 0)'], ['an un-awaited async loop', '(async () => { for (;;) await null })()']] as const) {
+  test(`goes on after a test that leaves ${kind} running`, async ({ page }) => {
+    await page.addInitScript((code: string) => {
+      if (window !== window.top) return
+      const property = Object.getOwnPropertyDescriptor(HTMLIFrameElement.prototype, 'srcdoc')!
+      Object.defineProperty(HTMLIFrameElement.prototype, 'srcdoc', {
+        ...property,
+        set(html: string) {
+          property.set!.call(this, html.includes('testsDone') ? html.replace('toBe(2.4)', `toBe(2.4); ${code}`) : html)
+        }
+      })
+    }, leak)
+    await page.goto('/ai/13-fixed-the-test')
+    await page.getByTestId('run-pr').click()
+    const panel = tests(page, 'head')
+    const summary = panel.getByTestId('tests-summary')
+    await expect(summary).toHaveText('1 did not finish · 1 passed', { timeout: 20_000 })
+    // not green: something went wrong
+    await expect(summary).toHaveClass(/text-error/)
+    const first = panel.getByTestId('test-case').first()
+    await expect(first).toHaveAttribute('data-status', 'unfinished')
+    await expect(first).toContainText('It ended, but something it started')
+    // its checks ran; the next test ran in a fresh worker
+    await expect(panel.getByTestId('test-case').nth(1)).toHaveAttribute('data-status', 'passed')
+    await expect(panel.getByTestId('test-case').nth(1)).toContainText('three pains au chocolat cost 8.39 €')
+    await expect(panel.getByTestId('tests-stopped')).toHaveCount(0)
   })
 }

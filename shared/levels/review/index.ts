@@ -1,5 +1,5 @@
-// The Working with AI track (ADR 0008): its chapters and their levels, in play order. Chapters 1 (Read the diff) and 2
-// (Claims vs. code) are live, chapters 3 to 7 are coming. A practice task goes right after the scenario it trains (`practises`); defineTrack checks it.
+// The Working with AI track (ADR 0008): its chapters and their levels, in play order. Chapters 1 (Read the diff), 2
+// (Claims vs. code) and 3 (Tests that lie) are live, chapters 4 to 7 are coming. A practice task goes right after the scenario it trains (`practises`); defineTrack checks it.
 import { fewestHintsThenFalseAlarms } from '../progress'
 import { defineTrack, trackLevels } from '../track'
 import { isReviewLevel } from './types'
@@ -14,6 +14,11 @@ import { justARefactor } from './07-just-a-refactor'
 import { allSizes } from './08-all-sizes'
 import { linkedIssue } from './09-linked-issue'
 import { sameButFaster } from './10-same-but-faster'
+import { allTestsPass } from './11-all-tests-pass'
+import { mocked } from './12-mocked'
+import { fixedTheTest } from './13-fixed-the-test'
+import { fullCoverage } from './14-full-coverage'
+import { snapshotUpdated } from './15-snapshot-updated'
 import {
   coffeeBeans,
   emptySearch,
@@ -38,6 +43,18 @@ import {
   soldOut,
   tenCents
 } from './practice/read-the-diff'
+import {
+  closeEnough,
+  flakyTest,
+  honestTest,
+  ifAroundExpect,
+  mockTheTill,
+  mockedTotal,
+  nanIsANumber,
+  newExpected,
+  snapshotAsAsked,
+  snapshotUndefined
+} from './practice/tests-that-lie'
 
 export const aiTrack = defineTrack({
   id: 'ai',
@@ -95,7 +112,29 @@ export const aiTrack = defineTrack({
         todayOnce
       ]
     },
-    { id: 'tests-that-lie', title: 'Tests that lie', description: 'Tests that assert nothing, mock the thing under test, or were changed to pass.', colour: 2, levels: [] },
+    {
+      id: 'tests-that-lie',
+      title: 'Tests that lie',
+      description: 'Tests that assert nothing, mock the thing under test, or were changed to pass: run them, on this pull request and on main.',
+      colour: 2,
+      levels: [
+        allTestsPass,
+        ifAroundExpect,
+        honestTest,
+        mocked,
+        mockedTotal,
+        mockTheTill,
+        fixedTheTest,
+        newExpected,
+        flakyTest,
+        fullCoverage,
+        nanIsANumber,
+        closeEnough,
+        snapshotUpdated,
+        snapshotUndefined,
+        snapshotAsAsked
+      ]
+    },
     { id: 'invented-apis', title: 'Invented APIs', description: 'Functions, options and packages that don\'t exist, and calls that are long deprecated.', colour: 3, levels: [] },
     { id: 'security', title: 'Security', description: 'HTML injection, a secret in the code, a missing check on who may do something, trusting the client.', colour: 4, levels: [] },
     { id: 'scope-and-size', title: 'Scope and size', description: 'Unrelated changes, a rewrite where a line would do, a pull request that should be two.', colour: 5, levels: [] },

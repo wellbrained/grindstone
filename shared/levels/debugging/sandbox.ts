@@ -136,12 +136,12 @@ function injectionPoint(page: string): number {
   return /^[\t\n\f\r ]*(?:<!doctype\b[^>]*>)?/i.exec(page)![0].length
 }
 
-// `from './x.js'`, `import './x.js'`, `import('./x.js')`: a relative specifier in quotes
-const IMPORT = /(\bfrom\s*|\bimport\s*\(\s*|\bimport\s*)(['"])(\.\.?\/[^'"\n]*)\2/g
+// `from './x.js'`, `import './x.js'`, `import('./x.js')`: a relative specifier in quotes (the Tests panel's plan reads it too)
+export const RELATIVE_IMPORT = /(\bfrom\s*|\bimport\s*\(\s*|\bimport\s*)(['"])(\.\.?\/[^'"\n]*)\2/g
 
 /** Points relative imports of the level's own files at their names (the import map's keys); lines never change. */
 export function rewriteImports(source: string, from: string, files: Readonly<Record<string, string>>): string {
-  return source.replace(IMPORT, (whole, lead: string, quote: string, specifier: string) => {
+  return source.replace(RELATIVE_IMPORT, (whole, lead: string, quote: string, specifier: string) => {
     const path = resolveImport(from, specifier)
     return path !== null && path in files ? `${lead}${quote}${path}${quote}` : whole
   })

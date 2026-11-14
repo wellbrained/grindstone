@@ -205,13 +205,13 @@ describe('track registry', () => {
     expect(nextLevel('git-practice-release-from-develop')).toBeNull()
   })
 
-  it('gives Working with AI its seven chapters (ADR 0008): Read the diff and Claims vs. code live, the other five coming', () => {
+  it('gives Working with AI its seven chapters (ADR 0008): Read the diff, Claims vs. code and Tests that lie live, the other four coming', () => {
     const ai = trackById('ai')!
     expect(ai).toMatchObject({ title: 'Working with AI', tagline: 'Lead the assistant, then check its work.', cheatSheet: null, bestRun: ['hints', 'falseAlarms'] })
     expect(ai.chapters.map(chapter => [chapter.number, chapter.title, chapter.levels.length])).toEqual([
       [1, 'Read the diff', 15],
       [2, 'Claims vs. code', 15],
-      [3, 'Tests that lie', 0],
+      [3, 'Tests that lie', 15],
       [4, 'Invented APIs', 0],
       [5, 'Security', 0],
       [6, 'Scope and size', 0],
@@ -253,9 +253,27 @@ describe('track registry', () => {
       [null, 'ai-practice-remembered-search'],
       [null, 'ai-practice-today-once']
     ])
-    // play order runs on into chapter 2
+    expect(ai.chapters[2]!.levels.map(level => [levelNumber(level.id), level.id])).toEqual([
+      ['3.1', 'ai-11-all-tests-pass'],
+      [null, 'ai-practice-if-around-expect'],
+      [null, 'ai-practice-honest-test'],
+      ['3.2', 'ai-12-mocked'],
+      [null, 'ai-practice-mocked-total'],
+      [null, 'ai-practice-mock-the-till'],
+      ['3.3', 'ai-13-fixed-the-test'],
+      [null, 'ai-practice-new-expected'],
+      [null, 'ai-practice-flaky-test'],
+      ['3.4', 'ai-14-full-coverage'],
+      [null, 'ai-practice-nan-is-a-number'],
+      [null, 'ai-practice-close-enough'],
+      ['3.5', 'ai-15-snapshot-updated'],
+      [null, 'ai-practice-snapshot-undefined'],
+      [null, 'ai-practice-snapshot-as-asked']
+    ])
+    // play order runs on into chapters 2 and 3
     expect(nextLevel('ai-practice-ten-cents')).toBe(levelById('ai-06-empty-basket'))
-    expect(nextLevel('ai-practice-today-once')).toBeNull()
+    expect(nextLevel('ai-practice-today-once')).toBe(levelById('ai-11-all-tests-pass'))
+    expect(nextLevel('ai-practice-snapshot-as-asked')).toBeNull()
     expect(nextLevel('ai-01-twelve-croissants')).toBe(levelById('ai-practice-open-days'))
   })
 
