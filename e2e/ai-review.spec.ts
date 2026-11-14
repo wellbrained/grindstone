@@ -263,7 +263,7 @@ test('shows the overview radar on home once you have progress: one axis per live
   const radar = page.getByTestId('overview-radar')
   await expect(radar).toBeVisible()
   await expect(radar.locator('[data-axis-track]')).toHaveCount(3)
-  await expect(radar.locator('[data-axis-track="ai"]')).toContainText('1 of 75 solved')
+  await expect(radar.locator('[data-axis-track="ai"]')).toContainText('1 of 90 solved')
   await expect(radar.locator('[data-axis]')).toHaveCount(3)
   await expect(radar.getByTestId('radar-shape')).toBeVisible()
 })
@@ -951,5 +951,155 @@ for (const { level, head, base } of SECURITY_EVIDENCE) {
     await expect(page.locator('[data-run-side="base"]')).toBeVisible()
     await page.locator('[data-run-side="base"] [data-testid="run-tab"][data-panel="console"]').click()
     await base(app, page)
+  })
+}
+
+// Chapter 6, Scope and size: Sous does what was asked and more (a whole-file reformat, a change on the side, a rewrite,
+// a rule inside a rename, a feature on top). Running both sides shows what the extra does, and a bug hidden in a
+// reformat is found on its own lines: a bug comment over the reformat around it is too wide
+test('plays Scope and size 6.1 end to end: a reformat hides a lost product, the test with the fix is fine, a bug comment over the reformat is too wide', async ({ page }) => {
+  await page.goto('/ai#scope-and-size')
+  await page.locator('[data-level="ai-26-menu-typo"]').click()
+  await expect(page).toHaveURL(/\/ai\/26-menu-typo$/)
+  await expect(page.getByRole('heading', { level: 1, name: /Fix the typo in the menu/ })).toBeVisible()
+  await expect(page.locator('[data-goal="found"]')).toContainText('Find the problems in the diff (2)')
+  const lost = page.locator('[data-row="products.js:-8"]')
+  await expect(lost).toContainText('id: \'kouign-amann\'')
+  await expect(lost).toHaveAttribute('data-kind', 'del')
+
+  // Run the PR: seven products with the name fixed, and the test passes; main sells eight, and fails the test
+  await page.getByTestId('run-pr').click()
+  const app = page.frameLocator('[data-testid="app-frame"]')
+  await expect(app.locator('.product')).toHaveCount(7)
+  await expect(app.locator('[data-id="pain-au-chocolat"] .name')).toHaveText('Pain au chocolat')
+  await expect(app.locator('[data-id="kouign-amann"]')).toHaveCount(0)
+  await expect(tests(page, 'head').getByTestId('tests-summary')).toHaveText('1 passed')
+  await page.getByRole('button', { name: 'main' }).click()
+  await expect(page.locator('[data-run-side="base"]')).toBeVisible()
+  await expect(app.locator('.product')).toHaveCount(8)
+  await expect(app.locator('[data-id="kouign-amann"] .name')).toHaveText('Kouign-amann')
+  await expect(tests(page, 'base').getByTestId('tests-summary')).toHaveText('1 failed')
+
+  // the test that comes with the fix is a false alarm, told why; a bug comment over every removed product is too wide
+  await comment(page, 'products.test.js:6', 'missing-test', 'Does this test belong here?')
+  await number(page, 'products.js:-3').click()
+  await number(page, 'products.js:-11').click({ modifiers: ['Shift'] })
+  const form = page.getByTestId('comment-form')
+  await expect(form).toContainText('Commenting on removed lines 3 to 11')
+  await form.getByTestId('comment-category').selectOption('bug')
+  await form.getByTestId('comment-save').click()
+  await page.getByTestId('request-changes').click()
+  await expect(page.locator('[data-comment="products.test.js:6"]').getByTestId('comment-false-alarm')).toContainText('a test that proves the fix belongs with it')
+  const wide = page.locator('[data-comment="products.js:−3–11"]')
+  await expect(wide.getByTestId('comment-wide')).toContainText('narrow it down')
+  await expect(wide.getByTestId('comment-false-alarm')).toHaveCount(0)
+  await expect(page.getByTestId('review-outcome')).toContainText('0 of 2 problems found')
+  await expect(page.getByTestId('false-alarms')).toHaveText('False alarms: 1')
+
+  // the lost line alone as a bug, the reformat as scope: solved
+  await wide.getByTestId('comment-delete').click()
+  await comment(page, 'products.js:-8', 'bug', 'The Kouign-amann is gone.')
+  await comment(page, 'products.js:25', 'scope', 'A typo fix shouldn\'t reformat the whole file.')
+  await page.getByTestId('request-changes').click()
+  const dialog = page.getByRole('dialog')
+  await expect(dialog).toContainText('A one-word fix, buried in a whole file')
+  await expect(dialog.getByTestId('debrief-stats')).toContainText('no hints · 1 false alarm')
+  await page.getByRole('button', { name: 'Stay here' }).click()
+  await expect(page.locator('[data-comment="products.js:−8"]').getByTestId('comment-found')).toContainText('the Kouign-amann is gone')
+  await expect(page.locator('[data-comment="products.js:25"]').getByTestId('comment-found')).toContainText('a whole-file reformat')
+
+  await page.goto('/ai')
+  const row = page.locator('[data-level="ai-26-menu-typo"]')
+  await expect(row).toContainText('Solved')
+  await expect(row).toContainText('reformat')
+  await expect(page.locator('#scope-and-size')).toContainText('1 of 15 solved')
+})
+
+async function addTimes(app: Frame, id: string, times: number) {
+  for (let i = 0; i < times; i++) await app.locator(`[data-id="${id}"] .add`).click()
+}
+
+// What running each other chapter 6 scenario shows, as its debrief says, and main beside it
+const SCOPE_EVIDENCE: { level: string, head: (app: Frame, page: Page) => Promise<void>, base: (app: Frame) => Promise<void> }[] = [
+  {
+    // the note works; and every time on the page reads the new way
+    level: '27-pickup-note',
+    head: async (app, page) => {
+      await expect(app.locator('#hours')).toHaveText('Open today 7 AM–6 PM')
+      await expect(app.locator('.product')).toHaveCount(3)
+      await app.locator('[data-id="sourdough"] .add').click()
+      await app.locator('#note').fill('Sliced, please')
+      await app.locator('#order').click()
+      await expect(app.locator('#order-status')).toHaveText('Thanks! Order 1043 is in. Pick it up tomorrow from 7 AM.')
+      await openNetwork(page)
+      await network(page).getByRole('option', { name: /POST https:\/\/cornerbakery\.shop\/api\/orders, 201 Created/ }).click()
+      await expect(page.getByTestId('network-request-body')).toContainText('"note": "Sliced, please"')
+    },
+    base: async (app) => {
+      await expect(app.locator('#hours')).toHaveText('Open today 7:00–18:00')
+      await expect(app.locator('.product')).toHaveCount(3)
+      await expect(app.locator('#note')).toHaveCount(0)
+    }
+  },
+  {
+    // eleven croissants, an office's order: the rewrite lost the 10 % off
+    level: '28-five-cents',
+    head: async (app) => {
+      await addTimes(app, 'croissant', 11)
+      await expect(app.locator('#order-total')).toHaveText('26.40')
+    },
+    base: async (app) => {
+      await addTimes(app, 'croissant', 11)
+      await expect(app.locator('#order-total')).toHaveText('23.76')
+    }
+  },
+  {
+    // the rename works, and Add stops at ten
+    level: '29-cart-to-basket',
+    head: async (app) => {
+      await addTimes(app, 'croissant', 12)
+      await expect(app.locator('#basket li')).toHaveText(['10 × Butter croissant'])
+      await expect(app.locator('#cart-count')).toHaveText('10')
+    },
+    base: async (app) => {
+      await addTimes(app, 'croissant', 12)
+      await expect(app.locator('#basket li')).toHaveText(['12 × Butter croissant'])
+      await expect(app.locator('#cart-count')).toHaveText('12')
+    }
+  },
+  {
+    // the label Maya asked for, and a button nobody asked for, whose wish goes to the server
+    level: '30-sold-out-label',
+    head: async (app, page) => {
+      const gone = app.locator('[data-id="pain-au-chocolat"]')
+      await expect(gone.locator('.price')).toHaveText('Sold out')
+      await expect(gone.locator('.add')).toBeDisabled()
+      await expect(app.locator('[data-id="croissant"] .add')).toBeEnabled()
+      await gone.locator('.restock').click()
+      await expect(gone.locator('.restock')).toHaveText('Done: we\'ll email you when it\'s back')
+      await openNetwork(page)
+      await expect(network(page).getByRole('option', { name: /POST https:\/\/cornerbakery\.shop\/api\/restock-alerts, 201 Created/ })).toBeVisible()
+    },
+    base: async (app) => {
+      const gone = app.locator('[data-id="pain-au-chocolat"]')
+      await expect(gone.locator('.price')).toHaveText('2.80')
+      await expect(gone.locator('.add')).toBeEnabled()
+      await expect(app.locator('.restock')).toHaveCount(0)
+    }
+  }
+]
+
+for (const { level, head, base } of SCOPE_EVIDENCE) {
+  test(`running ${level} shows what it changes besides what was asked, and main beside it`, async ({ page }) => {
+    await page.goto(`/ai/${level}`)
+    await page.getByTestId('run-pr').click()
+    const app = page.frameLocator('[data-testid="app-frame"]')
+    await head(app, page)
+    await page.getByRole('button', { name: 'main' }).click()
+    await expect(page.locator('[data-run-side="base"]')).toBeVisible()
+    const consoleTab = page.locator('[data-run-side="base"] [data-testid="run-tab"][data-panel="console"]')
+    if (await consoleTab.count()) await consoleTab.click()
+    await base(app)
+    await expect(errors(page)).toHaveCount(0)
   })
 }

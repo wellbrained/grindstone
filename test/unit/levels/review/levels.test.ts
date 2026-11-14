@@ -59,7 +59,8 @@ const POINTED_AT: Record<string, [path: string, line: number, contains: string][
   'ai-22-payment-key': [['payment.js', 7, 'const SECRET_KEY = \'sk_live_'], ['payment.js', 21, 'Math.round(total * 100)']],
   'ai-23-staff-button': [['server/menu-routes.js', 12, 'app.delete(\'/api/menu/:id\', async (req, res)']],
   'ai-24-price-from-basket': [['server/order-routes.js', 10, 'const { items, total } = req.body']],
-  'ai-25-order-by-number': [['server/order-routes.js', 13, 'db.orders.find(Number(req.params.number))']]
+  'ai-25-order-by-number': [['server/order-routes.js', 13, 'db.orders.find(Number(req.params.number))']],
+  'ai-29-cart-to-basket': [['cart.js', 27, 'Math.min(line.quantity + 1, MAX_PER_PRODUCT)'], ['cart.js', 4, 'const MAX_PER_PRODUCT = 10']]
 }
 
 /**
@@ -142,7 +143,22 @@ const DESCRIPTION_TRUTH: Record<string, (string | null)[]> = {
   'ai-practice-own-pages-only': [null, null, null],
   'ai-25-order-by-number': [null, null, null, null, 'other-orders', null],
   'ai-practice-whose-id': ['id-from-address', null, 'id-from-address'],
-  'ai-practice-your-orders-only': [null, null, null]
+  'ai-practice-your-orders-only': [null, null, null],
+  'ai-26-menu-typo': [null, null, null, null, 'lost-product'],
+  'ai-27-pickup-note': [null, null, null, 'time-format'],
+  'ai-28-five-cents': [null, null, 'lost-discount', null],
+  'ai-29-cart-to-basket': [null, 'cap', 'cap', null],
+  'ai-30-sold-out-label': [null, null, null, null, 'no-email'],
+  'ai-practice-alphabetical': [null, null, 'sorted'],
+  'ai-practice-formatting-only': [null, null, 'saturday'],
+  'ai-practice-vegan-badge': [null, null, 'euro-sign'],
+  'ai-practice-phone-number': [null, null, null, null],
+  'ai-practice-fee-class': [null, null, null],
+  'ai-practice-five-cents-line': [null, null, null],
+  'ai-practice-renamed-and-raised': [null, 'raised', null],
+  'ai-practice-renamed-everywhere': [null, null, null],
+  'ai-practice-closing-countdown': [null, null, null],
+  'ai-practice-dark-mode-too': [null, null, 'dark-look']
 }
 
 /** Lines of Sous's description the hints point at ("line 3 of the description"), with what is there. */
@@ -180,7 +196,8 @@ const COMPUTED: Record<string, string[]> = {
   'ai-24-price-from-basket': ['cart.items[0].price = 0.01'],
   'ai-25-order-by-number': ['fetch(\'/api/orders/1041\')'],
   'ai-practice-back-where-you-were': ['//bakery-deals.example/login'],
-  'ai-practice-own-pages-only': ['//bakery-deals.example', '/orders']
+  'ai-practice-own-pages-only': ['//bakery-deals.example', '/orders'],
+  'ai-28-five-cents': ['Math.round(total * 20) / 20']
 }
 
 /**
@@ -221,14 +238,15 @@ const TEST_OUTCOMES: Record<string, { head: string[], base: string[] }> = {
   'ai-practice-close-enough': { head: ['passed: three pains au chocolat cost 8.40 €'], base: ['passed: three pains au chocolat cost 8.40 €'] },
   'ai-15-snapshot-updated': { head: ['passed: prints a line per product and the total'], base: ['failed: prints a line per product and the total'] },
   'ai-practice-snapshot-undefined': { head: ['passed: thanks the customer'], base: ['failed: thanks the customer'] },
-  'ai-practice-snapshot-as-asked': { head: ['passed: prints a line per product'], base: ['failed: prints a line per product'] }
+  'ai-practice-snapshot-as-asked': { head: ['passed: prints a line per product'], base: ['failed: prints a line per product'] },
+  'ai-26-menu-typo': { head: ['passed: pain au chocolat is spelled right'], base: ['failed: pain au chocolat is spelled right'] }
 }
 
 describe('the Working with AI levels', () => {
-  it('are fifteen in each of chapters 1 to 5, with unique ids, in the track\'s id forms', () => {
-    expect(aiLevels).toHaveLength(75)
-    expect(aiTrack.chapters.slice(0, 5).map(chapter => chapter.levels.length)).toEqual([15, 15, 15, 15, 15])
-    expect(new Set(aiLevels.map(level => level.id)).size).toBe(75)
+  it('are fifteen in each of chapters 1 to 6, with unique ids, in the track\'s id forms', () => {
+    expect(aiLevels).toHaveLength(90)
+    expect(aiTrack.chapters.slice(0, 6).map(chapter => chapter.levels.length)).toEqual([15, 15, 15, 15, 15, 15])
+    expect(new Set(aiLevels.map(level => level.id)).size).toBe(90)
     for (const level of aiLevels) {
       expect(level.id).toMatch(level.kind === 'scenario' ? /^ai-\d{2}-[a-z-]+$/ : /^ai-practice-[a-z-]+$/)
     }
@@ -419,10 +437,13 @@ describe('the Working with AI levels', () => {
 
   // the blanket review (ADR 0008, review of 2026-11-14): comments of `size` rows tiling every hunk and the description,
   // all of one kind (bug, false claim from chapter 2 on, missing test from chapter 3 on, invented API from chapter 4 on,
-  // security from chapter 5 on), whatever is in them; `aligned`: the last one ends at the
+  // security from chapter 5 on, scope from chapter 6 on), whatever is in them; `aligned`: the last one ends at the
   // hunk's end, so every comment is full size (a hunk shorter than `size` gets one comment over all of it); else the
   // last one is what is left. `kinds` gives every comment both kinds (two comments on each stretch).
-  const BLANKETS: Category[][] = [['bug'], ['false-claim'], ['missing-test'], ['invented-api'], ['security'], ['bug', 'false-claim'], ['bug', 'missing-test'], ['bug', 'invented-api'], ['bug', 'security'], ['security', 'false-claim']]
+  const BLANKETS: Category[][] = [
+    ['bug'], ['false-claim'], ['missing-test'], ['invented-api'], ['security'], ['scope'],
+    ['bug', 'false-claim'], ['bug', 'missing-test'], ['bug', 'invented-api'], ['bug', 'security'], ['security', 'false-claim'], ['bug', 'scope'], ['scope', 'false-claim']
+  ]
   function blanket(level: ReviewLevel, size: number, aligned: boolean, kinds: readonly Category[] = ['bug']): ReviewSession {
     let session = startReview(level)
     for (const file of reviewTargets(level)) {
@@ -555,6 +576,63 @@ describe('the Working with AI levels', () => {
       for (const [path, source] of pages) expect(source, `${level.id}: ${path}`).not.toMatch(/['"](?:\.\/)?server\//)
       if (level.kind === 'scenario' && Object.keys(level.pr.head).some(path => path.startsWith('server/'))) expect(level.run?.backend, level.id).toBeDefined()
     }
+  })
+
+  it('makes chapter 6 about scope: more than was asked is scope (not a bug), a bug in the noise is a bug, and the right size is approved', () => {
+    const chapter = aiTrack.chapters.find(each => each.id === 'scope-and-size')!.levels.filter(isReviewLevel)
+    expect(chapter).toHaveLength(15)
+    // every pull request that needs changes does more than was asked: an issue that accepts scope and not bug, and a
+    // bug comment on its lines is near (the fix is to take it out, not to repair it); except a value changed silently
+    // inside a reformat or a rename, which is a bug too, as 6.1's lost line is (review of chapter 6)
+    const CHANGED_VALUES = ['saturday', 'raised']
+    for (const level of chapter.filter(each => each.verdict === 'request-changes')) {
+      const scope = level.issues.filter(issue => issue.categories.includes('scope'))
+      expect(scope.length, level.id).toBeGreaterThan(0)
+      for (const issue of scope.filter(each => !CHANGED_VALUES.includes(each.id))) {
+        expect(issue.categories, issue.id).not.toContain('bug')
+        const first = issue.lines ? { lines: [issue.lines[0], issue.lines[0]] as const } : { removed: [issue.removed![0], issue.removed![0]] as const }
+        const bug = checkReview(level, played(level, [{ comment: issue.path, ...first, category: 'bug', text: '' }]).state.comments, level.verdict).feedback[0]
+        expect(bug, issue.id).toMatchObject({ found: [], near: [issue.id], falseAlarm: false })
+      }
+    }
+    // a real bug hidden in the noise is a bug, never scope, so the category is a choice: 6.1's lost product, 6.3's lost
+    // discount
+    const bugs = chapter.flatMap(level => level.issues.filter(issue => issue.categories.includes('bug') && !CHANGED_VALUES.includes(issue.id)))
+    expect(bugs.map(issue => issue.id)).toEqual(['lost-product', 'lost-discount'])
+    for (const issue of bugs) expect(issue.categories, issue.id).not.toContain('scope')
+    for (const id of CHANGED_VALUES) {
+      expect(chapter.flatMap(level => level.issues).find(issue => issue.id === id)?.categories, id).toEqual(expect.arrayContaining(['scope', 'bug']))
+    }
+    // the right size is approved (several files for one reason, one line, a rename done everywhere), and what was asked
+    // for is a tempting place in most of them
+    expect(chapter.filter(level => level.reason && level.verdict === 'approve').length).toBeGreaterThanOrEqual(2)
+    expect(chapter.filter(level => (level.tempting ?? []).some(spot => spot.path !== DESCRIPTION_PATH)).length).toBeGreaterThanOrEqual(8)
+    for (const level of chapter.filter(each => each.kind === 'scenario')) expect((level.tempting ?? []).length, level.id).toBeGreaterThan(0)
+    // and only this chapter's issues are scope: the earlier ones change what was asked
+    for (const other of aiTrack.chapters.filter(each => each.id !== 'scope-and-size')) {
+      expect(other.levels.filter(isReviewLevel).flatMap(level => level.issues).filter(issue => issue.categories.includes('scope')), other.id).toEqual([])
+    }
+  })
+
+  it('finds a bug in a reformat or a rewrite on its own lines only: the scope issue\'s rows around it are not the bug\'s (6.1, 6.3)', () => {
+    // ADR 0008, chapter 6: rows of another issue count as a comment's own only when its category fits that issue too
+    const feedback = (id: string, step: ReviewStep) => {
+      const level = aiLevels.find(each => each.id === id)!
+      return checkReview(level, played(level, [step]).state.comments, level.verdict).feedback[0]
+    }
+    // 6.1: a bug comment over the removed products is not on the lost one; on its line and one either side, it is
+    expect(feedback('ai-26-menu-typo', { comment: 'products.js', removed: [3, 11], category: 'bug', text: '' })).toMatchObject({ found: [], wide: ['reformat', 'lost-product'], falseAlarm: false })
+    expect(feedback('ai-26-menu-typo', { comment: 'products.js', removed: [7, 9], category: 'bug', text: '' })).toMatchObject({ found: ['lost-product'], near: ['reformat'] })
+    // as scope, the same rows find the reformat: every one of them is its own
+    expect(feedback('ai-26-menu-typo', { comment: 'products.js', removed: [3, 11], category: 'scope', text: '' })).toMatchObject({ found: ['reformat'], near: ['lost-product'], falseAlarm: false })
+    // 6.3: the whole old basketTotal as a bug is too wide; the discount's two lines find it
+    expect(feedback('ai-28-five-cents', { comment: 'pricing.js', removed: [10, 14], category: 'bug', text: '' })).toMatchObject({ found: [], wide: ['rewrite', 'lost-discount'], falseAlarm: false })
+    expect(feedback('ai-28-five-cents', { comment: 'pricing.js', removed: [12, 13], category: 'bug', text: '' })).toMatchObject({ found: ['lost-discount'], near: [], falseAlarm: false })
+    // chapters 1 to 5 grade as before (review of chapter 6): rows of no issue and rows of another kind of issue are
+    // counted apart, each against the slack, so two rows of context beside one of another issue still find it (as built,
+    // these were false alarms: the other issue's row made the comment wide, and a changed row of context then broad)
+    expect(feedback('ai-09-linked-issue', { comment: 'cart.js', lines: [18, 20], removed: [18, 19], category: 'bug', text: '' })).toMatchObject({ found: ['one-products'], near: ['other-symptom'], falseAlarm: false })
+    expect(feedback('ai-22-payment-key', { comment: 'payment.js', lines: [18, 21], category: 'false-claim', text: '' })).toMatchObject({ found: ['secret-key'], near: ['browser-amount'], falseAlarm: false })
   })
 
   it('keeps 5.1\'s review as data until the pull request\'s innerHTML makes it markup, in the sealed frame', () => {

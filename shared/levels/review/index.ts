@@ -1,6 +1,6 @@
 // The Working with AI track (ADR 0008): its chapters and their levels, in play order. Chapters 1 (Read the diff), 2
-// (Claims vs. code), 3 (Tests that lie), 4 (Invented APIs) and 5 (Security) are live, chapters 6 and 7 are coming. A practice task goes
-// right after the scenario it trains (`practises`); defineTrack checks it.
+// (Claims vs. code), 3 (Tests that lie), 4 (Invented APIs), 5 (Security) and 6 (Scope and size) are live, chapter 7
+// is coming. A practice task goes right after the scenario it trains (`practises`); defineTrack checks it.
 import { fewestHintsThenFalseAlarms } from '../progress'
 import { defineTrack, trackLevels } from '../track'
 import { isReviewLevel } from './types'
@@ -30,6 +30,11 @@ import { paymentKey } from './22-payment-key'
 import { staffButton } from './23-staff-button'
 import { priceFromBasket } from './24-price-from-basket'
 import { orderByNumber } from './25-order-by-number'
+import { menuTypo } from './26-menu-typo'
+import { pickupNote } from './27-pickup-note'
+import { fiveCents } from './28-five-cents'
+import { cartToBasket } from './29-cart-to-basket'
+import { soldOutLabel } from './30-sold-out-label'
 import {
   backWhereYouWere,
   checkedInPage,
@@ -42,6 +47,18 @@ import {
   whoseId,
   yourOrdersOnly
 } from './practice/security'
+import {
+  alphabetical,
+  closingCountdown,
+  darkModeToo,
+  feeClass,
+  fiveCentsLine,
+  formattingOnly,
+  phoneNumber,
+  renamedAndRaised,
+  renamedEverywhere,
+  veganBadge
+} from './practice/scope-and-size'
 import {
   andList,
   getYear,
@@ -216,7 +233,29 @@ export const aiTrack = defineTrack({
         yourOrdersOnly
       ]
     },
-    { id: 'scope-and-size', title: 'Scope and size', description: 'Unrelated changes, a rewrite where a line would do, a pull request that should be two.', colour: 5, levels: [] },
+    {
+      id: 'scope-and-size',
+      title: 'Scope and size',
+      description: 'Unrelated changes, a rewrite where a line would do, a pull request that should be two.',
+      colour: 5,
+      levels: [
+        menuTypo,
+        alphabetical,
+        formattingOnly,
+        pickupNote,
+        veganBadge,
+        phoneNumber,
+        fiveCents,
+        feeClass,
+        fiveCentsLine,
+        cartToBasket,
+        renamedAndRaised,
+        renamedEverywhere,
+        soldOutLabel,
+        closingCountdown,
+        darkModeToo
+      ]
+    },
     { id: 'steer', title: 'Steer the assistant', description: 'Write the review that gets Sous to the right fix.', colour: 6, levels: [] }
   ]
 })

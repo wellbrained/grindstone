@@ -113,6 +113,8 @@ export interface ServerShopOptions {
   imports?: readonly string[]
   /** More lines at the end of the page (in `<main>`, after the product list). */
   main?: readonly string[]
+  /** More lines in the header, under the tagline (after “Signed in as …” when there is one). */
+  header?: readonly string[]
 }
 
 /**
@@ -165,6 +167,6 @@ function serverApp(options: ServerShopOptions): string {
 export function serverShop(files: Files, options: ServerShopOptions = {}): Record<string, string> {
   return networkSite(
     { 'app.js': serverApp(options), 'menu.js': MENU_JS, ...files },
-    { header: options.whoAmI ? ['<p class="hours" id="who"></p>'] : [], main: options.main ?? [] }
+    { header: [...(options.whoAmI ? ['<p class="hours" id="who"></p>'] : []), ...(options.header ?? [])], main: options.main ?? [] }
   )
 }

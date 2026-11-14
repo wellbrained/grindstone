@@ -118,6 +118,39 @@ describe('what a sent review found', () => {
   })
 })
 
+describe('a scope issue over many lines (chapter 6, Scope and size)', () => {
+  // products.js reformatted from top to bottom (scope), and in the middle of it one product lost (a bug): rows 0-1 same,
+  // 2-9 removed (base 3-10: a to g, then `]`), 10-16 added (head 3-9: a, b, c, e, f, g, then `];`)
+  const BASE = ['// products', 'export const products = [', ...'abcdefg'.split('').map((id, at) => `  { id: '${id}', price: ${at + 1} },`), ']', ''].join('\n')
+  const HEAD = ['// products', 'export const products = [', ...'abcefg'.split('').map(id => `  { id: "${id}", price: ${'abcdefg'.indexOf(id) + 1} },`), '];', ''].join('\n')
+  const level = {
+    pr: { number: 9, title: 'Fix a typo', branch: 'sous/typo', description: ['Fixes a typo.'], claims: ['Nothing else changes'], base: { 'products.js': BASE }, head: { 'products.js': HEAD } },
+    issues: [
+      { id: 'reformat', path: 'products.js', lines: [3, 9] as const, removed: [3, 5] as const, also: [{ path: 'products.js', removed: [7, 10] as const }], categories: ['scope'] as Category[], title: 'a reformat', explanation: '' },
+      { id: 'lost', path: 'products.js', removed: [6, 6] as const, categories: ['bug'] as Category[], title: 'd is gone', explanation: '' }
+    ],
+    verdict: 'request-changes' as const
+  }
+  const review = (comments: ReviewComment[]) => checkReview(level, comments, 'request-changes')
+  const across = (category: Category) => comment('products.js', { head: head(3, 6), base: head(3, 10) }, category)
+
+  it('is found by a comment on any of its lines, however long the stretch: all of them are the issue\'s', () => {
+    expect(review([onHead('products.js', 3, 9, 'scope')]).feedback[0]).toMatchObject({ found: ['reformat'], falseAlarm: false })
+    expect(review([onBase('products.js', 9, 10, 'scope')]).feedback[0]).toMatchObject({ found: ['reformat'], falseAlarm: false })
+    // twelve rows over both sides: the lost product in them is another issue, one row
+    expect(review([across('scope')]).feedback[0]).toMatchObject({ found: ['reformat'], near: ['lost'], wide: [], falseAlarm: false })
+  })
+
+  it('counts its rows against a comment of another kind: a bug comment over the reformat is not focused on the bug in it', () => {
+    // rows of another issue count as the comment's own only when its category fits that issue too
+    expect(review([across('bug')]).feedback[0]).toMatchObject({ found: [], near: [], wide: ['reformat', 'lost'], falseAlarm: false, broad: false })
+    // on the lost line, or with two rows of the reformat around it, the bug is found
+    expect(review([onBase('products.js', 6, 6, 'bug')]).feedback[0]).toMatchObject({ found: ['lost'], near: [], falseAlarm: false })
+    expect(review([onBase('products.js', 5, 7, 'bug')]).feedback[0]).toMatchObject({ found: ['lost'], near: ['reformat'], falseAlarm: false })
+    expect(review([onBase('products.js', 6, 6, 'bug'), onHead('products.js', 5, 5, 'scope')])).toMatchObject({ found: ['reformat', 'lost'], solved: true })
+  })
+})
+
 describe('comments on the description (chapter 2, Claims vs. code)', () => {
   // the claims fixture: description lines 1-2 paragraphs, 3-5 claims; avg.js:3 breaks claim 4, avg.js:4 a plain bug
   const onClaim = (start: number, end = start, category: Category = 'false-claim') =>

@@ -1,7 +1,8 @@
 // What a sent review found, and the goals that read it (ADR 0008, docs/features/levels.md "The review environment").
 // A planted issue is found when a comment touches its lines (on the side it is on, or one of its `also` places) with a
-// category the issue accepts, and the comment is **focused**: at most FOCUS_SLACK of its rows belong to no planted issue.
-// One comment can find several issues it covers. A wider comment over an issue and lines of context finds nothing
+// category the issue accepts, and the comment is **focused**: at most FOCUS_SLACK of its rows belong to no planted issue,
+// and at most FOCUS_SLACK to issues its category doesn't fit (since chapter 6: a bug comment over a reformat isn't
+// focused on the one lost line in it). One comment can find several issues it covers. A wider comment over an issue and lines of context finds nothing
 // ("narrow it down"); a wider one that also covers changed (+/-) rows with nothing wrong in them is a false alarm, like a
 // comment that touches no issue at all: it costs the best run, it never fails the level, and on a tempting spot it is
 // told why nothing is wrong there. A comment can sit on Sous's description too (its numbered lines): there only
@@ -41,32 +42,45 @@ const issueRow = (path: string, row: DiffRow, issue: PlantedIssue) =>
 type Level = Pick<ReviewFields, 'issues' | 'tempting' | 'verdict' | 'pr'>
 
 /**
- * A comment's rows that belong to no planted issue: how many, and how many of them are changed (+/-) rows, or lines of
- * the description (each one a statement that holds, like a change with nothing wrong in it).
+ * A comment's rows outside the issues it is about (`own`), in two counts, each held against the focus slack: those of
+ * another planted issue (`other`) and those of no issue at all (`loose`); and how many of the loose ones are changed
+ * (+/-) rows or lines of the description (each one a statement that holds, like a change with nothing wrong in it):
+ * with more loose rows than the slack, those make a wide comment broad. Rows of another issue never do: they can make a
+ * comment wide, not a false alarm.
  */
-function unrelatedRows(level: Level, place: CommentPlace): { all: number, changed: number } {
+function unrelatedRows(level: Level, place: CommentPlace, own: readonly PlantedIssue[]): { other: number, loose: number, changed: number } {
   const file = commentTargets(level.pr).find(each => each.path === place.path)
   const rows = file ? file.hunks.flatMap(hunk => hunk.rows).filter(row => rowIn(row, place)) : []
-  const unrelated = rows.filter(row => !level.issues.some(issue => issueRow(place.path, row, issue)))
+  const outside = rows.filter(row => !own.some(issue => issueRow(place.path, row, issue)))
   const statements = place.path === DESCRIPTION_PATH
-  return { all: unrelated.length, changed: unrelated.filter(row => statements || row.kind !== 'same').length }
+  const loose = outside.filter(row => !level.issues.some(issue => issueRow(place.path, row, issue)))
+  return { other: outside.length - loose.length, loose: loose.length, changed: loose.filter(row => statements || row.kind !== 'same').length }
 }
 
 /** What one comment found. */
 export function commentFeedback(level: Level, comment: ReviewComment): CommentFeedback {
   const touched = level.issues.filter(issue => touchesIssue(comment, issue))
-  const unrelated = touched.length ? unrelatedRows(level, comment) : { all: 0, changed: 0 }
   const onDescription = comment.path === DESCRIPTION_PATH
-  const focused = unrelated.all <= (onDescription ? DESCRIPTION_SLACK : FOCUS_SLACK)
-  // a wide comment that also covers changes with nothing wrong in them points at nothing in particular (on the
-  // description, lines that hold: a comment over a false claim and claims that hold is broad)
-  const broad = touched.length > 0 && !focused && unrelated.changed > 0
   // what is wrong with a line of the description can only be that it isn't true
   const fits = (issue: PlantedIssue) => issue.categories.includes(comment.category) && (!onDescription || comment.category === 'false-claim')
+  // the issues the comment is about: those its category fits, else (near) every one it touches. Rows of another issue
+  // count as its own only when its category fits that issue too (chapter 6): a bug comment over twelve lines of an
+  // unrelated reformat isn't focused on the one line in it that is a bug. They are counted apart from the rows of no
+  // issue, each against the slack, so a comment that was focused before chapter 6 (at most two rows of no issue, and
+  // at most two of an issue of another kind beside it) still is (ADR 0008, review of chapter 6)
+  const fitting = touched.filter(fits)
+  const unrelated = touched.length ? unrelatedRows(level, comment, fitting.length ? fitting : touched) : { other: 0, loose: 0, changed: 0 }
+  const slack = onDescription ? DESCRIPTION_SLACK : FOCUS_SLACK
+  const focused = unrelated.loose <= slack && unrelated.other <= slack
+  // a comment with more rows of no issue than the slack, some of them changes with nothing wrong in them, points at
+  // nothing in particular (on the description, lines that hold: a comment over a false claim and claims that hold is
+  // broad). Only rows of no issue count here, as before chapter 6: a comment that is wide only for another issue's rows
+  // is told to narrow it down, never a false alarm
+  const broad = touched.length > 0 && unrelated.loose > slack && unrelated.changed > 0
   const tempting = touched.length === 0 ? (level.tempting ?? []).find(spot => touches(comment, spot)) : undefined
   return {
     id: comment.id,
-    found: focused ? touched.filter(fits).map(issue => issue.id) : [],
+    found: focused ? fitting.map(issue => issue.id) : [],
     near: focused ? touched.filter(issue => !fits(issue)).map(issue => issue.id) : [],
     wide: !focused && !broad ? touched.map(issue => issue.id) : [],
     falseAlarm: touched.length === 0 || broad,
