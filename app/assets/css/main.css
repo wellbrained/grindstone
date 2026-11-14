@@ -233,13 +233,52 @@ body {
   .reveal-files[data-open] {
     flex-basis: min(14rem, 36%);
   }
-  .reveal-editor[data-open] {
-    flex-grow: 1.6;
+  /* the editor is the filler of the centre column, open or closed: the terminal's own size (.terminal-box) decides how
+     much is left for it, so nothing but the terminal's top edge moves when the editor opens or closes */
+  .reveal-editor {
+    flex: 1 1 0;
+  }
+  /* the IDE's terminal: all of the column in the Terminal layout, in the IDE the height the viewer dragged it to
+     (--terminal-h, already clamped to the column by GitWorkbench) or, by default, 1 of 2.6 parts of the room under the
+     handle (editor 1.6 : terminal 1). The basis animates with the panels, so the terminal keeps its bottom edge. */
+  .terminal-box {
+    flex: 0 1 100%;
+    transition: flex-basis 260ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .terminal-box[data-open] {
+    flex-basis: var(--terminal-h, calc((100% - 1rem) / 2.6));
+  }
+}
+
+/* the drag handle between the IDE's editor and terminal (TerminalSplitter): from lg only, opens and closes with the editor */
+.reveal-handle {
+  display: none;
+}
+@media (min-width: 64rem) {
+  .reveal-handle {
+    display: block;
+    flex: none;
+    height: 0;
+    overflow: hidden;
+    transition: height 260ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .reveal-handle[data-open] {
+    height: 1rem;
+    overflow: visible;
+  }
+}
+
+/* short desktop windows (1024x768): the level's story and goals need the room, so Files is a little smaller; it scrolls inside */
+@media (min-width: 64rem) and (max-height: 56rem) {
+  .reveal-files[data-open] {
+    flex-basis: min(10rem, 30%);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .reveal,
+  .reveal-handle,
+  .terminal-box,
   .reveal > * > * {
     transition: none;
   }

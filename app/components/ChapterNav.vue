@@ -5,7 +5,8 @@ import type { ChapterView } from '~/utils/track-view'
 // On the track page (`jump`) the entries are in-page links that report the jump and mark the chapter in view with
 // aria-current; on the home page they link to the chapter's section on the track page. On the track page the list is
 // also the skill radar's legend: hovering or focusing a row reports its chapter (`highlight`), and the row of the axis
-// hovered in the radar is lit up (`highlight` prop).
+// hovered in the radar is lit up (`highlight` prop). The mini bar needs room: in a list narrower than 17.5rem (the rail
+// from lg to xl, 268px; from xl it is 296px, 286px beside a classic scrollbar) it is left out so the chapter name keeps its width; the n/m count stays.
 const props = defineProps<{
   chapters: ChapterView[]
   label: string
@@ -32,7 +33,10 @@ function onClick(event: MouseEvent, id: string) {
 </script>
 
 <template>
-  <nav :aria-label="label">
+  <nav
+    class="@container"
+    :aria-label="label"
+  >
     <ol class="space-y-0.5">
       <li
         v-for="item in chapters"
@@ -64,7 +68,7 @@ function onClick(event: MouseEvent, id: string) {
           <span class="min-w-0 flex-1 truncate">{{ item.chapter.title }}</span>
           <template v-if="!item.coming">
             <ProgressMeter
-              class="h-1 w-11 shrink-0"
+              class="hidden h-1 w-6 shrink-0 @min-[17.5rem]:block"
               :class="paletteClass(item.chapter.colour)"
               :count="item.count"
             />

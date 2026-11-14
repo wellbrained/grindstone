@@ -4,6 +4,7 @@ import type { GitPlaySession } from '~/composables/useGitPlay'
 import { fileStatuses } from '~/utils/file-tree'
 import type { PlayLayout } from '~/utils/play-layout'
 import { isCoarsePointer, revealIfStacked } from '~/utils/play-layout'
+import { MIN_TERMINAL_HEIGHT, appliedTerminalHeight, maxTerminalHeight } from '~/utils/terminal-size'
 
 // The git play area in both layouts (docs/adr/0004-editor-layouts.md, docs/features/ui.md), in the shared PlayFrame. One
 // skeleton for Terminal and IDE: level panel left, terminal centre, commit graph right. IDE only opens two panels in place: Files below the level panel and
@@ -27,6 +28,16 @@ const statuses = computed(() => fileStatuses(session.value.state))
 const files = computed(() => Object.keys(workdir.value).sort())
 
 const terminal = useTemplateRef<{ focus: () => void }>('terminal')
+
+// The IDE's terminal height can be dragged (TerminalSplitter, from lg); the viewer's choice is kept per browser. Without
+// one the editor and terminal share the column 1.6 : 1. A stored height is applied clamped to the column as it is now
+// (a window that got shorter keeps the editor its minimum; the stored value stays, so a taller window brings it back).
+const { height: customHeight, set: setTerminalHeight, commit: commitTerminalHeight, reset: resetTerminalHeight } = useTerminalHeight()
+const terminalBox = useTemplateRef<HTMLElement>('terminalBox')
+const { height: terminalHeight } = useElementSize(terminalBox)
+const { height: columnHeight } = useElementSize(computed(() => terminalBox.value?.parentElement))
+const terminalMax = computed(() => maxTerminalHeight(columnHeight.value))
+const appliedHeight = computed(() => appliedTerminalHeight(customHeight.value, columnHeight.value))
 const editorArea = useTemplateRef<{ focus: () => void, $el: HTMLElement }>('editorArea')
 
 /** A file was opened in the IDE (explorer, `edit <file>`, the conflicted-files list): bring the editor into view and focus it. */
@@ -112,7 +123,7 @@ defineExpose({
             v-if="gitEditor && ide"
             ref="gitPane"
             v-model="gitDraft"
-            class="mb-4 scroll-mt-4 max-lg:h-[26rem]"
+            class="scroll-mt-4 max-lg:mb-4 max-lg:h-[26rem]"
             :wait="gitEditor"
             @submit="submitGitEditor"
             @cancel="cancelGitEditor"
@@ -120,7 +131,7 @@ defineExpose({
           <EditorArea
             v-show="!(gitEditor && ide)"
             ref="editorArea"
-            class="mb-4 scroll-mt-4 max-lg:h-[26rem]"
+            class="scroll-mt-4 max-lg:mb-4 max-lg:h-[26rem]"
             :tabs="tabs"
             :files="files"
             :statuses="statuses"
@@ -128,7 +139,27 @@ defineExpose({
           />
         </div>
       </div>
-      <div class="relative h-[28rem] min-w-0 lg:h-auto lg:min-h-40 lg:flex-[1_1_0]">
+      <!-- the drag handle: from lg it takes the 1rem gap the editor panel used to leave below itself -->
+      <div
+        class="reveal-handle"
+        :data-open="ide || undefined"
+        :inert="!ide || undefined"
+      >
+        <TerminalSplitter
+          :value="Math.round(terminalHeight)"
+          :min="MIN_TERMINAL_HEIGHT"
+          :max="terminalMax"
+          @change="setTerminalHeight"
+          @commit="commitTerminalHeight"
+          @reset="resetTerminalHeight"
+        />
+      </div>
+      <div
+        ref="terminalBox"
+        class="terminal-box relative h-[28rem] min-w-0 lg:h-auto lg:min-h-40"
+        :data-open="ide || undefined"
+        :style="appliedHeight !== null ? { '--terminal-h': `${appliedHeight}px` } : undefined"
+      >
         <TerminalPane
           ref="terminal"
           class="lg:min-h-0"

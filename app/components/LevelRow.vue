@@ -72,7 +72,7 @@ const laneClass = (part: keyof RowLanes) => [{ 'opacity-35': props.row.lane[part
   <li class="relative border-t border-muted">
     <NuxtLink
       :to="levelPath(row.place.level)"
-      class="relative grid grid-cols-[2rem_2.25rem_minmax(0,1fr)] items-center gap-x-3 gap-y-1 rounded-lg pr-11 pl-3 transition-colors hover:bg-elevated hover:[--dot-ground:var(--ui-bg-elevated)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary md:grid-cols-[2rem_2.75rem_minmax(0,1fr)_5.5rem_12rem] md:gap-x-4 xl:grid-cols-[2rem_2.75rem_minmax(0,1fr)_5.5rem_16rem]"
+      class="relative grid grid-cols-[2rem_1.75rem_minmax(0,1fr)] items-center gap-x-2.5 gap-y-1 rounded-lg pr-11 pl-3 transition-colors hover:bg-elevated hover:[--dot-ground:var(--ui-bg-elevated)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary md:grid-cols-[2rem_2.75rem_minmax(0,1fr)_5.5rem_12rem] md:gap-x-4 xl:grid-cols-[2rem_2.75rem_minmax(0,1fr)_5.5rem_16rem]"
       :class="[paletteClass(row.place.chapter.colour), practice ? 'py-2' : 'py-3', { 'bg-elevated [--dot-ground:var(--ui-bg-elevated)]': row.state === 'next' }]"
       :aria-label="label"
       :data-level="row.place.level.id"

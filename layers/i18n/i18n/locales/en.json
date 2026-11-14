@@ -40,7 +40,12 @@
       "terminalHelp": "Terminal layout: goals, terminal and graph; edit and a file name open an editor panel",
       "ideHelp": "IDE layout: adds a file explorer under the goals and editor tabs above the terminal"
     },
-    "breadcrumb": "Breadcrumb"
+    "breadcrumb": "Breadcrumb",
+    "terminalSize": {
+      "label": "Terminal height",
+      "value": "{px} pixels",
+      "help": "Drag to resize the terminal, or use the arrow keys (Shift: bigger steps, Home and End: smallest and largest). Double-click for the default."
+    }
   },
   "goals": {
     "title": "Goals",

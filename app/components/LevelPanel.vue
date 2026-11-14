@@ -47,28 +47,30 @@ const menu = computed(() => entryItems(props.place, { onPlayAgain: () => emit('a
   >
     <header>
       <nav :aria-label="t('play.breadcrumb')">
-        <ol class="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs text-muted">
-          <li>
+        <ol class="flex items-center gap-x-1 text-xs whitespace-nowrap text-muted">
+          <li class="shrink-0">
             <NuxtLink
               :to="trackPath(place.track.id)"
               class="rounded-sm hover:text-highlighted hover:underline focus-visible:outline-2 focus-visible:outline-primary"
               data-testid="crumb-track"
             >{{ place.track.title }}</NuxtLink>
           </li>
-          <li class="flex items-center gap-x-1">
+          <li class="flex min-w-0 items-center gap-x-1">
             <UIcon
               name="i-lucide-chevron-right"
               class="size-3 shrink-0 text-dimmed"
             />
             <NuxtLink
               :to="trackPath(place.track.id, place.chapter.id)"
-              class="rounded-sm hover:text-highlighted hover:underline focus-visible:outline-2 focus-visible:outline-primary"
+              class="min-w-0 truncate rounded-sm hover:text-highlighted hover:underline focus-visible:overflow-visible focus-visible:whitespace-normal focus-visible:outline-2 focus-visible:outline-primary"
+              :title="place.chapter.title"
             >{{ place.chapter.title }}</NuxtLink>
           </li>
-          <!-- the trail ends one step above this entry: the heading below names it (and the trail stays on one line) -->
+          <!-- the trail ends one step above this entry: the heading below names it. It stays on one line: the last item
+               (the scenario's title, which can be long) is cut with an ellipsis and has its full name as a tooltip. -->
           <li
             v-if="place.scenario"
-            class="flex items-center gap-x-1"
+            class="flex min-w-0 items-center gap-x-1"
           >
             <UIcon
               name="i-lucide-chevron-right"
@@ -76,7 +78,8 @@ const menu = computed(() => entryItems(props.place, { onPlayAgain: () => emit('a
             />
             <NuxtLink
               :to="levelPath(place.scenario.level)"
-              class="rounded-sm hover:text-highlighted hover:underline focus-visible:outline-2 focus-visible:outline-primary"
+              class="min-w-0 truncate rounded-sm hover:text-highlighted hover:underline focus-visible:overflow-visible focus-visible:whitespace-normal focus-visible:outline-2 focus-visible:outline-primary"
+              :title="`${place.scenario.number} ${place.scenario.level.title}`"
             ><span class="font-mono tabular-nums">{{ place.scenario.number }}</span> {{ place.scenario.level.title }}</NuxtLink>
           </li>
         </ol>
