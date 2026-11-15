@@ -30,7 +30,7 @@ Status: accepted, 2026-11-14. Nik delegated the design to Claude's recommendatio
 6. **Scope and size** — unrelated changes, a rewrite where a line would do, a PR that should be two.
 7. **Steer the assistant** — write the review that gets the right fix.
 
-First release: chapter 1 with the review mechanic, then one chapter at a time, each reviewed and deployed (chapter 2 since 0.3.4, chapter 3 since 0.3.5, chapter 4 since 0.3.6, chapter 5 since 0.3.7, chapter 6 since 0.3.8, chapter 7 since 0.3.9). The cheat sheet came with chapter 7 ("what to check in an AI pull request", `/ai/cheat-sheet`).
+First release: chapter 1 with the review mechanic, then one chapter at a time, each reviewed and deployed (chapter 2 since 0.3.4, chapter 3 since 0.3.5, chapter 4 since 0.3.6, chapter 5 since 0.3.7, chapter 6 since 0.3.8, chapter 7 since 0.3.9; the track counts as complete since 0.4.0). The cheat sheet came with chapter 7 ("what to check in an AI pull request", `/ai/cheat-sheet`).
 
 ## Other decisions
 
