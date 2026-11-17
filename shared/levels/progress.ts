@@ -3,7 +3,8 @@
 // Version 3 keeps a best and a latest run, the fewest hints any solve used (for the skill radar), a "practise again" flag
 // and when an entry was last played. Versions 1 and 2 are migrated on read; version 3 data from before `fewestHints`
 // gets it from its runs (docs/features/levels.md, "Progress"). Which run is best is the track's measure (`RunMeasure`):
-// Git fewest commands, Debugging fewest hints then fewest reloads, Working with AI fewest hints then fewest false alarms.
+// Git fewest commands, Debugging fewest hints then fewest reloads, Working with AI fewest hints then fewest false alarms,
+// Web fundamentals fewest wrong predictions, then fewest hints, then fewest reloads.
 // Track-agnostic: never imports an environment.
 import type { SessionOf } from './types'
 
@@ -22,10 +23,12 @@ export interface Run {
   falseAlarms?: number
   /** Working with AI, chapter 7: requests for changes Sous answered with a commit (absent in every other run). */
   rounds?: number
+  /** Web fundamentals: answers to the level's prediction that were wrong (ADR 0009; absent in every other track's run). */
+  wrongPredictions?: number
 }
 
 /** A count a best run is chosen by. */
-export type RunCounter = 'commands' | 'hints' | 'reloads' | 'falseAlarms' | 'rounds'
+export type RunCounter = 'commands' | 'hints' | 'reloads' | 'falseAlarms' | 'rounds' | 'wrongPredictions'
 
 /** How a track picks its best run: the counters in order, fewer wins, each later one breaks a tie (a missing count is 0). */
 export type RunMeasure = readonly RunCounter[]
@@ -42,8 +45,11 @@ export const fewestHintsThenReloads: RunMeasure = ['hints', 'reloads']
  */
 export const fewestHintsThenFalseAlarms: RunMeasure = ['hints', 'falseAlarms', 'rounds']
 
+/** Web fundamentals: fewest wrong predictions, then fewest hints, then fewest reloads (ADR 0009). */
+export const fewestWrongPredictions: RunMeasure = ['wrongPredictions', 'hints', 'reloads']
+
 /** What a solve needs from a session, whatever its environment. */
-export type Attempt = Pick<SessionOf<unknown, unknown>, 'solved' | 'commandCount' | 'hintsUsed' | 'reloads' | 'falseAlarms' | 'rounds'>
+export type Attempt = Pick<SessionOf<unknown, unknown>, 'solved' | 'commandCount' | 'hintsUsed' | 'reloads' | 'falseAlarms' | 'rounds' | 'wrongPredictions'>
 
 export interface LevelProgress {
   /** Stays true once solved; only a reset clears it. */
@@ -107,13 +113,14 @@ export function isBetterRun(run: Run, than: Run | null, measure: RunMeasure = fe
   return false
 }
 
-/** The run a solved attempt stands for (`reloads`, `falseAlarms` and `rounds` only when the attempt counted them). */
+/** The run a solved attempt stands for (`reloads`, `falseAlarms`, `rounds` and `wrongPredictions` only when the attempt counted them). */
 export const runOf = (attempt: Attempt): Run => ({
   commands: attempt.commandCount,
   hints: attempt.hintsUsed,
   ...(attempt.reloads !== undefined ? { reloads: attempt.reloads } : {}),
   ...(attempt.falseAlarms !== undefined ? { falseAlarms: attempt.falseAlarms } : {}),
-  ...(attempt.rounds !== undefined ? { rounds: attempt.rounds } : {})
+  ...(attempt.rounds !== undefined ? { rounds: attempt.rounds } : {}),
+  ...(attempt.wrongPredictions !== undefined ? { wrongPredictions: attempt.wrongPredictions } : {})
 })
 
 /** Marks an entry as the one you last played. */
@@ -185,14 +192,15 @@ export const MAX_FUTURE_MS = 24 * 60 * 60 * 1000
 
 const isCount = (value: unknown): value is number => typeof value === 'number' && Number.isInteger(value) && value >= 0
 const isObject = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value)
-/** A stored run; `reloads`, `falseAlarms` and `rounds` are kept when they are counts and left out otherwise (git runs have none). */
+/** A stored run; `reloads`, `falseAlarms`, `rounds` and `wrongPredictions` are kept when they are counts and left out otherwise (git runs have none). */
 const asRun = (value: unknown): Run | null => isObject(value) && isCount(value.commands) && isCount(value.hints)
   ? {
       commands: value.commands,
       hints: value.hints,
       ...(isCount(value.reloads) ? { reloads: value.reloads } : {}),
       ...(isCount(value.falseAlarms) ? { falseAlarms: value.falseAlarms } : {}),
-      ...(isCount(value.rounds) ? { rounds: value.rounds } : {})
+      ...(isCount(value.rounds) ? { rounds: value.rounds } : {}),
+      ...(isCount(value.wrongPredictions) ? { wrongPredictions: value.wrongPredictions } : {})
     }
   : null
 

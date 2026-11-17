@@ -180,11 +180,29 @@ describe('the fake backend\'s messages', () => {
   const netlog = { type: 'netlog', text: 'GET https://cornerbakery.shop/api/products 404 (Not Found)', stack: sentFrom }
 
   it('reads a request, its answer and the browser\'s line for it', () => {
-    expect(readBridgeMessage(request)).toEqual(request)
-    expect(readBridgeMessage(response)).toEqual(response)
+    // Debugging's backend names no preflight and no reason: they read as none
+    expect(readBridgeMessage(request)).toEqual({ ...request, preflightFor: null })
+    expect(readBridgeMessage(response)).toEqual({ ...response, reason: null })
     expect(readBridgeMessage(netlog)).toEqual(netlog)
     const cors = { ...response, status: null, statusText: '', headers: [], body: null, failure: 'cors' }
-    expect(readBridgeMessage(cors)).toEqual(cors)
+    expect(readBridgeMessage(cors)).toEqual({ ...cors, reason: null })
+  })
+
+  it('reads the web backend\'s preflights, its reasons and server.js\'s lines (Web fundamentals), and refuses them malformed', () => {
+    const preflight = { ...request, id: 2, method: 'OPTIONS', preflightFor: 1 }
+    expect(readBridgeMessage(preflight)).toEqual(preflight)
+    const refused = { ...response, status: 200, failure: 'cors', reason: 'No \'Access-Control-Allow-Origin\' header is present on the requested resource.' }
+    expect(readBridgeMessage(refused)).toEqual(refused)
+    expect(readBridgeMessage({ ...refused, reason: 'x'.repeat(5000) })).toMatchObject({ reason: 'x'.repeat(1000) })
+    const line = { type: 'server', level: 'error', text: 'ReferenceError: MENU is not defined', line: 21 }
+    expect(readBridgeMessage(line)).toEqual(line)
+    expect(readBridgeMessage({ ...line, level: 'access', line: null })).toEqual({ ...line, level: 'access', line: null })
+    expect(readBridgeMessage({ ...preflight, preflightFor: 'one' })).toBeNull()
+    expect(readBridgeMessage({ ...line, level: 'shout' })).toBeNull()
+    expect(readBridgeMessage({ ...line, line: 0 })).toBeNull()
+    expect(readBridgeMessage({ ...line, line: 2.5 })).toBeNull()
+    expect(readBridgeMessage({ ...line, text: { html: '<b>' } })).toBeNull()
+    expect(readBridgeMessage({ ...line, text: 'y'.repeat(900) })).toMatchObject({ text: 'y'.repeat(500) })
   })
 
   it('refuses malformed ones: a made-up failure, headers that are not pairs of text, a status that is not one, a method that is not a word', () => {

@@ -72,6 +72,8 @@ export interface Action<S, R, O> {
   falseAlarms?: number
   /** A request for changes Sous answered with a commit (Working with AI, chapter 7): added to `rounds`. */
   rounds?: number
+  /** An answered prediction (Web fundamentals): 1 when it was wrong, else 0; added to `wrongPredictions`, which an answer sets. */
+  wrongPredictions?: number
 }
 
 export interface ActResult<S, R, O> {
@@ -110,7 +112,8 @@ export function act<S, R, O>(session: SessionOf<S, R>, level: AnyLevel<S, R>, ac
       commandCount: session.commandCount + 1,
       ...(action.reload ? { reloads: (session.reloads ?? 0) + 1 } : {}),
       ...(action.falseAlarms !== undefined ? { falseAlarms: (session.falseAlarms ?? 0) + action.falseAlarms } : {}),
-      ...(action.rounds !== undefined ? { rounds: (session.rounds ?? 0) + action.rounds } : {})
+      ...(action.rounds !== undefined ? { rounds: (session.rounds ?? 0) + action.rounds } : {}),
+      ...(action.wrongPredictions !== undefined ? { wrongPredictions: (session.wrongPredictions ?? 0) + action.wrongPredictions } : {})
     },
     output: result.output,
     notices: [...before.notices, ...after.notices],
@@ -140,16 +143,17 @@ export function undoLast<S, R>(session: SessionOf<S, R>, level: AnyLevel<S, R>):
 
 /**
  * Back to the setup as a new attempt. Revealed hints stay revealed (and counted), and so do false alarms (a review
- * track): the feedback on them says which comments found the problems, so it is as good as a hint; and the rounds of a
- * steer level, whose wrong fixes showed which comment misled Sous. Commands and reloads start over: what they taught
- * has to be done again.
+ * track): the feedback on them says which comments found the problems, so it is as good as a hint; the rounds of a
+ * steer level, whose wrong fixes showed which comment misled Sous; and wrong predictions (Web fundamentals), whose
+ * answer was shown. Commands and reloads start over: what they taught has to be done again.
  */
 export function restart<S, R>(session: SessionOf<S, R>, level: AnyLevel<S, R>): SessionOf<S, R> {
   return {
     ...startSession(level),
     hintsUsed: session.hintsUsed,
     ...(session.falseAlarms !== undefined ? { falseAlarms: session.falseAlarms } : {}),
-    ...(session.rounds !== undefined ? { rounds: session.rounds } : {})
+    ...(session.rounds !== undefined ? { rounds: session.rounds } : {}),
+    ...(session.wrongPredictions !== undefined ? { wrongPredictions: session.wrongPredictions } : {})
   }
 }
 

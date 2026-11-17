@@ -24,6 +24,7 @@ import { BACKEND_SOURCE } from './backend'
 import { INSPECTOR_SOURCE } from './inspector'
 import { BRIDGE_HELLO } from './messages'
 import { RECORDER_GLOBAL, RECORDER_SOURCE } from './recorder'
+import { WEB_BACKEND_SOURCE } from '../web/backend'
 
 /** The longest pause a probe may take (`{ wait }`): a check run gives up after 5 s. */
 export const MAX_PROBE_WAIT_MS = 2000
@@ -479,16 +480,20 @@ const SOURCE = String.raw`(function (config) {
 
   /* The fake backend (ADR 0007, chapter 2): a level with one gets every fetch answered here, from its scripted routes;
      it posts each request and answer (the Network panel) and the browser's lines for failed ones. Without one, requests
-     go on to the network, which the frame's Content-Security-Policy refuses (connect-src 'none'). */
-  var backend = config.backend
-    ? (${BACKEND_SOURCE})(config.backend, {
-        post: post,
-        now: now,
-        sent: perf ? sentAt : null,
-        arrived: perf ? arrivedAt : null,
-        aborted: perf ? abortedAt : null
-      })
-    : null;
+     go on to the network, which the frame's Content-Security-Policy refuses (connect-src 'none'). A Web fundamentals
+     level (ADR 0009) gets the web backend instead: the CORS model as the browser, the level's server.js (in a worker)
+     as the API on another origin. */
+  var backend = config.web
+    ? (${WEB_BACKEND_SOURCE})(config.web, { post: post, now: now })
+    : config.backend
+      ? (${BACKEND_SOURCE})(config.backend, {
+          post: post,
+          now: now,
+          sent: perf ? sentAt : null,
+          arrived: perf ? arrivedAt : null,
+          aborted: perf ? abortedAt : null
+        })
+      : null;
   var realFetch = window.fetch;
   window.fetch = function fetch(input, init) {
     return backend ? backend.fetch(input, init) : realFetch.apply(window, arguments);
@@ -806,6 +811,22 @@ const SOURCE = String.raw`(function (config) {
       if (typeof step.requests === 'string') {
         value = backend ? backend.count(step.requests) : 0;
         return next();
+      }
+      /* Web fundamentals: answers the app read the body of, requests that reached server.js, a request from another origin */
+      if (typeof step.read === 'string') {
+        value = backend && backend.read ? backend.read(step.read) : 0;
+        return next();
+      }
+      if (typeof step.arrived === 'string') {
+        value = backend && backend.arrived ? backend.arrived(step.arrived) : 0;
+        return next();
+      }
+      if (typeof step.fetchFrom === 'string') {
+        if (!backend || !backend.from) return fail('There is no server to ask in this run');
+        return backend.from(step, function (result) {
+          value = result;
+          next();
+        });
       }
       if (typeof step.sent === 'string') {
         value = backend ? backend.sent(step.sent, typeof step.json === 'string' ? step.json : null) : null;

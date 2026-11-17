@@ -4,7 +4,7 @@
 // load talks to the page over the two ports its bridge hands over first (`bridgeLink`); what the frames post is read with
 // the pure code in shared/levels/debugging (messages.ts).
 import { checkFrames, isBridgeHello, mergeObservations, observe, readBridgeMessage, sandboxDocument, withUncounted } from '../../shared/levels'
-import type { BackendSpec, BridgeMessage, CheckFrame, Instrumented, LogsSpec, Observation, Probe, SandboxDocument } from '../../shared/levels'
+import type { BackendSpec, BridgeMessage, CheckFrame, Instrumented, LogsSpec, Observation, Probe, SandboxDocument, WebSpec } from '../../shared/levels'
 
 /** Messages to the bridge kept until it has said hello (Console input typed while the app loads); later ones are dropped. */
 export const MAX_WAITING_MESSAGES = 100
@@ -115,13 +115,15 @@ export interface LoadOptions {
   profile?: boolean
   /** Chapter 7: the server's logs (its requests get ids, and it says what it answered). */
   logs?: LogsSpec
+  /** Web fundamentals: the API on another origin, answered by the level's server.js (the Server panel's lines come from it). */
+  web?: WebSpec
 }
 
 /** A load of the app you see. */
 export function appLoad(files: Readonly<Record<string, string>>, options: LoadOptions = {}): AppLoad {
   const token = newToken()
-  const { backend, elements, record, profile, logs } = options
-  const document_ = sandboxDocument(files, { token, backend, elements, record, logs, ...(profile && record ? { count: 'profile' as const, performance: true } : {}) })
+  const { backend, web, elements, record, profile, logs } = options
+  const document_ = sandboxDocument(files, { token, backend, web, elements, record, logs, ...(profile && record ? { count: 'profile' as const, performance: true } : {}) })
   return { ...document_, token, files, recorded: record !== undefined }
 }
 
@@ -135,6 +137,8 @@ export interface CheckOptions {
   counted?: Instrumented
   /** Chapter 7: the server's logs (its answers carry request ids, which an app may show). */
   logs?: LogsSpec
+  /** Web fundamentals: the API on another origin, answered by the level's server.js (a fresh one per frame). */
+  web?: WebSpec
   timeoutMs?: number
 }
 
@@ -153,10 +157,10 @@ export async function runCheck(files: Readonly<Record<string, string>>, probes: 
 
 /** One frame of a check run, at its width. */
 function runFrame(files: Readonly<Record<string, string>>, { width, height, probes }: CheckFrame, options: CheckOptions): Promise<Observation> {
-  const { backend, performance, counted, logs, timeoutMs = CHECK_TIMEOUT_MS } = options
+  const { backend, web, performance, counted, logs, timeoutMs = CHECK_TIMEOUT_MS } = options
   return new Promise((resolve) => {
     const token = newToken()
-    const document_ = sandboxDocument(files, { token, probes, backend, performance, logs, ...(counted ? { record: counted.modules, count: 'check' as const } : {}) })
+    const document_ = sandboxDocument(files, { token, probes, backend, web, performance, logs, ...(counted ? { record: counted.modules, count: 'check' as const } : {}) })
     const frame = document.createElement('iframe')
     frame.setAttribute('sandbox', SANDBOX_FLAGS)
     frame.setAttribute('aria-hidden', 'true')
@@ -182,7 +186,7 @@ function runFrame(files: Readonly<Record<string, string>>, { width, height, prob
     // the goals read only what comes over this load's port: the app's code can't post there
     const link = bridgeLink(() => frame.contentWindow, token, (message) => {
       // the goals read no requests (probes count them inside the frame): only the app you see shows them
-      if (message.type === 'request' || message.type === 'response' || message.type === 'serverlog') return
+      if (message.type === 'request' || message.type === 'response' || message.type === 'serverlog' || message.type === 'server') return
       // a flood of logs must not fill memory: the goals need the probes, done and that errors happened, not every line
       if ((message.type === 'console' || message.type === 'error' || message.type === 'netlog') && ++appMessages > MAX_CHECK_MESSAGES) return
       messages.push(message)

@@ -4,17 +4,17 @@
 // the check behind a reload and hands its Observation to `reload`. Pure and immutable, like the core.
 import { act, startSession } from '../engine'
 import { deployById } from './deploys'
-import type { DebugLevel, DebugOutput, DebugResult, DebugSession, DebugStep, Observation, PickVerdict, SourceLine } from './types'
+import type { DebugLevel, DebugOutput, DebugResult, DebugSession, DebugStep, Observation, PickVerdict, SandboxLevel, SourceLine } from './types'
 
 const NOTHING: DebugOutput = { verdict: null }
 
 const quiet = (session: DebugSession): DebugResult => ({ session, output: NOTHING, notices: [], solvedNow: false })
 
 /** A fresh session: the level's files as they start, nothing observed, nothing picked. */
-export const startDebugLevel = (level: DebugLevel): DebugSession => startSession(level)
+export const startDebugLevel = (level: SandboxLevel): DebugSession => startSession(level)
 
 /** Saves a file from the editor (counted); a file the level does not have changes nothing. */
-export function saveFile(session: DebugSession, level: DebugLevel, path: string, content: string): DebugResult {
+export function saveFile(session: DebugSession, level: SandboxLevel, path: string, content: string): DebugResult {
   if (!Object.hasOwn(session.state.files, path)) return quiet(session)
   return act(session, level, {
     commands: [`save ${path}`],
@@ -26,7 +26,7 @@ export function saveFile(session: DebugSession, level: DebugLevel, path: string,
  * A reload: the app restarted from the saved files, and what its check run saw. Counted, also in `reloads`. `ran` is
  * the files the check ran (default: the saved files); a save made while it ran is not what it checked.
  */
-export function reload(session: DebugSession, level: DebugLevel, observed: Observation, ran?: Readonly<Record<string, string>>): DebugResult {
+export function reload(session: DebugSession, level: SandboxLevel, observed: Observation, ran?: Readonly<Record<string, string>>): DebugResult {
   return act(session, level, {
     commands: ['reload'],
     reload: true,
@@ -38,7 +38,7 @@ export function reload(session: DebugSession, level: DebugLevel, observed: Obser
  * Roll back (chapter 7): the files become a deploy's, saved (the newest deploy's is "back to live"). Counted like a
  * save, not a reload: Reload runs them. An unknown deploy, or a level without deploys, changes nothing.
  */
-export function rollback(session: DebugSession, level: DebugLevel, deployId: string): DebugResult {
+export function rollback(session: DebugSession, level: SandboxLevel, deployId: string): DebugResult {
   const history = level.sandbox.deploys
   const deploy = history ? deployById(history, deployId) : null
   if (!deploy) return quiet(session)
@@ -49,7 +49,7 @@ export function rollback(session: DebugSession, level: DebugLevel, deployId: str
 }
 
 /** What a click on a line says in a find task (null outside one): right, or why it is not that one. */
-export function pickVerdict(level: DebugLevel, pick: SourceLine): PickVerdict | null {
+export function pickVerdict(level: SandboxLevel, pick: SourceLine): PickVerdict | null {
   const find = level.sandbox.find
   if (!find) return null
   if (pick.path === find.path && find.lines.includes(pick.line)) return { right: true, why: null }
@@ -60,7 +60,7 @@ export function pickVerdict(level: DebugLevel, pick: SourceLine): PickVerdict | 
  * Undo roll back (chapter 7): the saved files from before a rollback come back (counted, like a save). Only a file set
  * with exactly the app's files counts; one that is what is saved already changes nothing.
  */
-export function restoreFiles(session: DebugSession, level: DebugLevel, files: Readonly<Record<string, string>>): DebugResult {
+export function restoreFiles(session: DebugSession, level: SandboxLevel, files: Readonly<Record<string, string>>): DebugResult {
   const current = session.state.files
   const paths = Object.keys(current)
   const same = Object.keys(files).length === paths.length && paths.every(path => typeof files[path] === 'string')
@@ -72,7 +72,7 @@ export function restoreFiles(session: DebugSession, level: DebugLevel, files: Re
 }
 
 /** What naming a deploy says in a find task whose answer can be a deploy (null otherwise): right, or why not. */
-export function deployVerdict(level: DebugLevel, deployId: string): PickVerdict | null {
+export function deployVerdict(level: SandboxLevel, deployId: string): PickVerdict | null {
   const find = level.sandbox.find
   if (!find?.deploys) return null
   if (find.deploys.includes(deployId)) return { right: true, why: null }
@@ -80,7 +80,7 @@ export function deployVerdict(level: DebugLevel, deployId: string): PickVerdict 
 }
 
 /** Naming a deploy as the answer ("this one broke it"), in a chapter 7 find task (counted); elsewhere it changes nothing. */
-export function pickDeploy(session: DebugSession, level: DebugLevel, deployId: string): DebugResult {
+export function pickDeploy(session: DebugSession, level: SandboxLevel, deployId: string): DebugResult {
   const verdict = deployVerdict(level, deployId)
   if (!verdict) return quiet(session)
   return act(session, level, {
@@ -90,7 +90,7 @@ export function pickDeploy(session: DebugSession, level: DebugLevel, deployId: s
 }
 
 /** A click on a line in the editor or a stack trace, in a find task (counted); outside one it changes nothing. */
-export function pickLine(session: DebugSession, level: DebugLevel, pick: SourceLine): DebugResult {
+export function pickLine(session: DebugSession, level: SandboxLevel, pick: SourceLine): DebugResult {
   const verdict = pickVerdict(level, pick)
   if (!verdict) return quiet(session)
   return act(session, level, {
@@ -112,7 +112,7 @@ export function editedText(files: Readonly<Record<string, string>>, step: { save
 export type CheckRun = (files: Readonly<Record<string, string>>) => Promise<Observation>
 
 /** Plays one solution step; a reload runs the check on the saved files first. */
-export async function playStep(session: DebugSession, level: DebugLevel, step: DebugStep, run: CheckRun): Promise<DebugResult> {
+export async function playStep(session: DebugSession, level: SandboxLevel, step: DebugStep, run: CheckRun): Promise<DebugResult> {
   if (step === 'reload') return reload(session, level, await run(session.state.files))
   if ('pick' in step) return pickLine(session, level, { path: step.pick, line: step.line })
   if ('rollback' in step) return rollback(session, level, step.rollback)

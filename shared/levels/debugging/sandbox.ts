@@ -12,6 +12,8 @@ import { cssRules, styleTags } from './css'
 import { COMPUTED_PROPERTIES } from './elements'
 import { RECORD_LIMITS, countingLimits } from './recorder'
 import type { BackendSpec, LogsSpec, Probe } from './types'
+import { webConfig } from '../web/backend'
+import type { WebSpec } from '../web/backend'
 
 export { resolveImport }
 
@@ -67,6 +69,11 @@ export interface SandboxOptions {
   performance?: boolean
   /** A level with the server's logs (chapter 7): its server names each request and reports what it answered (every load). */
   logs?: LogsSpec
+  /**
+   * Web fundamentals: the page's API on another origin, answered by the level's server.js through the CORS model (the
+   * app you see and its check runs alike; server.js is never one of the page's modules).
+   */
+  web?: WebSpec
 }
 
 /** What the bridge needs for the Elements panel: the page's rules (to test which match), the linked stylesheets' names, what to read. */
@@ -173,14 +180,15 @@ function rewriteStylesheets(html: string, files: Readonly<Record<string, string>
 export function sandboxDocument(files: Readonly<Record<string, string>>, options: SandboxOptions): SandboxDocument {
   const recording = options.record ?? null
   const modules = Object.fromEntries(Object.entries(files)
-    .filter(([path]) => /\.m?js$/.test(path))
+    .filter(([path]) => /\.m?js$/.test(path) && path !== options.web?.server)
     .map(([path, source]) => [path, rewriteImports(recording?.[path] ?? source, path, files)]))
   // the config is JSON inside a <script>: no raw "<", so no text in it can close the script or open a comment
   const backend = options.backend ? backendConfig(options.backend, SHOP_ORIGIN, options.logs ? { first: options.logs.firstRequest } : null) : null
   const elements = options.elements && !options.probes ? elementsConfig(files) : null
   const record = recording ? options.count ? countingLimits(options.count) : RECORD_LIMITS : null
   const perf = options.performance ? { actions: recording !== null && options.count === 'profile' } : null
-  const config = JSON.stringify({ token: options.token, modules, probes: options.probes ?? null, backend, elements, record, perf }).replace(/</g, '\\u003c')
+  const web = options.web ? webConfig(options.web, files, SHOP_ORIGIN) : null
+  const config = JSON.stringify({ token: options.token, modules, probes: options.probes ?? null, backend, elements, record, perf, web }).replace(/</g, '\\u003c')
   const injected = `<base href="${SHOP_ORIGIN}"><meta http-equiv="Content-Security-Policy" content="${options.count === 'check' ? COUNTING_CSP : SANDBOX_CSP}"><script>${BRIDGE_SOURCE}(${config});</script>`
 
   const page = rewriteStylesheets(rewriteScripts(files['index.html'] ?? '', files), files)

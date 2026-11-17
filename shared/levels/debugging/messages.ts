@@ -42,6 +42,8 @@ export type BridgeMessage
     | ResponseMessage
   /** The browser's own Console line for a failed request (`GET … 404 (Not Found)`, a CORS refusal), with where it was sent from. */
     | { type: 'netlog', text: string, stack: string }
+  /** Web fundamentals: a line of the API's server.js for the Server panel (an access line, its console, an error with its line). */
+    | ServerOutputMessage
   /** The Elements panel: a snapshot of the app's DOM (in document order), cut at MAX_DOM_NODES. */
     | { type: 'dom', nodes: DomNode[], truncated: boolean }
   /** The Elements panel: the selected element's matching rules, box and computed values (`seq`: which request it answers). */
@@ -93,6 +95,8 @@ export interface RequestMessage {
   headers: HeaderPair[]
   body: string | null
   stack: string
+  /** Web fundamentals: a preflight the browser sent, and the id of the request it asks for (null: the app's own request). */
+  preflightFor: number | null
 }
 
 /** How a request failed without an answer the app can read: refused by CORS, no connection, cancelled. */
@@ -110,6 +114,17 @@ export interface ResponseMessage {
   failure: RequestFailure | null
   /** Milliseconds from sending to the answer. */
   time: number
+  /** Web fundamentals: why CORS kept the answer from the page, in Chrome's words (null: it didn't). */
+  reason: string | null
+}
+
+/** A line of the API's server.js (Web fundamentals). */
+export interface ServerOutputMessage {
+  type: 'server'
+  level: 'access' | 'log' | 'warn' | 'error'
+  text: string
+  /** A line of server.js (an error's), or null. */
+  line: number | null
 }
 
 const MAX_TEXT = 10_000
@@ -123,6 +138,10 @@ const MAX_COMPUTED = 30
 const LEVELS: readonly ConsoleLevel[] = ['log', 'info', 'warn', 'error', 'debug']
 const FAILURES: readonly RequestFailure[] = ['cors', 'network', 'aborted']
 const RECORD_ENDS: readonly RecordEndReason[] = ['stopped', 'steps', 'slow', 'work']
+const SERVER_LEVELS: readonly ServerOutputMessage['level'][] = ['access', 'log', 'warn', 'error']
+/** Characters of a CORS reason (Chrome's longest is about 300) and of a server.js line (the frame cuts them at 500). */
+const MAX_REASON = 1000
+const MAX_SERVER_TEXT = 500
 
 const text = (value: unknown): string | null => typeof value === 'string' ? value.slice(0, MAX_TEXT) : null
 const textOrNull = (value: unknown): string | null | undefined => value === null ? null : text(value) ?? undefined
@@ -341,8 +360,10 @@ export function readBridgeMessage(data: unknown): BridgeMessage | null {
       const headers = headerPairs(raw.headers)
       const body = textOrNull(raw.body)
       const stack = text(raw.stack)
-      if (id === undefined || method === null || url === null || headers === null || body === undefined || stack === null) return null
-      return { type: 'request', id, method, url, headers, body, stack }
+      // Debugging's backend never says (undefined); the web backend says null or the id the preflight is for
+      const preflightFor = raw.preflightFor === undefined || raw.preflightFor === null ? null : whole(raw.preflightFor, Number.MAX_SAFE_INTEGER)
+      if (id === undefined || method === null || url === null || headers === null || body === undefined || stack === null || preflightFor === undefined) return null
+      return { type: 'request', id, method, url, headers, body, stack, preflightFor }
     }
     case 'response': {
       const id = whole(raw.id, Number.MAX_SAFE_INTEGER)
@@ -352,14 +373,22 @@ export function readBridgeMessage(data: unknown): BridgeMessage | null {
       const body = textOrNull(raw.body)
       const failure = raw.failure === null ? null : FAILURES.find(each => each === raw.failure)
       const time = whole(raw.time, Number.MAX_SAFE_INTEGER)
+      const reason = raw.reason === undefined || raw.reason === null ? null : cut(raw.reason, MAX_REASON)
       if (id === undefined || status === undefined || statusText === null || headers === null || body === undefined || failure === undefined || time === undefined) return null
-      return { type: 'response', id, status, statusText, headers, body, failure, time }
+      return { type: 'response', id, status, statusText, headers, body, failure, time, reason }
     }
     case 'netlog': {
       const message = text(raw.text)
       const stack = text(raw.stack)
       if (message === null || stack === null) return null
       return { type: 'netlog', text: message, stack }
+    }
+    case 'server': {
+      const level = SERVER_LEVELS.find(each => each === raw.level)
+      const message = cut(raw.text, MAX_SERVER_TEXT)
+      const line = raw.line === null ? null : whole(raw.line, 1_000_000)
+      if (!level || message === null || line === undefined || line === 0) return null
+      return { type: 'server', level, text: message, line }
     }
     case 'dom': {
       if (!Array.isArray(raw.nodes) || typeof raw.truncated !== 'boolean') return null

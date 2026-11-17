@@ -1,16 +1,20 @@
-// Public API of the levels: the shared core (track-agnostic) and its environments, git, Debugging and the review
-// environment of Working with AI (docs/features/levels.md).
+// Public API of the levels: the shared core (track-agnostic) and its environments, git, Debugging, the review
+// environment of Working with AI and Web fundamentals' sandbox with predictions (docs/features/levels.md).
 // The core modules (types, engine, progress, track, radar) never import an environment; this barrel and the registry
 // (tracks.ts) are where the tracks come together.
 export type * from './types'
 export type * from './git/types'
 export type * from './debugging/types'
 export type * from './review/types'
+export type * from './web/types'
+export type { WebConfig, WebRuntime, WebSpec } from './web/backend'
+export type { CorsHeader, CorsModel, CorsProblem, CorsRefusal, CorsRequest, CorsResponse, CredentialsMode } from './web/cors'
+export type { ServerAnswer, ServerLimits, ServerOutput, ServerRequest } from './web/server'
 export type { DiffHunk as ReviewDiffHunk, DiffRow, FileDiff } from './review/diff'
 export type { TestCase, TestFileProblem, TestFileRun, TestPlan, TestRun, TestStatus } from './review/test-sandbox'
 export type { TestLimits } from './review/test-runner'
 export type { ReviewView, SteerLevel, SteerRound } from './review/steer'
-export type { BridgeMessage, TestError, ConsoleEntryBody, ConsoleLevel, HeaderPair, InspectedMessage, RequestFailure, RequestMessage, ResponseMessage } from './debugging/messages'
+export type { BridgeMessage, TestError, ConsoleEntryBody, ConsoleLevel, HeaderPair, InspectedMessage, RequestFailure, RequestMessage, ResponseMessage, ServerOutputMessage } from './debugging/messages'
 export type { CssCondition, CssDeclaration, CssRule, CssSheet, Specificity } from './debugging/css'
 export type { BoxModel, DeclarationStatus, DeclarationView, DomNode, ElementStyles, InheritedView, Inspected, InspectedLevel, InspectedMatch, RuleView, ScrollSize, Sides, TreeMove, TreeRow } from './debugging/elements'
 export type { NetworkEntry, NetworkResponse, StatusTone } from './debugging/network'
@@ -41,6 +45,7 @@ export {
   fewestCommands,
   fewestHintsThenFalseAlarms,
   fewestHintsThenReloads,
+  fewestWrongPredictions,
   isBetterRun,
   lastPlayed,
   parseProgress,
@@ -111,4 +116,11 @@ export { DESCRIPTION_SLACK, FOCUS_SLACK, checkReview, reviewGoals, steerGoals, t
 export { applyEdits, commitId, emptySteer, reactionOf, reviewNow, sousAnswers, steerRound } from './review/steer'
 export { aiLevels, aiTrack } from './review'
 export { TEST_LIMITS } from './review/test-runner'
+
+// the Web fundamentals environment (the Debugging sandbox with predictions, an editable server.js and the CORS model)
+export { isWebLevel } from './web/types'
+export { answersOf, isAnswerTo, isRight, nextQuestion, playWebSolution, playWebStep, predict, predictionDone, startWebLevel } from './web/engine'
+export { WEB_DELAY_MS, webConfig } from './web/backend'
+export { SERVER_LIMITS } from './web/server'
+export { webLevels, webTrack } from './web'
 export { isTestFile, planTests, readTestRun, testDocument, testFilesOf, testRunFiles, testSummary } from './review/test-sandbox'

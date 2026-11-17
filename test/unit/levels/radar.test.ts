@@ -166,12 +166,13 @@ describe('the overview radar (ADR 0008): one axis per live track', () => {
     expect(isRadarEmpty(overviewRadar([gitTrack, live], emptyProgress()))).toBe(true)
   })
 
-  it('covers the real registry: Git, Debugging and Working with AI, the coming tracks not drawn', () => {
+  it('covers the real registry: Git, Debugging, Working with AI and Web fundamentals, the coming track not drawn', () => {
     const axes = overviewRadar(tracks, emptyProgress())
-    expect(axes.map(axis => axis.chapter.id)).toEqual(['git', 'debugging', 'ai'])
-    expect(axes.map(axis => axis.chapter.colour)).toEqual([0, 1, 2])
+    expect(axes.map(axis => axis.chapter.id)).toEqual(['git', 'debugging', 'ai', 'web'])
+    expect(axes.map(axis => axis.chapter.colour)).toEqual([0, 1, 2, 3])
     expect(axes.every(axis => !axis.coming && axis.total > 0)).toBe(true)
     expect(axes[2]!.total).toBe(100)
+    expect(axes[3]!.total).toBe(11)
   })
 
   it('draws every chapter of Working with AI solid once Steer the assistant is live: the track is complete', () => {

@@ -24,6 +24,7 @@ describe('navigation', () => {
       ['Git', '/git', false],
       ['Debugging', '/debugging', false],
       ['Working with AI', '/ai', false],
+      ['Web fundamentals', '/web', false],
       ['About', '/about', false]
     ])
   })

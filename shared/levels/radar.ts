@@ -22,9 +22,16 @@ export interface RadarAxis {
   coming: boolean
 }
 
-/** What one level adds to its axis: 1, 0.5 (every solve needed the last hint, or unknown how) or 0 (unsolved). */
+/**
+ * What one level adds to its axis: 1, 0.5 (every solve needed the last hint, or unknown how; in a track with
+ * predictions, no solve was both free of wrong predictions and without the last hint) or 0 (unsolved).
+ */
 export function levelCredit(level: { hints: readonly string[] }, entry: LevelProgress | null | undefined): 0 | 0.5 | 1 {
   if (entry?.solved !== true) return 0
+  // Web fundamentals (ADR 0009): the best run is chosen by wrong predictions first, then hints, so it is the cleanest
+  // solve there was: in full once it had no wrong prediction and did without the last hint (a better run keeps both)
+  const best = entry.best
+  if (best?.wrongPredictions !== undefined) return best.wrongPredictions === 0 && best.hints < level.hints.length ? 1 : 0.5
   return entry.fewestHints !== null && entry.fewestHints < level.hints.length ? 1 : 0.5
 }
 

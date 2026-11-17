@@ -1,0 +1,90 @@
+// The Web fundamentals environment's level types (ADR 0009; docs/features/levels.md "The Web fundamentals
+// environment"): the Debugging sandbox (a small real app in a sealed frame, its files as the state, goals read from a
+// check run) plus an editable server (`server.js`, run by the web backend) and a **prediction**: before the app runs, a
+// card asks what will happen (pick one, order the lines, pick lines); answering runs the app and says who was right.
+// A wrong prediction never blocks: it counts against the best run (fewest wrong predictions, then hints, then reloads).
+// Registers the track `web` in the core's `Environments`, on Debugging's state and records (a prediction is one more
+// counted action), so the Debugging play page and its engine run these levels too.
+import type { DebugFields, DebugRecord, DebugState, DebugStep } from '../debugging/types'
+import type { Level, PracticeTask, Scenario, Session } from '../types'
+
+/**
+ * Something the run of the starting files shows, which makes an option true (the tests check every option's fact
+ * against what the app really does: `test/unit/levels/web/expected.ts`, proven in a browser by `e2e/web-levels.spec.ts`).
+ * - `row`: a Network row, 'METHOD address status' ('GET https://api.cornerbakery.shop/menu CORS error'),
+ * - `server`: an access line of server.js ('OPTIONS /orders 200'),
+ * - `says`: a Console line starts with this,
+ * - `asks`: a preflight asked about this header (its Access-Control-Request-Headers names it).
+ */
+export type PredictionFact = { row: string } | { server: string } | { says: string } | { asks: string }
+
+/** One answer to choose, one line to order or to pick. */
+export interface PredictionOption {
+  id: string
+  /** The option as the card shows it (Markdown-light: `code` in backticks). */
+  text: string
+  /** What the run shows when this option is what happens (an order question: the line it is). */
+  fact?: PredictionFact
+}
+
+interface QuestionBase {
+  id: string
+  /** The question, with what the learner needs to answer it. */
+  prompt: string
+  /** The rule, in one sentence: shown with who was right. */
+  rule: string
+  options: readonly PredictionOption[]
+}
+
+/** Pick one: what happens (a radio group). */
+export interface PickOneQuestion extends QuestionBase {
+  form: 'one'
+  /** The option that is right. */
+  answer: string
+}
+
+/** Pick lines: which of these happen (a checkbox group; none is an answer too). */
+export interface PickLinesQuestion extends QuestionBase {
+  form: 'lines'
+  /** Every option that is right (any order). */
+  answer: readonly string[]
+}
+
+/** Order the lines: the order they come in (a list you reorder; the options are shown in their written order). */
+export interface OrderQuestion extends QuestionBase {
+  form: 'order'
+  /** Every option, in the right order. */
+  answer: readonly string[]
+}
+
+export type Question = PickOneQuestion | PickLinesQuestion | OrderQuestion
+
+/** An answer: an option's id (pick one), or ids (pick lines: any order; order: in the order given). */
+export type PredictionAnswer = string | readonly string[]
+
+/** What a level asks before its app runs: a scenario one question, a practice task one or three. */
+export interface Prediction {
+  questions: readonly Question[]
+}
+
+/** What a Web fundamentals level adds to Debugging's fields. */
+export interface WebFields extends DebugFields {
+  prediction: Prediction
+}
+
+/** One step of a solution: a Debugging step, or the answer to the next question. */
+export type WebStep = DebugStep | { predict: PredictionAnswer }
+
+declare module '../types' {
+  interface Environments {
+    web: { state: DebugState, record: DebugRecord, step: WebStep, fields: WebFields }
+  }
+}
+
+export type WebLevel = Level<'web'>
+export type WebScenario = Scenario<'web'>
+export type WebPracticeTask = PracticeTask<'web'>
+export type WebSession = Session<'web'>
+
+/** A level of the Web fundamentals track (the play page runs it with DebuggingPlay and the prediction card). */
+export const isWebLevel = (level: Pick<Level, 'track'>): level is WebLevel => level.track === 'web'

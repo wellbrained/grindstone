@@ -6,7 +6,7 @@
 // clock, like every load of a Performance level.
 import type { Page } from '@playwright/test'
 import { BRIDGE_HELLO, checkFrames, consoleEntry, mergeObservations, observe, readBridgeMessage, requestAddress, requestEntry, sandboxDocument, statusLabel, withResponse } from '../../shared/levels'
-import type { BackendSpec, BridgeMessage, ConsoleEntryBody, LogsSpec, NetworkEntry, Observation, Probe, Profile, RecordedStep, ServerLogMessage } from '../../shared/levels'
+import type { BackendSpec, BridgeMessage, ConsoleEntryBody, LogsSpec, NetworkEntry, Observation, Probe, Profile, RecordedStep, ServerLogMessage, ServerOutputMessage, WebSpec } from '../../shared/levels'
 import { checkFrameStyle } from '../../app/utils/sandbox-host'
 
 export interface CheckResult {
@@ -23,6 +23,12 @@ export interface CheckResult {
   profile: Profile | null
   /** Chapter 7: the server's reports of what it answered (the first frame's). */
   serverLogs: ServerLogMessage[]
+  /** Web fundamentals: the access lines of server.js ('OPTIONS /orders 200', the first frame's). */
+  server: string[]
+  /** Web fundamentals: every line server.js wrote (access lines, its console, errors). */
+  serverOutput: ServerOutputMessage[]
+  /** Web fundamentals: what each preflight asked in Access-Control-Request-Headers, in the order sent. */
+  asks: string[]
 }
 
 export interface RunOptions {
@@ -32,11 +38,13 @@ export interface RunOptions {
   performance?: boolean
   /** Chapter 7: the level's logs (request ids, the server's reports). */
   logs?: LogsSpec
+  /** Web fundamentals: the API on another origin, answered by the level's server.js. */
+  web?: WebSpec
 }
 
 async function runFrame(page: Page, files: Readonly<Record<string, string>>, probes: readonly Probe[], width: number, height: number, backend: BackendSpec | undefined, options: RunOptions): Promise<CheckResult> {
   const token = `t-${Math.random().toString(36).slice(2)}`
-  const document = sandboxDocument(files, { token, probes, backend, record: options.record, count: options.count, performance: options.performance, logs: options.logs })
+  const document = sandboxDocument(files, { token, probes, backend, record: options.record, count: options.count, performance: options.performance, logs: options.logs, web: options.web })
   const raw = await page.evaluate(async ({ html, style, token, profile, hello }) => {
     const messages: unknown[] = []
     const frame = window.document.createElement('iframe')
@@ -88,7 +96,10 @@ async function runFrame(page: Page, files: Readonly<Record<string, string>>, pro
     requests,
     steps: messages.flatMap(message => message.type === 'steps' ? message.steps : []),
     profile: profile?.type === 'profile' ? profile.profile : null,
-    serverLogs: messages.filter((message): message is ServerLogMessage => message.type === 'serverlog')
+    serverLogs: messages.filter((message): message is ServerLogMessage => message.type === 'serverlog'),
+    server: messages.flatMap(message => message.type === 'server' && message.level === 'access' ? [message.text] : []),
+    serverOutput: messages.filter((message): message is ServerOutputMessage => message.type === 'server'),
+    asks: requests.flatMap(entry => entry.preflightFor === null ? [] : entry.requestHeaders.filter(([name]) => name === 'access-control-request-headers').map(([, value]) => value))
   }
 }
 

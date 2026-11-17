@@ -119,6 +119,8 @@ export interface SessionOf<S, R> {
   falseAlarms?: number
   /** Requests for changes Sous answered with a commit (Working with AI, chapter 7), kept across Reset; absent until the first. */
   rounds?: number
+  /** Wrong predictions of this attempt (Web fundamentals), kept across Reset; absent until the first answer. */
+  wrongPredictions?: number
 }
 
 export interface Notice {

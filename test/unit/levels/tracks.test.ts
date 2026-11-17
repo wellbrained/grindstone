@@ -31,12 +31,12 @@ import { BIG_CHAPTER_SIZES, bigTrack, fakePractice, practiceTrack, solvedProgres
 const git = trackById('git')!
 
 describe('track registry', () => {
-  it('lists Git, Debugging and Working with AI as the live tracks and the upcoming ones as coming, without chapters', () => {
+  it('lists Git, Debugging, Working with AI and Web fundamentals as the live tracks and the upcoming one as coming, without chapters', () => {
     expect(tracks.map(track => [track.id, track.status])).toEqual([
       ['git', 'live'],
       ['debugging', 'live'],
       ['ai', 'live'],
-      ['web', 'coming'],
+      ['web', 'live'],
       ['frameworks', 'coming']
     ])
     for (const track of tracks) {
@@ -203,6 +203,36 @@ describe('track registry', () => {
     // the whole track is live: no chapter is coming any more
     expect(debugging.chapters.every(chapter => chapter.levels.length > 0)).toBe(true)
     expect(nextLevel('git-practice-release-from-develop')).toBeNull()
+  })
+
+  it('gives Web fundamentals its seven chapters (ADR 0009): Same-origin & CORS live, the other six coming', () => {
+    const web = trackById('web')!
+    expect(web).toMatchObject({ title: 'Web fundamentals', status: 'live', tagline: 'Predict what the browser does, then fix it.', cheatSheet: null, bestRun: ['wrongPredictions', 'hints', 'reloads'] })
+    // the home card's text no longer promises performance (ADR 0009: that is Debugging's chapter 6)
+    expect(`${web.scope} ${web.description}`).not.toMatch(/performance/i)
+    expect(web.chapters.map(chapter => [chapter.number, chapter.id, chapter.title, chapter.levels.length, chapter.colour])).toEqual([
+      [1, 'cors', 'Same-origin & CORS', 11, 0],
+      [2, 'cookies', 'Cookies & sessions', 0, 1],
+      [3, 'auth', 'Auth & tokens', 0, 2],
+      [4, 'caching', 'HTTP caching', 0, 3],
+      [5, 'event-loop', 'The event loop', 0, 4],
+      [6, 'accessibility', 'Accessibility', 0, 5],
+      [7, 'security-headers', 'Security headers & CSP', 0, 6]
+    ])
+    expect(web.chapters[0]!.levels.map(level => [levelNumber(level.id), level.id])).toEqual([
+      ['1.1', 'web-01-menu-blocked'],
+      [null, 'web-practice-console-order'],
+      [null, 'web-practice-same-origin'],
+      ['1.2', 'web-02-order-preflight'],
+      [null, 'web-practice-simple-or-preflight'],
+      ['1.3', 'web-03-basket-credentials'],
+      [null, 'web-practice-readable-answers'],
+      ['1.4', 'web-04-basket-header'],
+      [null, 'web-practice-which-headers'],
+      ['1.5', 'web-05-works-with-curl'],
+      [null, 'web-practice-which-methods']
+    ])
+    expect(nextLevel('web-practice-which-methods')).toBeNull()
   })
 
   it('gives Working with AI its seven chapters (ADR 0008), all live: Read the diff to Steer the assistant, and its cheat sheet', () => {
@@ -626,7 +656,7 @@ describe('progress counts', () => {
       { solved: 0, total: 11 },
       { solved: 0, total: 12 }
     ])
-    expect(trackProgress(trackById('web')!, progress)).toEqual({ solved: 0, total: 0 })
+    expect(trackProgress(trackById('frameworks')!, progress)).toEqual({ solved: 0, total: 0 })
   })
 })
 

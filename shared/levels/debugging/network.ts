@@ -15,6 +15,8 @@ export interface NetworkResponse {
   body: string | null
   failure: RequestFailure | null
   time: number
+  /** Web fundamentals: why CORS kept the answer from the page, in Chrome's words (null: it didn't). */
+  reason: string | null
 }
 
 /** One row of the Network panel. */
@@ -28,6 +30,8 @@ export interface NetworkEntry {
   requestBody: string | null
   /** The line that sent it (the first frame in the level's files), like the browser's Initiator column. */
   initiator: SourceLine | null
+  /** Web fundamentals: a preflight the browser sent for the request with this id (null: the app's own request). */
+  preflightFor: number | null
   /** null while the request is on its way. */
   response: NetworkResponse | null
 }
@@ -70,16 +74,17 @@ export function requestEntry(message: RequestMessage, mapping: SourceMapping): N
     requestHeaders: message.headers,
     requestBody: message.body,
     initiator: frame ? { path: frame.path, line: frame.line } : null,
+    preflightFor: message.preflightFor,
     response: null
   }
 }
 
 /** The entries with this answer on its request (the others stay the same objects). */
 export function withResponse(entries: readonly NetworkEntry[], message: ResponseMessage): NetworkEntry[] {
-  const { status, statusText, headers, body, failure, time } = message
+  const { status, statusText, headers, body, failure, time, reason } = message
   // an answer to a request that isn't listed (past the cap) changes nothing: the same array, so nothing redraws
   if (!entries.some(entry => entry.id === message.id)) return entries as NetworkEntry[]
-  return entries.map(entry => entry.id === message.id ? { ...entry, response: { status, statusText, headers, body, failure, time } } : entry)
+  return entries.map(entry => entry.id === message.id ? { ...entry, response: { status, statusText, headers, body, failure, time, reason } } : entry)
 }
 
 const FAILED: Record<RequestFailure, string> = { cors: 'CORS error', network: 'failed', aborted: 'canceled' }

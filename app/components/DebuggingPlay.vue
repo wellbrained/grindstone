@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { statusTone } from '#shared/levels'
-import type { DebugLevel, LevelPlace } from '#shared/levels'
+import type { DebugLevel, LevelPlace, WebLevel } from '#shared/levels'
 
 // The Debugging play page (the play page picks it for a Debugging level; docs/features/ui.md, "Debugging play page"):
 // in the shared PlayFrame, the level panel left, Code above the Console in the middle, the App on the right. A level
@@ -9,17 +9,19 @@ import type { DebugLevel, LevelPlace } from '#shared/levels'
 // chapter's own panels first, the first one open). Below lg the panels are tabs (App, Elements, Debugger or Performance,
 // Logs, Deploys, Console, Network, Code; the ones the level has), all mounted, so switching never reloads the app. In
 // chapter 7 the level panel also lists the colleagues' messages. No layout switch.
+// A Web fundamentals level (ADR 0009) plays here too: its prediction card under the story (the app runs once it is
+// answered), the Network panel with preflights and refusals, and a Server panel (what server.js did) after it.
 const props = defineProps<{
-  level: DebugLevel
+  level: DebugLevel | WebLevel
   place: LevelPlace
 }>()
 
 const { t } = useI18n()
 
 const play = useDebuggingPlay(props.level)
-const { session, store, goals, next, stats, reloads, find, hasNetwork, hasElements, hasDebugger, hasPerformance, hasLogs, hasDeploys, requests, requestShown, picking, pickedAt, recordStatus, profileStatus, debriefOpen, progressBefore, sparkKey, mark, hint, reset, again } = play
+const { session, store, goals, next, stats, reloads, find, webLevel, predictionOnly, hasNetwork, hasServer, hasElements, hasDebugger, hasPerformance, hasLogs, hasDeploys, requests, requestShown, picking, pickedAt, recordStatus, profileStatus, debriefOpen, progressBefore, sparkKey, mark, hint, reset, again } = play
 
-type Lower = 'elements' | 'debugger' | 'performance' | 'logs' | 'deploys' | 'console' | 'network'
+type Lower = 'elements' | 'debugger' | 'performance' | 'logs' | 'deploys' | 'console' | 'network' | 'server'
 type Panel = 'app' | Lower | 'code'
 /** The panels under the code (from lg one at a time, as tabs): the ones this level has, the chapter's own panel first. */
 const LOWER: Lower[] = [
@@ -29,7 +31,8 @@ const LOWER: Lower[] = [
   ...(hasLogs ? ['logs' as const] : []),
   ...(hasDeploys ? ['deploys' as const] : []),
   'console',
-  ...(hasNetwork ? ['network' as const] : [])
+  ...(hasNetwork ? ['network' as const] : []),
+  ...(hasServer ? ['server' as const] : [])
 ]
 const PANELS: Panel[] = ['app', ...LOWER, 'code']
 const isLower = (name: Panel): name is Lower => (LOWER as Panel[]).includes(name)
@@ -121,7 +124,8 @@ const debuggerPanel = useTemplateRef<{ focus: () => void }>('debuggerPanel')
 const performancePanel = useTemplateRef<{ focus: () => void }>('performancePanel')
 const logsPanel = useTemplateRef<{ focus: () => void }>('logsPanel')
 const deploysPanel = useTemplateRef<{ focus: () => void }>('deploysPanel')
-const focusConsole = () => ({ console: consolePanel, network: networkPanel, elements: elementsPanel, debugger: debuggerPanel, performance: performancePanel, logs: logsPanel, deploys: deploysPanel })[lower.value].value?.focus()
+const serverPanel = useTemplateRef<{ focus: () => void }>('serverPanel')
+const focusConsole = () => ({ console: consolePanel, network: networkPanel, elements: elementsPanel, debugger: debuggerPanel, performance: performancePanel, logs: logsPanel, deploys: deploysPanel, server: serverPanel })[lower.value].value?.focus()
 
 const shown = (name: Panel) => panel.value === name ? '' : 'max-lg:hidden'
 /** A lower panel: shown below lg as a tab of its own, from lg as the chosen one under the code. */
@@ -137,6 +141,8 @@ const answerWhere = computed(() => {
   return 'deploy' in answer ? answer.deploy : `${answer.path}:${answer.line}`
 })
 const topNote = computed(() => {
+  if (predictionOnly) return t('web.practiceNote')
+  if (webLevel) return t('web.note')
   if (find) return t('debugging.findNote')
   if (hasDebugger) return t('debugging.debuggerNote')
   if (hasPerformance) return t('debugging.performanceNote')
@@ -146,20 +152,30 @@ const topNote = computed(() => {
 </script>
 
 <template>
-  <div class="mb-3 flex min-h-8 items-center justify-between gap-4">
-    <p class="flex min-w-0 items-center gap-2 text-xs text-muted">
+  <div class="mb-3 flex min-h-8 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+    <p class="flex min-w-0 flex-1 basis-48 items-center gap-2 text-xs text-muted">
       <UIcon
-        :name="find ? 'i-lucide-mouse-pointer-click' : 'i-lucide-bug'"
+        :name="webLevel ? 'i-lucide-telescope' : find ? 'i-lucide-mouse-pointer-click' : 'i-lucide-bug'"
         class="size-4 shrink-0"
       />
       {{ topNote }}
     </p>
-    <p
-      class="shrink-0 rounded-md border border-default px-2.5 py-1 font-mono text-xs text-muted tabular-nums"
-      data-testid="reloads"
-    >
-      {{ t('debugging.reloads', { n: reloads }) }}
-    </p>
+    <div class="flex shrink-0 items-center gap-2">
+      <p
+        v-if="webLevel"
+        class="rounded-md border border-default px-2.5 py-1 font-mono text-xs text-muted tabular-nums"
+        data-testid="wrong-predictions"
+      >
+        {{ t('web.wrongPredictions', { n: session.wrongPredictions ?? 0 }) }}
+      </p>
+      <p
+        v-if="!predictionOnly"
+        class="rounded-md border border-default px-2.5 py-1 font-mono text-xs text-muted tabular-nums"
+        data-testid="reloads"
+      >
+        {{ t('debugging.reloads', { n: reloads }) }}
+      </p>
+    </div>
   </div>
 
   <PlayFrame tabs>
@@ -177,6 +193,12 @@ const topNote = computed(() => {
         @again="again"
         @debrief="debriefOpen = true"
       >
+        <template #intro>
+          <WebPrediction
+            v-if="webLevel"
+            :play="play"
+          />
+        </template>
         <DebuggingTeam :play="play" />
         <section
           v-if="revealedHints.length"
@@ -363,6 +385,16 @@ const topNote = computed(() => {
             :play="play"
             class="max-lg:h-[26rem] lg:min-h-0 lg:flex-1"
             :class="shownLower('network')"
+          />
+          <DebuggingServer
+            v-if="hasServer"
+            id="debugging-server"
+            ref="serverPanel"
+            role="tabpanel"
+            :aria-labelledby="labelledBy('server')"
+            :play="play"
+            class="max-lg:h-[22rem] lg:min-h-0 lg:flex-1"
+            :class="shownLower('server')"
           />
         </div>
       </div>

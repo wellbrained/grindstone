@@ -7,14 +7,17 @@
 // app you see, its Console, its requests, its DOM and the marked line live as long as the page (coming back loads the
 // app again). `runOnly` (Working with AI's Run the PR) runs an app outside any level: the same sandbox and panels, a
 // session kept by the component alone, nothing recorded.
+// A Web fundamentals level (ADR 0009) runs here too: its app starts only once its prediction is answered (`predict`),
+// its API is the level's server.js (the Network panel shows preflights and refusals, the Server panel what server.js
+// did), and a practice task is a prediction only (the code is read-only).
 import {
-  MAX_LOG_LINES, RECORD_LIMITS, consoleEntry, cssRules, deployById, differingPaths, fittingProfile, fittingSteps, historyEntries, lineIn, liveEntries, needsCounting, frameStep, hitCounts, nextHit,
-  nodeAtPath, nodePath, pickDeploy, pickLine, previousHit, reload, requestEntry, restart, restoreFiles, rollback, saveDebugFile, scopeAt, scopeValues, startDebugLevel, startExpanded, stepBack,
+  MAX_LOG_LINES, RECORD_LIMITS, consoleEntry, cssRules, deployById, differingPaths, fittingProfile, fittingSteps, historyEntries, isWebLevel, lineIn, liveEntries, needsCounting, frameStep, hitCounts, nextHit,
+  nodeAtPath, nodePath, pickDeploy, pickLine, predict as predictAnswer, predictionDone, previousHit, reload, requestEntry, restart, restoreFiles, rollback, saveDebugFile, scopeAt, scopeValues, startDebugLevel, startExpanded, stepBack,
   stepInto, stepLine, stepOut, stepOver, takeHint, versionOf, withAncestors, withResponse, withoutInstrumentation
 } from '#shared/levels'
 import type {
   Breakpoint, BridgeMessage, ColleagueMessage, ConsoleEntryBody, CssRule, DebugLevel, DebugRecord, DebugResult, DebugSession, DebugState, DeployPick, DomNode, Inspected, Instrumented, LogEntry, LoggedRequest, NetworkEntry, PickVerdict,
-  Profile, RecordEndReason, RecordedStep, ScopeEntries, SourceLine, SourceMapping
+  PredictionAnswer, Profile, RecordEndReason, RecordedStep, ScopeEntries, ServerOutputMessage, SourceLine, SourceMapping, WebLevel
 } from '#shared/levels'
 import type { CompiledCondition } from '#shared/levels/debugging/condition'
 import type { LineTone } from '~/editor/codemirror'
@@ -44,6 +47,10 @@ const MAX_ENTRIES = 500
 const MAX_APP_MESSAGES = 1000
 /** The most requests one load of the app lists in the Network panel (a fetch in a loop); later ones are not listed. */
 export const MAX_REQUESTS = 200
+/** The Server panel keeps at most this many of server.js's lines per load (the frame stops sending at SERVER_LIMITS.maxOutput). */
+export const MAX_SERVER_LINES = 300
+/** A line of the Server panel. */
+export type ServerLine = Omit<ServerOutputMessage, 'type'> & { id: number }
 /** How long Stop waits for the recorder's last steps (a busy app may never answer). */
 const STOP_WAIT_MS = 600
 
@@ -135,7 +142,7 @@ export interface DebuggingPlayOptions {
   runOnly?: boolean
 }
 
-export function useDebuggingPlay(level: DebugLevel, options: DebuggingPlayOptions = {}) {
+export function useDebuggingPlay(level: DebugLevel | WebLevel, options: DebuggingPlayOptions = {}) {
   const fresh = (): PlayState => {
     const session = startDebugLevel(level)
     return { session, drafts: { ...session.state.files }, active: level.sandbox.open, answer: null, undoFiles: null }
@@ -145,8 +152,17 @@ export function useDebuggingPlay(level: DebugLevel, options: DebuggingPlayOption
 
   const find = level.sandbox.find ?? null
   const backend = level.sandbox.backend
-  /** The level scripts a backend, so the page shows the Network panel. */
-  const hasNetwork = backend !== undefined
+  /** Web fundamentals: the level's prediction comes first, its API is its server.js. */
+  const webLevel = isWebLevel(level) ? level : null
+  const web = level.sandbox.web
+  /** The level has a server.js (Web fundamentals): the Server panel shows what it did. */
+  const hasServer = web?.server !== undefined
+  /** A Web fundamentals practice task: a prediction only, nothing to fix (the code is read-only). */
+  const predictionOnly = webLevel?.kind === 'practice'
+  /** The editor only reads: a find task (a click is the answer) or a prediction-only task. */
+  const readOnly = find !== null || predictionOnly
+  /** The level scripts a backend (or has a server.js), so the page shows the Network panel. */
+  const hasNetwork = backend !== undefined || web !== undefined
   /** The level uses the Elements panel (chapter 3). */
   const hasElements = level.sandbox.elements === true
   /** The level uses the Debugger (chapter 5). */
@@ -197,6 +213,28 @@ export function useDebuggingPlay(level: DebugLevel, options: DebuggingPlayOption
 
   /** The saved files differ from what the app runs: Reload runs them. */
   const stale = computed(() => load.value !== null && load.value.files !== session.value.state.files)
+
+  // --- Web fundamentals: the prediction first, then the app; what server.js did ---------------------------------------
+
+  /** The level's prediction is not answered yet: the app waits for it (a Debugging level never waits). */
+  const predicting = computed(() => webLevel !== null && !predictionDone(webLevel, session.value.state))
+  /** The Server panel: this load's lines of server.js (access lines, its console, errors). */
+  const serverLines = shallowRef<ServerLine[]>([])
+  let nextServerLine = 0
+
+  /** Answers the level's next question (counted; a wrong answer costs one in the best run, and never blocks). */
+  function predict(answer: PredictionAnswer): PickVerdict | null {
+    if (!webLevel || !predicting.value) return null
+    play.markPlayed()
+    const result = predictAnswer(session.value, webLevel, answer)
+    if (result.session === session.value) return null
+    apply(result)
+    return result.output.verdict
+  }
+
+  function clearServer() {
+    serverLines.value = []
+  }
 
   // the Elements panel: the snapshot of this load's DOM, the selected element and what the bridge said about it
   /** The elements of the last snapshot, in document order. */
@@ -281,7 +319,15 @@ export function useDebuggingPlay(level: DebugLevel, options: DebuggingPlayOption
     hovered.value = null
     awaitingDom = hasElements
     mapping.value = { urls: {}, bridgeLine: 0 }
-    const started = appLoad(files, { backend, elements: hasElements, record: recorded, profile, logs: logsSpec ?? undefined })
+    serverLines.value = []
+    // a Web fundamentals level runs its app only once the prediction is answered: until then there is no load
+    if (predicting.value) {
+      link?.close()
+      link = null
+      load.value = null
+      return
+    }
+    const started = appLoad(files, { backend, web, elements: hasElements, record: recorded, profile, logs: logsSpec ?? undefined })
     link?.close()
     link = bridgeLink(() => frameWindow(), started.token, message => onBridgeMessage(message, started))
     load.value = started
@@ -377,6 +423,9 @@ export function useDebuggingPlay(level: DebugLevel, options: DebuggingPlayOption
       if (profileStatus.value === 'recording') profileWork.value = message.work
     } else if (message.type === 'profile') {
       takeProfile(message.profile)
+    } else if (message.type === 'server') {
+      // a flood of server.js's console must not freeze the page: the frame stops sending, and the panel keeps a cap
+      if (serverLines.value.length < MAX_SERVER_LINES) serverLines.value = [...serverLines.value, { level: message.level, text: message.text, line: message.line, id: nextServerLine++ }]
     } else if (message.type === 'serverlog') {
       takeServerLog(message)
     } else if (message.type === 'request') {
@@ -848,7 +897,7 @@ export function useDebuggingPlay(level: DebugLevel, options: DebuggingPlayOption
   /** Save: the active file's draft becomes the saved file (counted); nothing to save, nothing happens. */
   function save(path = store.value.active) {
     const draft = store.value.drafts[path]
-    if (find || draft === undefined || draft === session.value.state.files[path]) return
+    if (readOnly || draft === undefined || draft === session.value.state.files[path]) return
     play.markPlayed()
     // Undo roll back would throw this save away: it is gone once you save on top of a rollback
     store.value.undoFiles = null
@@ -857,7 +906,7 @@ export function useDebuggingPlay(level: DebugLevel, options: DebuggingPlayOption
 
   /** Reload: the app restarts from the saved files, and its check run decides the goals (counted, also as a reload). */
   async function reloadApp() {
-    if (checking.value) return
+    if (checking.value || predicting.value) return
     play.markPlayed()
     const saved = session.value.state.files
     const startedIn = attempt
@@ -869,7 +918,7 @@ export function useDebuggingPlay(level: DebugLevel, options: DebuggingPlayOption
       counted = (await ensureTools())?.instrumentFiles(saved)
       if (disposed || startedIn !== attempt) return
     }
-    const observation = await runCheck(saved, level.sandbox.probes, { backend, performance: hasPerformance, counted, logs: logsSpec ?? undefined })
+    const observation = await runCheck(saved, level.sandbox.probes, { backend, web, performance: hasPerformance, counted, logs: logsSpec ?? undefined })
     // a Reset or Again while the check ran started a new attempt: this result belongs to the old one
     if (disposed || startedIn !== attempt) return
     checking.value = false
@@ -935,16 +984,30 @@ export function useDebuggingPlay(level: DebugLevel, options: DebuggingPlayOption
   const stats = computed(() => ({
     hints: session.value.hintsUsed,
     reloads: reloads.value,
+    // Web fundamentals: the wrong predictions of this attempt (absent in Debugging)
+    ...(webLevel ? { wrongPredictions: session.value.wrongPredictions ?? 0 } : {}),
     // the best run so far (this one included, once it is recorded)
     best: best.value
   }))
 
-  // the app starts with the page (and again when you come back to it)
+  // the app starts with the page (and again when you come back to it); a Web fundamentals level's once its prediction
+  // is answered (the last answer starts it, a Reset waits for a new one)
   onMounted(() => startApp(session.value.state.files))
+  watch(predicting, (waiting, was) => {
+    if (was && !waiting) startApp(session.value.state.files)
+  })
 
   return {
     level,
+    webLevel,
     find,
+    readOnly,
+    predictionOnly,
+    predicting,
+    predict,
+    hasServer,
+    serverLines,
+    clearServer,
     hasNetwork,
     hasElements,
     hasDebugger,

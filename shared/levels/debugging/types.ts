@@ -3,7 +3,9 @@
 // as saved, what the check run behind the last reload saw, and (find tasks) the line you clicked. Goals read only that,
 // so they check what the app does, never the code's text. Registers Debugging in the core's `Environments`.
 import type { ActResult } from '../engine'
-import type { Level, PracticeTask, Scenario, Session } from '../types'
+import type { Level, LevelOf, PracticeTask, Scenario, Session } from '../types'
+import type { WebSpec } from '../web/backend'
+import type { PredictionAnswer } from '../web/types'
 
 /** A line in one of the app's files (1-based). */
 export interface SourceLine {
@@ -93,6 +95,18 @@ export type ProbeStep
    * only when an answer arrives): until the loaded page was quiet (`'load'`), or since this probe started.
    */
     | { waited: 'load' | 'here' }
+  /**
+   * Web fundamentals: how many answers from `'METHOD https://host/path'` the app read the body of (`json()`, `text()`):
+   * a page that shows text it wrote itself, or got an opaque answer, read none.
+   */
+    | { read: string }
+  /** Web fundamentals: how many requests to `'METHOD https://host/path'` reached server.js (a refused preflight's never do). */
+    | { arrived: string }
+  /**
+   * Web fundamentals: a request as a page on another origin would send it (nothing in the Network panel): 'read' (an
+   * answer from 200 to 299 that page may read), 'refused' (one of 400 and up it may read), 'blocked' (CORS) or 'failed'.
+   */
+    | { fetchFrom: string, request: string, credentials?: 'omit' | 'same-origin' | 'include', headers?: Readonly<Record<string, string>> }
 
 /** A scripted look at the app that goals read: steps run in order; its value is what the last read step read. */
 export interface Probe {
@@ -143,6 +157,11 @@ export interface DebugState {
    * that did not work" is a reload of changed code whose check failed, not a save after it.
    */
   checked?: Readonly<Record<string, string>>
+  /**
+   * Web fundamentals (ADR 0009): the answers to the level's prediction so far, in question order (absent before the
+   * first; Debugging levels never have one).
+   */
+  predicted?: readonly PredictionAnswer[]
 }
 
 /** One counted action: a saved file, a reload, a clicked line or deploy (find tasks), a rollback (chapter 7). */
@@ -153,6 +172,8 @@ export type DebugRecord
     | { kind: 'pickDeploy', deploy: string }
     | { kind: 'rollback', to: string }
     | { kind: 'restore' }
+  /** Web fundamentals: an answer to a question of the prediction, and whether it was right. */
+    | { kind: 'predict', question: number, right: boolean }
 
 /**
  * One step of a solution: save a file with one text replaced (the first occurrence; the tests fail when it is not
@@ -210,6 +231,12 @@ export interface SandboxSpec {
   logs?: LogsSpec
   /** Chapter 7: the shop's last deploys (the Deploys panel), each with its diff and a Roll back; the level's files are the live one's. */
   deploys?: DeployHistory
+  /**
+   * Web fundamentals (ADR 0009): the page talks to an API on another origin, answered by the level's own `server.js`
+   * through the CORS model (web/backend.ts); the Network panel shows preflights and refusals, the Server panel what
+   * server.js did.
+   */
+  web?: WebSpec
 }
 
 /** How bad a server log line is. */
@@ -339,6 +366,12 @@ export type DebugLevel = Level<'debugging'>
 export type DebugScenario = Scenario<'debugging'>
 export type DebugPracticeTask = PracticeTask<'debugging'>
 export type DebugSession = Session<'debugging'>
+
+/**
+ * A level that runs in the sandbox, whatever its track: Debugging's, or Web fundamentals' (the same state and records,
+ * plus a prediction). Debugging's engine and play page take these.
+ */
+export type SandboxLevel = LevelOf<DebugState, DebugRecord, unknown> & DebugFields
 
 /** A level of the Debugging track (the play page picks DebuggingPlay for it). */
 export const isDebugLevel = (level: Pick<Level, 'track'>): level is DebugLevel => level.track === 'debugging'

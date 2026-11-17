@@ -262,9 +262,9 @@ test('shows the overview radar on home once you have progress: one axis per live
   await page.goto('/')
   const radar = page.getByTestId('overview-radar')
   await expect(radar).toBeVisible()
-  await expect(radar.locator('[data-axis-track]')).toHaveCount(3)
+  await expect(radar.locator('[data-axis-track]')).toHaveCount(4)
   await expect(radar.locator('[data-axis-track="ai"]')).toContainText('1 of 100 solved')
-  await expect(radar.locator('[data-axis]')).toHaveCount(3)
+  await expect(radar.locator('[data-axis]')).toHaveCount(4)
   await expect(radar.getByTestId('radar-shape')).toBeVisible()
 })
 

@@ -8,11 +8,12 @@ import type { DebuggingPlaySession } from '~/composables/useDebuggingPlay'
 // load from the port the bridge handed over, checking each message's shape.
 // In levels with the Elements panel the header shows the app's width (media queries hold by it), and pick mode says
 // what the next click does. While the Debugger records (chapter 5) or the Performance panel counts (chapter 6) a line
-// says so, with Stop.
+// says so, with Stop. A Web fundamentals level's app waits for its prediction: until it is answered the panel says so
+// and Reload is off.
 const props = defineProps<{ play: DebuggingPlaySession }>()
 
 const { t } = useI18n()
-const { level, load, checking, stale, hasNetwork, hasElements, picking, setPicking, reloadApp, onFrameEvent, connectFrame, recordStatus, stepCount, stopRecording, profileStatus, profileWork, stopProfile } = props.play
+const { level, load, checking, stale, hasNetwork, hasElements, picking, setPicking, reloadApp, onFrameEvent, connectFrame, recordStatus, stepCount, stopRecording, profileStatus, profileWork, stopProfile, predicting, webLevel } = props.play
 
 /** A recording is on (the Debugger's steps, or the Performance panel's count), and what its banner counts. */
 const counting = computed(() => profileStatus.value === 'recording' || profileStatus.value === 'stopping')
@@ -69,6 +70,8 @@ const address = `${SHOP_ORIGIN.replace(/^https:\/\//, '').replace(/\/$/, '')}${l
         icon="i-lucide-rotate-cw"
         :label="t('debugging.app.reload')"
         :loading="checking"
+        :disabled="predicting"
+        :aria-describedby="predicting ? 'app-waits' : undefined"
         data-testid="reload"
         @click="reloadApp"
       />
@@ -126,6 +129,18 @@ const address = `${SHOP_ORIGIN.replace(/^https:\/\//, '').replace(/\/$/, '')}${l
          every window size (at most 26rem, 416px, centred), so its media
          queries behave the same wherever you play -->
     <div class="flex min-h-0 flex-1 justify-center bg-elevated">
+      <p
+        v-if="predicting"
+        id="app-waits"
+        class="flex max-w-[26rem] items-center gap-2 self-center px-4 text-center text-sm text-muted"
+        data-testid="app-waits"
+      >
+        <UIcon
+          name="i-lucide-telescope"
+          class="size-4 shrink-0"
+        />
+        {{ t('web.appWaits') }}
+      </p>
       <iframe
         v-if="load"
         ref="frame"
@@ -139,7 +154,7 @@ const address = `${SHOP_ORIGIN.replace(/^https:\/\//, '').replace(/\/$/, '')}${l
       />
     </div>
     <p class="border-t border-(--app-terminal-border) px-3 py-1.5 text-xs text-dimmed">
-      {{ hasNetwork ? t('debugging.app.sealedBackend') : t('debugging.app.sealed') }}
+      {{ webLevel ? t('web.sealed') : hasNetwork ? t('debugging.app.sealedBackend') : t('debugging.app.sealed') }}
     </p>
   </section>
 </template>

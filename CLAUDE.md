@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Grindstone: a developer practice app with short, game-like scenarios. Live tracks: **Git** (levels solved in a terminal, with a live commit graph and simulated teammates), **Debugging** (small real apps with real bugs, run in a sealed iframe; Console, stack traces, Code, Reload; ADR 0007) and **Working with AI** (review the pull requests of Sous, a scripted coding assistant: comment on lines, approve or request changes, run the change in the Debugging sandbox; ADR 0008). Plan and scope: `docs/adr/0001-plan.md`. Domain language: `CONTEXT.md`.
+Grindstone: a developer practice app with short, game-like scenarios. Live tracks: **Git** (levels solved in a terminal, with a live commit graph and simulated teammates), **Debugging** (small real apps with real bugs, run in a sealed iframe; Console, stack traces, Code, Reload; ADR 0007), **Working with AI** (review the pull requests of Sous, a scripted coding assistant: comment on lines, approve or request changes, run the change in the Debugging sandbox; ADR 0008) and **Web fundamentals** (predict what the browser does, then fix it: the Debugging sandbox with an editable server.js and a modelled browser for CORS; ADR 0009; chapter 1 live). Plan and scope: `docs/adr/0001-plan.md`. Domain language: `CONTEXT.md`.
 
 Built on nuxt_template: shared commands and conventions are in the vault note `AI/Stack-Nuxt.md` (disk: `D:\Obsidian- VaultBrain\VaultBrain\AI\Stack-Nuxt.md`). Read it first.
 

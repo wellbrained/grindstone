@@ -7,6 +7,9 @@ import type { DebuggingPlaySession } from '~/composables/useDebuggingPlay'
 // sent (method, name, status in its colour, time), and for the selected one what was sent and what came back, headers
 // and bodies, always as text. The list is a listbox: Up and Down (Home, End) move the selection. Like the Console, a
 // reload empties it. Wide enough, the list and the details sit side by side; narrower, the details follow the list.
+// Web fundamentals (ADR 0009): a preflight is a row of its own, tagged "preflight" and linked to the request it asked
+// for; a request CORS refused says why in Chrome's words, and still shows what the server sent (the browser kept it from
+// the page, the server did answer), or that it was never sent when its preflight was refused.
 const props = defineProps<{ play: DebuggingPlaySession }>()
 
 const { t } = useI18n()
@@ -63,19 +66,32 @@ const statusText = (entry: NetworkEntry) => {
   return `${response.status} ${response.statusText}`.trim()
 }
 
+/** A request CORS refused that the server did answer (Web fundamentals: its answer is shown, kept from the page). */
+const answeredButBlocked = (entry: NetworkEntry) => entry.response?.failure === 'cors' && entry.response.status !== null && entry.response.reason !== null
+/** A request CORS refused before it was sent: its preflight's answer did not allow it. */
+const neverSent = (entry: NetworkEntry) => entry.response?.failure === 'cors' && entry.response.status === null && entry.response.reason !== null
+
 /** What the response section says when there is no body to show. */
 const noBodyText = (entry: NetworkEntry) => {
   const response = entry.response
   if (!response) return t('debugging.network.waiting')
+  if (neverSent(entry)) return t('web.network.neverSent')
+  if (answeredButBlocked(entry)) return t('debugging.network.noBody')
   if (response.failure) return t(`debugging.network.failure.${response.failure}`)
   return t('debugging.network.noBody')
 }
 
+/** The request a preflight asked for, by its id. */
+const preflightOf = (entry: NetworkEntry) => entry.preflightFor === null ? null : requests.value.find(each => each.id === entry.preflightFor) ?? null
+
 // a row is spoken with the full address (the list shows only its last part, like the browser's panel); a pending
 // request has no time yet: its name ends with the status, without a trailing comma
-const spoken = (entry: NetworkEntry) => entry.response
-  ? t('debugging.network.row', { method: entry.method, name: entry.url, status: statusText(entry), time: durationText(entry.response.time) })
-  : t('debugging.network.rowPending', { method: entry.method, name: entry.url, status: statusText(entry) })
+const spoken = (entry: NetworkEntry) => {
+  const name = entry.preflightFor === null ? entry.url : t('web.network.preflightName', { url: entry.url })
+  return entry.response
+    ? t('debugging.network.row', { method: entry.method, name, status: statusText(entry), time: durationText(entry.response.time) })
+    : t('debugging.network.rowPending', { method: entry.method, name, status: statusText(entry) })
+}
 
 const where = (line: SourceLine) => `${line.path}:${line.line}`
 const linkLabel = (line: SourceLine) => find ? t('debugging.console.answer', { path: line.path, line: line.line }) : t('debugging.console.open', { path: line.path, line: line.line })
@@ -86,7 +102,13 @@ const sections = computed(() => {
   const response = entry.response
   return [
     { id: 'request', title: t('debugging.network.request'), headers: entry.requestHeaders, body: entry.requestBody, none: t('debugging.network.noBody') },
-    { id: 'response', title: t('debugging.network.response'), headers: response?.headers ?? [], body: response?.failure ? null : response?.body ?? null, none: noBodyText(entry) }
+    {
+      id: 'response',
+      title: answeredButBlocked(entry) ? t('web.network.keptFromPage') : t('debugging.network.response'),
+      headers: response?.headers ?? [],
+      body: response?.failure && !answeredButBlocked(entry) ? null : response?.body ?? null,
+      none: noBodyText(entry)
+    }
   ] satisfies { id: string, title: string, headers: HeaderPair[], body: string | null, none: string }[]
 })
 
@@ -159,7 +181,11 @@ const viewOf = (body: string, headers: readonly HeaderPair[]) => bodyView(body, 
               class="break-all [grid-area:name]"
               :title="entry.url"
               data-testid="network-name"
-            >{{ entry.name }}</span>
+            >{{ entry.name }}<span
+              v-if="entry.preflightFor !== null"
+              class="ms-1.5 rounded-sm bg-accented px-1 font-sans text-[11px] text-muted"
+              data-testid="network-preflight"
+            >{{ t('web.network.preflight') }}</span></span>
             <span
               class="text-xs tabular-nums [grid-area:status]"
               :class="TONE[statusTone(entry)]"
@@ -206,6 +232,14 @@ const viewOf = (body: string, headers: readonly HeaderPair[]) => bodyView(body, 
               {{ durationText(selected.response.time) }}
             </dd>
           </template>
+          <template v-if="selected.preflightFor !== null">
+            <dt class="text-muted">
+              {{ t('web.network.preflightFor') }}
+            </dt>
+            <dd class="font-mono break-all text-toned">
+              {{ preflightOf(selected) ? `${preflightOf(selected)!.method} ${preflightOf(selected)!.name}` : '' }}
+            </dd>
+          </template>
           <template v-if="selected.initiator">
             <dt class="text-muted">
               {{ t('debugging.network.initiator') }}
@@ -224,6 +258,14 @@ const viewOf = (body: string, headers: readonly HeaderPair[]) => bodyView(body, 
           </template>
         </dl>
 
+        <p
+          v-if="selected.response?.reason"
+          class="mb-3 rounded-md border border-error/40 bg-error/10 px-2 py-1.5 text-xs text-highlighted"
+          data-testid="network-reason"
+        >
+          <span class="font-medium text-error">{{ t('web.network.blocked') }}</span>
+          {{ ' ' }}{{ selected.response.reason }}
+        </p>
         <section
           v-for="part in sections"
           :key="part.id"

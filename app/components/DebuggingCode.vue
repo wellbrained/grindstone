@@ -4,11 +4,12 @@ import type { DebuggingPlaySession } from '~/composables/useDebuggingPlay'
 // Debugging's Code panel (docs/features/ui.md, "Debugging play page"): a tab per file of the app, Save, and the editor.
 // A line opened from the Console is marked and scrolled into view. A find task is read-only: a click on a line (or
 // Enter on the cursor's line) is the answer. With the Debugger (chapter 5) the gutter holds the breakpoints (a click, a
-// line number, Ctrl/Cmd+B) and the line the recording is at is lit.
+// line number, Ctrl/Cmd+B) and the line the recording is at is lit. A Web fundamentals practice task is a prediction
+// only: its files are read-only, with nothing to save.
 const props = defineProps<{ play: DebuggingPlaySession }>()
 
 const { t } = useI18n()
-const { store, files, unsaved, find, mark, save, openFile, pick, hasDebugger, breakpoints, debugLine, recordStatus, toggleBreakpoint } = props.play
+const { store, files, unsaved, find, readOnly, mark, save, openFile, pick, hasDebugger, breakpoints, debugLine, recordStatus, toggleBreakpoint } = props.play
 
 const active = computed(() => store.value.active)
 const draft = computed({
@@ -93,6 +94,17 @@ function onTabKey(event: KeyboardEvent) {
           />
           <span class="max-sm:sr-only">{{ t('debugging.code.pickNote') }}</span>
         </span>
+        <span
+          v-else-if="readOnly"
+          class="flex items-center gap-1.5 px-1.5 text-xs text-muted"
+          data-testid="read-only"
+        >
+          <UIcon
+            name="i-lucide-eye"
+            class="size-3.5"
+          />
+          <span class="max-sm:sr-only">{{ t('web.readOnly') }}</span>
+        </span>
         <UButton
           v-else
           size="xs"
@@ -115,7 +127,7 @@ function onTabKey(event: KeyboardEvent) {
       <LazyCodeEditor
         v-model="draft"
         :path="active"
-        :read-only="!!find"
+        :read-only="readOnly"
         :pickable="!!find"
         :mark="activeMark"
         :breakpoints="activeBreakpoints"

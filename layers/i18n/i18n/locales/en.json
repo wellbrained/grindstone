@@ -13,7 +13,7 @@
   },
   "home": {
     "title": "Practice real developer skills, one short level at a time",
-    "intro": "Each level drops you into a situation you meet at work, and you solve it with real tools, right here in the browser. Git, Debugging and Working with AI are live; more tracks are on the way.",
+    "intro": "Each level drops you into a situation you meet at work, and you solve it with real tools, right here in the browser. Git, Debugging, Working with AI and the first chapter of Web fundamentals are live; more are on the way.",
     "local": "No account. Your progress stays on this device.",
     "coming": {
       "title": "More tracks on the way",
@@ -28,7 +28,7 @@
     },
     "radar": {
       "title": "Your skills",
-      "intro": "One axis per track: the share of its levels you solved. A solve that needed the last hint counts half.",
+      "intro": "One axis per track: the share of its levels you solved. A solve that needed the last hint (or, in Web fundamentals, had a wrong prediction) counts half.",
       "track": "{solved} of {total} solved"
     }
   },
@@ -157,7 +157,10 @@
     "reviewHints": "Solved. Next time, try one more case by hand, or run the PR, before the next hint.",
     "rounds": "Rounds of changes",
     "steerClean": "One review, no hint, no false alarm: you named each problem for what it is, and Sous fixed exactly that.",
-    "steerRounds": "Solved. It took Sous more than one commit: next time, ask yourself what Sous will do with each comment's kind before you send it."
+    "steerRounds": "Solved. It took Sous more than one commit: next time, ask yourself what Sous will do with each comment's kind before you send it.",
+    "wrongPredictions": "Wrong predictions",
+    "webClean": "Right the first time, and no hint: you knew what the browser would do before it did it.",
+    "webWrong": "Solved. The browser surprised you this time: read the rule under your prediction once more, then try the practice tasks."
   },
   "explorer": {
     "title": "Explorer",
@@ -1037,14 +1040,16 @@
       "hints": "no hints | {n} hint | {n} hints",
       "reloads": "no reloads | {n} reload | {n} reloads",
       "falseAlarms": "no false alarms | {n} false alarm | {n} false alarms",
-      "rounds": "no rounds | {n} round | {n} rounds"
+      "rounds": "no rounds | {n} round | {n} rounds",
+      "wrongPredictions": "no wrong predictions | {n} wrong prediction | {n} wrong predictions"
     },
     "taskKind": {
       "find": "find",
       "fix": "quick fix",
       "spot": "spot it",
       "verdict": "verdict",
-      "steer": "steer"
+      "steer": "steer",
+      "predict": "predict"
     },
     "teaches": "Teaches: {error}",
     "kindSpoken": "Kind: {kind}"
@@ -1168,7 +1173,8 @@
       "network": "Network",
       "code": "Code",
       "logs": "Logs",
-      "deploys": "Deploys"
+      "deploys": "Deploys",
+      "server": "Server"
     },
     "app": {
       "label": "App",
@@ -1663,6 +1669,51 @@
       "at": "at",
       "open": "Show {path}, line {line}, in the diff",
       "note": "Tests run in a sealed frame, in a worker of their own: a test that takes longer than {s} s is stopped. They get test, expect and vi, as in Vitest, with a small set of matchers."
+    }
+  },
+  "web": {
+    "note": "Predict first, then read the Network and Server panels, fix the code, Save and Reload: the goals are checked on every reload.",
+    "practiceNote": "A prediction only: answer, then see in the app's panels who was right. Nothing to fix.",
+    "wrongPredictions": "Wrong predictions: {n}",
+    "readOnly": "Read only: a prediction",
+    "appWaits": "Make your prediction first: the app runs once you answer.",
+    "sealed": "The app runs in a sealed frame: it can't reach Grindstone or your progress. The browser's CORS rules are modelled after the Fetch spec, and the API is the level's server.js, run in the frame too; nothing goes to the network.",
+    "prediction": {
+      "title": "Predict first",
+      "done": "Your prediction",
+      "question": "Question {n} of {total}",
+      "how": {
+        "one": "Pick one.",
+        "lines": "Pick every one that applies (none is an answer too).",
+        "order": "Put the lines in order: move each with its Up and Down buttons."
+      },
+      "orderList": "Lines, in the order you predict",
+      "up": "Move “{line}” up",
+      "down": "Move “{line}” down",
+      "moved": "“{line}” is now line {n} of {total}.",
+      "answer": "Answer",
+      "run": "Run the app",
+      "next": "The next question follows.",
+      "runsAfter": "Answering runs the app.",
+      "right": "Right.",
+      "wrong": "Not quite: here is what happens. A wrong guess never blocks; go on.",
+      "yours": "You said:",
+      "actually": "What happens:",
+      "none": "None of them."
+    },
+    "server": {
+      "label": "Server",
+      "lines": "What server.js did in this load",
+      "empty": "Nothing yet. What server.js answers, and what it logs, shows here.",
+      "waiting": "The app runs once you answer the prediction."
+    },
+    "network": {
+      "preflight": "preflight",
+      "preflightName": "{url}, preflight",
+      "preflightFor": "Preflight for",
+      "blocked": "Blocked by CORS:",
+      "keptFromPage": "Response: what the server sent, kept from the page",
+      "neverSent": "Never sent: the preflight's answer did not allow it."
     }
   }
 }

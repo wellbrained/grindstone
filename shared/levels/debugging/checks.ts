@@ -16,12 +16,16 @@ export function probeGoal(id: string, label: string, probe: string, expected: Pr
   return { id, label, check: ({ state }) => state.observed?.finished === true && probeValue(state, probe) === expected }
 }
 
-/** What a probe must read: exactly this value, or a number within a bound (chapter 6: "at most 1 request"). */
-export type ProbeExpectation = ProbeValue | { atMost: number } | { atLeast: number }
+/**
+ * What a probe must read: exactly this value, a number within a bound (chapter 6: "at most 1 request"), or anything
+ * but this value (Web fundamentals: a page on another origin gets anything but `'read'`).
+ */
+export type ProbeExpectation = ProbeValue | { atMost: number } | { atLeast: number } | { not: ProbeValue }
 
-/** The value meets the expectation: equal, or a number within its bound (a missing value never does). */
+/** The value meets the expectation: equal, a number within its bound, or a value that is not that (a missing value never does). */
 export function meets(value: ProbeValue | undefined, expected: ProbeExpectation): boolean {
   if (expected === null || typeof expected !== 'object') return value === expected
+  if ('not' in expected) return value !== undefined && value !== expected.not
   if (typeof value !== 'number') return false
   return 'atMost' in expected ? value <= expected.atMost : value >= expected.atLeast
 }

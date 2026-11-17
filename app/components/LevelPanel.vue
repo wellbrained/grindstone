@@ -7,7 +7,8 @@ import { timeText } from '~/utils/track-view'
 // solved card with Show debrief and Next level. A practice task is the compact variant (preview "Stage only app.js"):
 // breadcrumb through its scenario, title with "Practice · ~30 s", the task, its goal, one hint shown in place, and once
 // solved a one-line why with Next and Again. The ⋯ menu beside the title holds Play again, "practise again" and
-// Mark as not solved. The default slot (under the goals) is the track's own (Debugging: revealed hints, a click's verdict).
+// Mark as not solved. The default slot (under the goals) is the track's own (Debugging: revealed hints, a click's verdict),
+// the `intro` slot (under the story) too (Web fundamentals: the prediction card).
 const props = withDefaults(defineProps<{
   level: Level
   /** Track, chapter and number of the level, for the breadcrumb back to the track page. */
@@ -113,6 +114,9 @@ const menu = computed(() => entryItems(props.place, { onPlayAgain: () => emit('a
         <InlineText :text="paragraph" />
       </p>
     </div>
+
+    <!-- what a track asks before the goals (Web fundamentals: the prediction card) -->
+    <slot name="intro" />
 
     <section aria-labelledby="goals-heading">
       <h2

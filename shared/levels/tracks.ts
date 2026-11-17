@@ -3,6 +3,7 @@
 import { debuggingTrack } from './debugging'
 import { gitTrack } from './git'
 import { aiTrack } from './review'
+import { webTrack } from './web'
 import { lastPlayed } from './progress'
 import { defineTrack, placeIn, trackLevels, trackProgress } from './track'
 import type { Chapter, LevelPlace, Track } from './track'
@@ -13,13 +14,7 @@ export const tracks: readonly Track[] = [
   gitTrack,
   debuggingTrack,
   aiTrack,
-  defineTrack({
-    id: 'web',
-    title: 'Web fundamentals',
-    scope: 'CORS, auth, the event loop, performance and accessibility.',
-    description: 'The parts of the web platform that bite in production: CORS, auth, the event loop, performance and accessibility.',
-    status: 'coming'
-  }),
+  webTrack,
   defineTrack({
     id: 'frameworks',
     title: 'Framework deep dives',

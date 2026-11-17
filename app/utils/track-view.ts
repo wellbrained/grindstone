@@ -1,6 +1,6 @@
 // What the track page and the home page draw for a track, from the track and the progress: pure, so it is tested on the
 // real track and on the 58-level fixture (test/unit/ui/track-view.test.ts). The components only render it.
-import { chapterProgress, entryOf, isDebugLevel, isGitLevel, isReviewLevel, levelCommands, nextUp, trackPlaces, trackProgress } from '../../shared/levels'
+import { chapterProgress, entryOf, isDebugLevel, isGitLevel, isReviewLevel, isWebLevel, levelCommands, nextUp, trackPlaces, trackProgress } from '../../shared/levels'
 import type { Chapter, Count, Level, LevelPlace, LevelProgress, Progress, Run, RunCounter, RunMeasure, Track } from '../../shared/levels'
 
 /** solved: filled commit dot; next: the first unsolved level (ember ring); open: hollow. */
@@ -35,30 +35,32 @@ export interface LevelRowView {
   progress: LevelProgress | null
   /** The git commands the level practises (from its solution); none for a level of another track. */
   commands: string[]
-  /** A Debugging or Working with AI scenario: what it teaches you to read or see ('TypeError', 'off-by-one'); null otherwise. */
+  /** A Debugging, Working with AI or Web fundamentals scenario: what it teaches ('TypeError', 'off-by-one', 'preflight'); null otherwise. */
   teaches: string | null
   /**
    * A practice task's kind: Debugging find (click the line) or fix (a quick fix), Working with AI spot (find the one
-   * problem), verdict (approve or request changes) or steer (one comment that gets Sous to the right fix); null otherwise.
+   * problem), verdict (approve or request changes) or steer (one comment that gets Sous to the right fix), Web
+   * fundamentals predict (a prediction only); null otherwise.
    */
   taskKind: TaskKind | null
   lane: RowLanes
 }
 
-export type TaskKind = 'find' | 'fix' | 'spot' | 'verdict' | 'steer'
+export type TaskKind = 'find' | 'fix' | 'spot' | 'verdict' | 'steer' | 'predict'
 
 /** A practice task's kind, for its tag on the track page; null for a scenario or a git task (its commands are the tags). */
 export function taskKindOf(level: Level): TaskKind | null {
   if (level.kind !== 'practice') return null
   if (isDebugLevel(level)) return level.sandbox.find ? 'find' : 'fix'
   if (isReviewLevel(level)) return level.steer ? 'steer' : level.reason ? 'verdict' : 'spot'
+  if (isWebLevel(level)) return 'predict'
   return null
 }
 
-/** What a scenario teaches, for its tag (Debugging: the error; Working with AI: the kind of mistake). */
+/** What a scenario teaches, for its tag (Debugging: the error; Working with AI: the kind of mistake; Web fundamentals: the rule). */
 function teachesOf(level: Level): string | null {
   if (level.kind !== 'scenario') return null
-  if (isDebugLevel(level) || isReviewLevel(level)) return level.teaches ?? null
+  if (isDebugLevel(level) || isReviewLevel(level) || isWebLevel(level)) return level.teaches ?? null
   return null
 }
 
@@ -240,11 +242,13 @@ export function timeText(t: (key: string, named: Record<string, unknown>) => str
 }
 
 /**
- * The counters a row's best run shows: git its commands (the hints only break ties, as before); a track measured by
- * hints first every counter of its measure (Debugging hints then reloads, Working with AI hints then false alarms, and
- * rounds only for a run that has them: a steer level's, chapter 7).
+ * The counters a row's best run shows: git its commands (the hints only break ties, as before); any other track every
+ * counter of its measure (Debugging hints then reloads, Working with AI hints then false alarms, and rounds only for a
+ * run that has them: a steer level's, chapter 7; Web fundamentals wrong predictions, hints, and reloads only for a run
+ * that reloaded: a practice task is a prediction only).
  */
 export function bestRunCounters(measure: RunMeasure, run?: Run | null): RunCounter[] {
   if (measure[0] === 'commands') return ['commands']
-  return measure.filter(counter => counter !== 'rounds' || run?.rounds !== undefined)
+  const predictions = measure.includes('wrongPredictions')
+  return measure.filter(counter => (counter !== 'rounds' || run?.rounds !== undefined) && (!predictions || counter !== 'reloads' || run?.reloads !== undefined))
 }
