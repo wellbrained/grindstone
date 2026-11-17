@@ -77,7 +77,9 @@ afterEach(() => {
 describe('webConfig', () => {
   it('takes server.js as saved, the shop\'s routes on each origin it answers on, and refuses an API that is no origin', () => {
     const config = webConfig(SPEC, { 'server.js': 'x' }, SHOP_ORIGIN)
-    expect(config).toMatchObject({ page: 'https://cornerbakery.shop', api: API, source: 'x', session: { name: 'session', value: 'lena-7f3a' } })
+    expect(config).toMatchObject({ page: 'https://cornerbakery.shop', api: API, source: 'x', path: '/' })
+    // chapter 1's session is a cookie the browser kept since this morning, stored through the cookie model
+    expect(config.seeds).toEqual([{ url: `${API}/login`, line: 'session=lena-7f3a; Secure; HttpOnly', ago: 29 * 60_000 }])
     expect(config.shop.origins).toEqual(['https://cornerbakery.shop', 'https://www.cornerbakery.shop'])
     expect(config.shop.routes[0]).toMatchObject({ method: 'GET', path: '/api/hours', answers: [{ status: 200, body: '{"open":"7:00"}' }] })
     expect(webConfig(SPEC, {}, SHOP_ORIGIN).source).toBeNull()
@@ -97,7 +99,7 @@ describe('the browser between the page and the API', () => {
     expect(await response.json()).toEqual({ cookie: null })
     expect(backend.read(`GET ${API}/open`)).toBe(1)
     expect(backend.arrived(`GET ${API}/open`)).toBe(1)
-    expect(of('request')[0]).toMatchObject({ method: 'GET', url: `${API}/open`, headers: [['origin', 'https://cornerbakery.shop']], preflightFor: null })
+    expect(of('request')[0]).toMatchObject({ method: 'GET', url: `${API}/open`, headers: [['origin', 'https://cornerbakery.shop'], ['referer', 'https://cornerbakery.shop/']], preflightFor: null, site: null, destination: 'fetch', cookies: [] })
     expect(of('response')[0]).toMatchObject({ status: 200, failure: null, reason: null })
     expect(server.output.map(line => line.text)).toEqual(['GET /open 200'])
   })
@@ -145,7 +147,8 @@ describe('the browser between the page and the API', () => {
     const { backend, of } = start()
     const star = await settle(backend.fetch(`${API}/star`, { credentials: 'include' }))
     expect(star.ok).toBe(false)
-    expect(of('request')[0]!.headers).toEqual([['origin', 'https://cornerbakery.shop'], ['cookie', 'session=lena-7f3a']])
+    expect(of('request')[0]!.headers).toEqual([['origin', 'https://cornerbakery.shop'], ['referer', 'https://cornerbakery.shop/'], ['cookie', 'session=lena-7f3a']])
+    expect(of('request')[0]!.cookies).toEqual([{ name: 'session', value: 'lena-7f3a', sent: true, reason: null }])
     expect(of('netlog')[0]!.text).toMatch(/must not be the wildcard '\*' when the request's credentials mode is 'include'\.$/)
     const open = await settle(backend.fetch(`${API}/open`))
     if (!open.ok) throw open.error
@@ -194,7 +197,8 @@ describe('the browser between the page and the API', () => {
     expect((await settle(backend.fetch('https://www.cornerbakery.shop/api/hours'))).ok).toBe(false)
     expect((await settle(backend.fetch('https://cheap-flour.example/x'))).ok).toBe(false)
     expect(of('netlog').map(message => message.text).at(-1)).toBe('GET https://cheap-flour.example/x net::ERR_NAME_NOT_RESOLVED')
-    expect(of('request')[0]!.headers).toEqual([])
+    // the Referer to its own origin is the page's whole address (strict-origin-when-cross-origin)
+    expect(of('request')[0]!.headers).toEqual([['referer', 'https://cornerbakery.shop/']])
   })
 
   it('fails the fetch, never the page, when the browser can\'t carry an answer (its Response refuses an exposed header)', async () => {

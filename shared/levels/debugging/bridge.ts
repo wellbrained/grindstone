@@ -494,6 +494,20 @@ const SOURCE = String.raw`(function (config) {
           aborted: perf ? abortedAt : null
         })
       : null;
+  /* Web fundamentals (chapter 2): document.cookie goes through the cookie model's jar (the sealed frame has an opaque
+     origin, where the browser's own document.cookie throws). Defined on the document, before the app runs, and not
+     configurable: the app can't put another one in its place. It reads and writes by the model's rules only (never an
+     HttpOnly cookie); replacing a built-in only changes what the app itself sees. */
+  if (backend && backend.documentCookie) {
+    try {
+      Object.defineProperty(document, 'cookie', {
+        configurable: false,
+        enumerable: true,
+        get: function () { return backend.documentCookie(); },
+        set: function (value) { backend.writeCookie(value); }
+      });
+    } catch (error) { /* a browser that keeps its own: the app then gets the sandbox's SecurityError */ }
+  }
   var realFetch = window.fetch;
   window.fetch = function fetch(input, init) {
     return backend ? backend.fetch(input, init) : realFetch.apply(window, arguments);
@@ -528,6 +542,13 @@ const SOURCE = String.raw`(function (config) {
     if (inspector && data.type === 'highlight' && typeof data.node === 'number') { inspector.highlight(data.node); return; }
     if (inspector && data.type === 'pick') { inspector.pick(data.on === true); return; }
     if (recorder && data.type === 'recordStop') { recorder.stop('stopped'); return; }
+    /* the Other site panel's Visit: Lena opens that site's page (only a site the level shows) */
+    if (backend && backend.visit && data.type === 'visit' && typeof data.site === 'string' && config.web && config.web.sites) {
+      for (var v = 0; v < config.web.sites.length; v++) {
+        if (config.web.sites[v].origin === data.site && !config.web.sites[v].hidden) { backend.visit(data.site, function () {}); return; }
+      }
+      return;
+    }
     if (data.type === 'eval' && typeof data.code === 'string') evaluate(data);
   };
 
@@ -709,7 +730,7 @@ const SOURCE = String.raw`(function (config) {
   };
   var LOOKS = ['style', 'visible', 'hit', 'overflows', 'contrast'];
   /* One probe: its steps in order, then its result is posted and the run goes on (callbacks only, no promises). */
-  var runProbe = function (probe, then) {
+  var runProbe = function (probe, then, quiet) {
     var value = null;
     var problem = null;
     var steps = probe.steps;
@@ -720,7 +741,7 @@ const SOURCE = String.raw`(function (config) {
     var startClock = clock.now;
     var startWork = workNow();
     var finish = function () {
-      post({ type: 'probe', id: probe.id, ok: problem === null, value: problem === null ? value : null, error: problem });
+      if (!quiet) post({ type: 'probe', id: probe.id, ok: problem === null, value: problem === null ? value : null, error: problem });
       then();
     };
     var fail = function (text) {
@@ -821,6 +842,41 @@ const SOURCE = String.raw`(function (config) {
         value = backend && backend.arrived ? backend.arrived(step.arrived) : 0;
         return next();
       }
+      /* Web fundamentals (chapter 2): another site Lena opens, a navigation from one, the cookies requests carried, a
+         leak to another site, what a script on the page can read */
+      if (typeof step.visit === 'string') {
+        if (!backend || !backend.visit) return fail('There is no other site in this run');
+        return backend.visit(step.visit, function (result) {
+          value = result;
+          settle(20, next);
+        });
+      }
+      if (typeof step.navigate === 'string') {
+        if (!backend || !backend.navigate) return fail('There is no server to ask in this run');
+        return backend.navigate(step, function (result) {
+          value = result;
+          next();
+        });
+      }
+      if (typeof step.carried === 'string') {
+        value = backend && backend.carried ? backend.carried(step.carried, toText(step.cookie)) : 0;
+        return next();
+      }
+      if (typeof step.leaked === 'string') {
+        value = backend && backend.leaked ? backend.leaked(step.leaked) : 0;
+        return next();
+      }
+      if (typeof step.stolen === 'string') {
+        if (!backend || !backend.stolen) return fail('There is no server to ask in this run');
+        return backend.stolen(step.stolen, function (result) {
+          value = result;
+          next();
+        });
+      }
+      if (typeof step.readable === 'string') {
+        value = backend && backend.readable ? backend.readable(step.readable) : 0;
+        return next();
+      }
       if (typeof step.fetchFrom === 'string') {
         if (!backend || !backend.from) return fail('There is no server to ask in this run');
         return backend.from(step, function (result) {
@@ -872,7 +928,10 @@ const SOURCE = String.raw`(function (config) {
       loadClock = clock.now;
       post({ type: 'ready' });
       if (inspector) inspector.snapshot();
-      if (probes) runProbes(0);
+      /* Web fundamentals: the level's scene (Lena signs in, opens another site) in every load, before the probes */
+      var scene = config.web && config.web.scene ? config.web.scene : null;
+      if (scene) runProbe({ id: '', steps: scene }, function () { if (probes) runProbes(0); }, true);
+      else if (probes) runProbes(0);
     });
   });
 })`

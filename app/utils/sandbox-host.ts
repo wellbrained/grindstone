@@ -117,13 +117,15 @@ export interface LoadOptions {
   logs?: LogsSpec
   /** Web fundamentals: the API on another origin, answered by the level's server.js (the Server panel's lines come from it). */
   web?: WebSpec
+  /** Web fundamentals: the page's path (the address bar's): document.cookie's URL and the Referer's. */
+  page?: string
 }
 
 /** A load of the app you see. */
 export function appLoad(files: Readonly<Record<string, string>>, options: LoadOptions = {}): AppLoad {
   const token = newToken()
-  const { backend, web, elements, record, profile, logs } = options
-  const document_ = sandboxDocument(files, { token, backend, web, elements, record, logs, ...(profile && record ? { count: 'profile' as const, performance: true } : {}) })
+  const { backend, web, page, elements, record, profile, logs } = options
+  const document_ = sandboxDocument(files, { token, backend, web, page, elements, record, logs, ...(profile && record ? { count: 'profile' as const, performance: true } : {}) })
   return { ...document_, token, files, recorded: record !== undefined }
 }
 
@@ -139,6 +141,8 @@ export interface CheckOptions {
   logs?: LogsSpec
   /** Web fundamentals: the API on another origin, answered by the level's server.js (a fresh one per frame). */
   web?: WebSpec
+  /** Web fundamentals: the page's path. */
+  page?: string
   timeoutMs?: number
 }
 
@@ -157,10 +161,10 @@ export async function runCheck(files: Readonly<Record<string, string>>, probes: 
 
 /** One frame of a check run, at its width. */
 function runFrame(files: Readonly<Record<string, string>>, { width, height, probes }: CheckFrame, options: CheckOptions): Promise<Observation> {
-  const { backend, web, performance, counted, logs, timeoutMs = CHECK_TIMEOUT_MS } = options
+  const { backend, web, page, performance, counted, logs, timeoutMs = CHECK_TIMEOUT_MS } = options
   return new Promise((resolve) => {
     const token = newToken()
-    const document_ = sandboxDocument(files, { token, probes, backend, web, performance, logs, ...(counted ? { record: counted.modules, count: 'check' as const } : {}) })
+    const document_ = sandboxDocument(files, { token, probes, backend, web, page, performance, logs, ...(counted ? { record: counted.modules, count: 'check' as const } : {}) })
     const frame = document.createElement('iframe')
     frame.setAttribute('sandbox', SANDBOX_FLAGS)
     frame.setAttribute('aria-hidden', 'true')
@@ -186,7 +190,7 @@ function runFrame(files: Readonly<Record<string, string>>, { width, height, prob
     // the goals read only what comes over this load's port: the app's code can't post there
     const link = bridgeLink(() => frame.contentWindow, token, (message) => {
       // the goals read no requests (probes count them inside the frame): only the app you see shows them
-      if (message.type === 'request' || message.type === 'response' || message.type === 'serverlog' || message.type === 'server') return
+      if (message.type === 'request' || message.type === 'response' || message.type === 'serverlog' || message.type === 'server' || message.type === 'cookies') return
       // a flood of logs must not fill memory: the goals need the probes, done and that errors happened, not every line
       if ((message.type === 'console' || message.type === 'error' || message.type === 'netlog') && ++appMessages > MAX_CHECK_MESSAGES) return
       messages.push(message)

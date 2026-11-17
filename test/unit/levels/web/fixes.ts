@@ -4,6 +4,8 @@
 // shop to read with credentials, echoing any origin back. The unit tests check that every edit applies to the level's
 // files; e2e/web-levels.spec.ts runs them in a real browser.
 
+import { cookieFixes } from './fixes-cookies'
+
 export interface OtherFix {
   /** What the edit does, for the test's message. */
   name: string
@@ -106,5 +108,6 @@ export const otherFixes: Record<string, OtherFix[]> = {
     { name: 'any Origin allowed in the middleware, with DELETE', edits: [{ save: 'server.js', replace: ['  if (req.get(\'Origin\') === SHOP) {\n    res.set(\'Access-Control-Allow-Origin\', SHOP)', '  if (req.get(\'Origin\')) {\n    res.set(\'Access-Control-Allow-Origin\', req.get(\'Origin\'))'] }, { save: 'server.js', replace: [ALLOW_METHODS('GET, POST'), ALLOW_METHODS('GET, POST, DELETE')] }], solves: false },
     { name: 'anyone taken for Lena, the requests without credentials, `*` for the methods', edits: [LENA_FOR_ANYONE, NO_CREDENTIALS, NO_CREDENTIALS, { save: 'server.js', replace: [ALLOW_METHODS('GET, POST'), ALLOW_METHODS('*')] }], solves: false },
     { name: 'every Origin echoed but the promo page\'s, with DELETE', edits: [ALL_BUT_PROMO, { save: 'server.js', replace: [ALLOW_METHODS('GET, POST'), ALLOW_METHODS('GET, POST, DELETE')] }], solves: false }
-  ]
+  ],
+  ...cookieFixes
 }

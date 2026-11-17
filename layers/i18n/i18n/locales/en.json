@@ -1174,7 +1174,9 @@
       "code": "Code",
       "logs": "Logs",
       "deploys": "Deploys",
-      "server": "Server"
+      "server": "Server",
+      "application": "Application",
+      "site": "Other site"
     },
     "app": {
       "label": "App",
@@ -1672,12 +1674,12 @@
     }
   },
   "web": {
-    "note": "Predict first, then read the Network and Server panels, fix the code, Save and Reload: the goals are checked on every reload.",
+    "note": "Predict first, then read the panels (Network, Server and, for cookies, Application), fix the code, Save and Reload: the goals are checked on every reload.",
     "practiceNote": "A prediction only: answer, then see in the app's panels who was right. Nothing to fix.",
     "wrongPredictions": "Wrong predictions: {n}",
     "readOnly": "Read only: a prediction",
     "appWaits": "Make your prediction first: the app runs once you answer.",
-    "sealed": "The app runs in a sealed frame: it can't reach Grindstone or your progress. The browser's CORS rules are modelled after the Fetch spec, and the API is the level's server.js, run in the frame too; nothing goes to the network.",
+    "sealed": "The app runs in a sealed frame: it can't reach Grindstone or your progress. The browser's CORS and cookie rules are modelled after the Fetch spec and the cookie spec, and the API is the level's server.js, run in the frame too; nothing goes to the network.",
     "prediction": {
       "title": "Predict first",
       "done": "Your prediction",
@@ -1713,7 +1715,73 @@
       "preflightFor": "Preflight for",
       "blocked": "Blocked by CORS:",
       "keptFromPage": "Response: what the server sent, kept from the page",
-      "neverSent": "Never sent: the preflight's answer did not allow it."
+      "neverSent": "Never sent: the preflight's answer did not allow it.",
+      "from": "From",
+      "fromName": "{name}, from {site}",
+      "kind": "Type",
+      "kindName": "{name}, {kind}",
+      "destination": {
+        "fetch": "fetch",
+        "image": "image",
+        "document": "page"
+      },
+      "destinationLong": {
+        "fetch": "A fetch",
+        "image": "An image",
+        "document": "A page: a top-level navigation (a link, a form)"
+      },
+      "cookies": "Cookies",
+      "requestCookies": "Sent with the request",
+      "responseCookies": "Set by the answer",
+      "cookieSent": "sent",
+      "cookieBlocked": "not sent",
+      "cookieStored": "stored",
+      "cookieRefused": "refused"
+    },
+    "application": {
+      "label": "Application",
+      "kinds": "Storage",
+      "kind": {
+        "cookies": "Cookies"
+      },
+      "count": "no cookies | 1 cookie | {n} cookies",
+      "loading": "The cookie jar shows here once the app has loaded.",
+      "empty": "No cookies yet. What the browser keeps for the page and its API shows here, live.",
+      "tableOf": "Cookies of {site}",
+      "caption": "Cookies of {site}: {n} with name, value, domain, path, expiry, size, HttpOnly, Secure and SameSite",
+      "column": {
+        "name": "Name",
+        "value": "Value",
+        "domain": "Domain",
+        "path": "Path",
+        "expires": "Expires / Max-Age",
+        "size": "Size",
+        "httpOnly": "HttpOnly",
+        "secure": "Secure",
+        "sameSite": "SameSite"
+      },
+      "session": "Session",
+      "yes": "yes",
+      "no": "no",
+      "unspecified": "not set (Lax)",
+      "more": "and one more cookie not listed | and {n} more cookies not listed",
+      "refused": "Refused in this load",
+      "fromHeader": "Set-Cookie from {url}",
+      "fromScript": "document.cookie on {url}"
+    },
+    "site": {
+      "label": "Other site",
+      "sites": "Other sites",
+      "role": {
+        "attacker": "an attacker's page",
+        "mail": "Lena's webmail",
+        "other": "another page"
+      },
+      "visit": "Visit as Lena",
+      "sent": "What it made Lena's browser send in this load",
+      "nothing": "Nothing yet: Visit as Lena opens it.",
+      "show": "{method} {url}, {status}: show in the Network panel",
+      "page": "Its page (read only)"
     }
   }
 }

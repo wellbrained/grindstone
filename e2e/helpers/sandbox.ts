@@ -29,6 +29,14 @@ export interface CheckResult {
   serverOutput: ServerOutputMessage[]
   /** Web fundamentals: what each preflight asked in Access-Control-Request-Headers, in the order sent. */
   asks: string[]
+  /** Web fundamentals (chapter 2): every cookie a request carried, 'METHOD address name', in the order sent. */
+  sent: string[]
+  /** The cookies in the jar once the run was over (names, the Application panel's order). */
+  stored: string[]
+  /** The names of the cookies the browser refused in the run (Set-Cookie lines and document.cookie writes). */
+  refused: string[]
+  /** The names a script on the page can read once the run was over. */
+  readable: string[]
 }
 
 export interface RunOptions {
@@ -40,11 +48,13 @@ export interface RunOptions {
   logs?: LogsSpec
   /** Web fundamentals: the API on another origin, answered by the level's server.js. */
   web?: WebSpec
+  /** Web fundamentals: the page's path (document.cookie's URL). */
+  page?: string
 }
 
 async function runFrame(page: Page, files: Readonly<Record<string, string>>, probes: readonly Probe[], width: number, height: number, backend: BackendSpec | undefined, options: RunOptions): Promise<CheckResult> {
   const token = `t-${Math.random().toString(36).slice(2)}`
-  const document = sandboxDocument(files, { token, probes, backend, record: options.record, count: options.count, performance: options.performance, logs: options.logs, web: options.web })
+  const document = sandboxDocument(files, { token, probes, backend, record: options.record, count: options.count, performance: options.performance, logs: options.logs, web: options.web, page: options.page })
   const raw = await page.evaluate(async ({ html, style, token, profile, hello }) => {
     const messages: unknown[] = []
     const frame = window.document.createElement('iframe')
@@ -89,6 +99,7 @@ async function runFrame(page: Page, files: Readonly<Record<string, string>>, pro
     else if (message.type === 'response') requests = withResponse(requests, message)
   }
   const profile = messages.find(message => message.type === 'profile')
+  const jar = messages.filter(message => message.type === 'cookies').at(-1)
   return {
     observation: observe(messages, document.bridgeLine),
     entries: messages.map(message => consoleEntry(message, mapping)).filter((entry): entry is ConsoleEntryBody => entry !== null),
@@ -99,7 +110,11 @@ async function runFrame(page: Page, files: Readonly<Record<string, string>>, pro
     serverLogs: messages.filter((message): message is ServerLogMessage => message.type === 'serverlog'),
     server: messages.flatMap(message => message.type === 'server' && message.level === 'access' ? [message.text] : []),
     serverOutput: messages.filter((message): message is ServerOutputMessage => message.type === 'server'),
-    asks: requests.flatMap(entry => entry.preflightFor === null ? [] : entry.requestHeaders.filter(([name]) => name === 'access-control-request-headers').map(([, value]) => value))
+    asks: requests.flatMap(entry => entry.preflightFor === null ? [] : entry.requestHeaders.filter(([name]) => name === 'access-control-request-headers').map(([, value]) => value)),
+    sent: requests.flatMap(entry => entry.cookies.filter(cookie => cookie.sent).map(cookie => `${entry.method} ${requestAddress(entry.url)} ${cookie.name}`)),
+    stored: jar?.type === 'cookies' ? jar.jar.map(cookie => cookie.name) : [],
+    refused: jar?.type === 'cookies' ? jar.refused.map(row => row.name) : [],
+    readable: jar?.type === 'cookies' ? jar.readable : []
   }
 }
 

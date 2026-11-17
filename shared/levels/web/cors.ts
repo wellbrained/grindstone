@@ -103,6 +103,8 @@ export const CORS_SOURCE = String.raw`(function () {
   var sliceText = uncurry(String.prototype.slice);
   var exec = uncurry(RegExp.prototype.exec);
   var toText = String;
+  var defineProperty = Object.defineProperty;
+  var createObject = Object.create;
   /* Fetch, "CORS-safelisted method": a method that is GET, HEAD, or POST. */
   var SAFE_METHODS = ['GET', 'HEAD', 'POST'];
   /* Fetch, "forbidden request-header": a name that is one of these (or starts with proxy- or sec-). */
@@ -125,7 +127,18 @@ export const CORS_SOURCE = String.raw`(function () {
     for (var i = 0; i < list.length; i++) if (list[i] === item) return true;
     return false;
   };
-  var append = function (list, item) { list[list.length] = item; };
+  /* Every write into a list defines its element with a descriptor that has no prototype: an assignment to an index a
+     list doesn't have yet would run a setter the app put on Array.prototype or Object.prototype (and hand it what is
+     written), and defineProperty reads get and set through the chain too. */
+  var put = function (list, index, item) {
+    var descriptor = createObject(null);
+    descriptor.value = item;
+    descriptor.writable = true;
+    descriptor.enumerable = true;
+    descriptor.configurable = true;
+    defineProperty(list, index, descriptor);
+  };
+  var append = function (list, item) { put(list, list.length, item); };
   var startsWith = function (text, lead) { return sliceText(text, 0, lead.length) === lead; };
   var isSpace = function (character) { return character === ' ' || character === '\t'; };
   /* HTTP whitespace (spaces and tabs) off both ends, as the HTTP layer reads a header's value */
@@ -157,8 +170,8 @@ export const CORS_SOURCE = String.raw`(function () {
     var out = [];
     for (var i = 0; i < list.length; i++) {
       var at = out.length;
-      while (at > 0 && out[at - 1] > list[i]) { out[at] = out[at - 1]; at--; }
-      out[at] = list[i];
+      while (at > 0 && out[at - 1] > list[i]) { put(out, at, out[at - 1]); at--; }
+      put(out, at, list[i]);
     }
     return out;
   };

@@ -1,7 +1,7 @@
 // The Network panel's entries (docs/features/ui.md, "Network"): each request the app sent to the fake backend, as the
 // bridge reported it, and its answer once it arrived; how the panel names, words and colours them. Pure: the panel only
 // draws these, always as text (a body is never rendered as HTML).
-import type { HeaderPair, RequestFailure, RequestMessage, ResponseMessage } from './messages'
+import type { HeaderPair, RequestCookieRow, RequestDestination, RequestFailure, RequestMessage, ResponseMessage, SetCookieRow } from './messages'
 import { SHOP_ORIGIN } from './sandbox'
 import { mapFrames, parseStack } from './trace'
 import type { SourceMapping } from './trace'
@@ -17,6 +17,8 @@ export interface NetworkResponse {
   time: number
   /** Web fundamentals: why CORS kept the answer from the page, in Chrome's words (null: it didn't). */
   reason: string | null
+  /** Web fundamentals: its Set-Cookie lines, stored or why not. */
+  cookies: SetCookieRow[]
 }
 
 /** One row of the Network panel. */
@@ -32,6 +34,12 @@ export interface NetworkEntry {
   initiator: SourceLine | null
   /** Web fundamentals: a preflight the browser sent for the request with this id (null: the app's own request). */
   preflightFor: number | null
+  /** Web fundamentals: another site's page sent it (its origin), null: the app's page. */
+  site: string | null
+  /** The app's fetch, an image, or a page (a top-level navigation). */
+  destination: RequestDestination
+  /** Web fundamentals: the cookies of the URL's site, sent or why not. */
+  cookies: RequestCookieRow[]
   /** null while the request is on its way. */
   response: NetworkResponse | null
 }
@@ -75,16 +83,19 @@ export function requestEntry(message: RequestMessage, mapping: SourceMapping): N
     requestBody: message.body,
     initiator: frame ? { path: frame.path, line: frame.line } : null,
     preflightFor: message.preflightFor,
+    site: message.site,
+    destination: message.destination,
+    cookies: message.cookies,
     response: null
   }
 }
 
 /** The entries with this answer on its request (the others stay the same objects). */
 export function withResponse(entries: readonly NetworkEntry[], message: ResponseMessage): NetworkEntry[] {
-  const { status, statusText, headers, body, failure, time, reason } = message
+  const { status, statusText, headers, body, failure, time, reason, cookies } = message
   // an answer to a request that isn't listed (past the cap) changes nothing: the same array, so nothing redraws
   if (!entries.some(entry => entry.id === message.id)) return entries as NetworkEntry[]
-  return entries.map(entry => entry.id === message.id ? { ...entry, response: { status, statusText, headers, body, failure, time, reason } } : entry)
+  return entries.map(entry => entry.id === message.id ? { ...entry, response: { status, statusText, headers, body, failure, time, reason, cookies } } : entry)
 }
 
 const FAILED: Record<RequestFailure, string> = { cors: 'CORS error', network: 'failed', aborted: 'canceled' }

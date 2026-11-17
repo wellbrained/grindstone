@@ -10,7 +10,8 @@ import type { DebugLevel, LevelPlace, WebLevel } from '#shared/levels'
 // Logs, Deploys, Console, Network, Code; the ones the level has), all mounted, so switching never reloads the app. In
 // chapter 7 the level panel also lists the colleagues' messages. No layout switch.
 // A Web fundamentals level (ADR 0009) plays here too: its prediction card under the story (the app runs once it is
-// answered), the Network panel with preflights and refusals, and a Server panel (what server.js did) after it.
+// answered), the Network panel with preflights and refusals, and a Server panel (what server.js did) after it; in
+// chapter 2 also the Application panel (cookies) and the Other site panel (the attacker's page, a webmail).
 const props = defineProps<{
   level: DebugLevel | WebLevel
   place: LevelPlace
@@ -19,9 +20,9 @@ const props = defineProps<{
 const { t } = useI18n()
 
 const play = useDebuggingPlay(props.level)
-const { session, store, goals, next, stats, reloads, find, webLevel, predictionOnly, hasNetwork, hasServer, hasElements, hasDebugger, hasPerformance, hasLogs, hasDeploys, requests, requestShown, picking, pickedAt, recordStatus, profileStatus, debriefOpen, progressBefore, sparkKey, mark, hint, reset, again } = play
+const { session, store, goals, next, stats, reloads, find, webLevel, predictionOnly, hasNetwork, hasServer, hasApplication, hasSites, hasElements, hasDebugger, hasPerformance, hasLogs, hasDeploys, requests, requestShown, picking, pickedAt, recordStatus, profileStatus, debriefOpen, progressBefore, sparkKey, mark, hint, reset, again } = play
 
-type Lower = 'elements' | 'debugger' | 'performance' | 'logs' | 'deploys' | 'console' | 'network' | 'server'
+type Lower = 'elements' | 'debugger' | 'performance' | 'logs' | 'deploys' | 'console' | 'network' | 'server' | 'application' | 'site'
 type Panel = 'app' | Lower | 'code'
 /** The panels under the code (from lg one at a time, as tabs): the ones this level has, the chapter's own panel first. */
 const LOWER: Lower[] = [
@@ -32,7 +33,9 @@ const LOWER: Lower[] = [
   ...(hasDeploys ? ['deploys' as const] : []),
   'console',
   ...(hasNetwork ? ['network' as const] : []),
-  ...(hasServer ? ['server' as const] : [])
+  ...(hasServer ? ['server' as const] : []),
+  ...(hasApplication ? ['application' as const] : []),
+  ...(hasSites ? ['site' as const] : [])
 ]
 const PANELS: Panel[] = ['app', ...LOWER, 'code']
 const isLower = (name: Panel): name is Lower => (LOWER as Panel[]).includes(name)
@@ -90,7 +93,7 @@ const lowerLabel = computed(() => {
   return names.length > 1 ? t('debugging.lowerList', { first: names.slice(0, -1).join(', '), last: names.at(-1) }) : names[0]!
 })
 // six tabs (chapter 7) take two rows of three on a phone: one row of six would cut their names
-const TAB_COLUMNS: Record<number, string> = { 3: 'grid-cols-3', 4: 'grid-cols-4', 5: 'grid-cols-5', 6: 'grid-cols-3' }
+const TAB_COLUMNS: Record<number, string> = { 3: 'grid-cols-3', 4: 'grid-cols-4', 5: 'grid-cols-5', 6: 'grid-cols-3', 7: 'grid-cols-4' }
 
 /** Arrow keys move along a tab set (they wrap), Home and End jump to its ends; the new tab gets the focus. */
 function moveTab<T extends string>(event: KeyboardEvent, names: readonly T[], current: T, choose: (name: T) => void, list: HTMLElement | null) {
@@ -125,7 +128,9 @@ const performancePanel = useTemplateRef<{ focus: () => void }>('performancePanel
 const logsPanel = useTemplateRef<{ focus: () => void }>('logsPanel')
 const deploysPanel = useTemplateRef<{ focus: () => void }>('deploysPanel')
 const serverPanel = useTemplateRef<{ focus: () => void }>('serverPanel')
-const focusConsole = () => ({ console: consolePanel, network: networkPanel, elements: elementsPanel, debugger: debuggerPanel, performance: performancePanel, logs: logsPanel, deploys: deploysPanel, server: serverPanel })[lower.value].value?.focus()
+const applicationPanel = useTemplateRef<{ focus: () => void }>('applicationPanel')
+const sitePanel = useTemplateRef<{ focus: () => void }>('sitePanel')
+const focusConsole = () => ({ console: consolePanel, network: networkPanel, elements: elementsPanel, debugger: debuggerPanel, performance: performancePanel, logs: logsPanel, deploys: deploysPanel, server: serverPanel, application: applicationPanel, site: sitePanel })[lower.value].value?.focus()
 
 const shown = (name: Panel) => panel.value === name ? '' : 'max-lg:hidden'
 /** A lower panel: shown below lg as a tab of its own, from lg as the chosen one under the code. */
@@ -395,6 +400,26 @@ const topNote = computed(() => {
             :play="play"
             class="max-lg:h-[22rem] lg:min-h-0 lg:flex-1"
             :class="shownLower('server')"
+          />
+          <WebApplication
+            v-if="hasApplication"
+            id="debugging-application"
+            ref="applicationPanel"
+            role="tabpanel"
+            :aria-labelledby="labelledBy('application')"
+            :play="play"
+            class="max-lg:h-[28rem] lg:min-h-0 lg:flex-1"
+            :class="shownLower('application')"
+          />
+          <WebSite
+            v-if="hasSites"
+            id="debugging-site"
+            ref="sitePanel"
+            role="tabpanel"
+            :aria-labelledby="labelledBy('site')"
+            :play="play"
+            class="max-lg:h-[30rem] lg:min-h-0 lg:flex-1"
+            :class="shownLower('site')"
           />
         </div>
       </div>

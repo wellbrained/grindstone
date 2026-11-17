@@ -17,6 +17,8 @@
 //   and runs the watchdog.
 
 /** What one load's server may do and how long it may take; the frame and the page read the same numbers. */
+import { WEB_CLOCK } from './cookies'
+
 export const SERVER_LIMITS = {
   /** Milliseconds a request may take in server.js before the watchdog stops the worker (it never answered). */
   answerMs: 1000,
@@ -32,7 +34,9 @@ export const SERVER_LIMITS = {
   /** Lines the Server panel gets from one load (access lines, the server's console, errors). */
   maxOutput: 300,
   /** Characters of one such line. */
-  maxOutputText: 500
+  maxOutputText: 500,
+  /** The scripted clock (ms): `res.cookie`'s Expires for a `maxAge` counts from it, as the cookie jar does. */
+  clock: WEB_CLOCK
 } as const
 
 export type ServerLimits = typeof SERVER_LIMITS
@@ -165,6 +169,30 @@ export const SERVER_RUNTIME_SOURCE = String.raw`(function (limits, emit) {
         problem.status = 400;
         return next(problem);
       }
+      next();
+    };
+  };
+
+  /* express.urlencoded(): reads a form's body (Content-Type application/x-www-form-urlencoded) into req.body, a name
+     given twice as a list (Express 5's simple parser, extended: false; options are taken and not needed). Any other
+     body stays unread. */
+  express.urlencoded = function () {
+    return function urlencodedParser(req, res, next) {
+      var type = String(req.get('content-type') || '').split(';')[0].trim().toLowerCase();
+      var raw = rawBodies.get(req);
+      if (req.body !== undefined || type !== 'application/x-www-form-urlencoded' || raw === null || raw === undefined) return next();
+      var body = {};
+      String(raw).split('&').forEach(function (pair) {
+        if (!pair) return;
+        var at = pair.indexOf('=');
+        var key = at < 0 ? pair : pair.slice(0, at);
+        var value = at < 0 ? '' : pair.slice(at + 1);
+        try { key = decodeURIComponent(key.replace(/\+/g, ' ')); value = decodeURIComponent(value.replace(/\+/g, ' ')); } catch (error) { return; }
+        if (!Object.prototype.hasOwnProperty.call(body, key)) body[key] = value;
+        else if (Array.isArray(body[key])) body[key].push(value);
+        else body[key] = [body[key], value];
+      });
+      req.body = body;
       next();
     };
   };
@@ -313,6 +341,76 @@ export const SERVER_RUNTIME_SOURCE = String.raw`(function (limits, emit) {
     res.sendStatus = function (code) {
       res.status(code);
       return send(STATUS[code] || String(code), 'text/plain; charset=utf-8');
+    };
+    /* Express 5's res.cookie with the cookie module's serialize: the value URI-encoded (an object as j:JSON), Path=/
+       unless given, maxAge in ms (Max-Age in seconds, and Expires that far from the scripted clock), the attributes in
+       the module's order; a value the module refuses throws, as there. Signed cookies need cookie-parser: not here. */
+    var COOKIE_NAME = /^[\x21-\x3a\x3c\x3e-\x7e]+$/;
+    var COOKIE_VALUE = /^("?)[\x21\x23-\x2b\x2d-\x3a\x3c-\x5b\x5d-\x7e]*\1$/;
+    var COOKIE_DOMAIN = /^([.]?[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)([.][a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$/i;
+    var COOKIE_PATH = /^[\x20-\x3a\x3d-\x7e]*$/;
+    var serialize = function (name, value, options) {
+      if (!COOKIE_NAME.test(name)) throw new TypeError('argument name is invalid');
+      var encoded = encodeURIComponent(value);
+      if (encoded && !COOKIE_VALUE.test(encoded)) throw new TypeError('argument val is invalid');
+      var line = name + '=' + encoded;
+      if (options.maxAge !== undefined && options.maxAge !== null) {
+        if (!isFinite(options.maxAge)) throw new TypeError('option maxAge is invalid');
+        line += '; Max-Age=' + Math.floor(options.maxAge);
+      }
+      if (options.domain) {
+        if (!COOKIE_DOMAIN.test(options.domain)) throw new TypeError('option domain is invalid');
+        line += '; Domain=' + options.domain;
+      }
+      if (options.path) {
+        if (!COOKIE_PATH.test(options.path)) throw new TypeError('option path is invalid');
+        line += '; Path=' + options.path;
+      }
+      if (options.expires) {
+        if (!(options.expires instanceof Date) || isNaN(options.expires.valueOf())) throw new TypeError('option expires is invalid');
+        line += '; Expires=' + options.expires.toUTCString();
+      }
+      if (options.httpOnly) line += '; HttpOnly';
+      if (options.secure) line += '; Secure';
+      if (options.partitioned) line += '; Partitioned';
+      if (options.sameSite) {
+        var mode = typeof options.sameSite === 'string' ? options.sameSite.toLowerCase() : options.sameSite;
+        if (mode === true || mode === 'strict') line += '; SameSite=Strict';
+        else if (mode === 'lax') line += '; SameSite=Lax';
+        else if (mode === 'none') line += '; SameSite=None';
+        else throw new TypeError('option sameSite is invalid');
+      }
+      return line;
+    };
+    res.cookie = function (name, value, options) {
+      var opts = {};
+      if (options && typeof options === 'object') Object.keys(options).forEach(function (key) { opts[key] = options[key]; });
+      if (opts.signed) throw new Error('cookieParser("secret") required for signed cookies');
+      var text = typeof value === 'object' && value !== null ? 'j:' + JSON.stringify(value) : String(value);
+      if (opts.maxAge !== undefined && opts.maxAge !== null) {
+        var age = opts.maxAge - 0;
+        if (!isNaN(age)) {
+          opts.expires = new Date(limits.clock + age);
+          opts.maxAge = Math.floor(age / 1000);
+        }
+      }
+      if (opts.path === undefined || opts.path === null) opts.path = '/';
+      return res.append('Set-Cookie', serialize(String(name), text, opts));
+    };
+    res.clearCookie = function (name, options) {
+      var opts = { path: '/' };
+      if (options && typeof options === 'object') Object.keys(options).forEach(function (key) { opts[key] = options[key]; });
+      opts.expires = new Date(1);
+      delete opts.maxAge;
+      return res.cookie(name, '', opts);
+    };
+    /* res.redirect([status,] url): a Location and Express's short text; the browser here follows no redirect */
+    res.redirect = function (first, second) {
+      var code = typeof first === 'number' ? first : 302;
+      var to = String(typeof first === 'number' ? second : first);
+      res.status(code);
+      setOne('Location', to);
+      return send((STATUS[code] || String(code)) + '. Redirecting to ' + to, 'text/plain; charset=utf-8');
     };
     return res;
   };
@@ -517,6 +615,8 @@ export const SERVER_HOST_SOURCE = String.raw`(function (config, hooks) {
   var keysOf = Object.keys;
   var isArray = Array.isArray;
   var hasOwn = uncurry(Object.prototype.hasOwnProperty);
+  var defineProperty = Object.defineProperty;
+  var createObject = Object.create;
   var exec = uncurry(RegExp.prototype.exec);
   var sliceText = uncurry(String.prototype.slice);
   var toText = String;
@@ -573,7 +673,13 @@ export const SERVER_HOST_SOURCE = String.raw`(function (config, hooks) {
       var pair = value[i];
       if (!isArray(pair) || typeof pair[0] !== 'string' || typeof pair[1] !== 'string') return null;
       if (exec(NAME, pair[0]) === null || exec(BAD_VALUE, pair[1]) !== null) return null;
-      list[list.length] = [pair[0], cut(trimValue(pair[1]), limits.maxHeaderValue)];
+      var item = createObject(null);
+      item.value = [pair[0], cut(trimValue(pair[1]), limits.maxHeaderValue)];
+      item.writable = true;
+      item.enumerable = true;
+      item.configurable = true;
+      /* defined, not assigned: a setter the app put on Array.prototype never sees (or changes) a header */
+      defineProperty(list, list.length, item);
     }
     return list;
   };

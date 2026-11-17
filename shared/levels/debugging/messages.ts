@@ -44,6 +44,8 @@ export type BridgeMessage
     | { type: 'netlog', text: string, stack: string }
   /** Web fundamentals: a line of the API's server.js for the Server panel (an access line, its console, an error with its line). */
     | ServerOutputMessage
+  /** Web fundamentals (chapter 2): the cookie jar after a change, for the Application panel. */
+    | CookiesMessage
   /** The Elements panel: a snapshot of the app's DOM (in document order), cut at MAX_DOM_NODES. */
     | { type: 'dom', nodes: DomNode[], truncated: boolean }
   /** The Elements panel: the selected element's matching rules, box and computed values (`seq`: which request it answers). */
@@ -97,6 +99,64 @@ export interface RequestMessage {
   stack: string
   /** Web fundamentals: a preflight the browser sent, and the id of the request it asks for (null: the app's own request). */
   preflightFor: number | null
+  /** Web fundamentals: another site's page sent it (its origin; null: the app's page). */
+  site: string | null
+  /** What it is for: the app's `fetch`, an image, or a page (a top-level navigation: a link, a form). */
+  destination: RequestDestination
+  /** Web fundamentals: every cookie of the URL's site, sent or why not (Chrome's words). */
+  cookies: RequestCookieRow[]
+}
+
+export type RequestDestination = 'fetch' | 'image' | 'document'
+
+/** A cookie a request carried (`sent`), or one of its site it did not, with why; a note when it went anyway. */
+export interface RequestCookieRow {
+  name: string
+  value: string
+  sent: boolean
+  reason: string | null
+}
+
+/** A Set-Cookie line of an answer: stored, or why not. */
+export interface SetCookieRow {
+  line: string
+  stored: boolean
+  reason: string | null
+}
+
+/** A cookie in the jar, as the Application panel lists it. */
+export interface CookieRow {
+  name: string
+  value: string
+  /** The name's and the value's length together (Chrome's Size column). */
+  size: number
+  domain: string
+  hostOnly: boolean
+  path: string
+  /** ms since 1970; null: a session cookie. */
+  expires: number | null
+  secure: boolean
+  httpOnly: boolean
+  sameSite: 'Strict' | 'Lax' | 'None' | 'Unspecified'
+}
+
+/** A cookie the browser refused: from a Set-Cookie line, or from document.cookie. */
+export interface RefusedCookieRow {
+  source: 'set' | 'script'
+  url: string
+  name: string
+  line: string
+  reason: string
+}
+
+export interface CookiesMessage {
+  type: 'cookies'
+  jar: CookieRow[]
+  /** How many cookies the jar holds (it may hold more than it sent). */
+  total: number
+  refused: RefusedCookieRow[]
+  /** The names a script on the page's origin can read (document.cookie, on any of its paths). */
+  readable: string[]
 }
 
 /** How a request failed without an answer the app can read: refused by CORS, no connection, cancelled. */
@@ -116,6 +176,8 @@ export interface ResponseMessage {
   time: number
   /** Web fundamentals: why CORS kept the answer from the page, in Chrome's words (null: it didn't). */
   reason: string | null
+  /** Web fundamentals: its Set-Cookie lines, stored or why not. */
+  cookies: SetCookieRow[]
 }
 
 /** A line of the API's server.js (Web fundamentals). */
@@ -142,6 +204,72 @@ const SERVER_LEVELS: readonly ServerOutputMessage['level'][] = ['access', 'log',
 /** Characters of a CORS reason (Chrome's longest is about 300) and of a server.js line (the frame cuts them at 500). */
 const MAX_REASON = 1000
 const MAX_SERVER_TEXT = 500
+/** Cookie rows: the frame cuts names, values and lines at 300 characters (and an ellipsis), sends at most 200 cookies and 100 refusals. */
+const MAX_COOKIES = 200
+const MAX_REFUSED = 100
+const MAX_COOKIE_TEXT = 301
+const SAME_SITES: readonly CookieRow['sameSite'][] = ['Strict', 'Lax', 'None', 'Unspecified']
+const DESTINATIONS: readonly RequestDestination[] = ['fetch', 'image', 'document']
+
+const cookieText = (value: unknown): string | null => typeof value === 'string' ? value.slice(0, MAX_COOKIE_TEXT) : null
+const fields = (value: unknown): Record<string, unknown> | null => typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null
+
+/** A request's cookies: plain rows, at most MAX_COOKIES (absent: none, as Debugging's backend sends). */
+function requestCookies(value: unknown): RequestCookieRow[] | null {
+  if (value === undefined) return []
+  if (!Array.isArray(value)) return null
+  const rows: RequestCookieRow[] = []
+  for (const each of value.slice(0, MAX_COOKIES)) {
+    const raw = fields(each)
+    const name = cookieText(raw?.name)
+    const content = cookieText(raw?.value)
+    const reason = raw?.reason === null ? null : cut(raw?.reason, MAX_REASON)
+    if (!raw || name === null || content === null || typeof raw.sent !== 'boolean' || (raw.reason !== null && reason === null)) return null
+    rows.push({ name, value: content, sent: raw.sent, reason })
+  }
+  return rows
+}
+
+/** An answer's Set-Cookie rows (absent: none). */
+function setCookieRows(value: unknown): SetCookieRow[] | null {
+  if (value === undefined) return []
+  if (!Array.isArray(value)) return null
+  const rows: SetCookieRow[] = []
+  for (const each of value.slice(0, MAX_HEADERS)) {
+    const raw = fields(each)
+    const line = cookieText(raw?.line)
+    const reason = raw?.reason === null ? null : cut(raw?.reason, MAX_REASON)
+    if (!raw || line === null || typeof raw.stored !== 'boolean' || (raw.reason !== null && reason === null)) return null
+    rows.push({ line, stored: raw.stored, reason })
+  }
+  return rows
+}
+
+function cookieRow(value: unknown): CookieRow | null {
+  const raw = fields(value)
+  if (!raw) return null
+  const name = cookieText(raw.name)
+  const content = cookieText(raw.value)
+  const domain = cut(raw.domain, 300)
+  const path = cookieText(raw.path)
+  const size = whole(raw.size, 1_000_000)
+  const expires = raw.expires === null ? null : typeof raw.expires === 'number' && Number.isFinite(raw.expires) ? raw.expires : undefined
+  const sameSite = SAME_SITES.find(each => each === raw.sameSite)
+  if (name === null || content === null || domain === null || path === null || size === undefined || expires === undefined || !sameSite) return null
+  if (typeof raw.hostOnly !== 'boolean' || typeof raw.secure !== 'boolean' || typeof raw.httpOnly !== 'boolean') return null
+  return { name, value: content, size, domain, hostOnly: raw.hostOnly, path, expires, secure: raw.secure, httpOnly: raw.httpOnly, sameSite }
+}
+
+function refusedRow(value: unknown): RefusedCookieRow | null {
+  const raw = fields(value)
+  if (!raw || (raw.source !== 'set' && raw.source !== 'script')) return null
+  const url = cookieText(raw.url)
+  const name = cookieText(raw.name)
+  const line = cookieText(raw.line)
+  const reason = cut(raw.reason, MAX_REASON)
+  if (url === null || name === null || line === null || reason === null) return null
+  return { source: raw.source, url, name, line, reason }
+}
 
 const text = (value: unknown): string | null => typeof value === 'string' ? value.slice(0, MAX_TEXT) : null
 const textOrNull = (value: unknown): string | null | undefined => value === null ? null : text(value) ?? undefined
@@ -362,8 +490,13 @@ export function readBridgeMessage(data: unknown): BridgeMessage | null {
       const stack = text(raw.stack)
       // Debugging's backend never says (undefined); the web backend says null or the id the preflight is for
       const preflightFor = raw.preflightFor === undefined || raw.preflightFor === null ? null : whole(raw.preflightFor, Number.MAX_SAFE_INTEGER)
+      // the web backend's chapter 2 fields (Debugging's backend sends none of them)
+      const site = raw.site === undefined || raw.site === null ? null : cut(raw.site, 300)
+      const destination = raw.destination === undefined ? 'fetch' : DESTINATIONS.find(each => each === raw.destination)
+      const cookies = requestCookies(raw.cookies)
       if (id === undefined || method === null || url === null || headers === null || body === undefined || stack === null || preflightFor === undefined) return null
-      return { type: 'request', id, method, url, headers, body, stack, preflightFor }
+      if ((site === null && raw.site !== undefined && raw.site !== null) || !destination || cookies === null) return null
+      return { type: 'request', id, method, url, headers, body, stack, preflightFor, site, destination, cookies }
     }
     case 'response': {
       const id = whole(raw.id, Number.MAX_SAFE_INTEGER)
@@ -374,8 +507,9 @@ export function readBridgeMessage(data: unknown): BridgeMessage | null {
       const failure = raw.failure === null ? null : FAILURES.find(each => each === raw.failure)
       const time = whole(raw.time, Number.MAX_SAFE_INTEGER)
       const reason = raw.reason === undefined || raw.reason === null ? null : cut(raw.reason, MAX_REASON)
-      if (id === undefined || status === undefined || statusText === null || headers === null || body === undefined || failure === undefined || time === undefined) return null
-      return { type: 'response', id, status, statusText, headers, body, failure, time, reason }
+      const cookies = setCookieRows(raw.cookies)
+      if (id === undefined || status === undefined || statusText === null || headers === null || body === undefined || failure === undefined || time === undefined || cookies === null) return null
+      return { type: 'response', id, status, statusText, headers, body, failure, time, reason, cookies }
     }
     case 'netlog': {
       const message = text(raw.text)
@@ -389,6 +523,15 @@ export function readBridgeMessage(data: unknown): BridgeMessage | null {
       const line = raw.line === null ? null : whole(raw.line, 1_000_000)
       if (!level || message === null || line === undefined || line === 0) return null
       return { type: 'server', level, text: message, line }
+    }
+    case 'cookies': {
+      if (!Array.isArray(raw.jar) || !Array.isArray(raw.refused) || !Array.isArray(raw.readable)) return null
+      const jar = raw.jar.slice(0, MAX_COOKIES).map(cookieRow)
+      const refused = raw.refused.slice(-MAX_REFUSED).map(refusedRow)
+      const readable = raw.readable.slice(0, MAX_COOKIES).map(cookieText)
+      const total = whole(raw.total, 1_000_000)
+      if (jar.some(row => row === null) || refused.some(row => row === null) || readable.some(name => name === null) || total === undefined) return null
+      return { type: 'cookies', jar: jar as CookieRow[], total, refused: refused as RefusedCookieRow[], readable: readable as string[] }
     }
     case 'dom': {
       if (!Array.isArray(raw.nodes) || typeof raw.truncated !== 'boolean') return null

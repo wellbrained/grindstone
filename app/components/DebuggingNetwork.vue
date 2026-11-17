@@ -9,7 +9,9 @@ import type { DebuggingPlaySession } from '~/composables/useDebuggingPlay'
 // reload empties it. Wide enough, the list and the details sit side by side; narrower, the details follow the list.
 // Web fundamentals (ADR 0009): a preflight is a row of its own, tagged "preflight" and linked to the request it asked
 // for; a request CORS refused says why in Chrome's words, and still shows what the server sent (the browser kept it from
-// the page, the server did answer), or that it was never sent when its preflight was refused.
+// the page, the server did answer), or that it was never sent when its preflight was refused. Chapter 2: a request another site's page sent is
+// tagged with that site (and a page or an image with its kind), and its details list its cookies (each sent, or why
+// not, in Chrome's words) and its answer's Set-Cookie lines (stored, or why not).
 const props = defineProps<{ play: DebuggingPlaySession }>()
 
 const { t } = useI18n()
@@ -86,8 +88,12 @@ const preflightOf = (entry: NetworkEntry) => entry.preflightFor === null ? null 
 
 // a row is spoken with the full address (the list shows only its last part, like the browser's panel); a pending
 // request has no time yet: its name ends with the status, without a trailing comma
+/** A site's tag: its host, with the scheme only when it is not https (http://cornerbakery.shop is another site). */
+const host = (origin: string) => origin.replace(/^https:\/\//, '')
 const spoken = (entry: NetworkEntry) => {
-  const name = entry.preflightFor === null ? entry.url : t('web.network.preflightName', { url: entry.url })
+  const base = entry.preflightFor === null ? entry.url : t('web.network.preflightName', { url: entry.url })
+  const kind = entry.destination === 'fetch' ? base : t('web.network.kindName', { name: base, kind: t(`web.network.destination.${entry.destination}`) })
+  const name = entry.site === null ? kind : t('web.network.fromName', { name: kind, site: host(entry.site) })
   return entry.response
     ? t('debugging.network.row', { method: entry.method, name, status: statusText(entry), time: durationText(entry.response.time) })
     : t('debugging.network.rowPending', { method: entry.method, name, status: statusText(entry) })
@@ -185,7 +191,15 @@ const viewOf = (body: string, headers: readonly HeaderPair[]) => bodyView(body, 
               v-if="entry.preflightFor !== null"
               class="ms-1.5 rounded-sm bg-accented px-1 font-sans text-[11px] text-muted"
               data-testid="network-preflight"
-            >{{ t('web.network.preflight') }}</span></span>
+            >{{ t('web.network.preflight') }}</span><span
+              v-if="entry.destination !== 'fetch'"
+              class="ms-1.5 rounded-sm bg-accented px-1 font-sans text-[11px] text-muted"
+              data-testid="network-destination"
+            >{{ t(`web.network.destination.${entry.destination}`) }}</span><span
+              v-if="entry.site !== null"
+              class="ms-1.5 rounded-sm bg-error/15 px-1 font-sans text-[11px] text-highlighted"
+              data-testid="network-site"
+            >{{ host(entry.site) }}</span></span>
             <span
               class="text-xs tabular-nums [grid-area:status]"
               :class="TONE[statusTone(entry)]"
@@ -238,6 +252,22 @@ const viewOf = (body: string, headers: readonly HeaderPair[]) => bodyView(body, 
             </dt>
             <dd class="font-mono break-all text-toned">
               {{ preflightOf(selected) ? `${preflightOf(selected)!.method} ${preflightOf(selected)!.name}` : '' }}
+            </dd>
+          </template>
+          <template v-if="selected.site !== null">
+            <dt class="text-muted">
+              {{ t('web.network.from') }}
+            </dt>
+            <dd class="font-mono break-all text-toned">
+              {{ selected.site }}
+            </dd>
+          </template>
+          <template v-if="selected.destination !== 'fetch'">
+            <dt class="text-muted">
+              {{ t('web.network.kind') }}
+            </dt>
+            <dd class="text-toned">
+              {{ t(`web.network.destinationLong.${selected.destination}`) }}
             </dd>
           </template>
           <template v-if="selected.initiator">
@@ -304,6 +334,56 @@ const viewOf = (body: string, headers: readonly HeaderPair[]) => bodyView(body, 
           >
             {{ part.none }}
           </p>
+        </section>
+        <section
+          v-if="selected.cookies.length || selected.response?.cookies.length"
+          :aria-label="t('web.network.cookies')"
+          class="mt-3"
+          data-testid="network-cookies"
+        >
+          <h3 class="mb-1 text-xs font-medium text-highlighted">
+            {{ t('web.network.cookies') }}
+          </h3>
+          <template v-if="selected.cookies.length">
+            <h4 class="mt-1 mb-0.5 text-xs text-muted">
+              {{ t('web.network.requestCookies') }}
+            </h4>
+            <ul class="space-y-1 text-xs">
+              <li
+                v-for="(cookie, index) in selected.cookies"
+                :key="`sent-${index}`"
+                :data-sent="cookie.sent"
+                data-testid="network-request-cookie"
+              >
+                <span class="font-mono break-all text-toned">{{ cookie.name }}={{ cookie.value }}</span>
+                {{ ' ' }}<span :class="cookie.sent ? 'text-success' : 'text-error'">{{ cookie.sent ? t('web.network.cookieSent') : t('web.network.cookieBlocked') }}</span>
+                <span
+                  v-if="cookie.reason"
+                  class="block text-muted"
+                >{{ cookie.reason }}</span>
+              </li>
+            </ul>
+          </template>
+          <template v-if="selected.response?.cookies.length">
+            <h4 class="mt-2 mb-0.5 text-xs text-muted">
+              {{ t('web.network.responseCookies') }}
+            </h4>
+            <ul class="space-y-1 text-xs">
+              <li
+                v-for="(cookie, index) in selected.response.cookies"
+                :key="`set-${index}`"
+                :data-stored="cookie.stored"
+                data-testid="network-response-cookie"
+              >
+                <span class="font-mono break-all text-toned">{{ cookie.line }}</span>
+                {{ ' ' }}<span :class="cookie.stored ? 'text-success' : 'text-error'">{{ cookie.stored ? t('web.network.cookieStored') : t('web.network.cookieRefused') }}</span>
+                <span
+                  v-if="cookie.reason"
+                  class="block text-muted"
+                >{{ cookie.reason }}</span>
+              </li>
+            </ul>
+          </template>
         </section>
       </div>
       <p

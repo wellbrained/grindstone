@@ -14,9 +14,13 @@ import type { Level, PracticeTask, Scenario, Session } from '../types'
  * - `row`: a Network row, 'METHOD address status' ('GET https://api.cornerbakery.shop/menu CORS error'),
  * - `server`: an access line of server.js ('OPTIONS /orders 200'),
  * - `says`: a Console line starts with this,
- * - `asks`: a preflight asked about this header (its Access-Control-Request-Headers names it).
+ * - `asks`: a preflight asked about this header (its Access-Control-Request-Headers names it),
+ * - `sent`: a request carried this cookie, 'METHOD address name' ('GET https://api.cornerbakery.shop/account session'),
+ * - `stored`: the jar holds a cookie of this name once the run is over (the Application panel lists it),
+ * - `refused`: the browser refused a cookie of this name (a Set-Cookie line, or a document.cookie write),
+ * - `readable`: a script on the page can read a cookie of this name (document.cookie).
  */
-export type PredictionFact = { row: string } | { server: string } | { says: string } | { asks: string }
+export type PredictionFact = { row: string } | { server: string } | { says: string } | { asks: string } | { sent: string } | { stored: string } | { refused: string } | { readable: string }
 
 /** One answer to choose, one line to order or to pick. */
 export interface PredictionOption {

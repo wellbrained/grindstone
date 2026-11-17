@@ -181,17 +181,17 @@ describe('the fake backend\'s messages', () => {
 
   it('reads a request, its answer and the browser\'s line for it', () => {
     // Debugging's backend names no preflight and no reason: they read as none
-    expect(readBridgeMessage(request)).toEqual({ ...request, preflightFor: null })
-    expect(readBridgeMessage(response)).toEqual({ ...response, reason: null })
+    expect(readBridgeMessage(request)).toEqual({ ...request, preflightFor: null, site: null, destination: 'fetch', cookies: [] })
+    expect(readBridgeMessage(response)).toEqual({ ...response, reason: null, cookies: [] })
     expect(readBridgeMessage(netlog)).toEqual(netlog)
     const cors = { ...response, status: null, statusText: '', headers: [], body: null, failure: 'cors' }
-    expect(readBridgeMessage(cors)).toEqual({ ...cors, reason: null })
+    expect(readBridgeMessage(cors)).toEqual({ ...cors, reason: null, cookies: [] })
   })
 
   it('reads the web backend\'s preflights, its reasons and server.js\'s lines (Web fundamentals), and refuses them malformed', () => {
-    const preflight = { ...request, id: 2, method: 'OPTIONS', preflightFor: 1 }
+    const preflight = { ...request, id: 2, method: 'OPTIONS', preflightFor: 1, site: null, destination: 'fetch', cookies: [] }
     expect(readBridgeMessage(preflight)).toEqual(preflight)
-    const refused = { ...response, status: 200, failure: 'cors', reason: 'No \'Access-Control-Allow-Origin\' header is present on the requested resource.' }
+    const refused = { ...response, status: 200, failure: 'cors', reason: 'No \'Access-Control-Allow-Origin\' header is present on the requested resource.', cookies: [] }
     expect(readBridgeMessage(refused)).toEqual(refused)
     expect(readBridgeMessage({ ...refused, reason: 'x'.repeat(5000) })).toMatchObject({ reason: 'x'.repeat(1000) })
     const line = { type: 'server', level: 'error', text: 'ReferenceError: MENU is not defined', line: 21 }
@@ -203,6 +203,34 @@ describe('the fake backend\'s messages', () => {
     expect(readBridgeMessage({ ...line, line: 2.5 })).toBeNull()
     expect(readBridgeMessage({ ...line, text: { html: '<b>' } })).toBeNull()
     expect(readBridgeMessage({ ...line, text: 'y'.repeat(900) })).toMatchObject({ text: 'y'.repeat(500) })
+  })
+
+  it('reads chapter 2\'s cookies: a request\'s (sent or why not), an answer\'s Set-Cookie lines, the jar for the Application panel', () => {
+    const form = { ...request, method: 'POST', site: 'https://cheap-flour.example', destination: 'document', preflightFor: null, cookies: [{ name: 'session', value: 'lena-7f3a', sent: false, reason: 'This cookie was blocked because …' }] }
+    expect(readBridgeMessage(form)).toEqual(form)
+    const kept = { ...response, reason: null, cookies: [{ line: 'session=lena-7f3a; Path=/', stored: true, reason: null }] }
+    expect(readBridgeMessage(kept)).toEqual(kept)
+    const jar = {
+      type: 'cookies',
+      jar: [{ name: 'session', value: 'lena-7f3a', size: 16, domain: 'api.cornerbakery.shop', hostOnly: true, path: '/', expires: null, secure: true, httpOnly: true, sameSite: 'Lax' }],
+      total: 1,
+      refused: [{ source: 'script', url: 'https://cornerbakery.shop/order', name: 'session', line: 'session=x; HttpOnly', reason: 'document.cookie can\'t set an HttpOnly cookie: the browser ignores the write.' }],
+      readable: []
+    }
+    expect(readBridgeMessage(jar)).toEqual(jar)
+    // malformed: a made-up destination or SameSite, a cookie row that is no object, a value that is no text, a source that is none
+    expect(readBridgeMessage({ ...form, destination: 'worker' })).toBeNull()
+    expect(readBridgeMessage({ ...form, site: 42 })).toBeNull()
+    expect(readBridgeMessage({ ...form, cookies: ['session=lena'] })).toBeNull()
+    expect(readBridgeMessage({ ...kept, cookies: [{ line: 1, stored: true, reason: null }] })).toBeNull()
+    expect(readBridgeMessage({ ...jar, jar: [{ ...jar.jar[0], sameSite: 'Sometimes' }] })).toBeNull()
+    expect(readBridgeMessage({ ...jar, jar: [{ ...jar.jar[0], value: { html: '<b>' } }] })).toBeNull()
+    expect(readBridgeMessage({ ...jar, refused: [{ ...jar.refused[0], source: 'page' }] })).toBeNull()
+    // capped: 200 cookies, 100 refusals (the last ones), values cut
+    const many = readBridgeMessage({ ...jar, jar: Array.from({ length: 500 }, () => ({ ...jar.jar[0], value: 'v'.repeat(5000) })), refused: Array.from({ length: 300 }, (_, i) => ({ ...jar.refused[0], name: `n${i}` })) })
+    expect(many).toMatchObject({ type: 'cookies' })
+    if (many?.type !== 'cookies') throw new Error('no cookies message')
+    expect([many.jar.length, many.jar[0]!.value.length, many.refused.length, many.refused[0]!.name]).toEqual([200, 301, 100, 'n200'])
   })
 
   it('refuses malformed ones: a made-up failure, headers that are not pairs of text, a status that is not one, a method that is not a word', () => {

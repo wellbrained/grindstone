@@ -31,7 +31,7 @@ const questionsOf = (level: WebLevel) => level.prediction.questions
 
 describe('the Web fundamentals levels', () => {
   it('are scenarios with one question and practice tasks with one or three, every one with a table', () => {
-    expect(webLevels.length).toBe(11)
+    expect(webLevels.length).toBe(21)
     for (const level of webLevels) {
       expect(level.id, level.id).toMatch(level.kind === 'scenario' ? /^web-\d\d-[a-z-]+$/ : /^web-practice-[a-z-]+$/)
       expect(level.hints).toHaveLength(level.kind === 'scenario' ? 3 : 1)
@@ -50,7 +50,7 @@ describe('the Web fundamentals levels', () => {
       }
     }
     // the scenarios' tags on the track page
-    expect(webLevels.filter(level => level.kind === 'scenario').map(level => level.teaches)).toEqual(['Allow-Origin', 'preflight', 'credentials', 'Allow-Headers', 'Allow-Methods'])
+    expect(webLevels.filter(level => level.kind === 'scenario').map(level => level.teaches)).toEqual(['Allow-Origin', 'preflight', 'credentials', 'Allow-Headers', 'Allow-Methods', 'SameSite=None', 'CSRF', 'HttpOnly', 'Path', 'Strict'])
   })
 
   it('check every answer against what the app does: the right option\'s fact holds, a wrong one\'s does not, lines come in the answer\'s order', () => {
@@ -58,6 +58,10 @@ describe('the Web fundamentals levels', () => {
       if ('row' in fact) return run.network.includes(fact.row)
       if ('server' in fact) return run.server.includes(fact.server)
       if ('asks' in fact) return (run.asks ?? []).some(asked => asked.split(',').includes(fact.asks))
+      if ('sent' in fact) return (run.sent ?? []).includes(fact.sent)
+      if ('stored' in fact) return (run.stored ?? []).includes(fact.stored)
+      if ('refused' in fact) return (run.refused ?? []).includes(fact.refused)
+      if ('readable' in fact) return (run.readable ?? []).includes(fact.readable)
       return (run.says ?? []).some(line => line.startsWith(fact.says))
     }
     for (const level of webLevels) {
@@ -171,8 +175,9 @@ const REQUESTS: Record<string, { start: [string, RequestInit?][], solved: [strin
   }
 })()
 
-describe('each scenario\'s server.js through the CORS model, on Node', () => {
-  for (const level of webLevels.filter(each => each.kind === 'scenario')) {
+// chapter 2's runs start with the page's clicks and other sites' visits (the scene): the e2e checks those in a browser
+describe('each chapter 1 scenario\'s server.js through the CORS model, on Node', () => {
+  for (const level of webLevels.filter(each => each.kind === 'scenario' && REQUESTS[each.id])) {
     it(`${level.id}: the requests its app sends get the Network panel's rows of the table`, async () => {
       vi.useFakeTimers()
       try {

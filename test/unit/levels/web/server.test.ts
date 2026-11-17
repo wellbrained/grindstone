@@ -174,3 +174,58 @@ app.get('/two', (req, res) => { res.set('Access-Control-Allow-Origin', ['https:/
     expect(prelude).not.toMatch(/<\/script/i)
   })
 })
+
+describe('cookies, forms and redirects in the server.js runtime (chapter 2)', () => {
+  it('res.cookie writes Set-Cookie as Express 5 does: Path=/ by default, Max-Age in seconds with Expires on the scripted clock', async () => {
+    const server = nodeServer(`const app = require('express')()
+app.post('/login', (req, res) => {
+  res.cookie('session', 'lena-7f3a', { httpOnly: true, secure: true, sameSite: 'lax' })
+  res.cookie('theme', 'dark night', { maxAge: 60 * 60 * 1000, domain: 'cornerbakery.shop' })
+  res.cookie('strict', '1', { sameSite: true, path: '/account', expires: new Date(Date.UTC(2026, 11, 24)) })
+  res.cookie('none', '1', { sameSite: 'none' })
+  res.json({ ok: true })
+})`)
+    const answer = await server.handle({ method: 'POST', url: `${API}/login`, headers: [], body: null })
+    expect(answer.headers.filter(([name]) => name === 'set-cookie').map(([, value]) => value)).toEqual([
+      'session=lena-7f3a; Path=/; HttpOnly; Secure; SameSite=Lax',
+      'theme=dark%20night; Max-Age=3600; Domain=cornerbakery.shop; Path=/; Expires=Tue, 17 Nov 2026 10:41:00 GMT',
+      'strict=1; Path=/account; Expires=Thu, 24 Dec 2026 00:00:00 GMT; SameSite=Strict',
+      'none=1; Path=/; SameSite=None'
+    ])
+  })
+
+  it('res.clearCookie expires the cookie in 1970 on its path; res.cookie refuses a sameSite it does not know', async () => {
+    const server = nodeServer(`const app = require('express')()
+app.post('/logout', (req, res) => {
+  res.clearCookie('session', { httpOnly: true })
+  res.end()
+})
+app.get('/odd', (req, res) => {
+  res.cookie('a', '1', { sameSite: 'sometimes' })
+  res.end()
+})`)
+    expect((await server.handle({ method: 'POST', url: `${API}/logout`, headers: [], body: null })).headers).toEqual([['set-cookie', 'session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly']])
+    expect((await server.handle(get('/odd'))).status).toBe(500)
+    expect(server.output.find(line => line.level === 'error')!.text).toBe('TypeError: option sameSite is invalid')
+  })
+
+  it('express.urlencoded() reads a form\'s body into req.body; other bodies stay unread', async () => {
+    const server = nodeServer(`const express = require('express')
+const app = express()
+app.use(express.urlencoded({ extended: false }))
+app.post('/orders', (req, res) => res.json(req.body ?? null))`)
+    const form = await server.handle({ method: 'POST', url: `${API}/orders`, headers: [['content-type', 'application/x-www-form-urlencoded']], body: 'item=sourdough&quantity=40&note=to+go%21' })
+    expect(form.body).toBe('{"item":"sourdough","quantity":"40","note":"to go!"}')
+    const json = await server.handle({ method: 'POST', url: `${API}/orders`, headers: [['content-type', 'application/json']], body: '{"item":"rye"}' })
+    expect(json.body).toBe('null')
+  })
+
+  it('res.redirect answers 302 (or the status given) with a Location', async () => {
+    const server = nodeServer(`const app = require('express')()
+app.get('/old', (req, res) => res.redirect('https://cornerbakery.shop/order'))
+app.post('/orders', (req, res) => res.redirect(303, '/orders/1042'))`)
+    const found = await server.handle(get('/old'))
+    expect([found.status, found.headers[0]]).toEqual([302, ['location', 'https://cornerbakery.shop/order']])
+    expect((await server.handle({ method: 'POST', url: `${API}/orders`, headers: [], body: null })).status).toBe(303)
+  })
+})

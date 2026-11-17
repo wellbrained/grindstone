@@ -107,6 +107,29 @@ export type ProbeStep
    * answer from 200 to 299 that page may read), 'refused' (one of 400 and up it may read), 'blocked' (CORS) or 'failed'.
    */
     | { fetchFrom: string, request: string, credentials?: 'omit' | 'same-origin' | 'include', headers?: Readonly<Record<string, string>> }
+  /**
+   * Web fundamentals (chapter 2): Lena opens another site of the level (`sandbox.web.sites`): what its page does runs in
+   * the panels, then the app gets 20 ms (and its answers). The value: the status of the last thing the page did (a form's,
+   * a link's), or 'blocked' / 'failed'.
+   */
+    | { visit: string }
+  /**
+   * Web fundamentals: a top-level navigation from a page on `from` (a link, nothing in the panels): its status, or
+   * 'failed'. `credentials: 'omit'`: a browser without Lena's cookies.
+   */
+    | { navigate: string, from: string, credentials?: 'omit' }
+  /** Web fundamentals: how many requests to `'METHOD https://host/path'` carried a cookie of this name. */
+    | { carried: string, cookie: string }
+  /** Web fundamentals: how many requests to another site than the page's carried this text (address, a header, the body). */
+    | { leaked: string }
+  /** Web fundamentals: 1 when a script on the page's origin can read a cookie of this name (on any of its paths), else 0. */
+    | { readable: string }
+  /**
+   * Web fundamentals: a script on the page reads every cookie it can (document.cookie, on any path of the page's origin)
+   * and an attacker replays them from elsewhere as the Cookie header of `'METHOD https://host/path'`: the status (200:
+   * the stolen cookies are a session), or 'failed'. Name- and value-blind: renaming a cookie hides nothing.
+   */
+    | { stolen: string }
 
 /** A scripted look at the app that goals read: steps run in order; its value is what the last read step read. */
 export interface Probe {

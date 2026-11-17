@@ -17,7 +17,7 @@ import {
 } from '#shared/levels'
 import type {
   Breakpoint, BridgeMessage, ColleagueMessage, ConsoleEntryBody, CssRule, DebugLevel, DebugRecord, DebugResult, DebugSession, DebugState, DeployPick, DomNode, Inspected, Instrumented, LogEntry, LoggedRequest, NetworkEntry, PickVerdict,
-  PredictionAnswer, Profile, RecordEndReason, RecordedStep, ScopeEntries, ServerOutputMessage, SourceLine, SourceMapping, WebLevel
+  CookiesMessage, PredictionAnswer, Profile, RecordEndReason, RecordedStep, ScopeEntries, ServerOutputMessage, SourceLine, SourceMapping, WebLevel
 } from '#shared/levels'
 import type { CompiledCondition } from '#shared/levels/debugging/condition'
 import type { LineTone } from '~/editor/codemirror'
@@ -157,6 +157,11 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
   const web = level.sandbox.web
   /** The level has a server.js (Web fundamentals): the Server panel shows what it did. */
   const hasServer = web?.server !== undefined
+  /** Chapter 2: the Application panel (the cookie jar per site, the refused ones). */
+  const hasApplication = web?.application === true
+  /** Chapter 2: the other sites Lena may open (the attacker's, her webmail), each a page in the Other site panel. */
+  const sites = (web?.sites ?? []).filter(site => site.hidden !== true)
+  const hasSites = sites.length > 0
   /** A Web fundamentals practice task: a prediction only, nothing to fix (the code is read-only). */
   const predictionOnly = webLevel?.kind === 'practice'
   /** The editor only reads: a find task (a click is the answer) or a prediction-only task. */
@@ -234,6 +239,15 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
 
   function clearServer() {
     serverLines.value = []
+  }
+
+  /** The Application panel: this load's cookie jar, as the frame last posted it (null before its first message). */
+  const cookieJar = shallowRef<CookiesMessage | null>(null)
+
+  /** Lena opens another site's page in this load (the Other site panel's Visit): its requests show in the panels. */
+  function visitSite(origin: string) {
+    if (!load.value || predicting.value || !sites.some(site => site.origin === origin)) return
+    toFrame({ type: 'visit', site: origin })
   }
 
   // the Elements panel: the snapshot of this load's DOM, the selected element and what the bridge said about it
@@ -320,6 +334,7 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
     awaitingDom = hasElements
     mapping.value = { urls: {}, bridgeLine: 0 }
     serverLines.value = []
+    cookieJar.value = null
     // a Web fundamentals level runs its app only once the prediction is answered: until then there is no load
     if (predicting.value) {
       link?.close()
@@ -327,7 +342,7 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
       load.value = null
       return
     }
-    const started = appLoad(files, { backend, web, elements: hasElements, record: recorded, profile, logs: logsSpec ?? undefined })
+    const started = appLoad(files, { backend, web, page: web ? level.sandbox.page : undefined, elements: hasElements, record: recorded, profile, logs: logsSpec ?? undefined })
     link?.close()
     link = bridgeLink(() => frameWindow(), started.token, message => onBridgeMessage(message, started))
     load.value = started
@@ -426,6 +441,8 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
     } else if (message.type === 'server') {
       // a flood of server.js's console must not freeze the page: the frame stops sending, and the panel keeps a cap
       if (serverLines.value.length < MAX_SERVER_LINES) serverLines.value = [...serverLines.value, { level: message.level, text: message.text, line: message.line, id: nextServerLine++ }]
+    } else if (message.type === 'cookies') {
+      if (hasApplication) cookieJar.value = message
     } else if (message.type === 'serverlog') {
       takeServerLog(message)
     } else if (message.type === 'request') {
@@ -918,7 +935,7 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
       counted = (await ensureTools())?.instrumentFiles(saved)
       if (disposed || startedIn !== attempt) return
     }
-    const observation = await runCheck(saved, level.sandbox.probes, { backend, web, performance: hasPerformance, counted, logs: logsSpec ?? undefined })
+    const observation = await runCheck(saved, level.sandbox.probes, { backend, web, page: web ? level.sandbox.page : undefined, performance: hasPerformance, counted, logs: logsSpec ?? undefined })
     // a Reset or Again while the check ran started a new attempt: this result belongs to the old one
     if (disposed || startedIn !== attempt) return
     checking.value = false
@@ -1008,6 +1025,11 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
     hasServer,
     serverLines,
     clearServer,
+    hasApplication,
+    cookieJar,
+    hasSites,
+    sites,
+    visitSite,
     hasNetwork,
     hasElements,
     hasDebugger,

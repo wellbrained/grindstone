@@ -205,14 +205,14 @@ describe('track registry', () => {
     expect(nextLevel('git-practice-release-from-develop')).toBeNull()
   })
 
-  it('gives Web fundamentals its seven chapters (ADR 0009): Same-origin & CORS live, the other six coming', () => {
+  it('gives Web fundamentals its seven chapters (ADR 0009): Same-origin & CORS and Cookies & sessions live, the other five coming', () => {
     const web = trackById('web')!
     expect(web).toMatchObject({ title: 'Web fundamentals', status: 'live', tagline: 'Predict what the browser does, then fix it.', cheatSheet: null, bestRun: ['wrongPredictions', 'hints', 'reloads'] })
     // the home card's text no longer promises performance (ADR 0009: that is Debugging's chapter 6)
     expect(`${web.scope} ${web.description}`).not.toMatch(/performance/i)
     expect(web.chapters.map(chapter => [chapter.number, chapter.id, chapter.title, chapter.levels.length, chapter.colour])).toEqual([
       [1, 'cors', 'Same-origin & CORS', 11, 0],
-      [2, 'cookies', 'Cookies & sessions', 0, 1],
+      [2, 'cookies', 'Cookies & sessions', 10, 1],
       [3, 'auth', 'Auth & tokens', 0, 2],
       [4, 'caching', 'HTTP caching', 0, 3],
       [5, 'event-loop', 'The event loop', 0, 4],
@@ -232,7 +232,20 @@ describe('track registry', () => {
       ['1.5', 'web-05-works-with-curl'],
       [null, 'web-practice-which-methods']
     ])
-    expect(nextLevel('web-practice-which-methods')).toBeNull()
+    expect(web.chapters[1]!.levels.map(level => [levelNumber(level.id), level.id])).toEqual([
+      ['2.1', 'web-06-sign-in-lost'],
+      [null, 'web-practice-which-stored'],
+      ['2.2', 'web-07-order-from-elsewhere'],
+      [null, 'web-practice-attacker-requests'],
+      ['2.3', 'web-08-script-reads-session'],
+      [null, 'web-practice-same-site'],
+      ['2.4', 'web-09-cookie-path'],
+      [null, 'web-practice-domain'],
+      ['2.5', 'web-10-email-link'],
+      [null, 'web-practice-link-cookies']
+    ])
+    expect(nextLevel('web-practice-which-methods')).toBe(levelById('web-06-sign-in-lost'))
+    expect(nextLevel('web-practice-link-cookies')).toBeNull()
   })
 
   it('gives Working with AI its seven chapters (ADR 0008), all live: Read the diff to Steer the assistant, and its cheat sheet', () => {

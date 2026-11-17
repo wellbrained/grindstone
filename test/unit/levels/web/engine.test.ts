@@ -128,7 +128,8 @@ describe('the best run and the radar', () => {
     expect(taskKindOf(level('web-practice-which-methods'))).toBe('predict')
     const view = trackView(trackById('web')!, emptyProgress())
     expect(view.chapters[0]!.rows.map(row => row.teaches ?? row.taskKind)).toEqual(['Allow-Origin', 'predict', 'predict', 'preflight', 'predict', 'credentials', 'predict', 'Allow-Headers', 'predict', 'Allow-Methods', 'predict'])
-    expect(view.chapters.slice(1).every(chapter => chapter.coming)).toBe(true)
+    expect(view.chapters[1]!.rows.map(row => row.teaches ?? row.taskKind)).toEqual(['SameSite=None', 'predict', 'CSRF', 'predict', 'HttpOnly', 'predict', 'Path', 'predict', 'Strict', 'predict'])
+    expect(view.chapters.slice(2).every(chapter => chapter.coming)).toBe(true)
   })
 })
 

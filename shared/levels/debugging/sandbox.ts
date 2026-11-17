@@ -74,6 +74,8 @@ export interface SandboxOptions {
    * app you see and its check runs alike; server.js is never one of the page's modules).
    */
   web?: WebSpec
+  /** Web fundamentals: the page's path (the address bar's, `/order`): document.cookie's URL and the Referer's. */
+  page?: string
 }
 
 /** What the bridge needs for the Elements panel: the page's rules (to test which match), the linked stylesheets' names, what to read. */
@@ -187,7 +189,7 @@ export function sandboxDocument(files: Readonly<Record<string, string>>, options
   const elements = options.elements && !options.probes ? elementsConfig(files) : null
   const record = recording ? options.count ? countingLimits(options.count) : RECORD_LIMITS : null
   const perf = options.performance ? { actions: recording !== null && options.count === 'profile' } : null
-  const web = options.web ? webConfig(options.web, files, SHOP_ORIGIN) : null
+  const web = options.web ? webConfig(options.web, files, SHOP_ORIGIN, options.page) : null
   const config = JSON.stringify({ token: options.token, modules, probes: options.probes ?? null, backend, elements, record, perf, web }).replace(/</g, '\\u003c')
   const injected = `<base href="${SHOP_ORIGIN}"><meta http-equiv="Content-Security-Policy" content="${options.count === 'check' ? COUNTING_CSP : SANDBOX_CSP}"><script>${BRIDGE_SOURCE}(${config});</script>`
 
