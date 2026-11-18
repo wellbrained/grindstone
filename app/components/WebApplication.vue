@@ -1,21 +1,24 @@
 <script setup lang="ts">
-import type { CookieRow } from '#shared/levels'
+import type { CookieRow, StorageAreaRow } from '#shared/levels'
 import type { DebuggingPlaySession } from '~/composables/useDebuggingPlay'
 
 // The Application panel of a Web fundamentals level (chapter 2; docs/features/ui.md, "Web fundamentals play page"):
 // what the browser keeps for the page, like Chrome's Application panel. Storage kinds on the left as they arrive
-// (Cookies now; the cache comes with chapter 4), the chosen one on the right. Cookies: per site a table with Chrome's
-// columns (name, value, domain, path, expires, size, HttpOnly, Secure, SameSite), then the cookies the browser refused
-// in this load with Chrome's reason (or, for document.cookie, Grindstone's). Live: the frame posts the jar after each
-// change. Everything is text; a narrow panel scrolls a table sideways inside its own region, never the page.
+// (Cookies; Local and Session storage since chapter 3; the cache comes with chapter 4), the chosen one on the right.
+// Cookies: per site a table with Chrome's columns (name, value, domain, path, expires, size, HttpOnly, Secure,
+// SameSite), then the cookies the browser refused in this load with Chrome's reason (or, for document.cookie,
+// Grindstone's). Storage: per origin a table of keys and values. A value that is a JSON Web Token is decoded below its
+// table (header, payload, its times on the scripted clock). Live: the frame posts after each change. Everything is
+// text; a narrow panel scrolls a table sideways inside its own region, never the page.
 const props = defineProps<{ play: DebuggingPlaySession }>()
 
 const { t } = useI18n()
-const { cookieJar, predicting } = props.play
+const { cookieJar, storage, hasStorage, predicting } = props.play
 
 /** The storage kinds the panel shows (a list, so chapter 4's cache can join it). */
-const KINDS = ['cookies'] as const
-type Kind = typeof KINDS[number]
+type Kind = 'cookies' | 'local' | 'session'
+const KINDS: Kind[] = hasStorage ? ['cookies', 'local', 'session'] : ['cookies']
+const ICONS: Record<Kind, string> = { cookies: 'i-lucide-cookie', local: 'i-lucide-hard-drive', session: 'i-lucide-app-window' }
 const kind = ref<Kind>('cookies')
 
 const start = useTemplateRef<HTMLElement>('start')
@@ -32,6 +35,14 @@ const groups = computed(() => {
 })
 const refused = computed(() => cookieJar.value?.refused ?? [])
 const dropped = computed(() => Math.max(0, (cookieJar.value?.total ?? 0) - (cookieJar.value?.jar.length ?? 0)))
+
+/** The areas of the chosen storage kind that hold anything, as the frame sent them (localStorage first, by origin). */
+const areas = computed<StorageAreaRow[]>(() => (storage.value?.areas ?? []).filter(area => area.kind === kind.value && area.count > 0))
+const items = computed(() => areas.value.reduce((sum, area) => sum + area.count, 0))
+const now = computed(() => storage.value?.now ?? null)
+/** The tokens among the cookies' values (a session cookie that holds one). */
+const cookieTokens = computed(() => (cookieJar.value?.jar ?? []).flatMap(cookie => tokensIn(cookie.value).map(found => ({ where: `${cookie.domain} · ${cookie.name}`, ...found }))))
+const areaTokens = (area: StorageAreaRow) => area.items.flatMap(([key, value]) => tokensIn(value).map(found => ({ where: key, ...found })))
 
 /** Chrome's Domain column: a domain cookie with its leading dot, a host-only one as its host. */
 const domainOf = (cookie: CookieRow) => cookie.hostOnly ? cookie.domain : `.${cookie.domain}`
@@ -50,10 +61,15 @@ const expiresOf = (cookie: CookieRow) => cookie.expires === null ? t('web.applic
       />
       {{ t('web.application.label') }}
       <span
-        v-if="cookieJar"
+        v-if="kind === 'cookies' && cookieJar"
         class="font-mono text-dimmed tabular-nums"
         data-testid="application-count"
       >{{ t('web.application.count', cookieJar.total) }}</span>
+      <span
+        v-else-if="kind !== 'cookies' && storage"
+        class="font-mono text-dimmed tabular-nums"
+        data-testid="application-count"
+      >{{ t('web.application.items', items) }}</span>
     </header>
 
     <div class="min-h-0 flex-1 overflow-y-auto @lg:grid @lg:grid-cols-[9rem_minmax(0,1fr)] @lg:overflow-hidden">
@@ -75,7 +91,7 @@ const expiresOf = (cookie: CookieRow) => cookie.expires === null ? t('web.applic
               @click="kind = name"
             >
               <UIcon
-                name="i-lucide-cookie"
+                :name="ICONS[name]"
                 class="size-3.5 shrink-0"
               />
               {{ t(`web.application.kind.${name}`) }}
@@ -90,8 +106,100 @@ const expiresOf = (cookie: CookieRow) => cookie.expires === null ? t('web.applic
         class="min-w-0 px-3 py-2 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary @lg:min-h-0 @lg:overflow-y-auto"
         data-testid="application"
       >
+        <template v-if="kind !== 'cookies'">
+          <p
+            v-if="!storage"
+            class="text-xs text-dimmed"
+          >
+            {{ predicting ? t('web.server.waiting') : t('web.application.storageLoading') }}
+          </p>
+          <p
+            v-else-if="!areas.length"
+            class="text-xs text-dimmed"
+            data-testid="application-empty"
+          >
+            {{ t(`web.application.storageEmpty.${kind}`) }}
+          </p>
+          <section
+            v-for="area in areas"
+            :key="area.origin"
+            class="mb-3"
+            :aria-labelledby="`${kind}-${area.origin}`"
+            data-testid="application-area"
+            :data-origin="area.origin"
+          >
+            <h3
+              :id="`${kind}-${area.origin}`"
+              class="mb-1 font-mono text-xs font-medium text-highlighted"
+            >
+              {{ area.origin }}
+            </h3>
+            <div
+              role="region"
+              tabindex="0"
+              :aria-label="t(`web.application.storageOf.${kind}`, { origin: area.origin })"
+              class="relative overflow-x-auto rounded-md border border-(--app-terminal-border) focus-visible:outline-2 focus-visible:outline-primary"
+            >
+              <table class="w-full min-w-[20rem] border-collapse font-mono text-xs">
+                <caption class="sr-only">
+                  {{ t(`web.application.storageCaption.${kind}`, { origin: area.origin, n: area.count }) }}
+                </caption>
+                <thead class="bg-elevated/60 text-start text-muted">
+                  <tr>
+                    <th
+                      scope="col"
+                      class="px-2 py-1 text-start font-sans font-medium"
+                    >
+                      {{ t('web.application.column.key') }}
+                    </th>
+                    <th
+                      scope="col"
+                      class="px-2 py-1 text-start font-sans font-medium"
+                    >
+                      {{ t('web.application.column.value') }}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr
+                    v-for="[key, value] in area.items"
+                    :key="key"
+                    class="border-t border-(--app-terminal-border) text-toned"
+                    data-testid="application-item"
+                    :data-key="key"
+                  >
+                    <th
+                      scope="row"
+                      class="px-2 py-1 text-start align-top font-medium break-words text-highlighted"
+                    >
+                      {{ key }}
+                    </th>
+                    <td class="px-2 py-1 break-all">
+                      {{ value }}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p
+              v-if="area.count > area.items.length"
+              class="mt-1 text-xs text-dimmed"
+            >
+              {{ t('web.application.moreItems', area.count - area.items.length) }}
+            </p>
+            <div class="mt-2 space-y-2">
+              <WebToken
+                v-for="(found, index) in areaTokens(area)"
+                :key="`${index}-${found.token}`"
+                :where="found.where"
+                :decoded="found.decoded"
+                :now="now"
+              />
+            </div>
+          </section>
+        </template>
         <p
-          v-if="!cookieJar"
+          v-else-if="!cookieJar"
           class="text-xs text-dimmed"
         >
           {{ predicting ? t('web.server.waiting') : t('web.application.loading') }}
@@ -201,6 +309,19 @@ const expiresOf = (cookie: CookieRow) => cookie.expires === null ? t('web.applic
           >
             {{ t('web.application.more', dropped) }}
           </p>
+
+          <div
+            v-if="cookieTokens.length"
+            class="mb-3 space-y-2"
+          >
+            <WebToken
+              v-for="(found, index) in cookieTokens"
+              :key="`${index}-${found.token}`"
+              :where="found.where"
+              :decoded="found.decoded"
+              :now="now"
+            />
+          </div>
 
           <section
             v-if="refused.length"

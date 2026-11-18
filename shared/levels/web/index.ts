@@ -1,5 +1,5 @@
-// The Web fundamentals track (ADR 0009): its chapters and their levels, in play order. Chapters 1 and 2 are live,
-// chapters 3 to 7 are coming (no levels yet). A practice task goes right after the scenario it trains (`practises`); defineTrack
+// The Web fundamentals track (ADR 0009): its chapters and their levels, in play order. Chapters 1 to 3 are live,
+// chapters 4 to 7 are coming (no levels yet). A practice task goes right after the scenario it trains (`practises`); defineTrack
 // checks it.
 import { fewestWrongPredictions } from '../progress'
 import { defineTrack, trackLevels } from '../track'
@@ -15,8 +15,14 @@ import { orderFromElsewhere } from './07-order-from-elsewhere'
 import { scriptReadsSession } from './08-script-reads-session'
 import { cookiePath } from './09-cookie-path'
 import { emailLink } from './10-email-link'
+import { tokenInStorage } from './11-token-in-storage'
+import { reviewRuns } from './12-review-runs'
+import { tokenNeverExpires } from './13-token-never-expires'
+import { signedOutAgain } from './14-signed-out-again'
+import { logoutStays } from './15-logout-stays'
 import { consoleOrder, readableAnswers, sameOrigin, simpleOrPreflight, whichHeaders, whichMethods } from './practice/cors'
 import { attackerRequests, linkCookies, sameSiteOrNot, whichHosts, whichStored } from './practice/cookies'
+import { afterLogout, refreshCookie, scriptReads, whichRun, whichTokens } from './practice/auth'
 
 export const webTrack = defineTrack({
   id: 'web',
@@ -70,7 +76,18 @@ export const webTrack = defineTrack({
       title: 'Auth & tokens',
       description: 'Where a token lives (a cookie or storage), XSS against CSRF, expiry and refresh, logging out.',
       colour: 2,
-      levels: []
+      levels: [
+        tokenInStorage,
+        scriptReads,
+        reviewRuns,
+        whichRun,
+        tokenNeverExpires,
+        whichTokens,
+        signedOutAgain,
+        refreshCookie,
+        logoutStays,
+        afterLogout
+      ]
     },
     {
       id: 'caching',

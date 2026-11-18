@@ -12,7 +12,7 @@ const createRuntime = new Function(`return ${SERVER_RUNTIME_SOURCE}`)() as (limi
 
 export interface NodeServer {
   /** Answers one request (or rejects when server.js crashed while it started). */
-  handle: (request: ServerRequest) => Promise<ServerAnswer>
+  handle: (request: ServerRequest & { now?: number }) => Promise<ServerAnswer>
   /** What server.js wrote: access lines, its console, errors. */
   output: ServerOutput[]
   /** Why it did not start (it threw at its top level, or does not parse), or null. */
@@ -21,22 +21,19 @@ export interface NodeServer {
   serve: (request: ServerRequest, done: (answer: ServerAnswer | { fail: string }) => void) => void
 }
 
-export function nodeServer(source: string): NodeServer {
+/** server.js on Node; `time`: its Date tells the scripted time (chapter 3), as the worker's does. */
+export function nodeServer(source: string, time = false): NodeServer {
   const output: ServerOutput[] = []
-  const runtime = createRuntime({ ...SERVER_LIMITS, statusText: STATUS_TEXT }, line => output.push(line))
+  const runtime = createRuntime({ ...SERVER_LIMITS, statusText: STATUS_TEXT, time }, line => output.push(line))
   const log = (level: ServerOutput['level']) => (...args: unknown[]) => output.push({ level, text: args.map(arg => typeof arg === 'string' ? arg : JSON.stringify(arg)).join(' '), line: null })
   const console = { log: log('log'), info: log('log'), warn: log('warn'), error: log('error') }
-  const require = (name: string) => {
-    if (name === 'express') return runtime.express
-    throw new Error(`Cannot find module '${name}'`)
-  }
   let crashed: string | null = null
   try {
-    new Function('require', 'console', source)(require, console)
+    new Function('require', 'console', 'Date', source)(runtime.require, console, time ? runtime.Date : Date)
   } catch (error) {
     crashed = error instanceof Error ? `${error.name}: ${error.message}` : String(error)
   }
-  const handle = (request: ServerRequest) => new Promise<ServerAnswer>((resolve, reject) => {
+  const handle = (request: ServerRequest & { now?: number }) => new Promise<ServerAnswer>((resolve, reject) => {
     if (crashed) reject(new Error(crashed))
     else runtime.handle(request, resolve)
   })
@@ -54,7 +51,7 @@ const createBackend = new Function(`return ${WEB_BACKEND_SOURCE}`)() as (config:
 /** The web backend on Node with the level's server.js run in-process: what it posts, and the runtime. */
 export function nodeBackend(spec: WebSpec, files: Readonly<Record<string, string>>) {
   const posted: Posted[] = []
-  const server = nodeServer(spec.server ? files[spec.server] ?? '' : '')
+  const server = nodeServer(spec.server ? files[spec.server] ?? '' : '', spec.time === true)
   const config = webConfig(spec, files, SHOP_ORIGIN)
   const backend = createBackend(config, {
     post: (message: Posted) => posted.push(message),

@@ -37,6 +37,12 @@ export interface CheckResult {
   refused: string[]
   /** The names a script on the page can read once the run was over. */
   readable: string[]
+  /** Chapter 3: the keys the page's own origin keeps once the run was over ('local token', 'session draft'). */
+  storage: string[]
+  /** Chapter 3: every origin's storage once the run was over, 'local https://… key'. */
+  areas: string[]
+  /** Chapter 3: the thief's requests from outside the browser the Server panel shows, 'METHOD address status'. */
+  replayed: string[]
 }
 
 export interface RunOptions {
@@ -100,6 +106,8 @@ async function runFrame(page: Page, files: Readonly<Record<string, string>>, pro
   }
   const profile = messages.find(message => message.type === 'profile')
   const jar = messages.filter(message => message.type === 'cookies').at(-1)
+  const kept = messages.filter(message => message.type === 'storage').at(-1)
+  const pageOrigin = new URL(options.page ?? '/', 'https://cornerbakery.shop').origin
   return {
     observation: observe(messages, document.bridgeLine),
     entries: messages.map(message => consoleEntry(message, mapping)).filter((entry): entry is ConsoleEntryBody => entry !== null),
@@ -114,7 +122,10 @@ async function runFrame(page: Page, files: Readonly<Record<string, string>>, pro
     sent: requests.flatMap(entry => entry.cookies.filter(cookie => cookie.sent).map(cookie => `${entry.method} ${requestAddress(entry.url)} ${cookie.name}`)),
     stored: jar?.type === 'cookies' ? jar.jar.map(cookie => cookie.name) : [],
     refused: jar?.type === 'cookies' ? jar.refused.map(row => row.name) : [],
-    readable: jar?.type === 'cookies' ? jar.readable : []
+    readable: jar?.type === 'cookies' ? jar.readable : [],
+    storage: kept?.type === 'storage' ? kept.areas.filter(area => area.origin === pageOrigin).flatMap(area => area.items.map(([key]) => `${area.kind} ${key}`)) : [],
+    areas: kept?.type === 'storage' ? kept.areas.flatMap(area => area.items.map(([key]) => `${area.kind} ${area.origin} ${key}`)) : [],
+    replayed: messages.flatMap(message => message.type === 'replay' ? [`${message.request} ${message.status ?? 'failed'}`] : [])
   }
 }
 

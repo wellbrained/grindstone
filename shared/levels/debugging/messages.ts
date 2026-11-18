@@ -46,6 +46,10 @@ export type BridgeMessage
     | ServerOutputMessage
   /** Web fundamentals (chapter 2): the cookie jar after a change, for the Application panel. */
     | CookiesMessage
+  /** Web fundamentals (chapter 3): every origin's localStorage and sessionStorage after a change, and the scripted time. */
+    | StorageMessage
+  /** Web fundamentals (chapter 3): the thief sent a request from outside the browser (the Server panel says so). */
+    | ReplayMessage
   /** The Elements panel: a snapshot of the app's DOM (in document order), cut at MAX_DOM_NODES. */
     | { type: 'dom', nodes: DomNode[], truncated: boolean }
   /** The Elements panel: the selected element's matching rules, box and computed values (`seq`: which request it answers). */
@@ -159,6 +163,38 @@ export interface CookiesMessage {
   readable: string[]
 }
 
+/** Chapter 3: one origin's localStorage or sessionStorage (in the page's tab), as the Application panel shows it. */
+export interface StorageAreaRow {
+  kind: 'local' | 'session'
+  origin: string
+  /** Key and value, each cut at 300 characters; at most 200 rows. */
+  items: [string, string][]
+  /** How many items it holds (it may hold more than it sent). */
+  count: number
+  /** Code units in use (the quota counts them). */
+  size: number
+}
+
+export interface StorageMessage {
+  type: 'storage'
+  areas: StorageAreaRow[]
+  /** The scripted clock's time (ms): a token's exp reads against it. */
+  now: number
+}
+
+/** Chapter 3: what the thief sent from outside the browser, with what, and what server.js answered. */
+export interface ReplayMessage {
+  type: 'replay'
+  /** 'GET https://api.cornerbakery.shop/account' */
+  request: string
+  /** What it sent that it took ('authorization: Bearer eyJ…', 'cookie: session=…'), cut at 300 characters. */
+  using: string
+  /** null: no answer (no connection). */
+  status: number | null
+  /** The site whose server took it (what reached cheap-flour.example), or null (a copy). */
+  by: string | null
+}
+
 /** How a request failed without an answer the app can read: refused by CORS, no connection, cancelled. */
 export type RequestFailure = 'cors' | 'network' | 'aborted'
 
@@ -209,6 +245,8 @@ const MAX_COOKIES = 200
 const MAX_REFUSED = 100
 const MAX_COOKIE_TEXT = 301
 const SAME_SITES: readonly CookieRow['sameSite'][] = ['Strict', 'Lax', 'None', 'Unspecified']
+/** Storage areas: the frame sends at most this many areas (origins and kinds) and 200 items in each. */
+const MAX_AREAS = 50
 const DESTINATIONS: readonly RequestDestination[] = ['fetch', 'image', 'document']
 
 const cookieText = (value: unknown): string | null => typeof value === 'string' ? value.slice(0, MAX_COOKIE_TEXT) : null
@@ -243,6 +281,24 @@ function setCookieRows(value: unknown): SetCookieRow[] | null {
     rows.push({ line, stored: raw.stored, reason })
   }
   return rows
+}
+
+function storageArea(value: unknown): StorageAreaRow | null {
+  const raw = fields(value)
+  if (!raw || (raw.kind !== 'local' && raw.kind !== 'session') || !Array.isArray(raw.items)) return null
+  const origin = cut(raw.origin, 300)
+  const count = whole(raw.count, 10_000_000)
+  const size = whole(raw.size, 100_000_000)
+  const items: [string, string][] = []
+  for (const each of raw.items.slice(0, MAX_COOKIES)) {
+    if (!Array.isArray(each)) return null
+    const key = cookieText(each[0])
+    const content = cookieText(each[1])
+    if (key === null || content === null) return null
+    items.push([key, content])
+  }
+  if (origin === null || count === undefined || size === undefined) return null
+  return { kind: raw.kind, origin, items, count, size }
 }
 
 function cookieRow(value: unknown): CookieRow | null {
@@ -532,6 +588,20 @@ export function readBridgeMessage(data: unknown): BridgeMessage | null {
       const total = whole(raw.total, 1_000_000)
       if (jar.some(row => row === null) || refused.some(row => row === null) || readable.some(name => name === null) || total === undefined) return null
       return { type: 'cookies', jar: jar as CookieRow[], total, refused: refused as RefusedCookieRow[], readable: readable as string[] }
+    }
+    case 'storage': {
+      if (!Array.isArray(raw.areas) || typeof raw.now !== 'number' || !Number.isFinite(raw.now)) return null
+      const areas = raw.areas.slice(0, MAX_AREAS).map(storageArea)
+      if (areas.some(area => area === null)) return null
+      return { type: 'storage', areas: areas as StorageAreaRow[], now: raw.now }
+    }
+    case 'replay': {
+      const request = cut(raw.request, 2000)
+      const using = cookieText(raw.using)
+      const status = raw.status === null ? null : whole(raw.status, 999)
+      const by = raw.by === null ? null : cut(raw.by, 300)
+      if (request === null || using === null || status === undefined || (raw.by !== null && by === null)) return null
+      return { type: 'replay', request, using, status, by }
     }
     case 'dom': {
       if (!Array.isArray(raw.nodes) || typeof raw.truncated !== 'boolean') return null

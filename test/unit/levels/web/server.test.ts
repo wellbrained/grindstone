@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { SERVER_LIMITS, serverPrelude } from '../../../../shared/levels/web/server'
 import { STATUS_TEXT } from '../../../../shared/levels/debugging/backend'
+import { WEB_CLOCK } from '../../../../shared/levels/web/cookies'
 import { nodeServer } from './helpers'
 
 // The server.js runtime (ADR 0009, docs/features/levels.md "The server"): the very source the worker in the sealed
@@ -227,5 +228,55 @@ app.post('/orders', (req, res) => res.redirect(303, '/orders/1042'))`)
     const found = await server.handle(get('/old'))
     expect([found.status, found.headers[0]]).toEqual([302, ['location', 'https://cornerbakery.shop/order']])
     expect((await server.handle({ method: 'POST', url: `${API}/orders`, headers: [], body: null })).status).toBe(303)
+  })
+})
+
+describe('chapter 3: tokens, cookies read for you, ids and the scripted clock', () => {
+  const MINUTE = 60_000
+  const TOKEN_SERVER = `const express = require('express')
+const jwt = require('jsonwebtoken')
+const cookieParser = require('cookie-parser')
+const { randomUUID } = require('crypto')
+const app = express()
+app.use(cookieParser())
+const SECRET = 'oven-mitt-4417'
+app.post('/login', (req, res) => res.json({ token: jwt.sign({ sub: 'lena' }, SECRET, { expiresIn: '15m' }), id: randomUUID() }))
+app.get('/account', (req, res) => {
+  try {
+    res.json({ who: jwt.verify(req.cookies.session, SECRET).sub, at: new Date().toISOString(), now: Date.now() })
+  } catch (error) {
+    res.status(401).json({ error: error.name + ': ' + error.message })
+  }
+})`
+  const at = (minutes: number) => WEB_CLOCK + minutes * MINUTE
+
+  it('require(\'jsonwebtoken\') signs on the clock of the request, and verify refuses the token once the clock passes exp', async () => {
+    const server = nodeServer(TOKEN_SERVER, true)
+    const login = JSON.parse((await server.handle({ method: 'POST', url: `${API}/login`, headers: [], body: null, now: at(0) })).body!) as { token: string }
+    const ask = (minutes: number) => server.handle({ ...get('/account', [['cookie', `theme=dark; session=${login.token}`]]), now: at(minutes) })
+    expect(JSON.parse((await ask(14)).body!)).toEqual({ who: 'lena', at: '2026-11-17T09:55:00.000Z', now: at(14) })
+    const late = await ask(15)
+    expect([late.status, late.body]).toEqual([401, '{"error":"TokenExpiredError: jwt expired"}'])
+  })
+
+  it('cookie-parser reads req.cookies (URI-decoded, the first of a name); crypto.randomUUID gives the same ids on every run', async () => {
+    const first = nodeServer(TOKEN_SERVER, true)
+    const second = nodeServer(TOKEN_SERVER, true)
+    const idOf = async (server: ReturnType<typeof nodeServer>) => (JSON.parse((await server.handle({ method: 'POST', url: `${API}/login`, headers: [], body: null })).body!) as { id: string }).id
+    const ids = [await idOf(first), await idOf(first)]
+    expect(ids[0]).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+    expect(ids[1]).not.toBe(ids[0])
+    expect(await idOf(second)).toBe(ids[0])
+    const echo = nodeServer(`const app = require('express')()
+app.use(require('cookie-parser')())
+app.get('/c', (req, res) => res.json(req.cookies))`)
+    expect((await echo.handle(get('/c', [['cookie', 'a=1; b=two%20words; a=2; c="q"']]))).body).toBe('{"a":"1","b":"two words","c":"q"}')
+  })
+
+  it('without a moving clock (chapters 1 and 2) server.js keeps the real Date; another module is still not found', async () => {
+    const server = nodeServer(`const app = require('express')()
+app.get('/now', (req, res) => res.json({ scripted: Date.now() === ${WEB_CLOCK} }))`)
+    expect((await server.handle(get('/now'))).body).toBe('{"scripted":false}')
+    expect(nodeServer('require(\'passport\')').crashed).toBe('Error: Cannot find module \'passport\'')
   })
 })

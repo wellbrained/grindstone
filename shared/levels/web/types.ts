@@ -18,9 +18,13 @@ import type { Level, PracticeTask, Scenario, Session } from '../types'
  * - `sent`: a request carried this cookie, 'METHOD address name' ('GET https://api.cornerbakery.shop/account session'),
  * - `stored`: the jar holds a cookie of this name once the run is over (the Application panel lists it),
  * - `refused`: the browser refused a cookie of this name (a Set-Cookie line, or a document.cookie write),
- * - `readable`: a script on the page can read a cookie of this name (document.cookie).
+ * - `readable`: a script on the page can read a cookie of this name (document.cookie),
+ * - `storage`: the page's own origin keeps this key once the run is over, 'local token' or 'session draft' (chapter 3:
+ *   what a script on the page reads; the Application panel lists it),
+ * - `replayed`: the thief's request from outside the browser got this answer, 'METHOD address status' (chapter 3; the
+ *   Server panel shows it).
  */
-export type PredictionFact = { row: string } | { server: string } | { says: string } | { asks: string } | { sent: string } | { stored: string } | { refused: string } | { readable: string }
+export type PredictionFact = { row: string } | { server: string } | { says: string } | { asks: string } | { sent: string } | { stored: string } | { refused: string } | { readable: string } | { storage: string } | { replayed: string }
 
 /** One answer to choose, one line to order or to pick. */
 export interface PredictionOption {

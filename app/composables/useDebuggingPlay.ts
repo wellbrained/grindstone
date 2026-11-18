@@ -17,7 +17,7 @@ import {
 } from '#shared/levels'
 import type {
   Breakpoint, BridgeMessage, ColleagueMessage, ConsoleEntryBody, CssRule, DebugLevel, DebugRecord, DebugResult, DebugSession, DebugState, DeployPick, DomNode, Inspected, Instrumented, LogEntry, LoggedRequest, NetworkEntry, PickVerdict,
-  CookiesMessage, PredictionAnswer, Profile, RecordEndReason, RecordedStep, ScopeEntries, ServerOutputMessage, SourceLine, SourceMapping, WebLevel
+  CookiesMessage, PredictionAnswer, Profile, RecordEndReason, RecordedStep, ReplayMessage, ScopeEntries, ServerOutputMessage, SourceLine, SourceMapping, StorageMessage, WebLevel
 } from '#shared/levels'
 import type { CompiledCondition } from '#shared/levels/debugging/condition'
 import type { LineTone } from '~/editor/codemirror'
@@ -49,8 +49,11 @@ const MAX_APP_MESSAGES = 1000
 export const MAX_REQUESTS = 200
 /** The Server panel keeps at most this many of server.js's lines per load (the frame stops sending at SERVER_LIMITS.maxOutput). */
 export const MAX_SERVER_LINES = 300
-/** A line of the Server panel. */
-export type ServerLine = Omit<ServerOutputMessage, 'type'> & { id: number }
+/**
+ * A line of the Server panel: one of server.js's (an access line, its console, an error), or (chapter 3) the thief's
+ * request from outside the browser, after server.js's access line for it.
+ */
+export type ServerLine = (Omit<ServerOutputMessage, 'type'> | { level: 'outside', replay: Omit<ReplayMessage, 'type'>, text: string, line: null }) & { id: number }
 /** How long Stop waits for the recorder's last steps (a busy app may never answer). */
 const STOP_WAIT_MS = 600
 
@@ -243,6 +246,10 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
 
   /** The Application panel: this load's cookie jar, as the frame last posted it (null before its first message). */
   const cookieJar = shallowRef<CookiesMessage | null>(null)
+  /** Chapter 3: the level has Web Storage (the Application panel's Local and Session storage). */
+  const hasStorage = web?.storage !== undefined
+  /** Chapter 3: every origin's storage and the scripted time, as the frame last posted them (null before the first). */
+  const storage = shallowRef<StorageMessage | null>(null)
 
   /** Lena opens another site's page in this load (the Other site panel's Visit): its requests show in the panels. */
   function visitSite(origin: string) {
@@ -335,6 +342,7 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
     mapping.value = { urls: {}, bridgeLine: 0 }
     serverLines.value = []
     cookieJar.value = null
+    storage.value = null
     // a Web fundamentals level runs its app only once the prediction is answered: until then there is no load
     if (predicting.value) {
       link?.close()
@@ -443,6 +451,11 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
       if (serverLines.value.length < MAX_SERVER_LINES) serverLines.value = [...serverLines.value, { level: message.level, text: message.text, line: message.line, id: nextServerLine++ }]
     } else if (message.type === 'cookies') {
       if (hasApplication) cookieJar.value = message
+    } else if (message.type === 'storage') {
+      if (hasApplication && hasStorage) storage.value = message
+    } else if (message.type === 'replay') {
+      // the thief's request from outside the browser: a line of its own in the Server panel, under server.js's answer
+      if (serverLines.value.length < MAX_SERVER_LINES) serverLines.value = [...serverLines.value, { level: 'outside', replay: { request: message.request, using: message.using, status: message.status, by: message.by }, text: message.request, line: null, id: nextServerLine++ }]
     } else if (message.type === 'serverlog') {
       takeServerLog(message)
     } else if (message.type === 'request') {
@@ -1027,6 +1040,8 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
     clearServer,
     hasApplication,
     cookieJar,
+    hasStorage,
+    storage,
     hasSites,
     sites,
     visitSite,

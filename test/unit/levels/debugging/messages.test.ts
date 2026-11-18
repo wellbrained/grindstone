@@ -233,6 +233,24 @@ describe('the fake backend\'s messages', () => {
     expect([many.jar.length, many.jar[0]!.value.length, many.refused.length, many.refused[0]!.name]).toEqual([200, 301, 100, 'n200'])
   })
 
+  it('reads chapter 3\'s storage and the thief\'s replays as plain data, capped, and refuses malformed ones', () => {
+    const storage = { type: 'storage', areas: [{ kind: 'local', origin: 'https://cornerbakery.shop', items: [['token', 'eyJ.x.y']], count: 1, size: 12 }], now: 1794908460000 }
+    expect(readBridgeMessage(storage)).toEqual(storage)
+    const replay = { type: 'replay', request: 'GET https://api.cornerbakery.shop/account', using: 'authorization: Bearer eyJ', status: 200, by: 'https://cheap-flour.example' }
+    expect(readBridgeMessage(replay)).toEqual(replay)
+    expect(readBridgeMessage({ ...replay, status: null, by: null })).toEqual({ ...replay, status: null, by: null })
+    // malformed: a kind that is none, an item that is no pair of text, no clock, a status that is no number
+    expect(readBridgeMessage({ ...storage, areas: [{ ...storage.areas[0], kind: 'indexedDB' }] })).toBeNull()
+    expect(readBridgeMessage({ ...storage, areas: [{ ...storage.areas[0], items: [['token', 42]] }] })).toBeNull()
+    expect(readBridgeMessage({ ...storage, now: 'soon' })).toBeNull()
+    expect(readBridgeMessage({ ...replay, status: 'ok' })).toBeNull()
+    expect(readBridgeMessage({ ...replay, using: 7 })).toBeNull()
+    // capped: 50 areas, 200 items each, keys and values cut at 301 characters
+    const many = readBridgeMessage({ ...storage, areas: Array.from({ length: 80 }, () => ({ ...storage.areas[0], items: Array.from({ length: 300 }, () => ['k', 'v'.repeat(5000)]) })) })
+    if (many?.type !== 'storage') throw new Error('no storage message')
+    expect([many.areas.length, many.areas[0]!.items.length, many.areas[0]!.items[0]![1].length]).toEqual([50, 200, 301])
+  })
+
   it('refuses malformed ones: a made-up failure, headers that are not pairs of text, a status that is not one, a method that is not a word', () => {
     const read = (message: object) => readBridgeMessage(message)
     expect(read({ ...response, failure: 'teapot' })).toBeNull()

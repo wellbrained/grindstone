@@ -1674,7 +1674,7 @@
     }
   },
   "web": {
-    "note": "Predict first, then read the panels (Network, Server and, for cookies, Application), fix the code, Save and Reload: the goals are checked on every reload.",
+    "note": "Predict first, then read the panels (Network, Server and, for cookies, storage and tokens, Application), fix the code, Save and Reload: the goals are checked on every reload.",
     "practiceNote": "A prediction only: answer, then see in the app's panels who was right. Nothing to fix.",
     "wrongPredictions": "Wrong predictions: {n}",
     "readOnly": "Read only: a prediction",
@@ -1707,7 +1707,12 @@
       "label": "Server",
       "lines": "What server.js did in this load",
       "empty": "Nothing yet. What server.js answers, and what it logs, shows here.",
-      "waiting": "The app runs once you answer the prediction."
+      "waiting": "The app runs once you answer the prediction.",
+      "thiefSite": "From outside the browser, {site}'s server with what reached it:",
+      "thiefCopy": "From outside the browser, someone with a copy:",
+      "thiefSent": "sent {using}",
+      "thiefToken": "its token: {claims}",
+      "noAnswer": "no answer"
     },
     "network": {
       "preflight": "preflight",
@@ -1742,7 +1747,9 @@
       "label": "Application",
       "kinds": "Storage",
       "kind": {
-        "cookies": "Cookies"
+        "cookies": "Cookies",
+        "local": "Local storage",
+        "session": "Session storage"
       },
       "count": "no cookies | 1 cookie | {n} cookies",
       "loading": "The cookie jar shows here once the app has loaded.",
@@ -1758,7 +1765,8 @@
         "size": "Size",
         "httpOnly": "HttpOnly",
         "secure": "Secure",
-        "sameSite": "SameSite"
+        "sameSite": "SameSite",
+        "key": "Key"
       },
       "session": "Session",
       "yes": "yes",
@@ -1767,7 +1775,22 @@
       "more": "and one more cookie not listed | and {n} more cookies not listed",
       "refused": "Refused in this load",
       "fromHeader": "Set-Cookie from {url}",
-      "fromScript": "document.cookie on {url}"
+      "fromScript": "document.cookie on {url}",
+      "items": "no items | 1 item | {n} items",
+      "storageLoading": "Storage shows here once the app has loaded.",
+      "storageEmpty": {
+        "local": "Nothing in localStorage yet. What each origin keeps there shows here, live.",
+        "session": "Nothing in sessionStorage yet. What this tab keeps for each origin shows here, live."
+      },
+      "storageOf": {
+        "local": "Local storage of {origin}",
+        "session": "Session storage of {origin}"
+      },
+      "storageCaption": {
+        "local": "Local storage of {origin}: {n} items, each with its key and value",
+        "session": "Session storage of {origin}: {n} items, each with its key and value"
+      },
+      "moreItems": "and one more item not listed | and {n} more items not listed"
     },
     "site": {
       "label": "Other site",
@@ -1782,6 +1805,18 @@
       "nothing": "Nothing yet: Visit as Lena opens it.",
       "show": "{method} {url}, {status}: show in the Network panel",
       "page": "Its page (read only)"
+    },
+    "token": {
+      "label": "Token in {where}, decoded",
+      "heading": "Decoded token:",
+      "issued": "issued {time}",
+      "expires": "expires {time}, in {n} min",
+      "expired": "expired at {time}, {n} min ago",
+      "expiresAt": "expires {time}",
+      "noExpiry": "no exp: it never runs out",
+      "header": "Header",
+      "payload": "Payload",
+      "signature": "Signature: only the secret makes it. Anyone can read the rest, so nothing secret belongs in a token."
     }
   }
 }

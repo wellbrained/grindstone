@@ -13,6 +13,12 @@
 // sites' pages run as data (`visit`: their images, fetches, self-submitting forms and links, each request tagged with
 // the site), and the Application panel gets the jar after every change (`cookies` messages, at most every 50 ms).
 //
+// Chapter 3 (auth & tokens): Web Storage (storage.ts: `localStorage` and `sessionStorage` per origin, the page's objects
+// defined by the bridge, `storage` messages for the Application panel), a scripted clock that moves (`later`: cookies
+// expire, tokens run out; server.js and the page tell that time), and a thief: `copy` (what a script on the page could
+// take, or a copy of the browser's cookies), `issued` (what a sign-in answered some minutes ago) and `replay` (the copy
+// sent from outside the browser, as curl would: no CORS, no SameSite; `show` puts it in the Server panel).
+//
 // Two halves, like Debugging's backend: `webConfig` (TypeScript) turns the level's spec and files into plain data, and
 // WEB_BACKEND_SOURCE (JavaScript in a string) runs in the frame (and in the unit tests, with a server run in-process).
 // The same interface as Debugging's backend (`fetch`, `pending`, `count`, `sent`), plus what the web probes read:
@@ -22,8 +28,10 @@ import { STATUS_TEXT, backendConfig } from '../debugging/backend'
 import type { BackendRoute, ProbeStep } from '../debugging/types'
 import { COOKIE_SOURCE, WEB_CLOCK } from './cookies'
 import { CORS_SOURCE } from './cors'
-import { SERVER_HOST_SOURCE, SERVER_LIMITS, serverPrelude } from './server'
+import { SCRIPTED_DATE_SOURCE, SCRIPTED_TIME_SOURCE, SERVER_HOST_SOURCE, SERVER_LIMITS, serverPrelude } from './server'
 import type { OtherSite, SiteAction } from './sites'
+import { STORAGE_LIMITS, STORAGE_SOURCE } from './storage'
+import type { StorageKind } from './storage'
 
 /** The time each exchange with a server takes on the way (both ways together), like a quick local network. */
 export const WEB_DELAY_MS = 20
@@ -37,6 +45,17 @@ export interface SeedCookie {
   line: string
   minutesAgo: number
 }
+
+/** An item the browser kept in an origin's storage from before the page loaded (chapter 3). */
+export interface SeedItem {
+  origin: string
+  kind: StorageKind
+  key: string
+  value: string
+}
+
+/** What the thief gets back for the panels and the tests: a request it made from outside the browser (chapter 3). */
+export const REPLAY_LIMITS = { attempts: 40, candidates: 40, text: 300 } as const
 
 /** A level's servers (`sandbox.web`). */
 export interface WebSpec {
@@ -62,6 +81,16 @@ export interface WebSpec {
   scene?: readonly ProbeStep[]
   /** The level shows the Application panel (cookies per site, refused ones with why). */
   application?: boolean
+  /**
+   * Chapter 3: the page has Web Storage (`localStorage`, `sessionStorage`) through the storage model, starting with these
+   * items (the Application panel shows both kinds). Without it the frame has none, as in chapters 1 and 2.
+   */
+  storage?: readonly SeedItem[]
+  /**
+   * Chapter 3: the clock moves (`{ later }` in the scene or a probe): the page's and server.js's `Date` tell the scripted
+   * time, cookies expire and tokens run out on it.
+   */
+  time?: boolean
 }
 
 interface ShopRouteData {
@@ -91,7 +120,7 @@ export interface WebConfig {
   /** The level has a server.js (false: the API's origin answers nothing, and says nothing). */
   hasServer: boolean
   prelude: string
-  limits: typeof SERVER_LIMITS & { panel: typeof COOKIE_PANEL_LIMITS }
+  limits: typeof SERVER_LIMITS & { panel: typeof COOKIE_PANEL_LIMITS, storage: typeof STORAGE_LIMITS, replay: typeof REPLAY_LIMITS }
   delay: number
   statusText: Readonly<Record<number, string>>
   /** The scripted clock the cookie jar runs on. */
@@ -102,6 +131,10 @@ export interface WebConfig {
   scene: ProbeStep[] | null
   /** The Application panel is shown: the frame posts the jar after every change. */
   application: boolean
+  /** Chapter 3: Web Storage in the frame, from these items; null: none. */
+  storage: SeedItem[] | null
+  /** Chapter 3: the clock moves, and the page's and server.js's Date follow it. */
+  time: boolean
   shop: { origins: string[], routes: ShopRouteData[] }
 }
 
@@ -137,14 +170,20 @@ export function webConfig(spec: WebSpec, files: Readonly<Record<string, string>>
     ...(spec.cookies ?? [])
   ].map(seed => ({ url: new URL(seed.url).href, line: seed.line, ago: seed.minutesAgo * 60_000 }))
   const data = backendConfig({ routes }, origin)
+  const storage = spec.storage
+    ? spec.storage.map((seed) => {
+        if (seed.kind !== 'local' && seed.kind !== 'session') throw new Error(`${seed.key}: storage is 'local' or 'session'`)
+        return { origin: originOnly(seed.origin, 'a stored item\'s origin'), kind: seed.kind, key: seed.key, value: seed.value }
+      })
+    : null
   return {
     page: origin,
     path,
     api,
     source: spec.server !== undefined && Object.hasOwn(files, spec.server) ? files[spec.server]! : null,
     hasServer: spec.server !== undefined,
-    prelude: serverPrelude(STATUS_TEXT),
-    limits: { ...SERVER_LIMITS, panel: COOKIE_PANEL_LIMITS },
+    prelude: serverPrelude(STATUS_TEXT, spec.time === true),
+    limits: { ...SERVER_LIMITS, panel: COOKIE_PANEL_LIMITS, storage: STORAGE_LIMITS, replay: REPLAY_LIMITS },
     delay: WEB_DELAY_MS,
     statusText: STATUS_TEXT,
     clock: WEB_CLOCK,
@@ -152,6 +191,8 @@ export function webConfig(spec: WebSpec, files: Readonly<Record<string, string>>
     sites,
     scene: spec.scene ? JSON.parse(JSON.stringify(spec.scene)) as ProbeStep[] : null,
     application: spec.application === true,
+    storage,
+    time: spec.time === true,
     shop: {
       origins: [origin, ...(spec.shop?.alsoOn ?? []).map(each => new URL(each).origin)],
       routes: data.routes.map(route => ({
@@ -195,6 +236,29 @@ export interface WebRuntime {
   /** `document.cookie` on the page: read, and write. */
   documentCookie: () => string
   writeCookie: (value: unknown) => void
+  /**
+   * Chapter 3: the page's `localStorage` and `sessionStorage` (Storage.prototype gets the model's members); null when
+   * the level has no storage.
+   */
+  storage: ((proto: object) => { local: object, session: object }) | null
+  /** Chapter 3: a Date on the scripted clock for the page (null when the level's time stands still). */
+  date: DateConstructor | null
+  /** Chapter 3: puts the scripted time on the window (Date, Intl's default date, performance.timeOrigin); null: none. */
+  installTime: ((global: object) => void) | null
+  /** Chapter 3: ms since a request last started or ended (the bridge waits for 50 of them before it moves on); null: not asked. */
+  quietFor: (() => number) | null
+  /** Chapter 3: the scripted clock moves on this many minutes. */
+  later: (minutes: number) => void
+  /** Chapter 3: keeps a copy under a name: what a script on the page could take now ('script'), or the browser's cookies for the API ('browser'). */
+  copy: (kind: string, as: string) => void
+  /** Chapter 3: what a sign-in (`'POST https://…'` with a form body) answered `ago` minutes earlier, kept under a name. */
+  issued: (probe: { issued: string, body?: Record<string, string>, ago?: number, as?: string }, then: () => void) => void
+  /**
+   * Chapter 3: the thief sends `'METHOD https://…'` from outside the browser with what it has (`using`: a copy's name,
+   * 'script', or a site's origin: what reached that site's server), trying each piece: the status of the first answer
+   * from 200 to 299, else of the last, or 'failed'. `show`: the Server panel says so.
+   */
+  replay: (probe: { replay: string, using?: string, show?: boolean, forge?: boolean }, then: (value: string | number) => void) => void
 }
 
 // Runs inside the frame as part of the bridge (one line: block comments only, every statement ends with a semicolon),
@@ -204,6 +268,7 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
   'use strict';
   var model = (${CORS_SOURCE})();
   var cookieModel = (${COOKIE_SOURCE})();
+  var storageModel = config.storage ? (${STORAGE_SOURCE})() : null;
   var server = hooks.serve ? { serve: hooks.serve } : (${SERVER_HOST_SOURCE})({ source: config.source, hasServer: config.hasServer, prelude: config.prelude, limits: config.limits }, {
     output: function (line) { hooks.post({ type: 'server', level: line.level, text: line.text, line: line.line }); }
   });
@@ -242,8 +307,10 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
   var indexOfText = uncurry(String.prototype.indexOf);
   var sliceText = uncurry(String.prototype.slice);
   var hasOwn = uncurry(Object.prototype.hasOwnProperty);
+  var execPattern = uncurry(RegExp.prototype.exec);
   var thenOf = uncurry(NativePromise.prototype.then);
   var encode = encodeURIComponent;
+  var decode = decodeURIComponent;
   var defineProperty = Object.defineProperty;
   var createObject = Object.create;
   var parseJson = JSON.parse;
@@ -255,6 +322,8 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
   var mathRound = Math.round;
   var toText = String;
   var later = setTimeout;
+  var parseFloatText = parseFloat;
+  var RealDate = Date;
   /* Every write into a list defines its element with a descriptor that has no prototype: an assignment to an index a
      list doesn't have yet would run a setter the app put on Array.prototype or Object.prototype (and hand it what is
      written), and defineProperty reads get and set through the chain too. */
@@ -287,6 +356,13 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
   var records = createObject(null);
   var recordCount = 0;
   var pending = 0;
+  /* when a request last started or ended (chapter 3's scenes wait until nothing happened for 50 ms: the page's next
+     request may follow an answer a moment later, and the clock must not move in between) */
+  var lastActive = -1e15;
+  var busy = function (delta) {
+    pending += delta;
+    lastActive = hooks.now();
+  };
   var nextId = 1;
   var shopCalls = [];
   for (var c = 0; c < config.shop.routes.length; c++) shopCalls[c] = 0;
@@ -313,8 +389,12 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
     return placeOf(sliceText(key, 0, space), new NativeURL(sliceText(key, space + 1), page + '/'));
   };
 
+  /* --- the scripted clock: where the load starts; chapter 3's later moves it ------------------------------------------ */
+  var clock = config.clock;
+  var scriptedDate = config.time ? (${SCRIPTED_DATE_SOURCE})(RealDate, function () { return clock; }) : null;
+
   /* --- the cookie jar: one per load, on the scripted clock --------------------------------------------------------- */
-  var jar = cookieModel.createJar(function () { return config.clock; });
+  var jar = cookieModel.createJar(function () { return clock; });
   var pageSite = cookieModel.siteOf(page);
   for (var s = 0; s < config.seeds.length; s++) jar.store(config.seeds[s].line, { url: config.seeds[s].url, sameSite: true, created: config.clock - config.seeds[s].ago });
   var refusals = [];
@@ -346,6 +426,34 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
     push(refusals, { source: source, url: cut(url, PANEL.text), name: cut(name, PANEL.text), line: cut(line, PANEL.text), reason: reason });
   };
   cookiesChanged();
+
+  /* --- Web Storage (chapter 3): the areas, seeded with what the browser kept; the panel gets them after each change --- */
+  var STORE = config.limits.storage;
+  if (storageModel) {
+    for (var si = 0; si < config.storage.length; si++) storageModel.area(config.storage[si].kind, config.storage[si].origin).setItem(toText(config.storage[si].key), toText(config.storage[si].value));
+    storageModel.area('local', page);
+    storageModel.area('session', page);
+  }
+  var storageQueued = false;
+  var storageAt = -1;
+  var postStorage = function () {
+    storageQueued = false;
+    storageAt = hooks.now();
+    var areas = storageModel.list();
+    var out = [];
+    for (var i = 0; i < areas.length; i++) {
+      var items = [];
+      for (var k = 0; k < areas[i].items.length && k < STORE.rows; k++) push(items, [cut(areas[i].items[k][0], STORE.text), cut(areas[i].items[k][1], STORE.text)]);
+      push(out, { kind: areas[i].kind, origin: areas[i].origin, items: items, count: areas[i].items.length, size: areas[i].size });
+    }
+    hooks.post({ type: 'storage', areas: out, now: clock });
+  };
+  var storageChanged = function () {
+    if (!storageModel || !config.application || storageQueued) return;
+    storageQueued = true;
+    later(postStorage, storageAt < 0 ? 0 : mathMax(0, storageAt + 50 - hooks.now()));
+  };
+  storageChanged();
 
   /* The cookies a request carries: with credentials (a navigation always), the jar's choice for the request's site
      context: same-site when the initiator's site is the URL's (the page is the top level), a top-level navigation's
@@ -387,7 +495,13 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
     record.read = false;
     record.cookies = [];
     record.site = cookieModel.siteOf(target);
+    record.origin = originOf(new NativeURL(target));
+    record.href = target;
     record.text = text;
+    /* chapter 3: what the page's own code handed to fetch (its headers) and what it could read of the answer */
+    record.page = false;
+    record.headers = [];
+    record.answer = null;
     records[recordCount] = record;
     recordCount += 1;
     return record;
@@ -460,7 +574,8 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
     var target = originOf(url);
     if (target === api) {
       if (record) record.arrived = true;
-      server.serve(request, done);
+      /* the request as server.js gets it, at the scripted moment it is answered at */
+      server.serve({ method: request.method, url: request.url, headers: request.headers, body: request.body, now: clock }, done);
       return;
     }
     if (has(config.shop.origins, target)) { later(function () { done(shopAnswer(request.method, url)); }, 0); return; }
@@ -547,10 +662,12 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
     var id = nextId++;
     var record = remember(placeOf(method, url), body, href, textOf(href, sent, body));
     record.cookies = sentNames(found);
+    record.page = true;
+    record.headers = copy(headers);
     hooks.post({ type: 'request', id: id, method: method, url: href, headers: sent, body: body, stack: stack, preflightFor: null, site: null, destination: 'fetch', cookies: found.list });
     var started = hooks.now();
     var signal = init && init.signal ? init.signal : null;
-    pending += 1;
+    busy(1);
     return new NativePromise(function (resolve, reject) {
       var open = true;
       var report = function (to, status, statusText, headers, body, failure, reason, kept) {
@@ -560,7 +677,7 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
       var close = function () {
         if (!open) return false;
         open = false;
-        pending -= 1;
+        busy(-1);
         if (signal) signal.removeEventListener('abort', onAbort);
         return true;
       };
@@ -606,6 +723,8 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
             } catch (error) {
               return reject(failed);
             }
+            /* what the page's code (and so any script on the page) could read of it */
+            record.answer = typeof answer.body === 'string' ? answer.body : null;
             resolve(response);
           }, delay);
         });
@@ -657,9 +776,9 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
       if (!spec.show) return;
       hooks.post({ type: 'response', id: to, status: status, statusText: status === null ? '' : STATUS[status] || '', headers: headers, body: body, failure: failure, time: mathMax(0, mathRound(hooks.now() - started)), reason: reason, cookies: kept || [] });
     };
-    pending += 1;
+    busy(1);
     var finish = function (kind, status) {
-      pending -= 1;
+      busy(-1);
       done({ kind: kind, status: status });
     };
     var actual = function () {
@@ -707,7 +826,10 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
       var names = keysOf(probe.headers);
       for (var i = 0; i < names.length; i++) put(given, given.length, [names[i], toText(probe.headers[names[i]])]);
     }
-    sendAs({ from: origin, address: origin + '/', noReferrer: false, method: asked.method, url: asked.url, headers: model.requestHeaders(given, 'cors'), body: null, mode: 'cors', credentials: credentials, destination: 'fetch', show: false }, function (result) {
+    /* chapter 3: a form body (another customer posts a review) */
+    var fields = probe.body && typeof probe.body === 'object' ? probe.body : null;
+    if (fields) put(given, given.length, ['content-type', FORM + ';charset=UTF-8']);
+    sendAs({ from: origin, address: origin + '/', noReferrer: false, method: asked.method, url: asked.url, headers: model.requestHeaders(given, 'cors'), body: fields ? formBody(fields) : null, mode: 'cors', credentials: credentials, destination: 'fetch', show: false }, function (result) {
       if (result.kind !== 'answer') return then(result.kind);
       then(result.status >= 200 && result.status < 300 ? 'read' : 'refused');
     });
@@ -736,9 +858,9 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
     if (!site) { later(function () { then(null); }, 0); return; }
     var at = 0;
     var last = null;
-    pending += 1;
+    busy(1);
     var step = function () {
-      if (at >= site.actions.length) { pending -= 1; return then(last); }
+      if (at >= site.actions.length) { busy(-1); return then(last); }
       var action = site.actions[at];
       at += 1;
       /* each request's spec is made whole (no field set later: a setter the app put on Object.prototype would see it),
@@ -811,6 +933,346 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
     };
   };
 
+  /* --- the thief (chapter 3) -------------------------------------------------------------------------------------- */
+  var REPLAY = config.limits.replay;
+  var copies = createObject(null);
+  var emptyLoot = function () { return { cookies: [], tokens: [], headerSets: [], queries: [] }; };
+  var addOnce = function (list, item) { if (list.length < REPLAY.candidates && !has(list, item)) push(list, item); };
+  var lootSeq = 0;
+  /* a cookie into the loot: name, value, path and when it was made (the browser's order for a Cookie header); one of the
+     same name and path replaces it, as the thief keeps the newest */
+  var keepCookie = function (loot, name, value, path, created) {
+    var item = [name, value, path || '/', typeof created === 'number' ? created : clock, lootSeq++];
+    for (var i = 0; i < loot.cookies.length; i++) {
+      if (loot.cookies[i][0] === name && loot.cookies[i][2] === item[2]) { put(loot.cookies, i, item); return; }
+    }
+    if (loot.cookies.length < REPLAY.candidates) push(loot.cookies, item);
+  };
+  var dropCookie = function (loot, name, path) {
+    var kept = [];
+    for (var i = 0; i < loot.cookies.length; i++) if (!(loot.cookies[i][0] === name && loot.cookies[i][2] === path)) push(kept, loot.cookies[i]);
+    loot.cookies = kept;
+  };
+  /* name=value pairs as document.cookie or a Cookie header shows them (no path: the page's) */
+  var cookiePairs = function (loot, header) {
+    var text = toText(header);
+    var from = 0;
+    while (from < text.length) {
+      var end = indexOfText(text, ';', from);
+      if (end < 0) end = text.length;
+      var pair = sliceText(text, from, end);
+      while (pair.length && pair[0] === ' ') pair = sliceText(pair, 1);
+      var at = indexOfText(pair, '=');
+      if (at > 0) keepCookie(loot, sliceText(pair, 0, at), sliceText(pair, at + 1), '/', clock);
+      from = end + 1;
+    }
+  };
+  /* a Set-Cookie line an answer gave the thief (or a sign-in answered): kept with its path, or dropped when it expires it */
+  var setCookieInto = function (loot, line, href) {
+    var parsed = cookieModel.parse(toText(line));
+    if (own(parsed, 'problem')) return;
+    var path = parsed.path !== null ? parsed.path : cookieModel.defaultPath(pathOf(new NativeURL(href)));
+    var gone = parsed.maxAge !== null ? parsed.maxAge <= 0 : parsed.expires !== null && parsed.expires <= clock;
+    if (gone) dropCookie(loot, parsed.name, path);
+    else keepCookie(loot, parsed.name, parsed.value, path, clock);
+  };
+  var JWT_SHAPE = /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*$/;
+  var looksSigned = function (text) { return execPattern(JWT_SHAPE, text) !== null; };
+  /* every string in a value read as JSON (or the text itself when it is no JSON object or list), name-blind: a token
+     under any key */
+  var tokensIn = function (loot, text, depth) {
+    text = toText(text);
+    var value;
+    var parsed = true;
+    try { value = parseJson(text); } catch (error) { parsed = false; }
+    if (!parsed || value === null || typeof value !== 'object') {
+      if (text.length >= 8 && text.length <= 4096) addOnce(loot.tokens, text);
+      return;
+    }
+    var walk = function (item, level) {
+      if (level > 4) return;
+      if (typeof item === 'string') { if (item.length >= 8 && item.length <= 4096) addOnce(loot.tokens, item); return; }
+      if (item === null || typeof item !== 'object') return;
+      var keys = keysOf(item);
+      for (var i = 0; i < keys.length && i < REPLAY.candidates; i++) walk(item[keys[i]], level + 1);
+    };
+    walk(value, depth || 0);
+  };
+  var queryOf = function (href) {
+    var at = indexOfText(href, '?');
+    if (at < 0) return '';
+    var hash = indexOfText(href, '#', at);
+    return sliceText(href, at + 1, hash < 0 ? href.length : hash);
+  };
+  var decodeText = function (text) {
+    text = toText(text);
+    var spaced = '';
+    for (var i = 0; i < text.length; i++) spaced += text[i] === '+' ? ' ' : text[i];
+    try { return decode(spaced); } catch (error) { return text; }
+  };
+  /* What a script on the page could take now: document.cookie, every item of the page's own storage, and of every
+     request the page's code sent its headers and query, and the answers it could read. */
+  var scriptLoot = function () {
+    var loot = emptyLoot();
+    cookiePairs(loot, jar.steal(page));
+    if (storageModel) {
+      for (var pass = 0; pass < 2; pass++) {
+        var items = storageModel.area(pass === 0 ? 'local' : 'session', page).entries();
+        for (var i = 0; i < items.length; i++) tokensIn(loot, items[i][1], 0);
+      }
+    }
+    for (var r = 0; r < recordCount; r++) {
+      var record = records[r];
+      if (!record.page) continue;
+      if (record.headers.length && loot.headerSets.length < REPLAY.candidates) push(loot.headerSets, copy(record.headers));
+      var query = queryOf(record.href);
+      if (query) addOnce(loot.queries, query);
+      if (record.answer !== null) tokensIn(loot, record.answer, 0);
+    }
+    return loot;
+  };
+  /* A copy of the browser's cookies for the API (a HAR file, an extension on a shared computer): all of them, HttpOnly too. */
+  var apiHost = sliceText(api, indexOfText(api, '//') + 2);
+  var browserLoot = function () {
+    var loot = emptyLoot();
+    var list = jar.list();
+    for (var i = 0; i < list.length; i++) {
+      var cookie = list[i];
+      var matches = cookie.hostOnly ? cookie.domain === apiHost : cookie.domain === apiHost || cookieModel.domainMatch(apiHost, cookie.domain);
+      if (matches) keepCookie(loot, cookie.name, cookie.value, cookie.path, cookie.created);
+    }
+    return loot;
+  };
+  /* What reached another site's server: every value in the addresses and bodies sent there (the widget's "analytics"). */
+  var siteLoot = function (origin) {
+    var loot = emptyLoot();
+    for (var r = 0; r < recordCount; r++) {
+      var record = records[r];
+      if (record.origin !== origin) continue;
+      var parts = [queryOf(record.href)];
+      if (record.body !== null) push(parts, record.body);
+      for (var p = 0; p < parts.length; p++) {
+        var text = toText(parts[p]);
+        var from = 0;
+        while (from <= text.length) {
+          var end = indexOfText(text, '&', from);
+          if (end < 0) end = text.length;
+          var pair = sliceText(text, from, end);
+          var at = indexOfText(pair, '=');
+          var value = decodeText(at < 0 ? pair : sliceText(pair, at + 1));
+          if (value) {
+            tokensIn(loot, value, 0);
+            if (indexOfText(value, '=') > 0) cookiePairs(loot, value);
+          }
+          from = end + 1;
+        }
+      }
+    }
+    return loot;
+  };
+  var lootFor = function (using) {
+    using = toText(using === undefined ? 'script' : using);
+    if (using === 'script') return scriptLoot();
+    if (hasOwn(copies, using)) return copies[using];
+    if (siteOfOrigin(using)) return siteLoot(using);
+    return emptyLoot();
+  };
+  var describeAttempt = function (headers) {
+    var text = '';
+    for (var i = 0; i < headers.length; i++) {
+      var name = headers[i][0];
+      if (name === 'origin' || name === 'referer') continue;
+      text += (text ? '; ' : '') + name + ': ' + headers[i][1];
+    }
+    return cut(text || 'nothing', REPLAY.text);
+  };
+  /* A token made up without the secret (forge): each JWT the loot has, its exp moved 30 days on (or added), once with its
+     old signature and once as alg none without one; cookies keep their names. */
+  var toBase64 = typeof btoa === 'function' ? btoa : null;
+  var fromBase64 = typeof atob === 'function' ? atob : null;
+  var base64url = function (text) {
+    var plain = toBase64(text);
+    var out = '';
+    for (var i = 0; i < plain.length; i++) out += plain[i] === '+' ? '-' : plain[i] === '/' ? '_' : plain[i] === '=' ? '' : plain[i];
+    return out;
+  };
+  var forgeToken = function (token) {
+    if (!toBase64 || !fromBase64) return [];
+    var first = indexOfText(token, '.');
+    var second = first < 0 ? -1 : indexOfText(token, '.', first + 1);
+    if (first < 0 || second < 0 || indexOfText(token, '.', second + 1) >= 0) return [];
+    var body = sliceText(token, first + 1, second);
+    var standard = '';
+    for (var i = 0; i < body.length; i++) standard += body[i] === '-' ? '+' : body[i] === '_' ? '/' : body[i];
+    while (standard.length % 4) standard += '=';
+    var claims;
+    try { claims = parseJson(fromBase64(standard)); } catch (error) { return []; }
+    if (claims === null || typeof claims !== 'object' || isArray(claims)) return [];
+    var keys = keysOf(claims);
+    var text = '';
+    for (var k = 0; k < keys.length; k++) if (keys[k] !== 'exp') text += (text ? ',' : '') + stringify(keys[k]) + ':' + jsonText(claims[keys[k]]);
+    text = '{' + text + (text ? ',' : '') + '"exp":' + (mathRound(clock / 1000 - 0.5) + 2592000) + '}';
+    var payload;
+    try { payload = base64url(text); } catch (error) { return []; }
+    return [sliceText(token, 0, first) + '.' + payload + '.' + sliceText(token, second + 1), base64url('{"alg":"none","typ":"JWT"}') + '.' + payload + '.'];
+  };
+  var forgedLoot = function (loot) {
+    var made = emptyLoot();
+    for (var c = 0; c < loot.cookies.length; c++) {
+      var cookie = loot.cookies[c];
+      var forged = forgeToken(cookie[1]);
+      if (!forged.length) { keepCookie(made, cookie[0], cookie[1], cookie[2], cookie[3]); continue; }
+      keepCookie(made, cookie[0], forged[0], cookie[2], cookie[3]);
+      addOnce(made.tokens, cookie[0] + '=' + forged[1]);
+    }
+    for (var t = 0; t < loot.tokens.length; t++) {
+      var each = forgeToken(loot.tokens[t]);
+      for (var f = 0; f < each.length; f++) addOnce(made.tokens, each[f]);
+    }
+    return made;
+  };
+  var replay = function (probe, then) {
+    var asked = requestOf(toText(probe.replay));
+    var taken = lootFor(probe.using);
+    var forging = probe.forge === true;
+    var loot = forging ? forgedLoot(taken) : taken;
+    var keep = !forging && hasOwn(copies, toText(probe.using === undefined ? '' : probe.using));
+    /* the Cookie header the browser would send to this path: the cookies whose path matches, longer paths first, then the
+       older (RFC 6265bis 5.8.3), as the page's own requests carry them */
+    var cookieHeader = function (path) {
+      var chosen = [];
+      for (var i = 0; i < loot.cookies.length; i++) {
+        var cookie = loot.cookies[i];
+        if (!cookieModel.pathMatch(path, cookie[2])) continue;
+        var at = chosen.length;
+        while (at > 0) {
+          var before = chosen[at - 1];
+          if (before[2].length > cookie[2].length || (before[2].length === cookie[2].length && (before[3] < cookie[3] || (before[3] === cookie[3] && before[4] < cookie[4])))) break;
+          put(chosen, at, before);
+          at--;
+        }
+        put(chosen, at, cookie);
+      }
+      var text = '';
+      for (var k = 0; k < chosen.length; k++) text += (k ? '; ' : '') + chosen[k][0] + '=' + chosen[k][1];
+      return text;
+    };
+    /* sent exactly as the shop's page sends a request to the API (wireHeaders): the headers its code set, in the order a
+       Headers object keeps them (by name), then its Origin, the Referer a cross-origin request carries (the page's origin
+       and a slash), then the cookies; no body. So only what was taken decides, never how it was sent. */
+    var wire = function (extra, cookie) {
+      var headers = [];
+      for (var i = 0; i < extra.length; i++) {
+        var at = headers.length;
+        while (at > 0 && headers[at - 1][0] > extra[i][0]) { put(headers, at, headers[at - 1]); at--; }
+        put(headers, at, [extra[i][0], extra[i][1]]);
+      }
+      push(headers, ['origin', page]);
+      push(headers, ['referer', page + '/']);
+      if (cookie) push(headers, ['cookie', cookie]);
+      return headers;
+    };
+    var path = pathOf(asked.url);
+    var withCookies = cookieHeader(path);
+    var attempt = function (extra, query, cookie) { return { headers: wire(extra, cookie), query: query }; };
+    /* what looks most like a session first (the cookies it has, then each header set and token, alone and with those
+       cookies), so the Server panel shows few misses */
+    var attempts = [];
+    if (withCookies) push(attempts, attempt([], '', withCookies));
+    for (var h = 0; h < loot.headerSets.length; h++) {
+      push(attempts, attempt(loot.headerSets[h], '', ''));
+      if (withCookies) push(attempts, attempt(loot.headerSets[h], '', withCookies));
+    }
+    /* the thief knows how the site works (it can sign up itself): it tries each string under each cookie name the API uses */
+    var names = [];
+    var held = jar.list();
+    for (var n = 0; n < held.length; n++) {
+      var kept = held[n];
+      var ours = kept.hostOnly ? kept.domain === apiHost : kept.domain === apiHost || cookieModel.domainMatch(apiHost, kept.domain);
+      if (ours) addOnce(names, kept.name);
+    }
+    /* a token-shaped string (header.payload.signature) first, then the rest */
+    var ordered = [];
+    for (var o = 0; o < loot.tokens.length; o++) if (looksSigned(loot.tokens[o])) push(ordered, loot.tokens[o]);
+    for (var p = 0; p < loot.tokens.length; p++) if (!looksSigned(loot.tokens[p])) push(ordered, loot.tokens[p]);
+    for (var t = 0; t < ordered.length; t++) {
+      var token = ordered[t];
+      push(attempts, attempt([['authorization', 'Bearer ' + token]], '', ''));
+      if (withCookies) push(attempts, attempt([['authorization', 'Bearer ' + token]], '', withCookies));
+      if (indexOfText(token, '=') > 0) push(attempts, attempt([], '', token));
+      else if (indexOfText(token, ';') < 0) for (var m = 0; m < names.length; m++) push(attempts, attempt([], '', names[m] + '=' + token));
+    }
+    for (var q = 0; q < loot.queries.length; q++) push(attempts, attempt([], loot.queries[q], withCookies));
+    if (!attempts.length) push(attempts, attempt([], '', ''));
+    var at = 0;
+    var last = 'failed';
+    var lastAttempt = attempts[0];
+    busy(1);
+    var finish = function (value, used) {
+      busy(-1);
+      if (probe.show === true) hooks.post({ type: 'replay', request: asked.method + ' ' + hrefOf(asked.url), using: describeAttempt(used.headers), status: typeof value === 'number' ? value : null, by: probe.using !== undefined && siteOfOrigin(toText(probe.using)) ? toText(probe.using) : null });
+      then(value);
+    };
+    var next = function () {
+      if (at >= attempts.length || at >= REPLAY.attempts) return finish(last, lastAttempt);
+      var each = attempts[at];
+      at += 1;
+      lastAttempt = each;
+      var href = hrefOf(asked.url);
+      if (each.query) href = originOf(asked.url) + pathOf(asked.url) + '?' + each.query;
+      exchange({ method: asked.method, url: href, headers: each.headers, body: null }, new NativeURL(href), null, function (answer) {
+        later(function () {
+          if (own(answer, 'fail')) { last = 'failed'; return next(); }
+          /* the thief keeps the cookies it is given (a rotated refresh token), with their paths */
+          if (keep) {
+            for (var i = 0; i < answer.headers.length; i++) {
+              if (lowerCase(toText(answer.headers[i][0])) === 'set-cookie') setCookieInto(loot, answer.headers[i][1], href);
+            }
+          }
+          last = answer.status;
+          if (answer.status >= 200 && answer.status < 300) return finish(answer.status, each);
+          next();
+        }, delay);
+      });
+    };
+    next();
+  };
+  /* What a sign-in answered ago minutes earlier: its Set-Cookie values and every string of its body, kept as a copy. */
+  var issued = function (probe, then) {
+    var asked = requestOf(toText(probe.issued));
+    var name = toText(probe.as === undefined ? 'issued' : probe.as);
+    var ago = typeof probe.ago === 'number' && probe.ago >= 0 ? probe.ago : 0;
+    var fields = probe.body && typeof probe.body === 'object' ? probe.body : {};
+    var loot = emptyLoot();
+    copies[name] = loot;
+    busy(1);
+    var body = formBody(fields);
+    var href = hrefOf(asked.url);
+    var target = originOf(asked.url);
+    /* as the page's sign-in sends it: its form's Content-Type, then its Origin and the cross-origin Referer */
+    var request = { method: asked.method, url: href, headers: [['content-type', FORM + ';charset=UTF-8'], ['origin', page], ['referer', page + '/']], body: body, now: clock - ago * 60000 };
+    var done = function (answer) {
+      later(function () {
+        busy(-1);
+        if (!own(answer, 'fail')) {
+          for (var i = 0; i < answer.headers.length; i++) {
+            if (lowerCase(toText(answer.headers[i][0])) === 'set-cookie') setCookieInto(loot, answer.headers[i][1], href);
+          }
+          if (typeof answer.body === 'string') tokensIn(loot, answer.body, 1);
+        }
+        then();
+      }, delay);
+    };
+    if (target !== api) { later(function () { done({ fail: 'net::ERR_NAME_NOT_RESOLVED' }); }, 0); return; }
+    server.serve(request, done);
+  };
+
+  /* the page's Storage objects: Storage.prototype gets the model's members (its own refuse anything but a real Storage) */
+  var storageObjects = storageModel ? function (proto) {
+    storageModel.install(proto, storageChanged);
+    return { local: storageModel.expose(storageModel.area('local', page), proto), session: storageModel.expose(storageModel.area('session', page), proto) };
+  } : null;
+
   return {
     fetch: fetch,
     pending: function () { return pending; },
@@ -841,13 +1303,14 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
     stolen: function (request, then) {
       var asked = requestOf(toText(request));
       var header = jar.steal(page);
-      pending += 1;
-      /* sent the way the shop's page sends its own requests (its Origin and Referer), so only the cookie decides */
-      var sent = [['origin', page], ['referer', pageAddress]];
+      busy(1);
+      /* sent the way the shop's page sends its own requests to the API (its Origin, the cross-origin Referer: the origin
+         and a slash), so only the cookie decides */
+      var sent = [['origin', page], ['referer', page + '/']];
       if (header) push(sent, ['cookie', header]);
       exchange({ method: asked.method, url: hrefOf(asked.url), headers: sent, body: null }, asked.url, null, function (answer) {
         later(function () {
-          pending -= 1;
+          busy(-1);
           then(own(answer, 'fail') ? 'failed' : answer.status);
         }, delay);
       });
@@ -858,6 +1321,23 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
       var result = jar.write(text, pageAddress);
       if (result.problem) logRefusal('script', pageAddress, result.name, text, cookieModel.reason(result.problem, 'script'));
       cookiesChanged();
-    }
+    },
+    storage: storageObjects,
+    date: scriptedDate,
+    /* the scripted time on the frame's window: Date, its prototype's constructor, Intl's default date, timeOrigin */
+    installTime: scriptedDate ? function (global) { (${SCRIPTED_TIME_SOURCE})(global, scriptedDate, function () { return clock; }); } : null,
+    quietFor: config.time ? function () { return hooks.now() - lastActive; } : null,
+    later: function (minutes) {
+      var moved = parseFloatText(minutes);
+      if (moved !== moved || moved < 0 || moved > 525600) return;
+      clock += moved * 60000;
+      cookiesChanged();
+      storageChanged();
+    },
+    copy: function (kind, as) {
+      copies[toText(as)] = toText(kind) === 'browser' ? browserLoot() : scriptLoot();
+    },
+    issued: issued,
+    replay: replay
   };
 })`

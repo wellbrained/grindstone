@@ -16,9 +16,10 @@
 //   request, reads what it posts field by field (the worker runs learner code: nothing it posts is trusted), caps it,
 //   and runs the watchdog.
 
-/** What one load's server may do and how long it may take; the frame and the page read the same numbers. */
 import { WEB_CLOCK } from './cookies'
+import { JWT_SOURCE } from './tokens'
 
+/** What one load's server may do and how long it may take; the frame and the page read the same numbers. */
 export const SERVER_LIMITS = {
   /** Milliseconds a request may take in server.js before the watchdog stops the worker (it never answered). */
   answerMs: 1000,
@@ -35,9 +36,68 @@ export const SERVER_LIMITS = {
   maxOutput: 300,
   /** Characters of one such line. */
   maxOutputText: 500,
-  /** The scripted clock (ms): `res.cookie`'s Expires for a `maxAge` counts from it, as the cookie jar does. */
+  /**
+   * The scripted clock (ms) a load starts at: `res.cookie`'s Expires for a `maxAge` counts from it, as the cookie jar does,
+   * and so do jsonwebtoken's iat and exp. Chapter 3 moves it (`{ later }`): each request then carries the moment it is
+   * answered at.
+   */
   clock: WEB_CLOCK
 } as const
+
+/**
+ * A Date that tells the scripted time (chapter 3: the page's and server.js's `new Date()` and `Date.now()` follow the
+ * clock `{ later }` moves): `(RealDate, now) => Date`. A date made from arguments, `Date.UTC` and `Date.parse` are the
+ * real ones; it shares the real Date's prototype, so `instanceof Date` holds both ways.
+ */
+export const SCRIPTED_DATE_SOURCE = String.raw`(function (RealDate, now) {
+  var construct = Reflect.construct;
+  var slice = Array.prototype.slice;
+  var Scripted = function Date() {
+    if (!new.target) return new RealDate(now()).toString();
+    return construct(RealDate, arguments.length === 0 ? [now()] : slice.call(arguments), new.target);
+  };
+  Scripted.prototype = RealDate.prototype;
+  Scripted.now = function () { return now(); };
+  Scripted.parse = RealDate.parse;
+  Scripted.UTC = RealDate.UTC;
+  return Scripted;
+})`
+
+/**
+ * Puts the scripted Date on a global (the frame's window, the worker's self) and closes the other ways to the real
+ * time that are cheap to close: `new Date().constructor.now()` (the prototype's constructor is the scripted Date),
+ * `Intl.DateTimeFormat`'s `format()` and `formatToParts()` without a date (they format the scripted now), and
+ * `performance.timeOrigin` (plus `performance.now()` it gives the scripted now). `(global, Scripted, now) => void`.
+ */
+export const SCRIPTED_TIME_SOURCE = String.raw`(function (global, Scripted, now) {
+  var RealDate = Object.getPrototypeOf(new Scripted(0)).constructor;
+  var defineProperty = Object.defineProperty;
+  var describe = Object.getOwnPropertyDescriptor;
+  global.Date = Scripted;
+  try { defineProperty(RealDate.prototype, 'constructor', { value: Scripted, writable: true, configurable: true, enumerable: false }); } catch (error) { /* kept */ }
+  var Format = global.Intl && global.Intl.DateTimeFormat;
+  if (typeof Format === 'function') {
+    var proto = Format.prototype;
+    var format = describe(proto, 'format');
+    if (format && typeof format.get === 'function') {
+      var getFormat = format.get;
+      defineProperty(proto, 'format', { configurable: true, enumerable: false, get: function () {
+        var bound = getFormat.call(this);
+        return function (date) { return bound(date === undefined ? now() : date); };
+      } });
+    }
+    var parts = describe(proto, 'formatToParts');
+    if (parts && typeof parts.value === 'function') {
+      var toParts = parts.value;
+      defineProperty(proto, 'formatToParts', { configurable: true, writable: true, enumerable: false, value: function formatToParts(date) { return toParts.call(this, date === undefined ? now() : date); } });
+    }
+  }
+  var timing = global.performance;
+  if (timing && typeof timing.now === 'function') {
+    var perfNow = timing.now.bind(timing);
+    try { defineProperty(timing, 'timeOrigin', { configurable: true, enumerable: true, get: function () { return now() - perfNow(); } }); } catch (error) { /* kept */ }
+  }
+})`
 
 export type ServerLimits = typeof SERVER_LIMITS
 
@@ -69,13 +129,72 @@ export interface ServerOutput {
 export interface ServerRuntime {
   /** `require('express')`: makes the app server.js configures. */
   express: () => unknown
-  /** Answers one request with the app server.js made (the first one): calls `answer` once. */
-  handle: (request: ServerRequest, answer: (result: ServerAnswer) => void) => void
+  /** Answers one request with the app server.js made (the first one), at `now` on the scripted clock: calls `answer` once. */
+  handle: (request: ServerRequest & { now?: number }, answer: (result: ServerAnswer) => void) => void
+  /** `require(name)` for server.js: express, jsonwebtoken, cookie-parser, crypto. */
+  require: (name: string) => unknown
+  /** A Date on the scripted clock (what server.js gets as `Date` when the level's time moves). */
+  Date: DateConstructor
+  /** The scripted time (ms). */
+  now: () => number
 }
 
 export const SERVER_RUNTIME_SOURCE = String.raw`(function (limits, emit) {
   'use strict';
   var apps = [];
+  /* The scripted time: where the load's clock starts, then the moment each request is answered at (chapter 3 moves it). */
+  var clockNow = limits.clock;
+  var now = function () { return clockNow; };
+  var ScriptedDate = (${SCRIPTED_DATE_SOURCE})(Date, now);
+  /* jsonwebtoken (tokens.ts), on the scripted clock */
+  var jwt = (${JWT_SOURCE})(now).module;
+  /* crypto.randomUUID(), scripted: the same ids on every run (a real server's are random), a version 4 UUID's form */
+  var seed = [0x9e3779b9, 0x243f6a88, 0xb7e15162, 0x6a09e667];
+  var next32 = function () {
+    var t = seed[3];
+    var first = seed[0];
+    seed[3] = seed[2];
+    seed[2] = seed[1];
+    seed[1] = first;
+    t ^= t << 11;
+    t ^= t >>> 8;
+    seed[0] = (t ^ first ^ (first >>> 19)) >>> 0;
+    return seed[0];
+  };
+  var randomUUID = function () {
+    var bytes = [];
+    for (var i = 0; i < 4; i++) {
+      var word = next32();
+      bytes.push(word >>> 24, (word >>> 16) & 0xff, (word >>> 8) & 0xff, word & 0xff);
+    }
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    var hex = bytes.map(function (byte) { return (byte < 16 ? '0' : '') + byte.toString(16); }).join('');
+    return hex.slice(0, 8) + '-' + hex.slice(8, 12) + '-' + hex.slice(12, 16) + '-' + hex.slice(16, 20) + '-' + hex.slice(20);
+  };
+  /* cookie-parser: req.cookies from the Cookie header (each value URI-decoded, a j: value read as JSON, the first of a
+     name wins); signed cookies are not here (req.signedCookies stays empty) */
+  var cookieParser = function () {
+    return function cookieParser(req, res, next) {
+      if (req.cookies) return next();
+      var cookies = {};
+      String(req.get('cookie') || '').split(/; */).forEach(function (pair) {
+        var at = pair.indexOf('=');
+        if (at < 0) return;
+        var name = pair.slice(0, at).trim();
+        if (!name || Object.prototype.hasOwnProperty.call(cookies, name)) return;
+        var value = pair.slice(at + 1).trim();
+        if (value.charAt(0) === '"' && value.charAt(value.length - 1) === '"' && value.length > 1) value = value.slice(1, -1);
+        try { value = decodeURIComponent(value); } catch (error) { /* kept as it came */ }
+        if (value.slice(0, 2) === 'j:') { try { value = JSON.parse(value.slice(2)); } catch (error) { /* kept as text */ } }
+        cookies[name] = value;
+      });
+      req.cookies = cookies;
+      req.signedCookies = {};
+      next();
+    };
+  };
+  var MODULES = { 'jsonwebtoken': jwt, 'cookie-parser': cookieParser, 'crypto': { randomUUID: randomUUID }, 'node:crypto': { randomUUID: randomUUID } };
   var STATUS = limits.statusText || {};
   var TOKEN = /^[!#$%&'*+.^_\x60|~0-9A-Za-z-]+$/;
   /* Where an error happened in server.js: the first frame of the worker's own script past the prelude (line 1), as
@@ -213,11 +332,15 @@ export const SERVER_RUNTIME_SOURCE = String.raw`(function (limits, emit) {
 
   var makeRequest = function (request) {
     var url = new URL(request.url);
-    var headers = {};
+    /* req.headers in one fixed order (by name), whoever sent the request: the order a request's headers came in tells
+       server.js nothing (a thief sending what it took is not told apart by how it lists its headers) */
+    var joined = {};
     request.headers.forEach(function (pair) {
       var name = String(pair[0]).toLowerCase();
-      headers[name] = headers[name] === undefined ? String(pair[1]) : headers[name] + ', ' + String(pair[1]);
+      joined[name] = joined[name] === undefined ? String(pair[1]) : joined[name] + ', ' + String(pair[1]);
     });
+    var headers = {};
+    Object.keys(joined).sort().forEach(function (name) { headers[name] = joined[name]; });
     var req = {
       method: request.method,
       url: url.pathname + url.search,
@@ -390,7 +513,7 @@ export const SERVER_RUNTIME_SOURCE = String.raw`(function (limits, emit) {
       if (opts.maxAge !== undefined && opts.maxAge !== null) {
         var age = opts.maxAge - 0;
         if (!isNaN(age)) {
-          opts.expires = new Date(limits.clock + age);
+          opts.expires = new Date(clockNow + age);
           opts.maxAge = Math.floor(age / 1000);
         }
       }
@@ -422,6 +545,7 @@ export const SERVER_RUNTIME_SOURCE = String.raw`(function (limits, emit) {
   };
 
   var handle = function (request, answer) {
+    if (typeof request.now === 'number') clockNow = request.now;
     var done = false;
     var finish = function (result) {
       if (done) return;
@@ -517,7 +641,16 @@ export const SERVER_RUNTIME_SOURCE = String.raw`(function (limits, emit) {
     run(undefined);
   };
 
-  return { express: express, handle: handle, lineOf: lineOf, describe: describe };
+  /* require(name) for server.js: Express, and the packages chapter 3's servers use */
+  var load = function (name) {
+    if (name === 'express') return express;
+    if (typeof name === 'string' && Object.prototype.hasOwnProperty.call(MODULES, name)) return MODULES[name];
+    var error = new Error("Cannot find module '" + String(name) + "'");
+    error.code = 'MODULE_NOT_FOUND';
+    throw error;
+  };
+
+  return { express: express, handle: handle, lineOf: lineOf, describe: describe, require: load, Date: ScriptedDate, now: now };
 })`
 
 /**
@@ -551,13 +684,10 @@ const WORKER_PRELUDE = String.raw`(function (limits) {
   ['log', 'info', 'debug', 'table', 'dir'].forEach(function (name) { output[name] = logger('log'); });
   output.warn = logger('warn');
   output.error = logger('error');
-  self.require = function (name) {
-    if (name === 'express') return runtime.express;
-    var error = new Error("Cannot find module '" + String(name) + "'");
-    error.code = 'MODULE_NOT_FOUND';
-    throw error;
-  };
+  self.require = runtime.require;
   self.express = runtime.express;
+  /* chapter 3: server.js's Date (and Intl's default date, performance.timeOrigin) tell the scripted time, which moves */
+  if (limits.time) (${SCRIPTED_TIME_SOURCE})(self, runtime.Date, runtime.now);
   listen('error', function (event) {
     if (crashed) return;
     crashed = true;
@@ -764,13 +894,16 @@ export const SERVER_HOST_SOURCE = String.raw`(function (config, hooks) {
         output('error', 'server.js was restarted ' + limits.maxRestarts + ' times: it stays down until the next reload.', null);
       }
     }, limits.answerMs);
-    toWorker(worker, { t: 'req', id: id, request: { method: request.method, url: request.url, headers: request.headers, body: request.body } });
+    toWorker(worker, { t: 'req', id: id, request: { method: request.method, url: request.url, headers: request.headers, body: request.body, now: typeof request.now === 'number' ? request.now : limits.clock } });
   };
   return { serve: serve };
 })`
 
-/** The worker's prelude for these limits and status texts: one line of JavaScript, server.js follows on the next. */
-export function serverPrelude(statusText: Readonly<Record<number, string>>): string {
-  const limits = JSON.stringify({ ...SERVER_LIMITS, statusText })
+/**
+ * The worker's prelude for these limits and status texts: one line of JavaScript, server.js follows on the next. `time`:
+ * the level's clock moves (chapter 3), so server.js's Date tells the scripted time.
+ */
+export function serverPrelude(statusText: Readonly<Record<number, string>>, time = false): string {
+  const limits = JSON.stringify({ ...SERVER_LIMITS, statusText, time })
   return `${WORKER_PRELUDE.replace(/\s*\n\s*/g, ' ')}(${limits});`
 }

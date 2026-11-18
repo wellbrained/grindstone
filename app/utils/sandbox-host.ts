@@ -190,7 +190,7 @@ function runFrame(files: Readonly<Record<string, string>>, { width, height, prob
     // the goals read only what comes over this load's port: the app's code can't post there
     const link = bridgeLink(() => frame.contentWindow, token, (message) => {
       // the goals read no requests (probes count them inside the frame): only the app you see shows them
-      if (message.type === 'request' || message.type === 'response' || message.type === 'serverlog' || message.type === 'server' || message.type === 'cookies') return
+      if (message.type === 'request' || message.type === 'response' || message.type === 'serverlog' || message.type === 'server' || message.type === 'cookies' || message.type === 'storage' || message.type === 'replay') return
       // a flood of logs must not fill memory: the goals need the probes, done and that errors happened, not every line
       if ((message.type === 'console' || message.type === 'error' || message.type === 'netlog') && ++appMessages > MAX_CHECK_MESSAGES) return
       messages.push(message)

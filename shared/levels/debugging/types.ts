@@ -106,7 +106,7 @@ export type ProbeStep
    * Web fundamentals: a request as a page on another origin would send it (nothing in the Network panel): 'read' (an
    * answer from 200 to 299 that page may read), 'refused' (one of 400 and up it may read), 'blocked' (CORS) or 'failed'.
    */
-    | { fetchFrom: string, request: string, credentials?: 'omit' | 'same-origin' | 'include', headers?: Readonly<Record<string, string>> }
+    | { fetchFrom: string, request: string, credentials?: 'omit' | 'same-origin' | 'include', headers?: Readonly<Record<string, string>>, body?: Readonly<Record<string, string>> }
   /**
    * Web fundamentals (chapter 2): Lena opens another site of the level (`sandbox.web.sites`): what its page does runs in
    * the panels, then the app gets 20 ms (and its answers). The value: the status of the last thing the page did (a form's,
@@ -130,6 +130,34 @@ export type ProbeStep
    * the stolen cookies are a session), or 'failed'. Name- and value-blind: renaming a cookie hides nothing.
    */
     | { stolen: string }
+  /**
+   * Web fundamentals (chapter 3): the scripted clock moves on this many minutes (Lena's laptop sleeps): cookies expire,
+   * tokens run out, the page's and server.js's Date tell the new time; timers set in the page don't fire early.
+   */
+    | { later: number }
+  /**
+   * Web fundamentals (chapter 3): the thief keeps a copy under a name (`as`, default the kind): `'script'`, what a script
+   * on the page could take now (document.cookie, the page's storage, the headers and query of every request the page's
+   * code sent, every answer it could read), or `'browser'`, the browser's cookies for the API, HttpOnly ones too (a HAR
+   * file, an extension on a shared computer).
+   */
+    | { copy: 'script' | 'browser', as?: string }
+  /**
+   * Web fundamentals (chapter 3): what a sign-in (`'POST https://…/login'` with this form body) answered `ago` minutes
+   * earlier (its cookies and the strings of its body), kept as a copy named `as`: an old token, issued by this server.js.
+   */
+    | { issued: string, body: Readonly<Record<string, string>>, ago: number, as: string }
+  /**
+   * Web fundamentals (chapter 3): the thief sends `'METHOD https://host/path'` from outside the browser (no CORS, no
+   * SameSite), exactly as the shop's page sends a request to the API (the same headers in the same order, its Origin and
+   * cross-origin Referer, the cookies the browser would send there in its order, no body), so only what it took
+   * decides, with what it has: `using` a copy's name,
+   * `'script'` (what a script on the page could take now) or another site's origin (what reached that site's server).
+   * It tries each piece (the cookies, each header set, each string as a Bearer token): the status of the first answer from
+   * 200 to 299, else of the last, or 'failed'. Name- and value-blind. `show`: the Server panel says who sent it.
+   * `forge`: each token it has made up without the secret (its exp 30 days on; its old signature, or alg none).
+   */
+    | { replay: string, using: string, show?: boolean, forge?: boolean }
 
 /** A scripted look at the app that goals read: steps run in order; its value is what the last read step read. */
 export interface Probe {

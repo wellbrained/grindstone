@@ -1,10 +1,13 @@
 <script setup lang="ts">
+import { WEB_CLOCK } from '#shared/levels'
 import type { DebuggingPlaySession, ServerLine } from '~/composables/useDebuggingPlay'
 
 // The Server panel of a Web fundamentals level (docs/features/ui.md, "Web fundamentals play page"): what the level's
 // server.js did in this load, like the terminal that runs `node server.js`: an access line per request it answered
 // (`OPTIONS /orders 204`), what its own console wrote, and its errors, each with a link to its line in server.js. A
-// request the browser refused at its preflight never shows up here: that is the lesson. Text only; a reload empties it.
+// request the browser refused at its preflight never shows up here: that is the lesson. Chapter 3: a request the thief
+// sent from outside the browser gets a line of its own under server.js's answer (who, with what, the answer; a token
+// in it decoded). Text only; a reload empties it.
 const props = defineProps<{ play: DebuggingPlaySession }>()
 
 const { t } = useI18n()
@@ -23,7 +26,14 @@ watch(serverLines, () => {
   if (atEnd) nextTick(() => element.scrollTo({ top: element.scrollHeight }))
 })
 
-const TONE: Record<ServerLine['level'], string> = { access: 'text-toned', log: 'text-muted', warn: 'text-warning', error: 'text-error' }
+const TONE: Record<ServerLine['level'], string> = { access: 'text-toned', log: 'text-muted', warn: 'text-warning', error: 'text-error', outside: 'text-warning' }
+
+/** A short reading of the tokens the thief sent: who, issued, expires (or never), on the levels' day. */
+const claimsOf = (text: string) => tokensIn(text).map(({ decoded }) => {
+  const payload = decoded.payload
+  const parts = [typeof payload.sub === 'string' ? `sub ${payload.sub}` : null, typeof payload.iat === 'number' ? t('web.token.issued', { time: clockLabel(payload.iat * 1000, WEB_CLOCK) }) : null, typeof payload.exp === 'number' ? t('web.token.expiresAt', { time: clockLabel(payload.exp * 1000, WEB_CLOCK) }) : t('web.token.noExpiry')]
+  return parts.filter(Boolean).join(' · ')
+})
 </script>
 
 <template>
@@ -73,8 +83,23 @@ const TONE: Record<ServerLine['level'], string> = { access: 'text-toned', log: '
         <span
           class="w-10 shrink-0 text-dimmed"
           aria-hidden="true"
-        >{{ line.level === 'access' ? '→' : line.level === 'log' ? '' : line.level }}</span>
+        >{{ line.level === 'access' ? '→' : line.level === 'log' ? '' : line.level === 'outside' ? '⚠' : line.level }}</span>
         <span
+          v-if="line.level === 'outside'"
+          class="min-w-0 flex-1 font-sans"
+          data-testid="server-outside"
+          :data-status="line.replay.status ?? 'failed'"
+        >
+          <span class="me-1 font-medium">{{ line.replay.by ? t('web.server.thiefSite', { site: line.replay.by.replace(/^https:\/\//, '') }) : t('web.server.thiefCopy') }}</span>{{ ' ' }}<span class="font-mono">{{ line.replay.request.replace(/^(\S+) https:\/\/[^/]+/, '$1 ') }} → {{ line.replay.status ?? t('web.server.noAnswer') }}</span>
+          <span class="block break-all text-muted">{{ t('web.server.thiefSent', { using: line.replay.using }) }}</span>
+          <span
+            v-for="(claims, index) in claimsOf(line.replay.using)"
+            :key="index"
+            class="block text-muted"
+          >{{ t('web.server.thiefToken', { claims }) }}</span>
+        </span>
+        <span
+          v-else
           class="min-w-0 flex-1"
           data-testid="server-text"
         >{{ line.text }}</span>
