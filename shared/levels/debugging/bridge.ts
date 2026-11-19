@@ -919,6 +919,31 @@ const SOURCE = String.raw`(function (config) {
           next();
         });
       }
+      /* Web fundamentals (chapter 4): what the browser's cache answered, what it revalidated, what reached server.js past
+         the CDN, and another customer's browser */
+      if (typeof step.fromCache === 'string') {
+        value = backend && backend.fromCache ? backend.fromCache(step.fromCache) : 0;
+        return next();
+      }
+      if (typeof step.notModified === 'string') {
+        value = backend && backend.notModified ? backend.notModified(step.notModified) : 0;
+        return next();
+      }
+      if (typeof step.whole === 'string') {
+        value = backend && backend.whole ? backend.whole(step.whole) : 0;
+        return next();
+      }
+      if (typeof step.reached === 'string') {
+        value = backend && backend.reached ? backend.reached(step.reached) : 0;
+        return next();
+      }
+      if (typeof step.other === 'string') {
+        if (!backend || !backend.other) return fail('There is no server to ask in this run');
+        return backend.other(step, function (result) {
+          value = result;
+          next();
+        });
+      }
       if (typeof step.sent === 'string') {
         value = backend ? backend.sent(step.sent, typeof step.json === 'string' ? step.json : null) : null;
         return next();

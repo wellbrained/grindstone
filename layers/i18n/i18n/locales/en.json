@@ -1741,7 +1741,9 @@
       "cookieSent": "sent",
       "cookieBlocked": "not sent",
       "cookieStored": "stored",
-      "cookieRefused": "refused"
+      "cookieRefused": "refused",
+      "diskCache": "disk cache",
+      "fromDiskCache": "{status} (from disk cache)"
     },
     "application": {
       "label": "Application",
@@ -1749,7 +1751,8 @@
       "kind": {
         "cookies": "Cookies",
         "local": "Local storage",
-        "session": "Session storage"
+        "session": "Session storage",
+        "cache": "Cache"
       },
       "count": "no cookies | 1 cookie | {n} cookies",
       "loading": "The cookie jar shows here once the app has loaded.",
@@ -1791,6 +1794,41 @@
         "session": "Session storage of {origin}: {n} items, each with its key and value"
       },
       "moreItems": "and one more item not listed | and {n} more items not listed"
+    },
+    "cache": {
+      "count": "no copies | 1 copy | {n} copies",
+      "loading": "The caches show here once the app has loaded.",
+      "browser": "Lena's browser",
+      "browserNote": "Its HTTP cache: copies of the API's answers it may use without asking, while they are fresh.",
+      "cdn": "The CDN",
+      "cdnNote": "In front of the API, shared by every customer: one copy per address, and per value of what its Vary names.",
+      "empty": "No copies.",
+      "tableOf": "Copies kept by {cache}",
+      "caption": "Copies kept by {cache}: {n}, each with its address, status, arrival, age, freshness, Cache-Control, ETag and uses",
+      "column": {
+        "address": "Address",
+        "vary": "Kept for",
+        "by": "Fetched for",
+        "status": "Status",
+        "stored": "Arrived",
+        "age": "Age",
+        "fresh": "Fresh",
+        "control": "Cache-Control",
+        "etag": "ETag",
+        "hits": "Used"
+      },
+      "anyone": "anyone (no Vary)",
+      "none": "none",
+      "forever": "for ever",
+      "always": "checked every time",
+      "freshFor": "fresh for {time}",
+      "stale": "stale for {time}",
+      "seconds": "{s} s",
+      "minutes": "{m} min {s} s",
+      "hours": "{h} h {m} min",
+      "log": "What the CDN did in this load",
+      "logEmpty": "Nothing yet. Every request to the API passes the CDN; what it did shows here.",
+      "agedLine": "a copy {time} old"
     },
     "site": {
       "label": "Other site",

@@ -195,6 +195,81 @@ export const SERVER_RUNTIME_SOURCE = String.raw`(function (limits, emit) {
     };
   };
   var MODULES = { 'jsonwebtoken': jwt, 'cookie-parser': cookieParser, 'crypto': { randomUUID: randomUUID }, 'node:crypto': { randomUUID: randomUUID } };
+  /* SHA-1 (FIPS 180-4) over UTF-8 bytes, base64: what the etag package hashes a body with */
+  var sha1Base64 = function (text) {
+    var bytes = new TextEncoder().encode(text);
+    var length = bytes.length;
+    var padded = new Uint8Array(((length + 9 + 63) >> 6) << 6);
+    padded.set(bytes);
+    padded[length] = 0x80;
+    var bits = length * 8;
+    for (var b = 0; b < 8; b++) padded[padded.length - 1 - b] = (bits / Math.pow(2, 8 * b)) & 0xff;
+    var h = [0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0];
+    var w = new Array(80);
+    for (var offset = 0; offset < padded.length; offset += 64) {
+      for (var t = 0; t < 16; t++) w[t] = (padded[offset + 4 * t] << 24) | (padded[offset + 4 * t + 1] << 16) | (padded[offset + 4 * t + 2] << 8) | padded[offset + 4 * t + 3];
+      for (t = 16; t < 80; t++) { var x = w[t - 3] ^ w[t - 8] ^ w[t - 14] ^ w[t - 16]; w[t] = (x << 1) | (x >>> 31); }
+      var a = h[0], c1 = h[1], c2 = h[2], d = h[3], e = h[4];
+      for (t = 0; t < 80; t++) {
+        var f = t < 20 ? (c1 & c2) | (~c1 & d) : t < 40 ? c1 ^ c2 ^ d : t < 60 ? (c1 & c2) | (c1 & d) | (c2 & d) : c1 ^ c2 ^ d;
+        var k = t < 20 ? 0x5a827999 : t < 40 ? 0x6ed9eba1 : t < 60 ? 0x8f1bbcdc : 0xca62c1d6;
+        var temp = (((a << 5) | (a >>> 27)) + f + e + k + w[t]) | 0;
+        e = d; d = c2; c2 = (c1 << 30) | (c1 >>> 2); c1 = a; a = temp;
+      }
+      h[0] = (h[0] + a) | 0; h[1] = (h[1] + c1) | 0; h[2] = (h[2] + c2) | 0; h[3] = (h[3] + d) | 0; h[4] = (h[4] + e) | 0;
+    }
+    var digest = [];
+    for (var i = 0; i < 5; i++) digest.push(h[i] >>> 24, (h[i] >>> 16) & 0xff, (h[i] >>> 8) & 0xff, h[i] & 0xff);
+    var ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    var out = '';
+    for (var j = 0; j < digest.length; j += 3) {
+      var n = (digest[j] << 16) | ((j + 1 < digest.length ? digest[j + 1] : 0) << 8) | (j + 2 < digest.length ? digest[j + 2] : 0);
+      out += ALPHABET[(n >> 18) & 63] + ALPHABET[(n >> 12) & 63] + (j + 1 < digest.length ? ALPHABET[(n >> 6) & 63] : '=') + (j + 2 < digest.length ? ALPHABET[n & 63] : '=');
+    }
+    return { bytes: length, base64: out };
+  };
+  /* Express's ETag (the etag package): the body's length in bytes in hex and the first 27 characters of its SHA-1 in
+     base64, quoted; W/ in front for Express's default, weak */
+  var entityTag = function (body, weak) {
+    var hash = sha1Base64(body);
+    var tag = '"' + hash.bytes.toString(16) + '-' + hash.base64.slice(0, 27) + '"';
+    return weak ? 'W/' + tag : tag;
+  };
+  /* the fresh package (Express's req.fresh): a conditional request whose If-None-Match names this ETag (W/ or not), or
+     whose If-Modified-Since is not before Last-Modified, unless it says Cache-Control: no-cache (a reload) */
+  var parseTokenList = function (text) {
+    var list = [];
+    var start = 0;
+    var end = 0;
+    for (var i = 0; i < text.length; i++) {
+      var code = text.charCodeAt(i);
+      if (code === 0x20) { if (start === end) start = end = i + 1; }
+      else if (code === 0x2c) { list.push(text.substring(start, end)); start = end = i + 1; }
+      else end = i + 1;
+    }
+    list.push(text.substring(start, end));
+    return list;
+  };
+  var isFresh = function (reqHeaders, etag, lastModified) {
+    var modifiedSince = reqHeaders['if-modified-since'];
+    var noneMatch = reqHeaders['if-none-match'];
+    if (!modifiedSince && !noneMatch) return false;
+    var cacheControl = reqHeaders['cache-control'];
+    if (cacheControl && /(?:^|,)\s*?no-cache\s*?(?:,|$)/.test(cacheControl)) return false;
+    if (noneMatch) {
+      if (noneMatch === '*') return true;
+      if (!etag) return false;
+      var matches = parseTokenList(noneMatch);
+      for (var i = 0; i < matches.length; i++) {
+        var match = matches[i];
+        if (match === etag || match === 'W/' + etag || 'W/' + match === etag) return true;
+      }
+      return false;
+    }
+    var modified = Date.parse(lastModified);
+    var since = Date.parse(modifiedSince);
+    return !(!lastModified || !(modified <= since));
+  };
   var STATUS = limits.statusText || {};
   var TOKEN = /^[!#$%&'*+.^_\x60|~0-9A-Za-z-]+$/;
   /* Where an error happened in server.js: the first frame of the worker's own script past the prelude (line 1), as
@@ -241,6 +316,7 @@ export const SERVER_RUNTIME_SOURCE = String.raw`(function (limits, emit) {
     var app = {};
     var route = function (method) {
       return function (path) {
+        if (method === 'GET' && arguments.length === 1 && typeof path === 'string') return settings[path];
         var handlers = Array.prototype.slice.call(arguments, 1).filter(function (each) { return typeof each === 'function'; });
         if (typeof path !== 'string') throw new TypeError('app.' + method.toLowerCase() + '() needs a path first, like \'/menu\'');
         if (!handlers.length) throw new TypeError('app.' + method.toLowerCase() + '() needs a function to answer with');
@@ -260,9 +336,23 @@ export const SERVER_RUNTIME_SOURCE = String.raw`(function (limits, emit) {
       for (var i = 0; i < arguments.length; i++) if (typeof arguments[i] === 'function') arguments[i]();
       return app;
     };
-    app.set = function () { return app; };
-    app.disable = function () { return app; };
-    app.enable = function () { return app; };
+    /* settings: only 'etag' changes anything here (true or 'weak': Express's default; 'strong'; false: none) */
+    var settings = { etag: 'weak' };
+    app.set = function (name, value) {
+      if (arguments.length === 1) return settings[name];
+      if (name === 'etag') {
+        if (value === true || value === 'weak') settings.etag = 'weak';
+        else if (value === 'strong') settings.etag = 'strong';
+        else if (value === false) settings.etag = false;
+        else throw new TypeError(typeof value === 'function' ? 'this trainer\'s app.set(\'etag\') takes true, false, \'weak\' or \'strong\', not a function' : 'unknown value for etag function: ' + String(value));
+      } else settings[name] = value;
+      return app;
+    };
+    app.enable = function (name) { return app.set(name, true); };
+    app.disable = function (name) { return app.set(name, false); };
+    app.enabled = function (name) { return Boolean(settings[name]); };
+    app.disabled = function (name) { return !settings[name]; };
+    app.settings = settings;
     app.layers = layers;
     return app;
   };
@@ -356,6 +446,7 @@ export const SERVER_RUNTIME_SOURCE = String.raw`(function (limits, emit) {
       get: function (name) { return headers[String(name).toLowerCase()]; }
     };
     req.header = req.get;
+    req.app = apps[0] || null;
     rawBodies.set(req, request.body);
     return req;
   };
@@ -441,29 +532,37 @@ export const SERVER_RUNTIME_SOURCE = String.raw`(function (limits, emit) {
       setOne('Content-Type', type.indexOf('/') < 0 ? (type === 'json' ? 'application/json; charset=utf-8' : type === 'html' ? 'text/html; charset=utf-8' : 'text/plain; charset=utf-8') : type);
       return res;
     };
-    var send = function (body, type) {
+    /* tagged: res.send's own way (res.json, res.sendStatus): Express 5 gives the body an ETag (in a level with a cache:
+       limits.etag) and answers a conditional GET whose validator still matches with 304; res.end does neither */
+    var send = function (body, type, tagged) {
       notSent();
       if (body !== null && body.length > limits.maxBody) throw new RangeError('The answer is too big for this trainer (over ' + limits.maxBody + ' characters)');
       if (body !== null && type && res.get('content-type') === undefined) add('Content-Type', type);
+      if (tagged && limits.etag) {
+        var mode = req.app ? req.app.settings.etag : 'weak';
+        if (mode && body !== null && res.get('etag') === undefined) add('ETag', entityTag(body, mode === 'weak'));
+        if (req.fresh) res.statusCode = 304;
+      }
+      if (res.statusCode === 204 || res.statusCode === 304) { remove('Content-Type'); remove('Content-Length'); remove('Transfer-Encoding'); }
       res.headersSent = true;
-      finish({ status: res.statusCode, headers: headers.slice(), body: req.method === 'HEAD' || res.statusCode === 204 ? null : body });
+      finish({ status: res.statusCode, headers: headers.slice(), body: req.method === 'HEAD' || res.statusCode === 204 || res.statusCode === 304 ? null : body });
       return res;
     };
     res.json = function (value) {
       var text = JSON.stringify(value);
-      return send(text === undefined ? '' : text, 'application/json; charset=utf-8');
+      return send(text === undefined ? '' : text, 'application/json; charset=utf-8', true);
     };
     res.send = function (body) {
-      if (body === undefined || body === null) return send('', null);
+      if (body === undefined || body === null) return send('', null, true);
       if (typeof body === 'object') return res.json(body);
-      return send(String(body), 'text/html; charset=utf-8');
+      return send(String(body), 'text/html; charset=utf-8', true);
     };
     res.end = function (body) {
-      return send(body === undefined || body === null ? null : String(body), null);
+      return send(body === undefined || body === null ? null : String(body), null, false);
     };
     res.sendStatus = function (code) {
       res.status(code);
-      return send(STATUS[code] || String(code), 'text/plain; charset=utf-8');
+      return send(STATUS[code] || String(code), 'text/plain; charset=utf-8', true);
     };
     /* Express 5's res.cookie with the cookie module's serialize: the value URI-encoded (an object as j:JSON), Path=/
        unless given, maxAge in ms (Max-Age in seconds, and Expires that far from the scripted clock), the attributes in
@@ -555,10 +654,19 @@ export const SERVER_RUNTIME_SOURCE = String.raw`(function (limits, emit) {
     };
     var req = makeRequest(request);
     var res = makeResponse(req, finish);
+    /* Express's req.fresh: a GET or HEAD answered 2xx or 304 whose validators still match the request's conditions */
+    Object.defineProperty(req, 'fresh', { enumerable: true, get: function () {
+      if (req.method !== 'GET' && req.method !== 'HEAD') return false;
+      var code = res.statusCode;
+      if ((code >= 200 && code < 300) || code === 304) return isFresh(req.headers, res.get('etag'), res.get('last-modified'));
+      return false;
+    } });
+    Object.defineProperty(req, 'stale', { enumerable: true, get: function () { return !req.fresh; } });
     var app = apps[0];
     if (!app) {
       res.statusCode = 404;
-      return res.send(page('Cannot ' + request.method + ' ' + req.path));
+      res.set('Content-Type', 'text/html; charset=utf-8');
+      return res.end(page('Cannot ' + request.method + ' ' + req.path));
     }
     var layers = app.layers;
     var allowed = [];
@@ -578,7 +686,7 @@ export const SERVER_RUNTIME_SOURCE = String.raw`(function (limits, emit) {
     var send500 = function (status, error) {
       res.statusCode = status;
       res.set('Content-Type', 'text/html; charset=utf-8');
-      res.send(page(status >= 500 ? describe(error) : (STATUS[status] || String(status))));
+      res.end(page(status >= 500 ? describe(error) : (STATUS[status] || String(status))));
     };
     /* each handler in turn; next() goes on, next(error) skips to the error handlers (four parameters) */
     var takes = function (layer) {
@@ -615,12 +723,16 @@ export const SERVER_RUNTIME_SOURCE = String.raw`(function (limits, emit) {
          anything else gets its 404 page */
       if (req.method === 'OPTIONS' && allowed.length) {
         if (allowed.indexOf('GET') >= 0 && allowed.indexOf('HEAD') < 0) allowed.push('HEAD');
-        var list = allowed.join(',');
+        /* Express 5's router (sendOptionsResponse): the methods sorted, joined with ', ', as plain text */
+        var list = allowed.slice().sort().join(', ');
         res.set('Allow', list);
-        return res.send(list);
+        res.set('Content-Type', 'text/plain; charset=utf-8');
+        res.set('X-Content-Type-Options', 'nosniff');
+        return res.end(list);
       }
       res.statusCode = 404;
-      res.send(page('Cannot ' + req.method + ' ' + req.path));
+      res.set('Content-Type', 'text/html; charset=utf-8');
+      res.end(page('Cannot ' + req.method + ' ' + req.path));
     };
     var called = 0;
     var call = function (handler, error) {
@@ -901,9 +1013,10 @@ export const SERVER_HOST_SOURCE = String.raw`(function (config, hooks) {
 
 /**
  * The worker's prelude for these limits and status texts: one line of JavaScript, server.js follows on the next. `time`:
- * the level's clock moves (chapter 3), so server.js's Date tells the scripted time.
+ * the level's clock moves (chapter 3), so server.js's Date tells the scripted time. `etag` (chapter 4, a level with a
+ * cache): res.send gives a body Express's ETag and answers a conditional GET with 304.
  */
-export function serverPrelude(statusText: Readonly<Record<number, string>>, time = false): string {
-  const limits = JSON.stringify({ ...SERVER_LIMITS, statusText, time })
+export function serverPrelude(statusText: Readonly<Record<number, string>>, time = false, etag = false): string {
+  const limits = JSON.stringify({ ...SERVER_LIMITS, statusText, time, etag })
   return `${WORKER_PRELUDE.replace(/\s*\n\s*/g, ' ')}(${limits});`
 }

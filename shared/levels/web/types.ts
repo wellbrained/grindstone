@@ -22,9 +22,12 @@ import type { Level, PracticeTask, Scenario, Session } from '../types'
  * - `storage`: the page's own origin keeps this key once the run is over, 'local token' or 'session draft' (chapter 3:
  *   what a script on the page reads; the Application panel lists it),
  * - `replayed`: the thief's request from outside the browser got this answer, 'METHOD address status' (chapter 3; the
- *   Server panel shows it).
+ *   Server panel shows it),
+ * - `server` with `times`: that access line at least this often (chapter 4: a whole 200 again),
+ * - `cdn`: a line of the CDN's log, 'who METHOD address OUTCOME' ('Sam GET https://api.cornerbakery.shop/account HIT';
+ *   chapter 4, the Application panel's Cache shows it). A row the browser's cache answered reads '… 200 (disk cache)'.
  */
-export type PredictionFact = { row: string } | { server: string } | { says: string } | { asks: string } | { sent: string } | { stored: string } | { refused: string } | { readable: string } | { storage: string } | { replayed: string }
+export type PredictionFact = { row: string } | { server: string, times?: number } | { says: string } | { asks: string } | { sent: string } | { stored: string } | { refused: string } | { readable: string } | { storage: string } | { replayed: string } | { cdn: string }
 
 /** One answer to choose, one line to order or to pick. */
 export interface PredictionOption {

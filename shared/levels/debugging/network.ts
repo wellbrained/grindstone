@@ -19,6 +19,8 @@ export interface NetworkResponse {
   reason: string | null
   /** Web fundamentals: its Set-Cookie lines, stored or why not. */
   cookies: SetCookieRow[]
+  /** Chapter 4: the browser's cache answered, no request went out ("(disk cache)"). */
+  fromCache: boolean
 }
 
 /** One row of the Network panel. */
@@ -92,20 +94,20 @@ export function requestEntry(message: RequestMessage, mapping: SourceMapping): N
 
 /** The entries with this answer on its request (the others stay the same objects). */
 export function withResponse(entries: readonly NetworkEntry[], message: ResponseMessage): NetworkEntry[] {
-  const { status, statusText, headers, body, failure, time, reason, cookies } = message
+  const { status, statusText, headers, body, failure, time, reason, cookies, fromCache } = message
   // an answer to a request that isn't listed (past the cap) changes nothing: the same array, so nothing redraws
   if (!entries.some(entry => entry.id === message.id)) return entries as NetworkEntry[]
-  return entries.map(entry => entry.id === message.id ? { ...entry, response: { status, statusText, headers, body, failure, time, reason, cookies } } : entry)
+  return entries.map(entry => entry.id === message.id ? { ...entry, response: { status, statusText, headers, body, failure, time, reason, cookies, fromCache } } : entry)
 }
 
 const FAILED: Record<RequestFailure, string> = { cors: 'CORS error', network: 'failed', aborted: 'canceled' }
 
-/** The status column: the code, or why there is none the app could read (as the browser's panel words it). */
+/** The status column: the code, or why there is none the app could read (as the browser's panel words it); a copy the browser's cache answered with is marked as Chrome's Size column marks it. */
 export function statusLabel(entry: NetworkEntry): string {
   const response = entry.response
   if (!response) return 'pending'
-  if (response.failure) return FAILED[response.failure]
-  return String(response.status)
+  if (response.failure) return response.fromCache ? `${FAILED[response.failure]} (disk cache)` : FAILED[response.failure]
+  return response.fromCache ? `${response.status} (disk cache)` : String(response.status)
 }
 
 export type StatusTone = 'pending' | 'success' | 'neutral' | 'error'

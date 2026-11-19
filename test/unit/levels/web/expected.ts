@@ -28,6 +28,8 @@ export interface ExpectedRun {
   storage?: string[]
   /** Chapter 3: the thief's requests from outside the browser the Server panel shows, 'METHOD address status', in order. */
   replayed?: string[]
+  /** Chapter 4: the CDN's log, 'who METHOD address OUTCOME', in order (a level with a cache; none without a CDN). */
+  cdn?: string[]
 }
 
 export interface ExpectedLevel {
@@ -486,6 +488,159 @@ export const expected: Record<string, ExpectedLevel> = {
       server: ['POST /login 200', 'GET /account 200', 'GET /orders 200', 'POST /auth/logout 204', 'GET /account 200', 'POST /auth/refresh 401', 'GET /orders 401'],
       sent: [`GET ${API}/account session`, `GET ${API}/orders session`, `POST ${API}/auth/logout refresh`, `POST ${API}/auth/logout session`],
       replayed: [`GET ${API}/account 200`, `POST ${API}/auth/refresh 401`, `GET ${API}/orders 401`]
+    }
+  },
+  'web-16-old-price': {
+    answers: ['cache'],
+    start: {
+      probes: { now: 'Butter croissant · 2.40 €', again: 'Butter croissant · 2.40 €' },
+      errors: 0,
+      network: [`GET ${API}/menu 200`, `GET ${API}/menu 200 (disk cache)`, `GET ${API}/menu 200 (disk cache)`],
+      server: ['GET /menu 200', 'POST /kitchen/prices 200', 'POST /kitchen/prices 200'],
+      says: ['Menu loaded · croissant 2.40 €', 'Menu loaded · croissant 2.40 €', 'Menu loaded · croissant 2.40 €'],
+      cdn: []
+    },
+    solved: {
+      probes: { now: 'Butter croissant · 2.60 €', again: 'Butter croissant · 2.80 €' },
+      errors: 0,
+      network: [`GET ${API}/menu 200`, `GET ${API}/menu 200`, `GET ${API}/menu 200`],
+      server: ['GET /menu 200', 'POST /kitchen/prices 200', 'GET /menu 200', 'POST /kitchen/prices 200', 'GET /menu 200'],
+      says: ['Menu loaded · croissant 2.40 €', 'Menu loaded · croissant 2.60 €', 'Menu loaded · croissant 2.80 €'],
+      cdn: []
+    }
+  },
+  'web-practice-ask-or-not': {
+    answers: ['copy', 'check', 'whole'],
+    start: {
+      probes: {},
+      errors: 0,
+      network: [`GET ${API}/hours 200`, `GET ${API}/specials 200`, `GET ${API}/stock 200`, `GET ${API}/hours 200 (disk cache)`, `GET ${API}/specials 304`, `GET ${API}/stock 200`],
+      server: ['GET /hours 200', 'GET /specials 200', 'GET /stock 200', 'GET /specials 304', 'GET /stock 200'],
+      says: ['hours: Weekdays 7:00–18:00 · Saturday 7:00–13:00', 'specials: Apricot danish · Cinnamon bun', 'stock: Rye loaf: 4 left', 'hours: Weekdays 7:00–18:00 · Saturday 7:00–13:00', 'specials: Apricot danish · Cinnamon bun', 'stock: Rye loaf: 4 left'],
+      cdn: []
+    }
+  },
+  'web-17-whole-menu': {
+    answers: ['whole'],
+    start: {
+      probes: { saved: 0, fresh: 'Butter croissant · 2.60 €' },
+      errors: 0,
+      network: [`GET ${API}/menu 200`, `GET ${API}/menu 200`, `GET ${API}/menu 200`],
+      server: ['GET /menu 200', 'GET /menu 200', 'POST /kitchen/prices 200', 'GET /menu 200'],
+      says: ['Menu loaded · croissant 2.40 €', 'Menu loaded · croissant 2.40 €', 'Menu loaded · croissant 2.60 €'],
+      cdn: []
+    },
+    solved: {
+      probes: { saved: 1, fresh: 'Butter croissant · 2.60 €' },
+      errors: 0,
+      network: [`GET ${API}/menu 200`, `GET ${API}/menu 304`, `GET ${API}/menu 200`],
+      server: ['GET /menu 200', 'GET /menu 304', 'POST /kitchen/prices 200', 'GET /menu 200'],
+      says: ['Menu loaded · croissant 2.40 €', 'Menu loaded · croissant 2.40 €', 'Menu loaded · croissant 2.60 €'],
+      cdn: []
+    }
+  },
+  'web-practice-own-condition': {
+    answers: ['bare'],
+    start: {
+      probes: {},
+      errors: 0,
+      network: [`GET ${API}/specials 304`, `OPTIONS ${API}/specials 204`],
+      server: ['OPTIONS /specials 204', 'GET /specials 304'],
+      says: ['Status 304', 'No specials: SyntaxError'],
+      asks: ['if-none-match'],
+      cdn: []
+    }
+  },
+  'web-18-someone-elses-account': {
+    answers: ['hands-over'],
+    start: {
+      probes: { lena: 'Signed in as Lena', anon: 200, sam: 'Lena', mia: 200, menuLoad: 1 },
+      errors: 0,
+      network: [`GET ${API}/account 200`, `GET ${API}/menu 200`],
+      server: ['GET /account 200', 'GET /menu 200'],
+      sent: [`GET ${API}/account session`],
+      stored: ['session'],
+      cdn: [`Lena GET ${API}/account MISS`, `Lena GET ${API}/menu MISS`, `Sam GET ${API}/account HIT`, `Guest GET ${API}/account HIT`, `Sam GET ${API}/account HIT`, `Mia GET ${API}/menu HIT`]
+    },
+    solved: {
+      probes: { lena: 'Signed in as Lena', anon: 401, sam: 'Sam', mia: 200, menuLoad: 1 },
+      errors: 0,
+      network: [`GET ${API}/account 200`, `GET ${API}/menu 200`],
+      server: ['GET /account 200', 'GET /menu 200', 'GET /account 200', 'GET /account 401', 'GET /account 200'],
+      sent: [`GET ${API}/account session`],
+      stored: ['session'],
+      cdn: [`Lena GET ${API}/account PASS`, `Lena GET ${API}/menu MISS`, `Sam GET ${API}/account PASS`, `Guest GET ${API}/account PASS`, `Sam GET ${API}/account PASS`, `Mia GET ${API}/menu HIT`]
+    }
+  },
+  'web-practice-cdn-keeps': {
+    answers: [['news', 'prices', 'offers']],
+    start: {
+      probes: {},
+      errors: 0,
+      network: [`GET ${API}/news 200`, `GET ${API}/basket 200`, `GET ${API}/prices 200`, `GET ${API}/offers 200`, `GET ${API}/receipt 200`],
+      server: ['GET /news 200', 'GET /basket 200', 'GET /prices 200', 'GET /offers 200', 'GET /receipt 200', 'GET /basket 200', 'GET /prices 304', 'GET /receipt 200'],
+      says: ['news: news', 'basket: basket', 'prices: prices', 'offers: offers', 'receipt: receipt'],
+      cdn: [`Lena GET ${API}/news MISS`, `Lena GET ${API}/basket PASS`, `Lena GET ${API}/prices MISS`, `Lena GET ${API}/offers MISS`, `Lena GET ${API}/receipt PASS`, `Sam GET ${API}/news HIT`, `Sam GET ${API}/basket PASS`, `Sam GET ${API}/prices REVALIDATED`, `Sam GET ${API}/offers HIT`, `Sam GET ${API}/receipt PASS`]
+    }
+  },
+  'web-19-vary-origin': {
+    answers: ['refused'],
+    start: {
+      probes: { app: 200, mia: 200, sam: 'blocked', load: 1 },
+      errors: 3,
+      network: [`GET ${API}/menu CORS error`],
+      server: ['GET /menu 200'],
+      says: [`GET ${API}/menu net::ERR_FAILED 200 (OK)`, 'Uncaught (in promise) TypeError: Failed to fetch'],
+      cdn: [`Mia GET ${API}/menu MISS`, `Lena GET ${API}/menu HIT`, `Kitchen GET ${API}/menu HIT`, `Mia GET ${API}/menu HIT`, `Sam GET ${API}/menu HIT`]
+    },
+    solved: {
+      probes: { menu: 'Butter croissant · 2.40 €', app: 200, mia: 200, sam: 200, load: 3 },
+      errors: 0,
+      network: [`GET ${API}/menu 200`],
+      server: ['GET /menu 200', 'GET /menu 200', 'GET /menu 200'],
+      says: ['Menu loaded · croissant 2.40 €'],
+      cdn: [`Mia GET ${API}/menu MISS`, `Lena GET ${API}/menu MISS`, `Kitchen GET ${API}/menu MISS`, `Mia GET ${API}/menu HIT`, `Sam GET ${API}/menu HIT`]
+    }
+  },
+  'web-practice-own-copy': {
+    answers: [['lena', 'mia', 'jo']],
+    start: {
+      probes: {},
+      errors: 0,
+      network: [`GET ${API}/specials 200`],
+      server: ['GET /specials 200', 'GET /specials 200', 'GET /specials 200'],
+      says: ['Specials: Apricot danish'],
+      cdn: [`Lena GET ${API}/specials MISS`, `Sam GET ${API}/specials HIT`, `Mia GET ${API}/specials MISS`, `Jo GET ${API}/specials MISS`]
+    }
+  },
+  'web-20-stale-deploy': {
+    answers: ['old'],
+    start: {
+      probes: { today: 'Butter croissant · NaN €', cheap: 0, next: 'Butter croissant · NaN €' },
+      errors: 0,
+      network: [`GET ${API}/menu 200 (disk cache)`, `GET ${API}/menu 200 (disk cache)`, `GET ${API}/menu 200 (disk cache)`],
+      server: ['POST /kitchen/prices 200'],
+      says: ['Menu loaded · croissant NaN €', 'Menu loaded · croissant NaN €', 'Menu loaded · croissant NaN €'],
+      cdn: []
+    },
+    solved: {
+      probes: { today: 'Butter croissant · 2.60 €', cheap: 1, next: 'Butter croissant · 2.90 €' },
+      errors: 0,
+      network: [`GET ${API}/menu?v=2 200`, `GET ${API}/menu?v=2 304`, `GET ${API}/menu?v=2 200`],
+      server: ['GET /menu?v=2 200', 'GET /menu?v=2 304', 'POST /kitchen/prices 200', 'GET /menu?v=2 200'],
+      says: ['Menu loaded · croissant 2.60 €', 'Menu loaded · croissant 2.60 €', 'Menu loaded · croissant 2.90 €'],
+      cdn: []
+    }
+  },
+  'web-practice-reaches-today': {
+    answers: ['old', 'new', 'new'],
+    start: {
+      probes: {},
+      errors: 0,
+      network: [`GET ${API}/specials 200 (disk cache)`, `GET ${API}/hours?v=2 200`, `GET ${API}/stock 200`],
+      server: ['GET /hours?v=2 200', 'GET /stock 200'],
+      says: ['/specials: [{"name":"Plum cake","price":3.1}]', '/hours?v=2: {"weekdays":"7:00–19:00","saturday":"7:00–14:00"}', '/stock: [{"name":"Rye loaf","left":9}]'],
+      cdn: []
     }
   }
 }

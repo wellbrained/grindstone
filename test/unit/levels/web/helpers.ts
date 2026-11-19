@@ -21,10 +21,10 @@ export interface NodeServer {
   serve: (request: ServerRequest, done: (answer: ServerAnswer | { fail: string }) => void) => void
 }
 
-/** server.js on Node; `time`: its Date tells the scripted time (chapter 3), as the worker's does. */
-export function nodeServer(source: string, time = false): NodeServer {
+/** server.js on Node; `time`: its Date tells the scripted time (chapter 3), as the worker's does; `etag`: Express's ETag and 304 (chapter 4). */
+export function nodeServer(source: string, time = false, etag = false): NodeServer {
   const output: ServerOutput[] = []
-  const runtime = createRuntime({ ...SERVER_LIMITS, statusText: STATUS_TEXT, time }, line => output.push(line))
+  const runtime = createRuntime({ ...SERVER_LIMITS, statusText: STATUS_TEXT, time, etag }, line => output.push(line))
   const log = (level: ServerOutput['level']) => (...args: unknown[]) => output.push({ level, text: args.map(arg => typeof arg === 'string' ? arg : JSON.stringify(arg)).join(' '), line: null })
   const console = { log: log('log'), info: log('log'), warn: log('warn'), error: log('error') }
   let crashed: string | null = null
@@ -51,7 +51,7 @@ const createBackend = new Function(`return ${WEB_BACKEND_SOURCE}`)() as (config:
 /** The web backend on Node with the level's server.js run in-process: what it posts, and the runtime. */
 export function nodeBackend(spec: WebSpec, files: Readonly<Record<string, string>>) {
   const posted: Posted[] = []
-  const server = nodeServer(spec.server ? files[spec.server] ?? '' : '', spec.time === true)
+  const server = nodeServer(spec.server ? files[spec.server] ?? '' : '', spec.time === true, spec.cache !== undefined)
   const config = webConfig(spec, files, SHOP_ORIGIN)
   const backend = createBackend(config, {
     post: (message: Posted) => posted.push(message),

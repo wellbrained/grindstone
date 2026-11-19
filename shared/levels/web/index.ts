@@ -1,5 +1,5 @@
-// The Web fundamentals track (ADR 0009): its chapters and their levels, in play order. Chapters 1 to 3 are live,
-// chapters 4 to 7 are coming (no levels yet). A practice task goes right after the scenario it trains (`practises`); defineTrack
+// The Web fundamentals track (ADR 0009): its chapters and their levels, in play order. Chapters 1 to 4 are live,
+// chapters 5 to 7 are coming (no levels yet). A practice task goes right after the scenario it trains (`practises`); defineTrack
 // checks it.
 import { fewestWrongPredictions } from '../progress'
 import { defineTrack, trackLevels } from '../track'
@@ -20,9 +20,15 @@ import { reviewRuns } from './12-review-runs'
 import { tokenNeverExpires } from './13-token-never-expires'
 import { signedOutAgain } from './14-signed-out-again'
 import { logoutStays } from './15-logout-stays'
+import { oldPrice } from './16-old-price'
+import { wholeMenu } from './17-whole-menu'
+import { someoneElsesAccount } from './18-someone-elses-account'
+import { varyOrigin } from './19-vary-origin'
+import { staleDeploy } from './20-stale-deploy'
 import { consoleOrder, readableAnswers, sameOrigin, simpleOrPreflight, whichHeaders, whichMethods } from './practice/cors'
 import { attackerRequests, linkCookies, sameSiteOrNot, whichHosts, whichStored } from './practice/cookies'
 import { afterLogout, refreshCookie, scriptReads, whichRun, whichTokens } from './practice/auth'
+import { askOrNot, cdnKeeps, ownCondition, ownCopy, reachesToday } from './practice/caching'
 
 export const webTrack = defineTrack({
   id: 'web',
@@ -94,7 +100,18 @@ export const webTrack = defineTrack({
       title: 'HTTP caching',
       description: '`max-age`, `no-cache`, `no-store`, ETag and 304, a CDN in between, a stale deploy.',
       colour: 3,
-      levels: []
+      levels: [
+        oldPrice,
+        askOrNot,
+        wholeMenu,
+        ownCondition,
+        someoneElsesAccount,
+        cdnKeeps,
+        varyOrigin,
+        ownCopy,
+        staleDeploy,
+        reachesToday
+      ]
     },
     {
       id: 'event-loop',

@@ -17,7 +17,7 @@ import {
 } from '#shared/levels'
 import type {
   Breakpoint, BridgeMessage, ColleagueMessage, ConsoleEntryBody, CssRule, DebugLevel, DebugRecord, DebugResult, DebugSession, DebugState, DeployPick, DomNode, Inspected, Instrumented, LogEntry, LoggedRequest, NetworkEntry, PickVerdict,
-  CookiesMessage, PredictionAnswer, Profile, RecordEndReason, RecordedStep, ReplayMessage, ScopeEntries, ServerOutputMessage, SourceLine, SourceMapping, StorageMessage, WebLevel
+  CookiesMessage, PredictionAnswer, Profile, RecordEndReason, RecordedStep, ReplayMessage, ScopeEntries, ServerOutputMessage, SourceLine, SourceMapping, CacheMessage, StorageMessage, WebLevel
 } from '#shared/levels'
 import type { CompiledCondition } from '#shared/levels/debugging/condition'
 import type { LineTone } from '~/editor/codemirror'
@@ -250,6 +250,10 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
   const hasStorage = web?.storage !== undefined
   /** Chapter 3: every origin's storage and the scripted time, as the frame last posted them (null before the first). */
   const storage = shallowRef<StorageMessage | null>(null)
+  /** Chapter 4: the level has the browser's cache (and maybe a CDN): the Application panel's Cache. */
+  const hasCache = web?.cache !== undefined
+  /** Chapter 4: both caches' copies and the CDN's log, as the frame last posted them (null before the first). */
+  const cache = shallowRef<CacheMessage | null>(null)
 
   /** Lena opens another site's page in this load (the Other site panel's Visit): its requests show in the panels. */
   function visitSite(origin: string) {
@@ -343,6 +347,7 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
     serverLines.value = []
     cookieJar.value = null
     storage.value = null
+    cache.value = null
     // a Web fundamentals level runs its app only once the prediction is answered: until then there is no load
     if (predicting.value) {
       link?.close()
@@ -453,6 +458,8 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
       if (hasApplication) cookieJar.value = message
     } else if (message.type === 'storage') {
       if (hasApplication && hasStorage) storage.value = message
+    } else if (message.type === 'cache') {
+      if (hasApplication && hasCache) cache.value = message
     } else if (message.type === 'replay') {
       // the thief's request from outside the browser: a line of its own in the Server panel, under server.js's answer
       if (serverLines.value.length < MAX_SERVER_LINES) serverLines.value = [...serverLines.value, { level: 'outside', replay: { request: message.request, using: message.using, status: message.status, by: message.by }, text: message.request, line: null, id: nextServerLine++ }]
@@ -1042,6 +1049,8 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
     cookieJar,
     hasStorage,
     storage,
+    hasCache,
+    cache,
     hasSites,
     sites,
     visitSite,

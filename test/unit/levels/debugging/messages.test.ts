@@ -182,17 +182,17 @@ describe('the fake backend\'s messages', () => {
   it('reads a request, its answer and the browser\'s line for it', () => {
     // Debugging's backend names no preflight and no reason: they read as none
     expect(readBridgeMessage(request)).toEqual({ ...request, preflightFor: null, site: null, destination: 'fetch', cookies: [] })
-    expect(readBridgeMessage(response)).toEqual({ ...response, reason: null, cookies: [] })
+    expect(readBridgeMessage(response)).toEqual({ ...response, reason: null, cookies: [], fromCache: false })
     expect(readBridgeMessage(netlog)).toEqual(netlog)
     const cors = { ...response, status: null, statusText: '', headers: [], body: null, failure: 'cors' }
-    expect(readBridgeMessage(cors)).toEqual({ ...cors, reason: null, cookies: [] })
+    expect(readBridgeMessage(cors)).toEqual({ ...cors, reason: null, cookies: [], fromCache: false })
   })
 
   it('reads the web backend\'s preflights, its reasons and server.js\'s lines (Web fundamentals), and refuses them malformed', () => {
     const preflight = { ...request, id: 2, method: 'OPTIONS', preflightFor: 1, site: null, destination: 'fetch', cookies: [] }
     expect(readBridgeMessage(preflight)).toEqual(preflight)
     const refused = { ...response, status: 200, failure: 'cors', reason: 'No \'Access-Control-Allow-Origin\' header is present on the requested resource.', cookies: [] }
-    expect(readBridgeMessage(refused)).toEqual(refused)
+    expect(readBridgeMessage(refused)).toEqual({ ...refused, fromCache: false })
     expect(readBridgeMessage({ ...refused, reason: 'x'.repeat(5000) })).toMatchObject({ reason: 'x'.repeat(1000) })
     const line = { type: 'server', level: 'error', text: 'ReferenceError: MENU is not defined', line: 21 }
     expect(readBridgeMessage(line)).toEqual(line)
@@ -209,7 +209,7 @@ describe('the fake backend\'s messages', () => {
     const form = { ...request, method: 'POST', site: 'https://cheap-flour.example', destination: 'document', preflightFor: null, cookies: [{ name: 'session', value: 'lena-7f3a', sent: false, reason: 'This cookie was blocked because …' }] }
     expect(readBridgeMessage(form)).toEqual(form)
     const kept = { ...response, reason: null, cookies: [{ line: 'session=lena-7f3a; Path=/', stored: true, reason: null }] }
-    expect(readBridgeMessage(kept)).toEqual(kept)
+    expect(readBridgeMessage(kept)).toEqual({ ...kept, fromCache: false })
     const jar = {
       type: 'cookies',
       jar: [{ name: 'session', value: 'lena-7f3a', size: 16, domain: 'api.cornerbakery.shop', hostOnly: true, path: '/', expires: null, secure: true, httpOnly: true, sameSite: 'Lax' }],
@@ -249,6 +249,25 @@ describe('the fake backend\'s messages', () => {
     const many = readBridgeMessage({ ...storage, areas: Array.from({ length: 80 }, () => ({ ...storage.areas[0], items: Array.from({ length: 300 }, () => ['k', 'v'.repeat(5000)]) })) })
     if (many?.type !== 'storage') throw new Error('no storage message')
     expect([many.areas.length, many.areas[0]!.items.length, many.areas[0]!.items[0]![1].length]).toEqual([50, 200, 301])
+  })
+
+  it('reads chapter 4\'s caches, the CDN\'s log and a copy the cache answered with as plain data, capped, and refuses malformed ones', () => {
+    const row = { url: 'https://api.cornerbakery.shop/menu', vary: '', status: 200, stored: 1794908460000, age: 15, lifetime: 60, fresh: true, etag: 'W/"14e-x"', control: 'public, max-age=60', by: 'Lena', hits: 1 }
+    const line = { at: 1794908475000, who: 'Sam', method: 'GET', url: 'https://api.cornerbakery.shop/account', outcome: 'HIT', status: 200, age: 15, note: 'Its copy from 09:41:00, fetched for Lena.' }
+    const cache = { type: 'cache', now: 1794908475000, browser: [row], cdn: [{ ...row, lifetime: -1 }], log: [line] }
+    expect(readBridgeMessage(cache)).toEqual(cache)
+    expect(readBridgeMessage({ ...cache, cdn: null, log: [] })).toEqual({ ...cache, cdn: null, log: [] })
+    expect(readBridgeMessage({ ...response, fromCache: true })).toEqual({ ...response, reason: null, cookies: [], fromCache: true })
+    // malformed: an outcome that is none, a method that is no word, a freshness that is no boolean, no clock, a flag that is no boolean
+    expect(readBridgeMessage({ ...cache, log: [{ ...line, outcome: 'STALE' }] })).toBeNull()
+    expect(readBridgeMessage({ ...cache, log: [{ ...line, method: 'GET /x' }] })).toBeNull()
+    expect(readBridgeMessage({ ...cache, browser: [{ ...row, fresh: 'yes' }] })).toBeNull()
+    expect(readBridgeMessage({ ...cache, now: Number.NaN })).toBeNull()
+    expect(readBridgeMessage({ ...response, fromCache: 1 })).toBeNull()
+    // capped: 100 copies a cache, the last 200 log lines, texts cut at 301 characters
+    const many = readBridgeMessage({ ...cache, browser: Array.from({ length: 150 }, () => ({ ...row, url: 'u'.repeat(5000) })), log: Array.from({ length: 300 }, (_, i) => ({ ...line, at: i })) })
+    if (many?.type !== 'cache') throw new Error('no cache message')
+    expect([many.browser.length, many.browser[0]!.url.length, many.log.length, many.log[0]!.at]).toEqual([100, 301, 200, 100])
   })
 
   it('refuses malformed ones: a made-up failure, headers that are not pairs of text, a status that is not one, a method that is not a word', () => {

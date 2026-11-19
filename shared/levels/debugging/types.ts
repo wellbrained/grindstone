@@ -158,6 +158,22 @@ export type ProbeStep
    * `forge`: each token it has made up without the secret (its exp 30 days on; its old signature, or alg none).
    */
     | { replay: string, using: string, show?: boolean, forge?: boolean }
+  /** Web fundamentals (chapter 4): how many of the page's requests to `'METHOD https://host/path'` the browser answered from its cache, without asking. */
+    | { fromCache: string }
+  /** Web fundamentals (chapter 4): how many of the page's requests to there were revalidated and answered 304 (the copy was still good). */
+    | { notModified: string }
+  /** Web fundamentals (chapter 4): how many of the page's requests to there the network answered in full (a 2xx with its body: no copy, no 304); an address ending in / counts every path below it. */
+    | { whole: string }
+  /** Web fundamentals (chapter 4): how many requests to there, from anyone (Lena, another customer, a probe), reached server.js past the CDN. */
+    | { reached: string }
+  /**
+   * Web fundamentals (chapter 4): another customer's browser (its own empty cache, its own `cookie`) sends `request` from a
+   * page on `from` (default: the shop's; null: an app, no CORS), through the CDN: the status, a field of its JSON (`json`)
+   * when it may read it, 'blocked' (CORS) or 'failed'. `like`: exactly as the page's last request to that address (its
+   * query and the headers its code set), so a page that hides its request in a query hides nothing. Only the CDN's log
+   * shows it.
+   */
+    | { other: string, request: string, from?: string | null, cookie?: string, like?: boolean, json?: string, body?: Readonly<Record<string, string>>, headers?: Readonly<Record<string, string>> }
 
 /** A scripted look at the app that goals read: steps run in order; its value is what the last read step read. */
 export interface Probe {

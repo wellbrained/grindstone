@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { SERVER_LIMITS, serverPrelude } from '../../../../shared/levels/web/server'
 import { STATUS_TEXT } from '../../../../shared/levels/debugging/backend'
@@ -50,7 +51,8 @@ describe('the server.js runtime', () => {
     expect(order.status).toBe(201)
     expect(order.body).toBe('{"number":1042,"items":1}')
     const removed = await server.handle({ method: 'DELETE', url: `${API}/basket/lines/2`, headers: [], body: null })
-    expect(removed).toEqual({ status: 204, headers: [['content-type', 'text/plain; charset=utf-8']], body: null })
+    // Express 5's res.send takes Content-Type off a 204
+    expect(removed).toEqual({ status: 204, headers: [], body: null })
     expect(server.output.map(line => line.text)).toEqual(['POST /orders 201', 'removing 2', 'DELETE /basket/lines/2 204'])
   })
 
@@ -58,10 +60,11 @@ describe('the server.js runtime', () => {
     const server = nodeServer(MENU_SERVER)
     expect(await server.handle({ method: 'OPTIONS', url: `${API}/orders`, headers: [['origin', 'https://cornerbakery.shop']], body: null })).toEqual({
       status: 200,
-      headers: [['allow', 'POST'], ['content-type', 'text/html; charset=utf-8']],
+      headers: [['allow', 'POST'], ['content-type', 'text/plain; charset=utf-8'], ['x-content-type-options', 'nosniff']],
       body: 'POST'
     })
-    expect((await server.handle({ method: 'OPTIONS', url: `${API}/menu`, headers: [], body: null })).body).toBe('GET,HEAD')
+    // Express 5's router: sorted, joined with ', '
+    expect((await server.handle({ method: 'OPTIONS', url: `${API}/menu`, headers: [], body: null })).body).toBe('GET, HEAD')
   })
 
   it('answers an unknown path with Express\'s 404 page, and a body it can\'t read with a 400', async () => {
@@ -99,7 +102,7 @@ app.use((req, res, next) => {
 app.get('/basket', (req, res) => res.json({ cookie: req.get('Cookie') ?? null, origin: req.headers.origin }))`)
     const preflight = await server.handle({ method: 'OPTIONS', url: `${API}/basket`, headers: [], body: null })
     expect(preflight.status).toBe(204)
-    expect(preflight.headers).toEqual([['access-control-allow-origin', 'https://cornerbakery.shop'], ['vary', 'Origin'], ['access-control-allow-methods', 'GET, POST, DELETE'], ['content-type', 'text/plain; charset=utf-8']])
+    expect(preflight.headers).toEqual([['access-control-allow-origin', 'https://cornerbakery.shop'], ['vary', 'Origin'], ['access-control-allow-methods', 'GET, POST, DELETE']])
     const basket = await server.handle(get('/basket', [['origin', 'https://cornerbakery.shop'], ['cookie', 'session=lena']]))
     expect(basket.body).toBe('{"cookie":"session=lena","origin":"https://cornerbakery.shop"}')
   })
@@ -278,5 +281,68 @@ app.get('/c', (req, res) => res.json(req.cookies))`)
 app.get('/now', (req, res) => res.json({ scripted: Date.now() === ${WEB_CLOCK} }))`)
     expect((await server.handle(get('/now'))).body).toBe('{"scripted":false}')
     expect(nodeServer('require(\'passport\')').crashed).toBe('Error: Cannot find module \'passport\'')
+  })
+})
+
+// Chapter 4 (a level with a cache): Express 5's res.send gives a body an ETag (the etag package: the body's length in
+// hex and 27 characters of its SHA-1 in base64, weak by default) and answers a conditional GET whose condition still
+// holds with 304 (req.fresh, the fresh package); res.end, Express's 404 page and its errors carry none.
+describe('Express\'s ETag and 304 (chapter 4)', () => {
+  const etagOf = (body: string, weak = true) => `${weak ? 'W/' : ''}"${Buffer.byteLength(body).toString(16)}-${createHash('sha1').update(body, 'utf8').digest('base64').substring(0, 27)}"`
+  const SERVER = `const app = require('express')()
+app.get('/menu', (req, res) => res.json([{ name: 'Butter croissant', price: 2.4 }]))
+app.get('/empty', (req, res) => res.send(''))
+app.get('/fixed', (req, res) => { res.set('ETag', '"v1"'); res.json({ fixed: true }) })
+app.get('/end', (req, res) => res.end('plain'))
+app.get('/modified', (req, res) => { res.set('Last-Modified', 'Mon, 16 Nov 2026 18:00:00 GMT'); res.json([]) })
+app.get('/missing', (req, res) => res.status(404).json({ error: 'gone' }))
+app.post('/orders', (req, res) => res.status(201).json({ number: 1042 }))
+`
+  const MENU_BODY = '[{"name":"Butter croissant","price":2.4}]'
+
+  it('gives what res.send sends Express\'s weak ETag, the empty body too', async () => {
+    const server = nodeServer(SERVER, false, true)
+    const menu = await server.handle(get('/menu'))
+    expect(menu.headers).toEqual([['content-type', 'application/json; charset=utf-8'], ['etag', etagOf(MENU_BODY)]])
+    expect((await server.handle(get('/empty'))).headers).toContainEqual(['etag', 'W/"0-2jmj7l5rSw0yVb/vlWAYkK/YBwk"'])
+    // an ETag the route set itself is kept; res.end and Express's own 404 page get none
+    expect((await server.handle(get('/fixed'))).headers).toContainEqual(['etag', '"v1"'])
+    expect((await server.handle(get('/end'))).headers.map(([name]) => name)).not.toContain('etag')
+    expect((await server.handle(get('/nowhere'))).headers.map(([name]) => name)).not.toContain('etag')
+    // the 4.5 and practice seeds' ETags are the runtime's own
+    const { YESTERDAYS_ETAG, YESTERDAYS_MENU } = await import('../../../../shared/levels/web/20-stale-deploy')
+    expect(etagOf(YESTERDAYS_MENU)).toBe(YESTERDAYS_ETAG)
+    const { SPECIALS_ETAG } = await import('../../../../shared/levels/web/practice/caching')
+    expect(etagOf('[{"name":"Apricot danish","price":3.2},{"name":"Cinnamon bun","price":3.4}]')).toBe(SPECIALS_ETAG)
+    // without a cache in the level (chapters 1 to 3) there is none, as before
+    expect((await nodeServer(SERVER).handle(get('/menu'))).headers.map(([name]) => name)).not.toContain('etag')
+  })
+
+  it('answers 304 without a body or content headers when If-None-Match still matches (W/ or not), unless the request says no-cache', async () => {
+    const server = nodeServer(SERVER, false, true)
+    const tag = etagOf(MENU_BODY)
+    expect(await server.handle(get('/menu', [['if-none-match', tag]]))).toEqual({ status: 304, headers: [['etag', tag]], body: null })
+    expect((await server.handle(get('/menu', [['if-none-match', `"x", ${tag.slice(2)}`]]))).status).toBe(304)
+    expect((await server.handle(get('/menu', [['if-none-match', '*']]))).status).toBe(304)
+    expect((await server.handle(get('/menu', [['if-none-match', 'W/"other"']]))).status).toBe(200)
+    // "Always return stale when Cache-Control: no-cache to support end-to-end reload requests" (the fresh package)
+    expect((await server.handle(get('/menu', [['if-none-match', tag], ['cache-control', 'no-cache']]))).status).toBe(200)
+    expect((await server.handle(get('/menu', [['if-none-match', tag], ['cache-control', 'max-age=0']]))).status).toBe(304)
+    // If-Modified-Since against Last-Modified, only without If-None-Match
+    expect((await server.handle(get('/modified', [['if-modified-since', 'Tue, 17 Nov 2026 09:00:00 GMT']]))).status).toBe(304)
+    expect((await server.handle(get('/modified', [['if-modified-since', 'Mon, 16 Nov 2026 09:00:00 GMT']]))).status).toBe(200)
+    // only a GET or HEAD answered 2xx is fresh
+    expect((await server.handle(get('/missing', [['if-none-match', '*']]))).status).toBe(404)
+    expect((await server.handle({ method: 'POST', url: `${API}/orders`, headers: [['if-none-match', '*']], body: null })).status).toBe(201)
+    expect(server.output.filter(line => line.level === 'access').map(line => line.text)).toContain('GET /menu 304')
+  })
+
+  it('takes app.set(\'etag\', …): false sends none, \'strong\' one without W/', async () => {
+    const off = nodeServer(`const app = require('express')()\napp.set('etag', false)\napp.get('/menu', (req, res) => res.json([]))`, false, true)
+    expect((await off.handle(get('/menu'))).headers.map(([name]) => name)).not.toContain('etag')
+    const strong = nodeServer(`const app = require('express')()\napp.set('etag', 'strong')\napp.get('/menu', (req, res) => res.json([]))\napp.get('/setting', (req, res) => res.json({ etag: app.get('etag') }))`, false, true)
+    expect((await strong.handle(get('/menu'))).headers).toContainEqual(['etag', etagOf('[]', false)])
+    expect((await strong.handle(get('/setting'))).body).toBe('{"etag":"strong"}')
+    expect(nodeServer(`const app = require('express')()\napp.set('etag', () => 'x')`, false, true).crashed).toMatch(/takes true, false, 'weak' or 'strong'/)
   })
 })

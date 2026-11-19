@@ -19,6 +19,12 @@
 // take, or a copy of the browser's cookies), `issued` (what a sign-in answered some minutes ago) and `replay` (the copy
 // sent from outside the browser, as curl would: no CORS, no SameSite; `show` puts it in the Server panel).
 //
+// Chapter 4 (HTTP caching): the browser's HTTP cache between the page's fetch and the network (cache.ts: Chrome's rules,
+// the `cache` modes of fetch and the headers Fetch adds for them, a 304 that freshens the copy), a CDN in front of the
+// API (RFC 9111's shared cache: `Age` and `x-cache` on what it serves, its log), another customer's browser (`other`:
+// Sam on his phone, a customer on www) whose requests meet Lena's copies only at the CDN, Express's ETag in server.js,
+// and the Application panel's Cache (`cache` messages: both caches' copies, their age and hits, the CDN's log).
+//
 // Two halves, like Debugging's backend: `webConfig` (TypeScript) turns the level's spec and files into plain data, and
 // WEB_BACKEND_SOURCE (JavaScript in a string) runs in the frame (and in the unit tests, with a server run in-process).
 // The same interface as Debugging's backend (`fetch`, `pending`, `count`, `sent`), plus what the web probes read:
@@ -27,6 +33,7 @@
 import { STATUS_TEXT, backendConfig } from '../debugging/backend'
 import type { BackendRoute, ProbeStep } from '../debugging/types'
 import { COOKIE_SOURCE, WEB_CLOCK } from './cookies'
+import { CACHE_LIMITS, CACHE_SOURCE } from './cache'
 import { CORS_SOURCE } from './cors'
 import { SCRIPTED_DATE_SOURCE, SCRIPTED_TIME_SOURCE, SERVER_HOST_SOURCE, SERVER_LIMITS, serverPrelude } from './server'
 import type { OtherSite, SiteAction } from './sites'
@@ -53,6 +60,33 @@ export interface SeedItem {
   key: string
   value: string
 }
+
+/** A copy a cache kept from before the page loaded (chapter 4): Lena's browser's, or the CDN's. */
+export interface CacheSeed {
+  /** Which cache kept it: Lena's browser, or the CDN in front of the API. */
+  into: 'browser' | 'cdn'
+  /** The address it answers (a GET). */
+  url: string
+  /** The headers of the request it was kept for (what its Vary compares), and who asked (the CDN's log). */
+  request?: Readonly<Record<string, string>>
+  by?: string
+  status?: number
+  /** The answer's headers, lower case, as server.js sent them (the copy's ETag among them). */
+  headers: Readonly<Record<string, string>>
+  body: string
+  minutesAgo: number
+}
+
+/** Chapter 4: the caches between the page and server.js. */
+export interface CacheSpec {
+  /** A CDN in front of the API: every request to it from anyone goes through its shared cache. */
+  cdn?: boolean
+  /** Copies kept from before the page loaded. */
+  seeds?: readonly CacheSeed[]
+}
+
+/** What the Application panel gets of the caches at most: copies (each cache), CDN log lines, characters of a text. */
+export const CACHE_PANEL_LIMITS = { rows: 100, log: CACHE_LIMITS.log, text: 300 } as const
 
 /** What the thief gets back for the panels and the tests: a request it made from outside the browser (chapter 3). */
 export const REPLAY_LIMITS = { attempts: 40, candidates: 40, text: 300 } as const
@@ -91,6 +125,12 @@ export interface WebSpec {
    * time, cookies expire and tokens run out on it.
    */
   time?: boolean
+  /**
+   * Chapter 4: the browser's HTTP cache (Chrome's rules) between the page and the network, and with `cdn` a CDN in front
+   * of the API; server.js's res.send gives bodies Express's ETag and answers a conditional GET with 304. The Application
+   * panel's Cache lists both caches.
+   */
+  cache?: CacheSpec
 }
 
 interface ShopRouteData {
@@ -120,7 +160,7 @@ export interface WebConfig {
   /** The level has a server.js (false: the API's origin answers nothing, and says nothing). */
   hasServer: boolean
   prelude: string
-  limits: typeof SERVER_LIMITS & { panel: typeof COOKIE_PANEL_LIMITS, storage: typeof STORAGE_LIMITS, replay: typeof REPLAY_LIMITS }
+  limits: typeof SERVER_LIMITS & { panel: typeof COOKIE_PANEL_LIMITS, storage: typeof STORAGE_LIMITS, replay: typeof REPLAY_LIMITS, cache: typeof CACHE_PANEL_LIMITS }
   delay: number
   statusText: Readonly<Record<number, string>>
   /** The scripted clock the cookie jar runs on. */
@@ -135,6 +175,8 @@ export interface WebConfig {
   storage: SeedItem[] | null
   /** Chapter 3: the clock moves, and the page's and server.js's Date follow it. */
   time: boolean
+  /** Chapter 4: the caches (a CDN or not) and the copies they kept from before, `ago` in ms; null: no cache at all. */
+  cache: { cdn: boolean, seeds: { into: 'browser' | 'cdn', url: string, request: [string, string][], by: string, status: number, headers: [string, string][], body: string, ago: number }[] } | null
   shop: { origins: string[], routes: ShopRouteData[] }
 }
 
@@ -176,14 +218,27 @@ export function webConfig(spec: WebSpec, files: Readonly<Record<string, string>>
         return { origin: originOnly(seed.origin, 'a stored item\'s origin'), kind: seed.kind, key: seed.key, value: seed.value }
       })
     : null
+  const cache = spec.cache
+    ? {
+        cdn: spec.cache.cdn === true,
+        seeds: (spec.cache.seeds ?? []).map((seed) => {
+          if (seed.into !== 'browser' && seed.into !== 'cdn') throw new Error(`${seed.url}: a copy is kept by the 'browser' or the 'cdn'`)
+          if (seed.into === 'cdn' && spec.cache?.cdn !== true) throw new Error(`${seed.url}: there is no CDN to keep it`)
+          const url = new URL(seed.url)
+          if (seed.into === 'cdn' && url.origin !== api) throw new Error(`${seed.url}: the CDN is in front of the API only`)
+          const lower = (record: Readonly<Record<string, string>>): [string, string][] => Object.entries(record).map(([name, value]) => [name.toLowerCase(), value])
+          return { into: seed.into, url: url.href, request: lower(seed.request ?? {}), by: seed.by ?? 'Lena', status: seed.status ?? 200, headers: lower(seed.headers), body: seed.body, ago: seed.minutesAgo * 60_000 }
+        })
+      }
+    : null
   return {
     page: origin,
     path,
     api,
     source: spec.server !== undefined && Object.hasOwn(files, spec.server) ? files[spec.server]! : null,
     hasServer: spec.server !== undefined,
-    prelude: serverPrelude(STATUS_TEXT, spec.time === true),
-    limits: { ...SERVER_LIMITS, panel: COOKIE_PANEL_LIMITS, storage: STORAGE_LIMITS, replay: REPLAY_LIMITS },
+    prelude: serverPrelude(STATUS_TEXT, spec.time === true, cache !== null),
+    limits: { ...SERVER_LIMITS, panel: COOKIE_PANEL_LIMITS, storage: STORAGE_LIMITS, replay: REPLAY_LIMITS, cache: CACHE_PANEL_LIMITS },
     delay: WEB_DELAY_MS,
     statusText: STATUS_TEXT,
     clock: WEB_CLOCK,
@@ -193,6 +248,7 @@ export function webConfig(spec: WebSpec, files: Readonly<Record<string, string>>
     application: spec.application === true,
     storage,
     time: spec.time === true,
+    cache,
     shop: {
       origins: [origin, ...(spec.shop?.alsoOn ?? []).map(each => new URL(each).origin)],
       routes: data.routes.map(route => ({
@@ -259,6 +315,20 @@ export interface WebRuntime {
    * from 200 to 299, else of the last, or 'failed'. `show`: the Server panel says so.
    */
   replay: (probe: { replay: string, using?: string, show?: boolean, forge?: boolean }, then: (value: string | number) => void) => void
+  /** Chapter 4: how many of the page's requests to there the browser answered from its cache, without asking. */
+  fromCache: (key: string) => number
+  /** Chapter 4: how many of the page's requests to there were revalidated and answered 304 (its copy was still good). */
+  notModified: (key: string) => number
+  /** Chapter 4: how many of the page's requests to there (an address ending in /: anywhere below it) the network answered in full (a 2xx: no copy, no 304). */
+  whole: (key: string) => number
+  /** Chapter 4: how many requests to there, from anyone, reached server.js (past the CDN). */
+  reached: (key: string) => number
+  /**
+   * Chapter 4: another customer's browser (its own empty cache, its own cookie) sends `'METHOD https://…'` from a page on
+   * `from` (default: the shop's; null: an app, no CORS): the status, a field of its JSON (`json`), 'blocked' or 'failed'.
+   * `like`: the request exactly as the page's last one to that address (its query and its headers).
+   */
+  other: (probe: { other: string, request: string, from?: string | null, cookie?: string, like?: boolean, json?: string, body?: Record<string, string>, headers?: Record<string, string> }, then: (value: string | number | null) => void) => void
 }
 
 // Runs inside the frame as part of the bridge (one line: block comments only, every statement ends with a semicolon),
@@ -269,6 +339,7 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
   var model = (${CORS_SOURCE})();
   var cookieModel = (${COOKIE_SOURCE})();
   var storageModel = config.storage ? (${STORAGE_SOURCE})() : null;
+  var cacheModel = config.cache ? (${CACHE_SOURCE})() : null;
   var server = hooks.serve ? { serve: hooks.serve } : (${SERVER_HOST_SOURCE})({ source: config.source, hasServer: config.hasServer, prelude: config.prelude, limits: config.limits }, {
     output: function (line) { hooks.post({ type: 'server', level: line.level, text: line.text, line: line.line }); }
   });
@@ -299,6 +370,7 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
   var methodOf = getter(NativeRequest.prototype, 'method');
   var modeOf = getter(NativeRequest.prototype, 'mode');
   var credentialsOf = getter(NativeRequest.prototype, 'credentials');
+  var cacheOf = describeProperty(NativeRequest.prototype, 'cache') ? getter(NativeRequest.prototype, 'cache') : null;
   var headersOf = getter(NativeRequest.prototype, 'headers');
   var eachHeader = uncurry(Headers.prototype.forEach);
   var isRequest = uncurry(FP[Symbol.hasInstance], NativeRequest);
@@ -320,6 +392,7 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
   var mathMax = Math.max;
   var mathMin = Math.min;
   var mathRound = Math.round;
+  var mathFloor = Math.floor;
   var toText = String;
   var later = setTimeout;
   var parseFloatText = parseFloat;
@@ -345,6 +418,7 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
     return descriptor;
   };
   var NULL_BODY = [204, 205, 304];
+  var NOT_MODIFIED = 304;
   var READERS = [];
   var readers = createObject(null);
   var NAMES = ['json', 'text', 'arrayBuffer', 'blob', 'formData'];
@@ -455,6 +529,140 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
   };
   storageChanged();
 
+  /* --- HTTP caching (chapter 4): Lena's browser's cache, the CDN in front of the API, the CDN's log ----------------- */
+  var CACHED = config.limits.cache;
+  var browserCache = cacheModel ? cacheModel.createCache({ shared: false, clock: function () { return clock; } }) : null;
+  var cdn = cacheModel && config.cache.cdn ? cacheModel.createCache({ shared: true, clock: function () { return clock; } }) : null;
+  if (cacheModel) {
+    for (var cs = 0; cs < config.cache.seeds.length; cs++) {
+      var seed = config.cache.seeds[cs];
+      (seed.into === 'cdn' ? cdn : browserCache).store(seed.url, { method: 'GET', headers: seed.request }, { status: seed.status, headers: seed.headers, body: seed.body }, seed.by, config.clock - seed.ago);
+    }
+  }
+  var cdnLog = [];
+  /* requests that reached server.js, from anyone, by place (past the CDN) */
+  var reachedBy = createObject(null);
+  var cacheQueued = false;
+  var cacheAt = -1;
+  var cacheRows = function (cache) {
+    var list = cache.list();
+    var rows = [];
+    for (var i = list.length - 1; i >= 0 && rows.length < CACHED.rows; i--) {
+      var kept = list[i];
+      var vary = '';
+      for (var v = 0; v < kept.vary.length; v++) vary += (v ? '; ' : '') + kept.vary[v] + (kept.vary[v] === '*' ? '' : ': ' + (kept.varyValues[v] === null ? '(none)' : kept.varyValues[v]));
+      push(rows, {
+        url: cut(kept.url, CACHED.text),
+        vary: cut(vary, CACHED.text),
+        status: kept.status,
+        stored: kept.stored,
+        age: mathFloor(kept.age / 1000),
+        lifetime: kept.lifetime === 1 / 0 ? -1 : mathFloor(kept.lifetime / 1000),
+        fresh: kept.fresh,
+        etag: cut(cacheModel.headerValue(kept.headers, 'etag') || '', CACHED.text),
+        control: cut(cacheModel.headerValue(kept.headers, 'cache-control') || '', CACHED.text),
+        by: cut(kept.by, CACHED.text),
+        hits: kept.hits
+      });
+    }
+    return rows;
+  };
+  var postCache = function () {
+    cacheQueued = false;
+    cacheAt = hooks.now();
+    hooks.post({ type: 'cache', now: clock, browser: cacheRows(browserCache), cdn: cdn ? cacheRows(cdn) : null, log: copy(cdnLog) });
+  };
+  /* the Application panel gets both caches and the CDN's log after a change, at most every 50 ms */
+  var cacheChanged = function () {
+    if (!cacheModel || !config.application || cacheQueued) return;
+    cacheQueued = true;
+    later(postCache, cacheAt < 0 ? 0 : mathMax(0, cacheAt + 50 - hooks.now()));
+  };
+  cacheChanged();
+  var CONDITIONS = ['if-none-match', 'if-modified-since', 'if-match', 'if-unmodified-since', 'if-range'];
+  var headerOf = function (headers, name) {
+    for (var i = 0; i < headers.length; i++) if (lowerCase(toText(headers[i][0])) === name) return toText(headers[i][1]);
+    return null;
+  };
+  var without = function (headers, names) {
+    var kept = [];
+    for (var i = 0; i < headers.length; i++) if (!has(names, lowerCase(toText(headers[i][0])))) push(kept, headers[i]);
+    return kept;
+  };
+  var joined = function (first, second) {
+    var out = copy(first);
+    for (var i = 0; i < second.length; i++) push(out, second[i]);
+    return out;
+  };
+  var conditional = function (headers) {
+    for (var i = 0; i < CONDITIONS.length; i++) if (headerOf(headers, CONDITIONS[i]) !== null) return true;
+    return false;
+  };
+  /* How a page's request uses the browser's cache: Fetch's cache mode (the request's cache), with the headers Fetch
+     adds for it (no-cache: Cache-Control: max-age=0; no-store and reload: Pragma: no-cache and Cache-Control: no-cache,
+     each unless the page set one), a condition the page set itself making a default request no-store (Fetch), and a
+     Cache-Control or Pragma it set itself read as Chrome's network stack reads them (no-cache: fetch anew, max-age=0:
+     revalidate). lookup: a copy may answer; fresh: a fresh copy answers without asking; any: any copy answers, stale or
+     not (force-cache, only-if-cached); only: nothing else may (only-if-cached); store: the answer is kept. */
+  var MODES = ['default', 'no-store', 'reload', 'no-cache', 'force-cache', 'only-if-cached'];
+  var tokenIn = function (value, token) {
+    if (value === null) return false;
+    var from = 0;
+    while (from <= value.length) {
+      var end = indexOfText(value, ',', from);
+      if (end < 0) end = value.length;
+      var part = sliceText(value, from, end);
+      while (part.length && (part[0] === ' ' || part[0] === '\t')) part = sliceText(part, 1);
+      while (part.length && (part[part.length - 1] === ' ' || part[part.length - 1] === '\t')) part = sliceText(part, 0, part.length - 1);
+      if (lowerCase(part) === token) return true;
+      from = end + 1;
+    }
+    return false;
+  };
+  var cacheUse = function (asked, headers) {
+    var mode = has(MODES, asked) ? asked : 'default';
+    var control = headerOf(headers, 'cache-control');
+    var pragma = headerOf(headers, 'pragma');
+    var added = [];
+    if (mode === 'no-cache' && control === null) push(added, ['cache-control', 'max-age=0']);
+    if (mode === 'no-store' || mode === 'reload') {
+      if (pragma === null) push(added, ['pragma', 'no-cache']);
+      if (control === null) push(added, ['cache-control', 'no-cache']);
+    }
+    var effective = mode;
+    if (mode === 'default' && conditional(headers)) effective = 'no-store';
+    else if (mode === 'default' && (tokenIn(control, 'no-cache') || tokenIn(pragma, 'no-cache'))) effective = 'reload';
+    else if (mode === 'default' && tokenIn(control, 'max-age=0')) effective = 'no-cache';
+    return { added: added, lookup: effective !== 'no-store' && effective !== 'reload', fresh: effective === 'default', any: effective === 'force-cache' || effective === 'only-if-cached', only: effective === 'only-if-cached', store: effective !== 'no-store' };
+  };
+  /* a 304 made from an answer: no body, none of its content headers (RFC 9110 15.4.5) */
+  var asNotModified = function (answer) {
+    return { status: NOT_MODIFIED, headers: without(answer.headers, ['content-type', 'content-length']), body: null };
+  };
+  var hoursOf = uncurry(RealDate.prototype.getUTCHours);
+  var minutesOf = uncurry(RealDate.prototype.getUTCMinutes);
+  var secondsOf = uncurry(RealDate.prototype.getUTCSeconds);
+  var clockText = function (at) {
+    var date = new RealDate(at);
+    var two = function (n) { return (n < 10 ? '0' : '') + n; };
+    return two(hoursOf(date)) + ':' + two(minutesOf(date)) + ':' + two(secondsOf(date));
+  };
+  var logCdn = function (who, method, href, outcome, status, age, note) {
+    if (cdnLog.length >= CACHED.log) {
+      for (var i = 0; i < cdnLog.length - 1; i++) cdnLog[i] = cdnLog[i + 1];
+      cdnLog.length -= 1;
+    }
+    push(cdnLog, { at: clock, who: cut(who, CACHED.text), method: method, url: cut(href, CACHED.text), outcome: outcome, status: status, age: age === null ? null : mathFloor(age / 1000), note: note === null ? null : cut(note, CACHED.text) });
+    cacheChanged();
+  };
+  /* what the CDN serves: the answer with its own Age (a copy's) and x-cache (what it did) in place of any the server sent */
+  var fromCdn = function (answer, outcome, age) {
+    var headers = without(answer.headers, ['age', 'x-cache']);
+    if (age !== null) push(headers, ['age', toText(mathFloor(age / 1000))]);
+    push(headers, ['x-cache', outcome]);
+    return { status: answer.status, headers: headers, body: answer.body };
+  };
+
   /* The cookies a request carries: with credentials (a navigation always), the jar's choice for the request's site
      context: same-site when the initiator's site is the URL's (the page is the top level), a top-level navigation's
      own rules for Lax. Each cookie of the URL's site is listed, sent or why not (as Chrome's Network panel does). */
@@ -502,6 +710,13 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
     record.page = false;
     record.headers = [];
     record.answer = null;
+    /* chapter 4: the browser answered it from its cache without asking, or its copy was revalidated with a 304 */
+    record.fromCache = false;
+    record.notModified = false;
+    /* the request left the browser (exchange ran for it): not refused at its preflight, not answered by Lena's cache */
+    record.sent = false;
+    /* the network answered it in full: a 2xx with its body (neither the copy nor a 304) */
+    record.whole = false;
     records[recordCount] = record;
     recordCount += 1;
     return record;
@@ -570,12 +785,68 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
   };
   /* One exchange with a server: the API's server.js, the shop's server on each origin it answers on, another site's
      server (it takes anything: 200, "ok"), or nobody (the name does not resolve). */
+  var toServer = function (request, url, record, done) {
+    if (record) record.arrived = true;
+    var place = placeOf(request.method, url);
+    reachedBy[place] = (hasOwn(reachedBy, place) ? reachedBy[place] : 0) + 1;
+    /* the request as server.js gets it, at the scripted moment it is answered at */
+    server.serve({ method: request.method, url: request.url, headers: request.headers, body: request.body, now: clock }, done);
+  };
+  /* The CDN in front of the API (RFC 9111's shared cache): a fresh copy for this request (its Vary) is served without
+     asking (HIT, with its Age); a stale one with a validator is revalidated with the copy's own condition (a 304 keeps
+     it: REVALIDATED); otherwise server.js is asked with the client's own conditions taken out, so the CDN gets a whole
+     answer to keep (MISS) or not (PASS: why in the log), and then answers the client's condition itself (4.3.2). A
+     request that isn't a GET goes through (PASS), and its non-error answer takes the address's copies away (4.4). */
+  var throughCdn = function (request, url, record, done) {
+    var who = request.who;
+    var method = request.method;
+    var href = request.url;
+    var asks = conditional(request.headers);
+    var answerClient = function (answer) {
+      return asks && answer.status >= 200 && answer.status < 300 && cacheModel.notModified(request.headers, answer.headers) ? asNotModified(answer) : answer;
+    };
+    if (method !== 'GET') {
+      toServer(request, url, record, function (answer) {
+        if (own(answer, 'fail')) { logCdn(who, method, href, 'PASS', null, null, answer.fail); return done(answer); }
+        var gone = method !== 'HEAD' && method !== 'OPTIONS' && answer.status < 400 ? cdn.invalidate(href) : 0;
+        logCdn(who, method, href, 'PASS', answer.status, null, gone ? 'Its copies of this address are gone: an unsafe request changed it.' : null);
+        done(fromCdn(answer, 'PASS', null));
+      });
+      return;
+    }
+    var found = cdn.lookup(href, request.headers);
+    var serveCopy = function (kept, outcome, note) {
+      cdn.hit(kept.id);
+      var answer = answerClient(fromCdn({ status: kept.status, headers: kept.headers, body: kept.body }, outcome, kept.age));
+      logCdn(who, method, href, outcome, answer.status, kept.age, note);
+      later(function () { done(answer); }, 0);
+    };
+    if (found && found.fresh) { serveCopy(found, 'HIT', 'Its copy from ' + clockText(found.stored) + ', fetched for ' + found.by + '.'); return; }
+    var unconditional = without(request.headers, CONDITIONS);
+    var fill = function (answer) {
+      if (own(answer, 'fail')) { logCdn(who, method, href, 'MISS', null, null, answer.fail); return done(answer); }
+      var kept = cdn.store(href, { method: method, headers: request.headers }, answer, who);
+      var outcome = kept.stored ? 'MISS' : 'PASS';
+      var served = answerClient(fromCdn(answer, outcome, null));
+      logCdn(who, method, href, outcome, served.status, null, kept.stored ? 'Kept for the next request.' : cacheModel.reason(kept.reason, true));
+      done(served);
+    };
+    var checks = found ? cacheModel.validators(found.headers) : [];
+    if (!checks.length) { toServer({ method: method, url: href, headers: unconditional, body: request.body }, url, record, fill); return; }
+    toServer({ method: method, url: href, headers: joined(unconditional, checks), body: request.body }, url, record, function (answer) {
+      if (!own(answer, 'fail') && answer.status === NOT_MODIFIED) {
+        var freshened = cdn.freshen(found.id, answer.headers);
+        if (freshened) { serveCopy(freshened, 'REVALIDATED', 'server.js answered 304: its copy from ' + clockText(found.stored) + ' is still good.'); return; }
+      }
+      fill(answer);
+    });
+  };
   var exchange = function (request, url, record, done) {
+    if (record) record.sent = true;
     var target = originOf(url);
     if (target === api) {
-      if (record) record.arrived = true;
-      /* the request as server.js gets it, at the scripted moment it is answered at */
-      server.serve({ method: request.method, url: request.url, headers: request.headers, body: request.body, now: clock }, done);
+      if (cdn) throughCdn({ method: request.method, url: request.url, headers: request.headers, body: request.body, who: typeof request.who === 'string' ? request.who : 'Lena' }, url, record, done);
+      else toServer(request, url, record, done);
       return;
     }
     if (has(config.shop.origins, target)) { later(function () { done(shopAnswer(request.method, url)); }, 0); return; }
@@ -656,22 +927,34 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
     /* Fetch's "includeCredentials": include, or same-origin to the page's own origin */
     var include = credentials === 'include' || (credentials === 'same-origin' && !cross);
     var found = cookiesFor(page, href, method, include, false);
-    var sent = wireHeaders(headers, page, pageAddress, false, url, method, mode, found.header);
+    /* chapter 4: how this request uses the browser's cache (Fetch's cache mode, and what Chrome makes of a Cache-Control,
+       Pragma or condition the page set itself), and the headers Fetch adds for its mode */
+    var use = browserCache ? cacheUse(cacheOf ? cacheOf(request) : (init && typeof init.cache === 'string' ? toText(init.cache) : 'default'), headers) : null;
+    var sent = wireHeaders(use ? joined(headers, use.added) : headers, page, pageAddress, false, url, method, mode, found.header);
+    /* the copy this request may use (by its Vary), whether it answers without a request, and the condition a revalidation
+       sends with it (the Network panel shows the request as sent, If-None-Match and all) */
+    var stored = use && use.lookup && method === 'GET' ? browserCache.lookup(href, sent) : null;
+    var answersItself = stored !== null && (use.any || (use.fresh && stored.fresh));
+    var checks = stored !== null && !answersItself ? cacheModel.validators(stored.headers) : [];
+    if (checks.length) sent = joined(sent, checks);
     var corsRequest = { origin: page, method: method, headers: headers, credentials: credentials };
     var preflight = cross && mode === 'cors' && model.needsPreflight(method, headers);
     var id = nextId++;
-    var record = remember(placeOf(method, url), body, href, textOf(href, sent, body));
-    record.cookies = sentNames(found);
+    /* a copy that answers without a request sends nothing: no cookie goes, and the panel shows the headers that would
+       have gone without it (Chrome: "Provisional headers are shown") */
+    var shown = answersItself ? without(sent, ['cookie']) : sent;
+    var record = remember(placeOf(method, url), body, href, textOf(href, shown, body));
+    record.cookies = answersItself ? [] : sentNames(found);
     record.page = true;
     record.headers = copy(headers);
-    hooks.post({ type: 'request', id: id, method: method, url: href, headers: sent, body: body, stack: stack, preflightFor: null, site: null, destination: 'fetch', cookies: found.list });
+    hooks.post({ type: 'request', id: id, method: method, url: href, headers: shown, body: body, stack: stack, preflightFor: null, site: null, destination: 'fetch', cookies: answersItself ? [] : found.list });
     var started = hooks.now();
     var signal = init && init.signal ? init.signal : null;
     busy(1);
     return new NativePromise(function (resolve, reject) {
       var open = true;
-      var report = function (to, status, statusText, headers, body, failure, reason, kept) {
-        hooks.post({ type: 'response', id: to, status: status, statusText: statusText, headers: headers, body: body, failure: failure, time: mathMax(0, mathRound(hooks.now() - started)), reason: reason, cookies: kept || [] });
+      var report = function (to, status, statusText, headers, body, failure, reason, kept, cached) {
+        hooks.post({ type: 'response', id: to, status: status, statusText: statusText, headers: headers, body: body, failure: failure, time: mathMax(0, mathRound(hooks.now() - started)), reason: reason, cookies: kept || [], fromCache: cached === true });
       };
       var netlog = function (text, at) { hooks.post({ type: 'netlog', text: text, stack: at }); };
       var close = function () {
@@ -692,41 +975,77 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
         report(id, null, '', [], null, 'network', null);
         reject(failed);
       };
-      var refuse = function (refusal, answer, kept) {
+      var refuse = function (refusal, answer, kept, cached) {
         if (!close()) return;
         netlog(model.consoleLine(href, page, refusal), '');
         netlog(method + ' ' + href + ' net::ERR_FAILED' + (refusal.preflight ? '' : ' ' + answer.status + ' (' + (STATUS[answer.status] || '') + ')'), stack);
         if (refusal.preflight) report(id, null, '', [], null, 'cors', model.reason(refusal));
-        else report(id, answer.status, STATUS[answer.status] || '', answer.headers, answer.body, 'cors', model.reason(refusal), kept);
+        else report(id, answer.status, STATUS[answer.status] || '', answer.headers, answer.body, 'cors', model.reason(refusal), kept, cached);
         reject(failed);
       };
-      var actual = function () {
-        exchange({ method: method, url: href, headers: sent, body: body }, url, record, function (answer) {
+      /* What the page gets, once there is an answer: from the network (shown: what the panel shows of it, a 304 for a
+         revalidated copy), or the browser's copy (cached: no request went out) */
+      var deliver = function (answer, shown, kept, cached) {
+        if (cross && mode === 'cors') {
+          var problem = model.check(corsRequest, answer);
+          if (problem) return refuse({ problem: problem, preflight: false }, shown, kept, cached);
+        }
+        if (!close()) return;
+        var statusText = STATUS[shown.status] || '';
+        report(id, shown.status, statusText, shown.headers, shown.body, null, null, kept, cached);
+        if (shown.status >= 400) netlog(method + ' ' + href + ' ' + shown.status + ' (' + statusText + ')', stack);
+        if (cross && mode === 'no-cors') return resolve(opaqueResponse());
+        /* an answer the browser's Response can't carry (a header it refuses) fails the fetch, never the page's timer */
+        var response;
+        try {
+          response = toResponse(answer, cross ? model.exposedHeaders(answer, credentials) : withoutSetCookie(answer.headers), href, cross ? 'cors' : 'basic', record);
+        } catch (error) {
+          return reject(failed);
+        }
+        /* what the page's code (and so any script on the page) could read of it */
+        record.answer = typeof answer.body === 'string' ? answer.body : null;
+        resolve(response);
+      };
+      /* the network's answer: its cookies into the jar first (Fetch stores them before it checks CORS: a refused answer's
+         cookies are kept too), then the page gets it */
+      var network = function (headersOut, then) {
+        exchange({ method: method, url: href, headers: headersOut, body: body }, url, record, function (answer) {
           later(function () {
             if (!open) return;
             if (own(answer, 'fail')) return failWith(answer.fail);
-            /* Fetch stores an answer's cookies before it checks CORS: a refused answer's cookies are kept too */
-            var kept = keepCookies(answer.headers, href, include, found.sameSite, false);
-            if (cross && mode === 'cors') {
-              var problem = model.check(corsRequest, answer);
-              if (problem) return refuse({ problem: problem, preflight: false }, answer, kept);
-            }
-            if (!close()) return;
-            var statusText = STATUS[answer.status] || '';
-            report(id, answer.status, statusText, answer.headers, answer.body, null, null, kept);
-            if (answer.status >= 400) netlog(method + ' ' + href + ' ' + answer.status + ' (' + statusText + ')', stack);
-            if (cross && mode === 'no-cors') return resolve(opaqueResponse());
-            /* an answer the browser's Response can't carry (a header it refuses) fails the fetch, never the page's timer */
-            var response;
-            try {
-              response = toResponse(answer, cross ? model.exposedHeaders(answer, credentials) : withoutSetCookie(answer.headers), href, cross ? 'cors' : 'basic', record);
-            } catch (error) {
-              return reject(failed);
-            }
-            /* what the page's code (and so any script on the page) could read of it */
-            record.answer = typeof answer.body === 'string' ? answer.body : null;
-            resolve(response);
+            if (answer.status >= 200 && answer.status < 300) record.whole = true;
+            then(answer, keepCookies(answer.headers, href, include, found.sameSite, false));
           }, delay);
+        });
+      };
+      var actual = function () {
+        if (!use) return network(sent, function (answer, kept) { deliver(answer, answer, kept, false); });
+        /* an unsafe request's answer that is no error takes the address's copy away (RFC 9111 4.4) */
+        var keep = function (answer, kept) {
+          if (method !== 'GET' && method !== 'HEAD' && answer.status < 400) browserCache.invalidate(href);
+          else if (use.store) browserCache.store(href, { method: method, headers: sent }, answer, 'Lena');
+          cacheChanged();
+          deliver(answer, answer, kept, false);
+        };
+        if (answersItself) {
+          /* the copy, without a request: Chrome shows the row as (disk cache) */
+          browserCache.hit(stored.id);
+          record.fromCache = true;
+          cacheChanged();
+          later(function () { if (open) deliver({ status: stored.status, headers: stored.headers, body: stored.body }, { status: stored.status, headers: stored.headers, body: stored.body }, [], true); }, 0);
+          return;
+        }
+        if (!stored && use.only) { later(function () { failWith('net::ERR_CACHE_MISS'); }, 0); return; }
+        if (!checks.length) return network(sent, keep);
+        /* a stale copy (or one the mode wants checked) with a validator: a conditional request; a 304 keeps the copy */
+        network(sent, function (answer, kept) {
+          if (answer.status !== NOT_MODIFIED) return keep(answer, kept);
+          var freshened = browserCache.freshen(stored.id, answer.headers);
+          browserCache.hit(stored.id);
+          record.notModified = true;
+          cacheChanged();
+          var copyOf = freshened || stored;
+          deliver({ status: copyOf.status, headers: copyOf.headers, body: copyOf.body }, answer, kept, false);
         });
       };
       if (signal && signal.aborted) { onAbort(); return; }
@@ -782,7 +1101,7 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
       done({ kind: kind, status: status });
     };
     var actual = function () {
-      exchange({ method: method, url: href, headers: sent, body: spec.body }, url, record, function (answer) {
+      exchange({ method: method, url: href, headers: sent, body: spec.body, who: spec.from }, url, record, function (answer) {
         later(function () {
           if (own(answer, 'fail')) { report(id, null, [], null, 'network', null); return finish('failed', null); }
           var kept = spec.show ? keepCookies(answer.headers, href, include, found.sameSite, navigate) : [];
@@ -799,7 +1118,7 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
     var asked = model.preflightHeaders(corsRequest);
     var preflightId = spec.show ? nextId++ : 0;
     if (spec.show) hooks.post({ type: 'request', id: preflightId, method: 'OPTIONS', url: href, headers: asked, body: null, stack: '', preflightFor: id, site: spec.from, destination: 'fetch', cookies: [] });
-    exchange({ method: 'OPTIONS', url: href, headers: asked, body: null }, url, null, function (answer) {
+    exchange({ method: 'OPTIONS', url: href, headers: asked, body: null, who: spec.from }, url, null, function (answer) {
       later(function () {
         if (own(answer, 'fail')) { report(preflightId, null, [], null, 'network', null); report(id, null, [], null, 'network', null); return finish('failed', null); }
         report(preflightId, answer.status, answer.headers, answer.body, null, null);
@@ -1220,7 +1539,7 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
       lastAttempt = each;
       var href = hrefOf(asked.url);
       if (each.query) href = originOf(asked.url) + pathOf(asked.url) + '?' + each.query;
-      exchange({ method: asked.method, url: href, headers: each.headers, body: null }, new NativeURL(href), null, function (answer) {
+      exchange({ method: asked.method, url: href, headers: each.headers, body: null, who: 'thief' }, new NativeURL(href), null, function (answer) {
         later(function () {
           if (own(answer, 'fail')) { last = 'failed'; return next(); }
           /* the thief keeps the cookies it is given (a rotated refresh token), with their paths */
@@ -1267,6 +1586,93 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
     server.serve(request, done);
   };
 
+  /* Chapter 4: another customer's browser (Sam on his phone, a customer on www): its own empty cache and its own cookie,
+     so it meets Lena's copies only at the CDN. A page on from (the shop's by default; null: an app, no CORS) sends the
+     request, with its preflight when it needs one; like: exactly as the page's requests to that address went, each
+     different one the page really sent (its query, the headers its code set: a request refused at its preflight, or
+     answered by Lena's own cache, never left her browser), one after the other. The value: the status, a field of its
+     JSON (json) when it may read it, 'blocked' (CORS) or 'failed'; with like, the one value they all gave, else every
+     value joined with ' | ' (a page that sends a decoy beside its real request hides nothing). Nothing in Lena's panels
+     but the CDN's log. */
+  var sameHeaders = function (first, second) {
+    if (first.length !== second.length) return false;
+    for (var i = 0; i < first.length; i++) if (first[i][0] !== second[i][0] || first[i][1] !== second[i][1]) return false;
+    return true;
+  };
+  var other = function (probe, then) {
+    var name = toText(probe.other);
+    var asked = requestOf(toText(probe.request));
+    var variants = [];
+    if (probe.like === true) {
+      var place = placeOf(asked.method, asked.url);
+      for (var r = 0; r < recordCount; r++) {
+        var record = records[r];
+        if (!record.page || !record.sent || record.place !== place) continue;
+        var seen = false;
+        for (var v = 0; v < variants.length; v++) if (variants[v].href === record.href && sameHeaders(variants[v].headers, record.headers)) seen = true;
+        if (!seen) push(variants, { href: record.href, headers: copy(record.headers) });
+      }
+    }
+    if (!variants.length) push(variants, { href: hrefOf(asked.url), headers: [] });
+    var from = probe.from === null ? null : probe.from === undefined ? page : originOf(new NativeURL(toText(probe.from)));
+    var cookie = typeof probe.cookie === 'string' && probe.cookie ? toText(probe.cookie) : null;
+    var fields = probe.body && typeof probe.body === 'object' ? probe.body : null;
+    var results = [];
+    var one = function (variant, done) {
+      var given = copy(variant.headers);
+      if (probe.headers && typeof probe.headers === 'object') {
+        var names = keysOf(probe.headers);
+        for (var n = 0; n < names.length; n++) push(given, [lowerCase(names[n]), toText(probe.headers[names[n]])]);
+      }
+      if (fields) push(given, ['content-type', FORM + ';charset=UTF-8']);
+      var url = new NativeURL(variant.href);
+      var cross = from !== null && originOf(url) !== from;
+      var credentials = cookie ? 'include' : 'omit';
+      var corsRequest = { origin: from, method: asked.method, headers: given, credentials: credentials };
+      var sent = copy(given);
+      if (from !== null && (cross || (asked.method !== 'GET' && asked.method !== 'HEAD'))) push(sent, ['origin', from]);
+      if (from !== null) push(sent, ['referer', cross ? from + '/' : from + config.path]);
+      if (cookie) push(sent, ['cookie', cookie]);
+      var actual = function () {
+        exchange({ method: asked.method, url: variant.href, headers: sent, body: fields ? formBody(fields) : null, who: name }, url, null, function (answer) {
+          later(function () {
+            if (own(answer, 'fail')) return done('failed');
+            if (cross && model.check(corsRequest, answer)) return done('blocked');
+            if (typeof probe.json === 'string' && answer.status >= 200 && answer.status < 300 && typeof answer.body === 'string') return done(readPath(answer.body, toText(probe.json)));
+            done(answer.status);
+          }, delay);
+        });
+      };
+      if (!(cross && model.needsPreflight(asked.method, given))) return actual();
+      exchange({ method: 'OPTIONS', url: variant.href, headers: model.preflightHeaders(corsRequest), body: null, who: name }, url, null, function (answer) {
+        later(function () {
+          if (own(answer, 'fail')) return done('failed');
+          if (model.checkPreflight(corsRequest, answer)) return done('blocked');
+          actual();
+        }, delay);
+      });
+    };
+    busy(1);
+    var at = 0;
+    var step = function () {
+      if (at >= variants.length) {
+        busy(-1);
+        var value = results[0];
+        for (var k = 1; k < results.length; k++) if (results[k] !== value) value = null;
+        if (value === null && results.length > 1) {
+          var joinedText = '';
+          for (var j = 0; j < results.length; j++) joinedText += (j ? ' | ' : '') + toText(results[j]);
+          return then(joinedText);
+        }
+        return then(results[0]);
+      }
+      var variant = variants[at];
+      at += 1;
+      one(variant, function (value) { push(results, value); step(); });
+    };
+    step();
+  };
+
   /* the page's Storage objects: Storage.prototype gets the model's members (its own refuse anything but a real Storage) */
   var storageObjects = storageModel ? function (proto) {
     storageModel.install(proto, storageChanged);
@@ -1308,7 +1714,7 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
          and a slash), so only the cookie decides */
       var sent = [['origin', page], ['referer', page + '/']];
       if (header) push(sent, ['cookie', header]);
-      exchange({ method: asked.method, url: hrefOf(asked.url), headers: sent, body: null }, asked.url, null, function (answer) {
+      exchange({ method: asked.method, url: hrefOf(asked.url), headers: sent, body: null, who: 'thief' }, asked.url, null, function (answer) {
         later(function () {
           busy(-1);
           then(own(answer, 'fail') ? 'failed' : answer.status);
@@ -1333,11 +1739,31 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
       clock += moved * 60000;
       cookiesChanged();
       storageChanged();
+      cacheChanged();
     },
     copy: function (kind, as) {
       copies[toText(as)] = toText(kind) === 'browser' ? browserLoot() : scriptLoot();
     },
     issued: issued,
-    replay: replay
+    replay: replay,
+    fromCache: counter(function (record) { return record.fromCache; }),
+    notModified: counter(function (record) { return record.notModified; }),
+    /* an address ending in / counts every path below it (4.5: the menu under any name the page gives it) */
+    whole: function (key) {
+      var place = keyOf(key);
+      var below = place[place.length - 1] === '/';
+      var count = 0;
+      for (var k = 0; k < recordCount; k++) {
+        var record = records[k];
+        var matches = below ? sliceText(record.place, 0, place.length) === place : record.place === place;
+        if (matches && record.page && record.whole) count += 1;
+      }
+      return count;
+    },
+    reached: function (key) {
+      var place = keyOf(key);
+      return hasOwn(reachedBy, place) ? reachedBy[place] : 0;
+    },
+    other: other
   };
 })`

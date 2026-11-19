@@ -5,6 +5,7 @@
 // files; e2e/web-levels.spec.ts runs them in a real browser.
 
 import { authFixes } from './fixes-auth'
+import { cachingFixes } from './fixes-caching'
 import { cookieFixes } from './fixes-cookies'
 
 export interface OtherFix {
@@ -111,5 +112,6 @@ export const otherFixes: Record<string, OtherFix[]> = {
     { name: 'every Origin echoed but the promo page\'s, with DELETE', edits: [ALL_BUT_PROMO, { save: 'server.js', replace: [ALLOW_METHODS('GET, POST'), ALLOW_METHODS('GET, POST, DELETE')] }], solves: false }
   ],
   ...cookieFixes,
-  ...authFixes
+  ...authFixes,
+  ...cachingFixes
 }

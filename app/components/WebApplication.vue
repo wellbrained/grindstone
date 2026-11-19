@@ -4,7 +4,7 @@ import type { DebuggingPlaySession } from '~/composables/useDebuggingPlay'
 
 // The Application panel of a Web fundamentals level (chapter 2; docs/features/ui.md, "Web fundamentals play page"):
 // what the browser keeps for the page, like Chrome's Application panel. Storage kinds on the left as they arrive
-// (Cookies; Local and Session storage since chapter 3; the cache comes with chapter 4), the chosen one on the right.
+// (Cookies; Local and Session storage since chapter 3; the Cache since chapter 4: WebCache), the chosen one on the right.
 // Cookies: per site a table with Chrome's columns (name, value, domain, path, expires, size, HttpOnly, Secure,
 // SameSite), then the cookies the browser refused in this load with Chrome's reason (or, for document.cookie,
 // Grindstone's). Storage: per origin a table of keys and values. A value that is a JSON Web Token is decoded below its
@@ -13,13 +13,15 @@ import type { DebuggingPlaySession } from '~/composables/useDebuggingPlay'
 const props = defineProps<{ play: DebuggingPlaySession }>()
 
 const { t } = useI18n()
-const { cookieJar, storage, hasStorage, predicting } = props.play
+const { cookieJar, storage, hasStorage, cache, hasCache, predicting } = props.play
 
-/** The storage kinds the panel shows (a list, so chapter 4's cache can join it). */
-type Kind = 'cookies' | 'local' | 'session'
-const KINDS: Kind[] = hasStorage ? ['cookies', 'local', 'session'] : ['cookies']
-const ICONS: Record<Kind, string> = { cookies: 'i-lucide-cookie', local: 'i-lucide-hard-drive', session: 'i-lucide-app-window' }
-const kind = ref<Kind>('cookies')
+/** The storage kinds the panel shows; a level with a cache opens on it. */
+type Kind = 'cookies' | 'local' | 'session' | 'cache'
+const KINDS: Kind[] = [...(hasCache ? ['cache' as const] : []), 'cookies', ...(hasStorage ? ['local' as const, 'session' as const] : [])]
+const ICONS: Record<Kind, string> = { cookies: 'i-lucide-cookie', local: 'i-lucide-hard-drive', session: 'i-lucide-app-window', cache: 'i-lucide-layers' }
+const kind = ref<Kind>(KINDS[0]!)
+/** Copies in both caches. */
+const copies = computed(() => (cache.value?.browser.length ?? 0) + (cache.value?.cdn?.length ?? 0))
 
 const start = useTemplateRef<HTMLElement>('start')
 defineExpose({ focus: () => start.value?.focus() })
@@ -66,7 +68,12 @@ const expiresOf = (cookie: CookieRow) => cookie.expires === null ? t('web.applic
         data-testid="application-count"
       >{{ t('web.application.count', cookieJar.total) }}</span>
       <span
-        v-else-if="kind !== 'cookies' && storage"
+        v-else-if="kind === 'cache' && cache"
+        class="font-mono text-dimmed tabular-nums"
+        data-testid="application-count"
+      >{{ t('web.cache.count', copies) }}</span>
+      <span
+        v-else-if="kind !== 'cookies' && kind !== 'cache' && storage"
         class="font-mono text-dimmed tabular-nums"
         data-testid="application-count"
       >{{ t('web.application.items', items) }}</span>
@@ -106,7 +113,12 @@ const expiresOf = (cookie: CookieRow) => cookie.expires === null ? t('web.applic
         class="min-w-0 px-3 py-2 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary @lg:min-h-0 @lg:overflow-y-auto"
         data-testid="application"
       >
-        <template v-if="kind !== 'cookies'">
+        <WebCache
+          v-if="kind === 'cache'"
+          :cache="cache"
+          :predicting="predicting"
+        />
+        <template v-else-if="kind !== 'cookies'">
           <p
             v-if="!storage"
             class="text-xs text-dimmed"

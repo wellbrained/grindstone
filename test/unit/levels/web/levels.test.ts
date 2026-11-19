@@ -31,7 +31,7 @@ const questionsOf = (level: WebLevel) => level.prediction.questions
 
 describe('the Web fundamentals levels', () => {
   it('are scenarios with one question and practice tasks with one or three, every one with a table', () => {
-    expect(webLevels.length).toBe(31)
+    expect(webLevels.length).toBe(41)
     for (const level of webLevels) {
       expect(level.id, level.id).toMatch(level.kind === 'scenario' ? /^web-\d\d-[a-z-]+$/ : /^web-practice-[a-z-]+$/)
       expect(level.hints).toHaveLength(level.kind === 'scenario' ? 3 : 1)
@@ -50,13 +50,14 @@ describe('the Web fundamentals levels', () => {
       }
     }
     // the scenarios' tags on the track page
-    expect(webLevels.filter(level => level.kind === 'scenario').map(level => level.teaches)).toEqual(['Allow-Origin', 'preflight', 'credentials', 'Allow-Headers', 'Allow-Methods', 'SameSite=None', 'CSRF', 'HttpOnly', 'Path', 'Strict', 'localStorage', 'innerHTML', 'exp', 'refresh', 'logout'])
+    expect(webLevels.filter(level => level.kind === 'scenario').map(level => level.teaches)).toEqual(['Allow-Origin', 'preflight', 'credentials', 'Allow-Headers', 'Allow-Methods', 'SameSite=None', 'CSRF', 'HttpOnly', 'Path', 'Strict', 'localStorage', 'innerHTML', 'exp', 'refresh', 'logout', 'max-age', 'no-cache', 'private', 'Vary', 'stale deploy'])
   })
 
   it('check every answer against what the app does: the right option\'s fact holds, a wrong one\'s does not, lines come in the answer\'s order', () => {
     const holds = (fact: PredictionFact, run: ExpectedRun): boolean => {
       if ('row' in fact) return run.network.includes(fact.row)
-      if ('server' in fact) return run.server.includes(fact.server)
+      if ('server' in fact) return run.server.filter(line => line === fact.server).length >= (fact.times ?? 1)
+      if ('cdn' in fact) return (run.cdn ?? []).includes(fact.cdn)
       if ('asks' in fact) return (run.asks ?? []).some(asked => asked.split(',').includes(fact.asks))
       if ('sent' in fact) return (run.sent ?? []).includes(fact.sent)
       if ('stored' in fact) return (run.stored ?? []).includes(fact.stored)
@@ -135,7 +136,12 @@ describe('the Web fundamentals levels', () => {
       'web-04-basket-header': [['server.js', 19, 'res.set(\'Access-Control-Allow-Headers\', \'Content-Type\')']],
       'web-05-works-with-curl': [['server.js', 18, 'res.set(\'Access-Control-Allow-Methods\', \'GET, POST\')']],
       'web-11-token-in-storage': [['server.js', 54, 'res.json({ name: CUSTOMERS[customer].name, token })'], ['server.js', 41, 'const token = (req.get(\'Authorization\')']],
-      'web-13-token-never-expires': [['server.js', 53, 'const token = jwt.sign({ sub: customer }, SECRET)']]
+      'web-13-token-never-expires': [['server.js', 53, 'const token = jwt.sign({ sub: customer }, SECRET)']],
+      'web-16-old-price': [['server.js', 36, 'res.set(\'Cache-Control\', \'max-age=3600\')']],
+      'web-17-whole-menu': [['server.js', 36, 'res.set(\'Cache-Control\', \'no-store\')']],
+      'web-18-someone-elses-account': [['server.js', 52, 'app.get(\'/account\', (req, res) => {']],
+      'web-19-vary-origin': [['server.js', 26, 'if (SHOPS.includes(origin)) res.set(\'Access-Control-Allow-Origin\', origin)']],
+      'web-20-stale-deploy': [['app.js', 8, 'const response = await fetch(`${API}/menu`)'], ['server.js', 36, 'res.set(\'Cache-Control\', \'max-age=86400\')']]
     }
     for (const [id, points] of Object.entries(POINTED_AT)) {
       const level = webLevels.find(each => each.id === id)!

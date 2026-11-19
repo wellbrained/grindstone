@@ -43,6 +43,10 @@ export interface CheckResult {
   areas: string[]
   /** Chapter 3: the thief's requests from outside the browser the Server panel shows, 'METHOD address status'. */
   replayed: string[]
+  /** Chapter 4: the CDN's log once the run was over, 'who METHOD address OUTCOME' (the Application panel's Cache). */
+  cdn: string[]
+  /** Chapter 4: the browser's copies once the run was over, by address. */
+  cached: string[]
 }
 
 export interface RunOptions {
@@ -107,6 +111,7 @@ async function runFrame(page: Page, files: Readonly<Record<string, string>>, pro
   const profile = messages.find(message => message.type === 'profile')
   const jar = messages.filter(message => message.type === 'cookies').at(-1)
   const kept = messages.filter(message => message.type === 'storage').at(-1)
+  const caches = messages.filter(message => message.type === 'cache').at(-1)
   const pageOrigin = new URL(options.page ?? '/', 'https://cornerbakery.shop').origin
   return {
     observation: observe(messages, document.bridgeLine),
@@ -125,7 +130,9 @@ async function runFrame(page: Page, files: Readonly<Record<string, string>>, pro
     readable: jar?.type === 'cookies' ? jar.readable : [],
     storage: kept?.type === 'storage' ? kept.areas.filter(area => area.origin === pageOrigin).flatMap(area => area.items.map(([key]) => `${area.kind} ${key}`)) : [],
     areas: kept?.type === 'storage' ? kept.areas.flatMap(area => area.items.map(([key]) => `${area.kind} ${area.origin} ${key}`)) : [],
-    replayed: messages.flatMap(message => message.type === 'replay' ? [`${message.request} ${message.status ?? 'failed'}`] : [])
+    replayed: messages.flatMap(message => message.type === 'replay' ? [`${message.request} ${message.status ?? 'failed'}`] : []),
+    cdn: caches?.type === 'cache' ? caches.log.map(line => `${line.who} ${line.method} ${line.url} ${line.outcome}`) : [],
+    cached: caches?.type === 'cache' ? caches.browser.map(row => row.url) : []
   }
 }
 

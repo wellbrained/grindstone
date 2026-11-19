@@ -123,6 +123,9 @@ for (const level of webLevels) {
       expect(start.storage).toEqual(table.start.storage ?? [])
       expect(start.replayed).toEqual(table.start.replayed ?? [])
     }
+    // chapter 4 (the levels with a cache): what the CDN did with every request, in order
+    const caching = level.sandbox.web?.cache !== undefined
+    if (caching) expect(start.cdn).toEqual(table.start.cdn ?? [])
     const lines = start.entries.map(entry => entry.text)
     // what the texts quote (in any order: requests sent together may be answered in any order; an order question
     // checks its own lines' order below)
@@ -130,7 +133,8 @@ for (const level of webLevels) {
     // every prediction against this very run: the right option's fact holds, a wrong one's does not, lines in order
     const holds = (fact: PredictionFact) => {
       if ('row' in fact) return start.network.includes(fact.row)
-      if ('server' in fact) return start.server.includes(fact.server)
+      if ('server' in fact) return start.server.filter(line => line === fact.server).length >= (fact.times ?? 1)
+      if ('cdn' in fact) return start.cdn.includes(fact.cdn)
       if ('asks' in fact) return start.asks.some(asked => asked.split(',').includes(fact.asks))
       if ('sent' in fact) return start.sent.includes(fact.sent)
       if ('stored' in fact) return start.stored.includes(fact.stored)
@@ -169,6 +173,7 @@ for (const level of webLevels) {
       expect(solved.storage).toEqual(table.solved!.storage ?? [])
       expect(solved.replayed).toEqual(table.solved!.replayed ?? [])
     }
+    if (caching) expect(solved.cdn).toEqual(table.solved!.cdn ?? [])
     const results = await playWebSolution(level, files => run(page, level, files).then(result => result.observation))
     expect(results.at(-1)!.session.solved).toBe(true)
 
@@ -349,6 +354,30 @@ test.describe('an app can\'t hide a token from the thief or read storage outside
     expect(sent[0]).toMatch(/local=\{\}\|session=\{\}\|cookie=\|native=(SecurityError|none|.*)\|redefine=TypeError\|foreign=TypeError\|instance=true/)
     expect(sent[0]).not.toContain('eyJ')
   })
+})
+
+test.describe('an app can\'t change what the caches keep or what the CDN hands another customer through any frame API (chapter 4)', () => {
+  const level = webLevels.find(each => each.id === 'web-18-someone-elses-account')!
+  // put first into app.js of 4.3's starting files (Lena's account public at the CDN): each tries to make Sam's request,
+  // or a guest's, look like their own while the CDN still hands out Lena's copy
+  const CHEATS: Record<string, string> = {
+    'JSON.parse and String\'s functions replaced': 'JSON.parse = () => ({ name: \'Sam\' }); String.prototype.toLowerCase = function () { return \'x\' }; String.prototype.indexOf = () => -1',
+    'setters on Array.prototype indices that drop every write': 'for (let i = 0; i < 40; i++) Object.defineProperty(Array.prototype, i, Object.assign(Object.create(null), { configurable: true, set() {} }))',
+    'setters and getters on Object.prototype for the caches\' fields': 'for (const key of [\'fresh\', \'stored\', \'vary\', \'varyValues\', \'hits\', \'by\', \'outcome\', \'fromCache\', \'notModified\', \'lookup\', \'any\', \'only\', \'store\']) Object.defineProperty(Object.prototype, key, Object.assign(Object.create(null), { configurable: true, set() {}, get() { return key === \'fresh\' ? false : undefined } }))',
+    'Request\'s cache getter and Headers\' forEach replaced': 'Object.defineProperty(Request.prototype, \'cache\', { configurable: true, get() { return \'no-store\' } }); Headers.prototype.forEach = function () {}'
+  }
+  for (const [name, cheat] of Object.entries(CHEATS)) {
+    test(name, async ({ page }) => {
+      await page.setContent('<!doctype html><title>check</title>')
+      const start = startWebLevel(level).state.files
+      const files = { ...start, 'app.js': `${cheat}\n${start['app.js']!}` }
+      const result = await run(page, level, files)
+      expect(result.observation.probes, JSON.stringify(result.observation.errors.map(error => error.text))).toMatchObject({ sam: 'Lena', anon: 200 })
+      expect(result.cdn).toContain('Sam GET https://api.cornerbakery.shop/account HIT')
+      const session = reload({ ...startWebLevel(level), state: { ...startWebLevel(level).state, files, predicted: expected[level.id]!.answers } }, level, result.observation).session
+      expect(session.solved).toBe(false)
+    })
+  }
 })
 
 test('chapter 3: the page and server.js tell the scripted time, by every cheap way to the clock', async ({ page }) => {

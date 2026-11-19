@@ -130,7 +130,8 @@ describe('the best run and the radar', () => {
     expect(view.chapters[0]!.rows.map(row => row.teaches ?? row.taskKind)).toEqual(['Allow-Origin', 'predict', 'predict', 'preflight', 'predict', 'credentials', 'predict', 'Allow-Headers', 'predict', 'Allow-Methods', 'predict'])
     expect(view.chapters[1]!.rows.map(row => row.teaches ?? row.taskKind)).toEqual(['SameSite=None', 'predict', 'CSRF', 'predict', 'HttpOnly', 'predict', 'Path', 'predict', 'Strict', 'predict'])
     expect(view.chapters[2]!.rows.map(row => row.teaches ?? row.taskKind)).toEqual(['localStorage', 'predict', 'innerHTML', 'predict', 'exp', 'predict', 'refresh', 'predict', 'logout', 'predict'])
-    expect(view.chapters.slice(3).every(chapter => chapter.coming)).toBe(true)
+    expect(view.chapters[3]!.rows.map(row => row.teaches ?? row.taskKind)).toEqual(['max-age', 'predict', 'no-cache', 'predict', 'private', 'predict', 'Vary', 'predict', 'stale deploy', 'predict'])
+    expect(view.chapters.slice(4).every(chapter => chapter.coming)).toBe(true)
   })
 })
 

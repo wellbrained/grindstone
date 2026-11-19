@@ -65,8 +65,12 @@ const TONE: Record<StatusTone, string> = {
 const statusText = (entry: NetworkEntry) => {
   const response = entry.response
   if (!response || response.failure || response.status === null) return statusLabel(entry)
-  return `${response.status} ${response.statusText}`.trim()
+  const text = `${response.status} ${response.statusText}`.trim()
+  // chapter 4: as Chrome's Status reads for a copy its cache answered with
+  return response.fromCache ? t('web.network.fromDiskCache', { status: text }) : text
 }
+/** The status column: the code alone (a copy the cache answered with is tagged by its name, as Chrome's Size column marks it). */
+const rowStatus = (entry: NetworkEntry) => entry.response?.fromCache ? statusLabel({ ...entry, response: { ...entry.response, fromCache: false } }) : statusLabel(entry)
 
 /** A request CORS refused that the server did answer (Web fundamentals: its answer is shown, kept from the page). */
 const answeredButBlocked = (entry: NetworkEntry) => entry.response?.failure === 'cors' && entry.response.status !== null && entry.response.reason !== null
@@ -199,7 +203,11 @@ const viewOf = (body: string, headers: readonly HeaderPair[]) => bodyView(body, 
               v-if="entry.site !== null"
               class="ms-1.5 rounded-sm bg-error/15 px-1 font-sans text-[11px] text-highlighted"
               data-testid="network-site"
-            >{{ host(entry.site) }}</span></span>
+            >{{ host(entry.site) }}</span><span
+              v-if="entry.response?.fromCache"
+              class="ms-1.5 rounded-sm bg-accented px-1 font-sans text-[11px] text-muted"
+              data-testid="network-cache"
+            >{{ t('web.network.diskCache') }}</span></span>
             <span
               class="text-xs tabular-nums [grid-area:status]"
               :class="TONE[statusTone(entry)]"
@@ -208,7 +216,7 @@ const viewOf = (body: string, headers: readonly HeaderPair[]) => bodyView(body, 
                 v-if="!entry.response"
                 name="i-lucide-loader-circle"
                 class="me-0.5 inline size-3 animate-spin align-[-0.1em] motion-reduce:animate-none"
-              />{{ statusLabel(entry) }}</span>
+              />{{ rowStatus(entry) }}</span>
             <span class="text-end text-xs text-dimmed tabular-nums [grid-area:time]">{{ entry.response ? durationText(entry.response.time) : '' }}</span>
           </li>
         </ul>

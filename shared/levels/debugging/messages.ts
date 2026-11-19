@@ -50,6 +50,8 @@ export type BridgeMessage
     | StorageMessage
   /** Web fundamentals (chapter 3): the thief sent a request from outside the browser (the Server panel says so). */
     | ReplayMessage
+  /** Web fundamentals (chapter 4): the browser's cache and the CDN's after a change, and the CDN's log. */
+    | CacheMessage
   /** The Elements panel: a snapshot of the app's DOM (in document order), cut at MAX_DOM_NODES. */
     | { type: 'dom', nodes: DomNode[], truncated: boolean }
   /** The Elements panel: the selected element's matching rules, box and computed values (`seq`: which request it answers). */
@@ -195,6 +197,52 @@ export interface ReplayMessage {
   by: string | null
 }
 
+/** Chapter 4: a copy a cache keeps, as the Application panel lists it. */
+export interface CacheRow {
+  url: string
+  /** What its Vary keeps it for ('origin: https://www.cornerbakery.shop'), '' when it has no Vary. */
+  vary: string
+  status: number
+  /** When it arrived (scripted ms). */
+  stored: number
+  /** Its age now and how long it is fresh for, in seconds (-1: for ever). */
+  age: number
+  lifetime: number
+  fresh: boolean
+  etag: string
+  /** Its Cache-Control ('' none). */
+  control: string
+  /** Who asked for it. */
+  by: string
+  /** How often it was used since. */
+  hits: number
+}
+
+/** Chapter 4: what the CDN did with one request: who asked, what it did (HIT, MISS, REVALIDATED, PASS) and why. */
+export interface CdnLogRow {
+  /** Scripted ms. */
+  at: number
+  who: string
+  method: string
+  url: string
+  outcome: 'HIT' | 'MISS' | 'REVALIDATED' | 'PASS'
+  /** null: no answer (no connection). */
+  status: number | null
+  /** The copy's age it served, in seconds (null: none served). */
+  age: number | null
+  note: string | null
+}
+
+export interface CacheMessage {
+  type: 'cache'
+  /** The scripted clock (ms). */
+  now: number
+  browser: CacheRow[]
+  /** null: the level has no CDN. */
+  cdn: CacheRow[] | null
+  log: CdnLogRow[]
+}
+
 /** How a request failed without an answer the app can read: refused by CORS, no connection, cancelled. */
 export type RequestFailure = 'cors' | 'network' | 'aborted'
 
@@ -214,6 +262,8 @@ export interface ResponseMessage {
   reason: string | null
   /** Web fundamentals: its Set-Cookie lines, stored or why not. */
   cookies: SetCookieRow[]
+  /** Chapter 4: the browser answered from its cache, without a request ("(disk cache)"). */
+  fromCache: boolean
 }
 
 /** A line of the API's server.js (Web fundamentals). */
@@ -248,6 +298,10 @@ const SAME_SITES: readonly CookieRow['sameSite'][] = ['Strict', 'Lax', 'None', '
 /** Storage areas: the frame sends at most this many areas (origins and kinds) and 200 items in each. */
 const MAX_AREAS = 50
 const DESTINATIONS: readonly RequestDestination[] = ['fetch', 'image', 'document']
+/** Cache rows: the frame sends at most 100 copies a cache and 200 CDN log lines, texts cut at 300 characters. */
+const MAX_CACHE_ROWS = 100
+const MAX_CDN_LOG = 200
+const OUTCOMES: readonly CdnLogRow['outcome'][] = ['HIT', 'MISS', 'REVALIDATED', 'PASS']
 
 const cookieText = (value: unknown): string | null => typeof value === 'string' ? value.slice(0, MAX_COOKIE_TEXT) : null
 const fields = (value: unknown): Record<string, unknown> | null => typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null
@@ -281,6 +335,41 @@ function setCookieRows(value: unknown): SetCookieRow[] | null {
     rows.push({ line, stored: raw.stored, reason })
   }
   return rows
+}
+
+/** A scripted moment (ms): a number a Date can hold. */
+const moment = (value: unknown): number | undefined => typeof value === 'number' && Number.isFinite(value) && Math.abs(value) <= 8.64e15 ? value : undefined
+
+function cacheRow(value: unknown): CacheRow | null {
+  const raw = fields(value)
+  if (!raw) return null
+  const url = cookieText(raw.url)
+  const vary = cookieText(raw.vary)
+  const status = whole(raw.status, 999)
+  const stored = moment(raw.stored)
+  const age = whole(raw.age, 100_000_000_000)
+  const lifetime = raw.lifetime === -1 ? -1 : whole(raw.lifetime, 100_000_000_000)
+  const etag = cookieText(raw.etag)
+  const control = cookieText(raw.control)
+  const by = cookieText(raw.by)
+  const hits = whole(raw.hits, 1_000_000)
+  if (url === null || vary === null || status === undefined || stored === undefined || age === undefined || lifetime === undefined || etag === null || control === null || by === null || hits === undefined || typeof raw.fresh !== 'boolean') return null
+  return { url, vary, status, stored, age, lifetime, fresh: raw.fresh, etag, control, by, hits }
+}
+
+function cdnLogRow(value: unknown): CdnLogRow | null {
+  const raw = fields(value)
+  if (!raw) return null
+  const at = moment(raw.at)
+  const who = cookieText(raw.who)
+  const method = typeof raw.method === 'string' && /^[A-Za-z]{1,16}$/.test(raw.method) ? raw.method : null
+  const url = cookieText(raw.url)
+  const outcome = OUTCOMES.find(each => each === raw.outcome)
+  const status = raw.status === null ? null : whole(raw.status, 999)
+  const age = raw.age === null ? null : whole(raw.age, 100_000_000_000)
+  const note = raw.note === null ? null : cookieText(raw.note)
+  if (at === undefined || who === null || method === null || url === null || !outcome || status === undefined || age === undefined || (raw.note !== null && note === null)) return null
+  return { at, who, method, url, outcome, status, age, note }
 }
 
 function storageArea(value: unknown): StorageAreaRow | null {
@@ -564,8 +653,10 @@ export function readBridgeMessage(data: unknown): BridgeMessage | null {
       const time = whole(raw.time, Number.MAX_SAFE_INTEGER)
       const reason = raw.reason === undefined || raw.reason === null ? null : cut(raw.reason, MAX_REASON)
       const cookies = setCookieRows(raw.cookies)
-      if (id === undefined || status === undefined || statusText === null || headers === null || body === undefined || failure === undefined || time === undefined || cookies === null) return null
-      return { type: 'response', id, status, statusText, headers, body, failure, time, reason, cookies }
+      // chapter 4 (absent: Debugging's backend, and a request no cache answered)
+      const fromCache = raw.fromCache === undefined ? false : raw.fromCache
+      if (id === undefined || status === undefined || statusText === null || headers === null || body === undefined || failure === undefined || time === undefined || cookies === null || typeof fromCache !== 'boolean') return null
+      return { type: 'response', id, status, statusText, headers, body, failure, time, reason, cookies, fromCache }
     }
     case 'netlog': {
       const message = text(raw.text)
@@ -594,6 +685,14 @@ export function readBridgeMessage(data: unknown): BridgeMessage | null {
       const areas = raw.areas.slice(0, MAX_AREAS).map(storageArea)
       if (areas.some(area => area === null)) return null
       return { type: 'storage', areas: areas as StorageAreaRow[], now: raw.now }
+    }
+    case 'cache': {
+      if (!Array.isArray(raw.browser) || (raw.cdn !== null && !Array.isArray(raw.cdn)) || !Array.isArray(raw.log) || moment(raw.now) === undefined) return null
+      const browser = raw.browser.slice(0, MAX_CACHE_ROWS).map(cacheRow)
+      const cdn = raw.cdn === null ? null : (raw.cdn as unknown[]).slice(0, MAX_CACHE_ROWS).map(cacheRow)
+      const log = raw.log.slice(-MAX_CDN_LOG).map(cdnLogRow)
+      if (browser.some(row => row === null) || (cdn && cdn.some(row => row === null)) || log.some(row => row === null)) return null
+      return { type: 'cache', now: raw.now as number, browser: browser as CacheRow[], cdn: cdn as CacheRow[] | null, log: log as CdnLogRow[] }
     }
     case 'replay': {
       const request = cut(raw.request, 2000)
