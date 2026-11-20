@@ -35,11 +35,13 @@ import type { BackendRoute, ProbeStep } from '../debugging/types'
 import { COOKIE_SOURCE, WEB_CLOCK } from './cookies'
 import { CACHE_LIMITS, CACHE_SOURCE } from './cache'
 import { CORS_SOURCE } from './cors'
+import { CSP_SOURCE } from './csp'
 import { SCRIPTED_DATE_SOURCE, SCRIPTED_TIME_SOURCE, SERVER_HOST_SOURCE, SERVER_LIMITS, serverPrelude } from './server'
 import type { OtherSite, SiteAction } from './sites'
 import { STORAGE_LIMITS, STORAGE_SOURCE } from './storage'
 import type { StorageKind } from './storage'
 import { loopConfig } from './loop'
+import type { PageScript } from './pageload'
 import type { LoopConfig, LoopSpec } from './loop'
 import { a11yConfig } from './a11y'
 import type { A11yConfig } from './a11y'
@@ -147,6 +149,27 @@ export interface WebSpec {
    * may have no server.js at all; never together with `loop`.
    */
   a11y?: true
+  /**
+   * Chapter 7: the page's security headers. server.js is then the shop's own server, on the page's origin (`api` is the
+   * page's origin): it serves the page itself (the document request, whose answer's Content-Security-Policy,
+   * X-Frame-Options, X-Content-Type-Options and Referrer-Policy the policy model applies), the page's files and its
+   * routes; other origins serve fixed files (a third party's scripts, an attacker's).
+   */
+  security?: SecuritySpec
+}
+
+/** A file another origin serves, as it answers it. */
+export interface HostedFile {
+  type: string
+  body: string
+  status?: number
+  headers?: Readonly<Record<string, string>>
+}
+
+/** Chapter 7: what the page's policy is about. */
+export interface SecuritySpec {
+  /** Other origins and the files they serve by path (a third party's widget and its loader, an attacker's script). */
+  hosts?: readonly { origin: string, files: Readonly<Record<string, HostedFile>> }[]
 }
 
 interface ShopRouteData {
@@ -198,6 +221,26 @@ export interface WebConfig {
   loop: LoopConfig | null
   /** Chapter 6: the accessibility model; null: the browser's own focus and keyboard, as in chapters 1 to 5. */
   a11y: A11yConfig | null
+  /** Chapter 7: the hosts' files, and the page's own source (what server.js must serve for the page to be the page). */
+  security: { hosts: { origin: string, files: { path: string, status: number, headers: [string, string][], body: string }[] }[], pageSource: string, nonce: string, scripts: PageScript[], files: string[], freshPrelude: string } | null
+}
+
+/**
+ * Chapter 7's servers' scripted values: random per load (so no server.js can tell itself from the nonce probe's second
+ * copy by the values it draws), fixed only where a test asks for the same values every run (`seeds`). The running
+ * copy's fixed seed is every other level's (the same nonces as ever), the second copy's another.
+ */
+export interface ServerSeeds {
+  running: readonly number[]
+  fresh: readonly number[]
+}
+export const TEST_SEEDS: ServerSeeds = { running: [0x9e3779b9, 0x243f6a88, 0xb7e15162, 0x6a09e667], fresh: [0x85ebca6b, 0xc2b2ae35, 0x27d4eb2f, 0x165667b1] }
+
+/** Four random words for a server.js's scripted values (never 0: the generator would stay at 0). */
+function freshSeed(): number[] {
+  const words = new Uint32Array(4)
+  globalThis.crypto.getRandomValues(words)
+  return Array.from(words, word => word || 1)
 }
 
 const originOnly = (url: string, what: string) => {
@@ -210,10 +253,12 @@ const originOnly = (url: string, what: string) => {
  * The level's servers as plain data for the frame (throws for what a level cannot mean: the level tests load each one).
  * `marker`: chapter 5, the global the page's module script calls when its synchronous part is over (sandbox.ts).
  */
-export function webConfig(spec: WebSpec, files: Readonly<Record<string, string>>, page: string, path = '/', marker: string | null = null): WebConfig {
+export function webConfig(spec: WebSpec, files: Readonly<Record<string, string>>, page: string, path = '/', marker: string | null = null, serverSeeds: ServerSeeds | null = null): WebConfig {
   const origin = new URL(page).origin
   const api = originOnly(spec.api, 'the API')
-  if (api === origin) throw new Error('the API must be on another origin than the page')
+  if (api === origin && !spec.security) throw new Error('the API must be on another origin than the page')
+  if (spec.security && api !== origin) throw new Error('chapter 7: server.js is the shop\'s own server, so the API is the page\'s origin')
+  if (spec.security && spec.server === undefined) throw new Error('chapter 7: server.js serves the page')
   if (spec.loop && spec.a11y) throw new Error('a level runs on the event loop model or the accessibility model, not both')
   if (!path.startsWith('/')) throw new Error(`the page's path ${path} must start with /`)
   const routes = spec.shop?.routes ?? []
@@ -226,7 +271,8 @@ export function webConfig(spec: WebSpec, files: Readonly<Record<string, string>>
     if (at === origin || at === api) throw new Error(`the site ${at} must be another origin than the page's and the API's`)
     if (site.actions.length > 8) throw new Error(`${at}: a page does at most 8 things`)
     for (const action of site.actions) {
-      const target = 'img' in action ? action.img : 'fetch' in action ? action.fetch : 'form' in action ? action.form : action.link
+      if ('frame' in action && !spec.security) throw new Error(`${at}: a frame is a chapter 7 action (the page's security headers decide it)`)
+      const target = 'img' in action ? action.img : 'fetch' in action ? action.fetch : 'form' in action ? action.form : 'frame' in action ? action.frame : action.link
       if (!/^https?:\/\//.test(target)) throw new Error(`${at}: ${target} is not a whole address`)
     }
     return { origin: at, address: `${at}${site.path ?? '/'}`, noReferrer: site.noReferrer === true, hidden: site.hidden === true, actions: site.actions.map(action => JSON.parse(JSON.stringify(action)) as SiteAction) }
@@ -261,7 +307,7 @@ export function webConfig(spec: WebSpec, files: Readonly<Record<string, string>>
     api,
     source: spec.server !== undefined && Object.hasOwn(files, spec.server) ? files[spec.server]! : null,
     hasServer: spec.server !== undefined,
-    prelude: serverPrelude(STATUS_TEXT, spec.time === true, cache !== null),
+    prelude: serverPrelude(STATUS_TEXT, spec.time === true, cache !== null, spec.security ? Object.fromEntries(Object.entries(files).filter(([path]) => path !== spec.server)) : null, spec.security ? serverSeeds?.running ?? freshSeed() : null),
     limits: { ...SERVER_LIMITS, panel: COOKIE_PANEL_LIMITS, storage: STORAGE_LIMITS, replay: REPLAY_LIMITS, cache: CACHE_PANEL_LIMITS },
     delay: WEB_DELAY_MS,
     statusText: STATUS_TEXT,
@@ -284,7 +330,29 @@ export function webConfig(spec: WebSpec, files: Readonly<Record<string, string>>
       }))
     },
     loop: spec.loop ? loopConfig(spec.loop, marker) : null,
-    a11y: spec.a11y ? a11yConfig() : null
+    a11y: spec.a11y ? a11yConfig() : null,
+    security: spec.security
+      ? {
+          hosts: (spec.security.hosts ?? []).map((host) => {
+            const at = originOnly(host.origin, 'a host')
+            if (at === origin) throw new Error(`the host ${at} is the shop's own: server.js serves it`)
+            return {
+              origin: at,
+              files: Object.entries(host.files).map(([path, file]) => {
+                if (!path.startsWith('/')) throw new Error(`${at}${path}: a file is served at a path`)
+                return { path, status: file.status ?? 200, headers: [['content-type', file.type], ...Object.entries(file.headers ?? {}).map(([name, value]) => [name.toLowerCase(), value] as [string, string])], body: file.body }
+              })
+            }
+          }),
+          pageSource: files['index.html'] ?? '',
+          // the load's nonce and the page's scripts: sandbox.ts fills them in as it makes the page inert
+          nonce: '',
+          scripts: [],
+          files: Object.keys(files).filter(path => path !== spec.server),
+          // a second server.js of the load (its own state, other random values): the nonce probe's fresh look at the page
+          freshPrelude: serverPrelude(STATUS_TEXT, spec.time === true, cache !== null, Object.fromEntries(Object.entries(files).filter(([path]) => path !== spec.server)), serverSeeds?.fresh ?? freshSeed())
+        }
+      : null
   }
 }
 
@@ -366,9 +434,19 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
   var cookieModel = (${COOKIE_SOURCE})();
   var storageModel = config.storage ? (${STORAGE_SOURCE})() : null;
   var cacheModel = config.cache ? (${CACHE_SOURCE})() : null;
+  /* chapter 7: the page's security headers (csp.ts), applied by this browser; the frame's own policy never changes */
+  var policyModel = config.security ? (${CSP_SOURCE})() : null;
   var server = hooks.serve ? { serve: hooks.serve } : (${SERVER_HOST_SOURCE})({ source: config.source, hasServer: config.hasServer, prelude: config.prelude, limits: config.limits }, {
     output: function (line) { hooks.post({ type: 'server', level: line.level, text: line.text, line: line.line }); }
   });
+  /* chapter 7: a second server.js of this load, made now (its worker on its first request): it has none of the first
+     one's state, so a nonce that only the first answer carries shows in a fresh one too */
+  var freshServer = config.security ? (hooks.serveFresh ? { serve: hooks.serveFresh } : (${SERVER_HOST_SOURCE})({ source: config.source, hasServer: config.hasServer, prelude: config.security.freshPrelude, limits: config.limits }, {
+    /* its errors say so in the Server panel (a probe that failed only there would be a riddle); nothing else of it shows */
+    output: function (line) {
+      if (line.level === 'error') hooks.post({ type: 'server', level: 'error', text: 'server.js (a second copy, the attacker\'s own look at the page): ' + line.text, line: line.line });
+    }
+  })) : null;
   var page = config.page;
   var pageAddress = page + config.path;
   var api = config.api;
@@ -464,6 +542,12 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
     lastActive = hooks.now();
   };
   var nextId = 1;
+  /* chapter 7: the page's policies (its document's headers, then its meta tags), the referrer policy, the document's
+     status (a report says it), and how many reports went (at most 50 a load) */
+  var pagePolicies = [];
+  var pageReferrer = '';
+  var documentStatus = 0;
+  var reportsSent = 0;
   var shopCalls = [];
   for (var c = 0; c < config.shop.routes.length; c++) shopCalls[c] = 0;
   var FETCH = "Failed to execute 'fetch' on 'Window': ";
@@ -776,12 +860,16 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
      "append a request Origin header": a no-referrer page's form POST says null), the Referer (the referrer policy
      strict-origin-when-cross-origin: the whole address to its own origin, the origin alone to another; none for
      no-referrer), the cookies. */
-  var wireHeaders = function (headers, from, fromAddress, noReferrer, url, method, mode, cookie) {
+  var wireHeaders = function (headers, from, fromAddress, noReferrer, url, method, mode, cookie, referrerPolicy) {
     var list = copy(headers);
     var cross = originOf(url) !== from;
     if (mode === 'cors' && cross) push(list, ['origin', from]);
     else if (method !== 'GET' && method !== 'HEAD') push(list, ['origin', noReferrer ? 'null' : from]);
-    if (!noReferrer) push(list, ['referer', cross ? from + '/' : fromAddress]);
+    /* chapter 7: the page's Referrer-Policy decides (the policy model: every policy of the Referrer Policy spec) */
+    if (typeof referrerPolicy === 'string' && policyModel) {
+      var referrer = policyModel.referrer(referrerPolicy, fromAddress, hrefOf(url));
+      if (referrer !== null) push(list, ['referer', referrer]);
+    } else if (!noReferrer) push(list, ['referer', cross ? from + '/' : fromAddress]);
     if (cookie) push(list, ['cookie', cookie]);
     return list;
   };
@@ -804,6 +892,21 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
       return { status: answer.status, headers: copy(answer.headers), body: answer.body };
     }
     return { status: 404, headers: [['content-type', 'text/html; charset=utf-8']], body: notFound(method, path) };
+  };
+  /* Chapter 7: another origin's fixed files (a third party's scripts, an attacker's), else its 404 */
+  var hostAnswer = function (origin, method, url) {
+    if (!config.security) return null;
+    var hosts = config.security.hosts;
+    for (var i = 0; i < hosts.length; i++) {
+      if (hosts[i].origin !== origin) continue;
+      var path = pathOf(url);
+      for (var j = 0; j < hosts[i].files.length; j++) {
+        var file = hosts[i].files[j];
+        if (file.path === path) return { status: file.status, headers: copy(file.headers), body: method === 'HEAD' ? null : file.body };
+      }
+      return { status: 404, headers: [['content-type', 'text/plain; charset=utf-8']], body: 'Not Found' };
+    }
+    return null;
   };
   var siteOfOrigin = function (origin) {
     for (var i = 0; i < config.sites.length; i++) if (config.sites[i].origin === origin) return config.sites[i];
@@ -876,6 +979,8 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
       return;
     }
     if (has(config.shop.origins, target)) { later(function () { done(shopAnswer(request.method, url)); }, 0); return; }
+    var hosted = hostAnswer(target, request.method, url);
+    if (hosted) { later(function () { done(hosted); }, 0); return; }
     if (siteOfOrigin(target)) { later(function () { done({ status: 200, headers: [['content-type', 'text/plain; charset=utf-8']], body: 'ok' }); }, 0); return; }
     later(function () { done({ fail: 'net::ERR_NAME_NOT_RESOLVED' }); }, 0);
   };
@@ -950,13 +1055,23 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
       hooks.post({ type: 'netlog', text: 'Fetch API cannot load ' + href + '. Request mode is "same-origin" but the URL\'s origin is not same as the request origin ' + page + '.', stack: stack });
       return rejected(failed);
     }
+    /* chapter 7: the page's connect-src (a request it refuses is never sent: a row with (blocked:csp), Chrome's line) */
+    if (policyModel) {
+      var connect = applyVerdict(policyModel.request(pagePolicies, page + '/', 'connect-src', href), stack);
+      if (!connect.allowed) {
+        var blockedId = nextId++;
+        hooks.post({ type: 'request', id: blockedId, method: method, url: href, headers: headers, body: body, stack: stack, preflightFor: null, site: null, destination: 'fetch', cookies: [] });
+        hooks.post({ type: 'response', id: blockedId, status: null, statusText: '', headers: [], body: null, failure: 'csp', time: 0, reason: connect.reason, cookies: [], fromCache: false });
+        return rejected(failed);
+      }
+    }
     /* Fetch's "includeCredentials": include, or same-origin to the page's own origin */
     var include = credentials === 'include' || (credentials === 'same-origin' && !cross);
     var found = cookiesFor(page, href, method, include, false);
     /* chapter 4: how this request uses the browser's cache (Fetch's cache mode, and what Chrome makes of a Cache-Control,
        Pragma or condition the page set itself), and the headers Fetch adds for its mode */
     var use = browserCache ? cacheUse(cacheOf ? cacheOf(request) : (init && typeof init.cache === 'string' ? toText(init.cache) : 'default'), headers) : null;
-    var sent = wireHeaders(use ? joined(headers, use.added) : headers, page, pageAddress, false, url, method, mode, found.header);
+    var sent = wireHeaders(use ? joined(headers, use.added) : headers, page, pageAddress, false, url, method, mode, found.header, policyModel ? pageReferrer : undefined);
     /* the copy this request may use (by its Vary), whether it answers without a request, and the condition a revalidation
        sends with it (the Network panel shows the request as sent, If-None-Match and all) */
     var stored = use && use.lookup && method === 'GET' ? browserCache.lookup(href, sent) : null;
@@ -1106,37 +1221,47 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
     var href = hrefOf(url);
     var method = spec.method;
     var cross = originOf(url) !== spec.from;
-    var navigate = spec.mode === 'navigate';
+    /* chapter 7: a frame is a navigation (no CORS) that is not top-level (SameSite as for a subresource), and a request
+       of a page inside another site's frame takes its cookies by the top page's site (top) */
+    var navigate = spec.mode === 'navigate' || spec.mode === 'frame';
+    var topLevel = spec.mode === 'navigate';
+    var top = own(spec, 'top');
     var include = navigate ? spec.credentials !== 'omit' : spec.credentials === 'include' || (spec.credentials === 'same-origin' && !cross);
-    var found = cookiesFor(spec.from, href, method, include, navigate);
-    var sent = wireHeaders(spec.headers, spec.from, spec.address, spec.noReferrer, url, method, navigate ? 'navigate' : spec.mode, found.header);
+    var found = cookiesFor(typeof top === 'string' ? top : spec.from, href, method, include, topLevel);
+    var sent = wireHeaders(spec.headers, spec.from, spec.address, spec.noReferrer, url, method, navigate ? 'navigate' : spec.mode, found.header, own(spec, 'referrerPolicy'));
+    var at = own(spec, 'stack');
     var corsRequest = { origin: spec.from, method: method, headers: spec.headers, credentials: spec.credentials };
     var preflight = spec.mode === 'cors' && cross && model.needsPreflight(method, spec.headers);
     var record = spec.show ? remember(placeOf(method, url), spec.body, href, textOf(href, sent, spec.body)) : null;
     if (record) record.cookies = sentNames(found);
     var id = spec.show ? nextId++ : 0;
     var started = hooks.now();
-    if (spec.show) hooks.post({ type: 'request', id: id, method: method, url: href, headers: sent, body: spec.body, stack: '', preflightFor: null, site: spec.from, destination: spec.destination, cookies: found.list });
+    var tag = own(spec, 'tag');
+    if (spec.show) hooks.post({ type: 'request', id: id, method: method, url: href, headers: sent, body: spec.body, stack: typeof at === 'string' ? at : '', preflightFor: null, site: typeof tag === 'string' ? tag : spec.from === page ? null : spec.from, destination: spec.destination, cookies: found.list });
     var report = function (to, status, headers, body, failure, reason, kept) {
       if (!spec.show) return;
       hooks.post({ type: 'response', id: to, status: status, statusText: status === null ? '' : STATUS[status] || '', headers: headers, body: body, failure: failure, time: mathMax(0, mathRound(hooks.now() - started)), reason: reason, cookies: kept || [] });
     };
     busy(1);
-    var finish = function (kind, status) {
+    var finish = function (kind, status, headers, body) {
       busy(-1);
-      done({ kind: kind, status: status });
+      done({ kind: kind, status: status, headers: headers || [], body: typeof body === 'string' ? body : null });
     };
+    var judge = own(spec, 'judge');
     var actual = function () {
       exchange({ method: method, url: href, headers: sent, body: spec.body, who: spec.from }, url, record, function (answer) {
         later(function () {
           if (own(answer, 'fail')) { report(id, null, [], null, 'network', null); return finish('failed', null); }
-          var kept = spec.show ? keepCookies(answer.headers, href, include, found.sameSite, navigate) : [];
+          var kept = spec.show ? keepCookies(answer.headers, href, include, found.sameSite, topLevel) : [];
           if (spec.mode === 'cors' && cross) {
             var problem = model.check(corsRequest, answer);
             if (problem) { report(id, answer.status, answer.headers, answer.body, 'cors', model.reason({ problem: problem, preflight: false }), kept); return finish('blocked', answer.status); }
           }
-          report(id, answer.status, answer.headers, answer.body, null, null, kept);
-          finish('answer', answer.status);
+          /* chapter 7: a frame's answer is judged (X-Frame-Options, frame-ancestors) before it shows */
+          var judged = typeof judge === 'function' ? judge(answer) : null;
+          if (judged && judged.refused) { report(id, answer.status, answer.headers, answer.body, 'frame', judged.reason, kept); return finish('refused', answer.status, answer.headers); }
+          report(id, answer.status, answer.headers, answer.body, null, judged ? judged.reason : null, kept);
+          finish('answer', answer.status, answer.headers, answer.body);
         }, delay);
       });
     };
@@ -1214,6 +1339,32 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
       var made = function (method, url, mode, credentials, destination, headers, body) {
         return { from: tab.from, address: tab.address, noReferrer: tab.noReferrer, show: true, method: method, url: url, mode: mode, credentials: credentials, destination: destination, headers: headers, body: body };
       };
+      /* chapter 7: the page frames another page (an iframe it may hide under its own button). The frame's answer is
+         judged by its X-Frame-Options and frame-ancestors; shown, Lena's click lands on the framed page, which sends
+         what its button sends, as the framed page (its origin) with the cookies a page inside another site's frame
+         gets (the top page's site decides SameSite). The value: 'refused', or the status of what the click sent. */
+      var framedTo = own(action, 'frame');
+      if (typeof framedTo === 'string' && policyModel) {
+        var framed = new NativeURL(framedTo);
+        /* via: the site's page frames another site's page (the market's), which frames this one: the frame's request
+           comes from the middle page, and every ancestor must be allowed */
+        var via = own(action, 'via');
+        var parent = typeof via === 'string' ? originOf(new NativeURL(via)) : tab.from;
+        var ancestors = parent === tab.from ? [tab.from] : [parent, tab.from];
+        sendAs({ from: parent, address: parent === tab.from ? tab.address : parent + '/', noReferrer: parent === tab.from ? tab.noReferrer : false, show: true, method: 'GET', url: framed, mode: 'frame', credentials: 'include', destination: 'iframe', headers: [], body: null, top: tab.from, tag: tab.from, judge: frameJudge(hrefOf(framed), ancestors) }, function (result) {
+          var click = own(action, 'click');
+          /* the click lands on the framed page's button only when the page showed (an error page has no button) */
+          if (result.kind !== 'answer' || result.status < 200 || result.status >= 300 || !click || typeof own(click, 'fetch') !== 'string') { last = result.kind === 'answer' ? result.status : result.kind; step(); return; }
+          var target = new NativeURL(toText(own(click, 'fetch')), hrefOf(framed));
+          var clickFields = own(click, 'body');
+          var clickMethod = own(click, 'method') === 'POST' ? 'POST' : 'GET';
+          sendAs({ from: originOf(framed), address: hrefOf(framed), noReferrer: false, show: true, method: clickMethod, url: target, mode: 'cors', credentials: 'include', destination: 'fetch', headers: clickFields ? [['content-type', FORM]] : [], body: clickFields ? formBody(clickFields) : null, top: tab.from, tag: tab.from }, function (clicked) {
+            last = clicked.kind === 'answer' ? clicked.status : clicked.kind;
+            step();
+          });
+        });
+        return;
+      }
       var spec;
       var away = false;
       var img = own(action, 'img');
@@ -1705,6 +1856,261 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
     return { local: storageModel.expose(storageModel.area('local', page), proto), session: storageModel.expose(storageModel.area('session', page), proto) };
   } : null;
 
+  /* --- chapter 7: the page's security headers ------------------------------------------------------------------- */
+  var headerValues = function (headers, name) {
+    var values = [];
+    for (var i = 0; i < headers.length; i++) if (lowerCase(toText(headers[i][0])) === name) push(values, toText(headers[i][1]));
+    return values;
+  };
+  var SECURITY_HEADERS = ['content-security-policy', 'content-security-policy-report-only', 'x-frame-options', 'x-content-type-options', 'referrer-policy', 'strict-transport-security', 'permissions-policy'];
+  var documentHeaders = [];
+  var metaPolicies = [];
+  /* the Application panel's Frames view: the page's address and status, its security headers, its policies as parsed */
+  var postSecurity = function () {
+    if (!policyModel) return;
+    var policies = [];
+    for (var i = 0; i < pagePolicies.length && i < 20; i++) {
+      var policy = pagePolicies[i];
+      var directives = [];
+      for (var d = 0; d < policy.names.length && d < 30; d++) push(directives, [policy.names[d], cut(policy.raw[policy.names[d]], PANEL.text)]);
+      push(policies, { source: policy.source, type: policy.type, text: cut(policy.text, PANEL.text), directives: directives });
+    }
+    hooks.post({ type: 'security', url: pageAddress, status: documentStatus, headers: copy(documentHeaders), policies: policies, referrer: pageReferrer });
+  };
+  var policyLines = function (lines, stack) {
+    for (var i = 0; i < lines.length; i++) hooks.post({ type: 'netlog', text: lines[i].text, stack: stack || '', level: lines[i].level });
+  };
+  /* Chrome's report-uri request: a POST with credentials same-origin (the cookies of an endpoint on the page's origin) */
+  var sendReport = function (url, body) {
+    var href = hrefOf(url);
+    var found = cookiesFor(page, href, 'POST', originOf(url) === page, false);
+    var headers = [['content-type', 'application/csp-report']];
+    if (found.header) push(headers, ['cookie', found.header]);
+    var record = remember(placeOf('POST', url), body, href, textOf(href, headers, body));
+    var id = nextId++;
+    var started = hooks.now();
+    hooks.post({ type: 'request', id: id, method: 'POST', url: href, headers: headers, body: body, stack: '', preflightFor: null, site: null, destination: 'report', cookies: found.list });
+    busy(1);
+    exchange({ method: 'POST', url: href, headers: headers, body: body }, url, record, function (answer) {
+      later(function () {
+        busy(-1);
+        var failed = own(answer, 'fail') !== undefined;
+        hooks.post({ type: 'response', id: id, status: failed ? null : answer.status, statusText: failed ? '' : STATUS[answer.status] || '', headers: failed ? [] : answer.headers, body: failed ? null : answer.body, failure: failed ? 'network' : null, time: mathMax(0, mathRound(hooks.now() - started)), reason: null, cookies: [], fromCache: false });
+      }, delay);
+    });
+  };
+  /* a violation's report to each report-uri of its policy: Chrome sends each report a page makes once (the same body
+     again is dropped), at most 50 a load here */
+  var reportsMade = createObject(null);
+  var sendReports = function (found, line) {
+    var policy = pagePolicies[found.policy];
+    if (!policy) return;
+    var body = policyModel.report(policy, found, pageAddress, documentStatus, line);
+    for (var i = 0; i < policy.reportTo.length; i++) {
+      if (reportsSent >= 50) return;
+      var target;
+      try { target = new NativeURL(policy.reportTo[i], pageAddress); } catch (error) { continue; }
+      var key = hrefOf(target) + ' ' + body;
+      if (hasOwn(reportsMade, key)) continue;
+      reportsMade[key] = true;
+      reportsSent += 1;
+      sendReport(target, body);
+    }
+  };
+  /* What the browser does with the model's verdict: each violation's Console line (Chrome's level), its reports, and
+     the first enforced line as the reason a panel shows */
+  var applyVerdict = function (verdict, stack, line) {
+    var reason = null;
+    for (var i = 0; i < verdict.violations.length; i++) {
+      var found = verdict.violations[i];
+      hooks.post({ type: 'netlog', text: found.line.text, stack: stack || '', level: found.line.level });
+      if (reason === null && found.disposition === 'enforce') reason = found.line.text;
+      sendReports(found, line);
+    }
+    return { allowed: verdict.allowed, reason: reason };
+  };
+  var addPolicies = function (parsed) {
+    for (var i = 0; i < parsed.policies.length; i++) push(pagePolicies, parsed.policies[i]);
+  };
+  /* A frame's answer, judged as Chrome's AncestorThrottle does: frame-ancestors of its header policies, then its
+     X-Frame-Options; the lines are the framing page's (the panel shows them as the row's reason). */
+  var frameJudge = function (frameUrl, ancestors) {
+    return function (answer) {
+      var policies = [];
+      var csp = headerValues(answer.headers, 'content-security-policy');
+      for (var i = 0; i < csp.length; i++) {
+        var parsed = policyModel.parse(csp[i], 'enforce', 'header');
+        for (var p = 0; p < parsed.policies.length; p++) push(policies, parsed.policies[p]);
+      }
+      var watched = headerValues(answer.headers, 'content-security-policy-report-only');
+      for (var j = 0; j < watched.length; j++) {
+        var parsedWatched = policyModel.parse(watched[j], 'report', 'header');
+        for (var q = 0; q < parsedWatched.policies.length; q++) push(policies, parsedWatched.policies[q]);
+      }
+      var decision = policyModel.frame(policies, headerValues(answer.headers, 'x-frame-options'), frameUrl, ancestors);
+      var text = '';
+      for (var l = 0; l < decision.lines.length; l++) text += (l ? '\n' : '') + decision.lines[l].text;
+      return { refused: !decision.allowed, reason: text || null };
+    };
+  };
+  /* the document request's headers as Lena's browser sent them (the nonce probe asks again with exactly these) */
+  var documentRequest = [];
+  var stackAt = function (line) { return typeof line === 'number' && line >= 1 ? '    at about:srcdoc:' + line + ':1' : ''; };
+  var security = policyModel ? {
+    /* The document request (a top-level navigation Lena typed: no Referer), its answer's policies, nosniff aside (a
+       document's type is not checked here) and referrer policy; then({ ok, status, type, body }) */
+    load: function (then) {
+      var url = new NativeURL(pageAddress);
+      var found = cookiesFor(page, pageAddress, 'GET', true, true);
+      var sent = wireHeaders([], page, pageAddress, true, url, 'GET', 'navigate', found.header);
+      documentRequest = copy(sent);
+      var record = remember(placeOf('GET', url), null, pageAddress, textOf(pageAddress, sent, null));
+      record.cookies = sentNames(found);
+      var id = nextId++;
+      var started = hooks.now();
+      hooks.post({ type: 'request', id: id, method: 'GET', url: pageAddress, headers: sent, body: null, stack: '', preflightFor: null, site: null, destination: 'document', cookies: found.list });
+      busy(1);
+      exchange({ method: 'GET', url: pageAddress, headers: sent, body: null }, url, record, function (answer) {
+        later(function () {
+          busy(-1);
+          if (own(answer, 'fail')) {
+            hooks.post({ type: 'response', id: id, status: null, statusText: '', headers: [], body: null, failure: 'network', time: mathMax(0, mathRound(hooks.now() - started)), reason: null, cookies: [], fromCache: false });
+            postSecurity();
+            return then({ ok: false, status: null, type: '', body: toText(answer.fail) });
+          }
+          var kept = keepCookies(answer.headers, pageAddress, true, true, true);
+          hooks.post({ type: 'response', id: id, status: answer.status, statusText: STATUS[answer.status] || '', headers: answer.headers, body: answer.body, failure: null, time: mathMax(0, mathRound(hooks.now() - started)), reason: null, cookies: kept, fromCache: false });
+          documentStatus = answer.status;
+          for (var h = 0; h < answer.headers.length; h++) {
+            var name = lowerCase(toText(answer.headers[h][0]));
+            if (has(SECURITY_HEADERS, name)) push(documentHeaders, [name, cut(answer.headers[h][1], PANEL.text)]);
+          }
+          var enforced = headerValues(answer.headers, 'content-security-policy');
+          for (var i = 0; i < enforced.length; i++) {
+            var parsed = policyModel.parse(enforced[i], 'enforce', 'header');
+            policyLines(parsed.lines, '');
+            addPolicies(parsed);
+          }
+          var watched = headerValues(answer.headers, 'content-security-policy-report-only');
+          for (var j = 0; j < watched.length; j++) {
+            var parsedWatched = policyModel.parse(watched[j], 'report', 'header');
+            policyLines(parsedWatched.lines, '');
+            addPolicies(parsedWatched);
+          }
+          pageReferrer = policyModel.referrerPolicy(headerValues(answer.headers, 'referrer-policy'));
+          postSecurity();
+          var types = headerValues(answer.headers, 'content-type');
+          then({ ok: answer.status >= 200 && answer.status < 300, status: answer.status, type: types.length ? types[0] : '', body: typeof answer.body === 'string' ? answer.body : '' });
+        }, delay);
+      });
+    },
+    /* A meta tag of the page's head (http-equiv, content), in document order: a policy, or Chrome's line on why not */
+    meta: function (httpEquiv, content, inHead, line) {
+      var kind = lowerCase(toText(httpEquiv));
+      var stack = stackAt(line);
+      if ((kind === 'content-security-policy' || kind === 'content-security-policy-report-only') && !inHead) {
+        hooks.post({ type: 'netlog', text: 'The Content Security Policy \'' + toText(content) + '\' was delivered via a <meta> element outside the document\'s <head>, which is disallowed. The policy has been ignored.', stack: stack, level: 'error' });
+      } else if (kind === 'content-security-policy' || kind === 'content-security-policy-report-only') {
+        var parsed = policyModel.parse(toText(content), kind === 'content-security-policy' ? 'enforce' : 'report', 'meta');
+        policyLines(parsed.lines, stack);
+        addPolicies(parsed);
+        push(metaPolicies, toText(content));
+      } else if (kind === 'x-frame-options') {
+        hooks.post({ type: 'netlog', text: 'X-Frame-Options may only be set via an HTTP header sent along with a document. It may not be set inside <meta>.', stack: stack, level: 'error' });
+      }
+      postSecurity();
+    },
+    /* <meta name="referrer" content="…">: the page's referrer policy from here on */
+    referrerMeta: function (content) {
+      var chosen = policyModel.referrerPolicy([toText(content)], true);
+      if (chosen) pageReferrer = chosen;
+      postSecurity();
+    },
+    /* A <script src>: the policy first (a refused one is never requested: a row with (blocked:csp)), then the request
+       (a classic script: no-cors with cookies; a module: cors), then its status and type. then({ ran, body, url }) */
+    script: function (src, nonce, parserInserted, module, line, then) {
+      var stack = stackAt(line);
+      var url;
+      try { url = new NativeURL(toText(src), pageAddress); } catch (error) { later(function () { then({ ran: false, body: null, url: null }); }, 0); return; }
+      var href = hrefOf(url);
+      var verdict = applyVerdict(policyModel.script(pagePolicies, page + '/', href, nonce, parserInserted), stack, line);
+      if (!verdict.allowed) {
+        var blockedId = nextId++;
+        hooks.post({ type: 'request', id: blockedId, method: 'GET', url: href, headers: [], body: null, stack: stack, preflightFor: null, site: null, destination: 'script', cookies: [] });
+        hooks.post({ type: 'response', id: blockedId, status: null, statusText: '', headers: [], body: null, failure: 'csp', time: 0, reason: verdict.reason, cookies: [], fromCache: false });
+        later(function () { then({ ran: false, refused: true, body: null, url: href }); }, 0);
+        return;
+      }
+      sendAs({ from: page, address: pageAddress, noReferrer: false, show: true, method: 'GET', url: url, mode: module ? 'cors' : 'no-cors', credentials: module ? 'same-origin' : 'include', destination: 'script', headers: [], body: null, stack: stack, referrerPolicy: pageReferrer, keepBody: true }, function (result) {
+        if (result.kind !== 'answer') { then({ ran: false, body: null, url: href }); return; }
+        if (result.status < 200 || result.status >= 300) {
+          hooks.post({ type: 'netlog', text: 'GET ' + href + ' net::ERR_ABORTED ' + result.status + ' (' + (STATUS[result.status] || '') + ')', stack: stack, level: 'error' });
+          then({ ran: false, body: null, url: href });
+          return;
+        }
+        var types = headerValues(result.headers, 'content-type');
+        var refused = policyModel.scriptType(href, types.length ? types[0] : null, policyModel.nosniff(headerValues(result.headers, 'x-content-type-options')), module);
+        if (refused) {
+          hooks.post({ type: 'netlog', text: refused.text, stack: stack, level: refused.level });
+          then({ ran: false, refused: true, body: null, url: href });
+          return;
+        }
+        then({ ran: true, refused: false, body: typeof result.body === 'string' ? result.body : '', url: href });
+      });
+    },
+    /* An inline script (its text, its nonce) or an event handler (its value): may it run (its lines, its reports) */
+    inline: function (kind, text, nonce, line, parserInserted) {
+      return applyVerdict(policyModel.inline(pagePolicies, kind === 'handler' ? 'handler' : 'script', toText(text), nonce, parserInserted !== false), stackAt(line), line).allowed;
+    },
+    /* the policies' word on an image or a request to there (a probe's look: lines and reports, nothing sent) */
+    allows: function (kind, address) {
+      var href;
+      try { href = hrefOf(new NativeURL(toText(address), pageAddress)); } catch (error) { return false; }
+      return applyVerdict(policyModel.request(pagePolicies, page + '/', kind === 'img' ? 'img-src' : 'connect-src', href), '').allowed;
+    },
+    /* the page loader's own work in flight (a script copy that hasn't run yet): a check run waits for it too */
+    busy: function (delta) { busy(delta === -1 ? -1 : 1); },
+    /* The page a moment later, asked for exactly as Lena's browser asked for it (the same headers, her cookies; nothing in
+       the panels, nothing kept): the body server.js gave. A nonce in it that also opens this page is no nonce. */
+    peek: function (then) {
+      var answers = [];
+      var ask = function (instance, headers, next) {
+        busy(1);
+        instance.serve({ method: 'GET', url: pageAddress, headers: headers, body: null, now: clock }, function (answer) {
+          later(function () {
+            busy(-1);
+            var failed = own(answer, 'fail') !== undefined;
+            /* what the attacker sees of it: the body, and the policies' own nonce sources */
+            var policies = '';
+            if (!failed) {
+              var named = headerValues(answer.headers, 'content-security-policy');
+              var watched = headerValues(answer.headers, 'content-security-policy-report-only');
+              for (var n = 0; n < named.length; n++) policies += ' ' + named[n];
+              for (var w = 0; w < watched.length; w++) policies += ' ' + watched[w];
+            }
+            push(answers, { ok: !failed && answer.status >= 200 && answer.status < 300, body: !failed && typeof answer.body === 'string' ? answer.body : '', policies: policies });
+            next();
+          }, delay);
+        });
+      };
+      /* the page as other people get it too, so a server.js that hands one nonce to everyone shows it whichever request
+         it recognises: Lena's request again exactly, another visitor (no cookie), Lena with one more header, and Lena's
+         request to a fresh server.js (its own state, other random values) */
+      var exactly = copy(documentRequest);
+      var anonymous = [];
+      for (var h = 0; h < documentRequest.length; h++) if (lowerCase(toText(documentRequest[h][0])) !== 'cookie') push(anonymous, documentRequest[h]);
+      var more = copy(documentRequest);
+      push(more, ['accept-language', 'en-GB,en;q=0.9']);
+      ask(server, exactly, function () {
+        ask(server, anonymous, function () {
+          ask(server, more, function () {
+            ask(freshServer, copy(documentRequest), function () { then(answers); });
+          });
+        });
+      });
+    }
+  } : null;
+
   return {
     fetch: fetch,
     pending: function () { return pending; },
@@ -1790,6 +2196,7 @@ export const WEB_BACKEND_SOURCE = String.raw`(function (config, hooks) {
       var place = keyOf(key);
       return hasOwn(reachedBy, place) ? reachedBy[place] : 0;
     },
-    other: other
+    other: other,
+    security: security
   };
 })`

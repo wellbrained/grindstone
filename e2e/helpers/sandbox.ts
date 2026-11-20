@@ -8,6 +8,7 @@ import type { Page } from '@playwright/test'
 import { BRIDGE_HELLO, checkFrames, consoleEntry, heardFacts, loopFacts, mergeObservations, observe, readBridgeMessage, requestAddress, requestEntry, sandboxDocument, statusLabel, withResponse } from '../../shared/levels'
 import type { A11yMessage, BackendSpec, BridgeMessage, ConsoleEntryBody, LogsSpec, LoopEntry, ReaderLine, NetworkEntry, Observation, Probe, Profile, RecordedStep, ServerLogMessage, ServerOutputMessage, WebSpec } from '../../shared/levels'
 import { checkFrameStyle } from '../../app/utils/sandbox-host'
+import { TEST_SEEDS } from '../../shared/levels/web/backend'
 
 export interface CheckResult {
   observation: Observation
@@ -61,6 +62,8 @@ export interface CheckResult {
   heard: string[]
   /** Chapter 6: the last accessibility tree the frame posted (none unless the page asked). */
   tree: A11yMessage | null
+  /** Chapter 7: the Referer each request carried, 'METHOD address referer' ('none' without one), in the order sent. */
+  referers: string[]
 }
 
 export interface RunOptions {
@@ -74,11 +77,14 @@ export interface RunOptions {
   web?: WebSpec
   /** Web fundamentals: the page's path (document.cookie's URL). */
   page?: string
+  /** Chapter 7: draw the servers' scripted values at random, as the play page does (default: fixed, for the tables). */
+  randomSeeds?: boolean
 }
 
 async function runFrame(page: Page, files: Readonly<Record<string, string>>, probes: readonly Probe[], width: number, height: number, backend: BackendSpec | undefined, options: RunOptions): Promise<CheckResult> {
   const token = `t-${Math.random().toString(36).slice(2)}`
-  const document = sandboxDocument(files, { token, probes, backend, record: options.record, count: options.count, performance: options.performance, logs: options.logs, web: options.web, page: options.page })
+  // chapter 7: the servers' scripted values fixed, so a run is the same every time (the play page draws them per load)
+  const document = sandboxDocument(files, { token, probes, backend, record: options.record, count: options.count, performance: options.performance, logs: options.logs, web: options.web, page: options.page, seeds: options.web?.security && !options.randomSeeds ? TEST_SEEDS : undefined })
   const raw = await page.evaluate(async ({ html, style, token, profile, hello }) => {
     const messages: unknown[] = []
     const frame = window.document.createElement('iframe')
@@ -161,7 +167,8 @@ async function runFrame(page: Page, files: Readonly<Record<string, string>>, pro
     animated: facts.animated,
     reader,
     heard: heardFacts(reader),
-    tree
+    tree,
+    referers: requests.map(entry => `${entry.method} ${entry.url} ${entry.requestHeaders.find(([name]) => name === 'referer')?.[1] ?? 'none'}`)
   }
 }
 

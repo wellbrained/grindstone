@@ -32,9 +32,11 @@ import type { Level, PracticeTask, Scenario, Session } from '../types'
  * - `layouts`: the page's code forced exactly this many layouts in the run,
  * - `animated`: a transition or animation started, 'element property' ('p.toast.visible opacity'),
  * - `heard`: the screen reader said this line before the probes, 'kind: text' ('focus: button', 'state: expanded',
- *   'polite: Saved'); chapter 6, the Accessibility panel's reader shows it.
+ *   'polite: Saved'); chapter 6, the Accessibility panel's reader shows it,
+ * - `referer`: a request of the page carried this Referer, 'METHOD address referer' ('GET https://stats.example/hit
+ *   https://cornerbakery.shop/'; 'none' for none). Chapter 7, the Network panel shows it.
  */
-export type PredictionFact = { row: string } | { server: string, times?: number } | { says: string } | { asks: string } | { sent: string } | { stored: string } | { refused: string } | { readable: string } | { storage: string } | { replayed: string } | { cdn: string } | { painted: string } | { forced: string } | { layouts: number } | { animated: string } | { heard: string }
+export type PredictionFact = { row: string } | { server: string, times?: number } | { says: string } | { asks: string } | { sent: string } | { stored: string } | { refused: string } | { readable: string } | { storage: string } | { replayed: string } | { cdn: string } | { painted: string } | { forced: string } | { layouts: number } | { animated: string } | { heard: string } | { referer: string }
 
 /** One answer to choose, one line to order or to pick. */
 export interface PredictionOption {

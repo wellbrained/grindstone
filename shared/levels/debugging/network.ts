@@ -100,7 +100,8 @@ export function withResponse(entries: readonly NetworkEntry[], message: Response
   return entries.map(entry => entry.id === message.id ? { ...entry, response: { status, statusText, headers, body, failure, time, reason, cookies, fromCache } } : entry)
 }
 
-const FAILED: Record<RequestFailure, string> = { cors: 'CORS error', network: 'failed', aborted: 'canceled' }
+// chapter 7: a request the page's policy refused never went (Chrome's (blocked:csp)); a frame its answer kept from showing
+const FAILED: Record<RequestFailure, string> = { cors: 'CORS error', network: 'failed', aborted: 'canceled', csp: '(blocked:csp)', frame: '(blocked)' }
 
 /** The status column: the code, or why there is none the app could read (as the browser's panel words it); a copy the browser's cache answered with is marked as Chrome's Size column marks it. */
 export function statusLabel(entry: NetworkEntry): string {

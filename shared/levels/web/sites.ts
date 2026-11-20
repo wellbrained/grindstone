@@ -15,6 +15,13 @@ export type SiteAction
     | { form: string, method: 'GET' | 'POST', fields: Readonly<Record<string, string>> }
   /** A link Lena clicks: a top-level GET navigation. */
     | { link: string, text: string }
+  /**
+   * Chapter 7: an `<iframe>` of another page (the shop's), maybe see-through over the page's own button (`over`). Its
+   * answer's X-Frame-Options and frame-ancestors decide whether it shows; shown, Lena's click lands on the framed page's
+   * button (`click`: what that button sends, as the framed page, with the cookies a page in another site's frame gets).
+   * `via`: the page frames that other site's page (an origin), which frames this one (both are the frame's ancestors).
+   */
+    | { frame: string, over?: string, via?: string, click?: { fetch: string, method?: 'GET' | 'POST', body?: Readonly<Record<string, string>>, label: string } }
 
 export interface OtherSite {
   /** The site's origin (`https://cheap-flour.example`): its page's, and its own server's (which answers anything with 200). */
@@ -46,7 +53,18 @@ export function sitePage(site: OtherSite): string {
   const scripts: string[] = []
   site.actions.forEach((action, index) => {
     if ('img' in action) body.push(`  <img src="${escape(action.img)}" alt="" width="1" height="1">`)
-    else if ('link' in action) body.push(`  <p><a href="${escape(action.link)}">${escape(action.text)}</a></p>`)
+    else if ('frame' in action) {
+      if (action.via) {
+        body.push(`  <iframe src="${escape(action.via)}/" title="Saturday market" style="opacity: 0"></iframe>`)
+        body.push(`  <!-- ${escape(action.via)}'s page frames ${escape(action.frame)} inside this frame -->`)
+      } else if (action.over) {
+        body.push(`  <button class="bait">${escape(action.over)}</button>`)
+        body.push(`  <!-- the frame lies over the button, see-through: a click on the bait is a click on "${escape(action.click?.label ?? 'the page')}" -->`)
+        body.push(`  <iframe src="${escape(action.frame)}" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0"></iframe>`)
+      } else {
+        body.push(`  <iframe src="${escape(action.frame)}" title="Corner Bakery" width="400" height="300"></iframe>`)
+      }
+    } else if ('link' in action) body.push(`  <p><a href="${escape(action.link)}">${escape(action.text)}</a></p>`)
     else if ('form' in action) {
       const id = `f${index + 1}`
       body.push(`  <form id="${id}" method="${action.method}" action="${escape(action.form)}">`)

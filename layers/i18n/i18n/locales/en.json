@@ -1241,7 +1241,9 @@
       "failure": {
         "cors": "No answer the app may read: the browser blocked it (CORS). The Console says why.",
         "network": "No answer: the connection failed.",
-        "aborted": "Cancelled before the answer came."
+        "aborted": "Cancelled before the answer came.",
+        "csp": "Never sent: the page's Content-Security-Policy refused it. The Console says why.",
+        "frame": "The frame stays empty: the answer's headers don't let this site show the page."
       }
     },
     "elements": {
@@ -1734,12 +1736,18 @@
       "destination": {
         "fetch": "fetch",
         "image": "image",
-        "document": "page"
+        "document": "page",
+        "script": "script",
+        "iframe": "iframe",
+        "report": "report"
       },
       "destinationLong": {
         "fetch": "A fetch",
         "image": "An image",
-        "document": "A page: a top-level navigation (a link, a form)"
+        "document": "A page: a top-level navigation (a link, a form)",
+        "script": "A script the page loads (its script tag)",
+        "iframe": "A frame: another page showing this one inside it",
+        "report": "A report: the browser posting what the page's policy refused (report-uri)"
       },
       "cookies": "Cookies",
       "requestCookies": "Sent with the request",
@@ -1749,7 +1757,14 @@
       "cookieStored": "stored",
       "cookieRefused": "refused",
       "diskCache": "disk cache",
-      "fromDiskCache": "{status} (from disk cache)"
+      "fromDiskCache": "{status} (from disk cache)",
+      "blockedBy": {
+        "cors": "Blocked by CORS:",
+        "csp": "Blocked by Content-Security-Policy:",
+        "frame": "Not shown in the frame:"
+      },
+      "note": "Note:",
+      "notShown": "Response: what the server sent, not shown in the frame"
     },
     "application": {
       "label": "Application",
@@ -1758,7 +1773,8 @@
         "cookies": "Cookies",
         "local": "Local storage",
         "session": "Session storage",
-        "cache": "Cache"
+        "cache": "Cache",
+        "frames": "Frames"
       },
       "count": "no cookies | 1 cookie | {n} cookies",
       "loading": "The cookie jar shows here once the app has loaded.",
@@ -1943,6 +1959,32 @@
       "separator": " · ",
       "focusedMark": "· focused",
       "leftPage": "Tab left the page: the browser's own controls (the address bar) have focus"
+    },
+    "securityNote": "Predict first, then read the panels (the Console in Chrome's words, Network with the page's own request first, Server, Application's Frames and Other site), fix server.js or the page, Save and Reload: the goals are checked on every reload.",
+    "securitySealed": "The app runs in a sealed frame: it can't reach Grindstone or your progress. The page's security headers (Content-Security-Policy, X-Frame-Options, X-Content-Type-Options, Referrer-Policy) are applied by a modelled browser, as Chrome applies them, on top of the frame's own policy; server.js is the shop's own server, run in the frame too, and nothing goes to the network.",
+    "frames": {
+      "loading": "The page shows here once the app has loaded.",
+      "top": "top: the page itself",
+      "url": "URL",
+      "status": "Status",
+      "noAnswer": "no answer",
+      "referrer": "Referrer policy",
+      "referrerDefault": "strict-origin-when-cross-origin (the default)",
+      "headers": "Security headers of its answer",
+      "noHeaders": "None: no Content-Security-Policy, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Strict-Transport-Security or Permissions-Policy.",
+      "policies": "No Content Security Policy | One Content Security Policy | {n} Content Security Policies",
+      "noPolicy": "Nothing restricts what the page may run or load.",
+      "source": {
+        "header": "HTTP header",
+        "meta": "meta tag"
+      },
+      "type": {
+        "enforce": "enforced",
+        "report": "report-only"
+      },
+      "noDirectives": "No directive the browser knows: the policy restricts nothing.",
+      "emptyValue": "(no value)",
+      "policyName": "Content Security Policy {n}: {source}, {type}"
     }
   }
 }

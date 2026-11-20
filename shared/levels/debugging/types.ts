@@ -112,6 +112,16 @@ export type ProbeStep
    */
     | { fetchFrom: string, request: string, credentials?: 'omit' | 'same-origin' | 'include', headers?: Readonly<Record<string, string>>, body?: Readonly<Record<string, string>> }
   /**
+   * Web fundamentals (chapter 7): the next XSS, markup an attacker gets into the page some other day, asked of the page's
+   * policies as the browser asks them (Chrome's line in the Console when refused): an inline event handler (`code`), an
+   * inline script (`code`; `nonce`, or `'seen'`: the first nonce of a page server.js gave the attacker a moment ago), a
+   * script from an address (`src`), an image or a request of the page's script to there (`src`). 'ran' (allowed: a
+   * handler or script then runs), 'refused', or 'failed' (allowed, but it never arrived).
+   */
+    | { inject: 'handler' | 'inline' | 'src' | 'img' | 'connect', code?: string, nonce?: string, src?: string }
+  /** Web fundamentals (chapter 7): how often a script from this address ran in the load (the page loader's record: the page can't add to it). */
+    | { ran: string }
+  /**
    * Web fundamentals (chapter 2): Lena opens another site of the level (`sandbox.web.sites`): what its page does runs in
    * the panels, then the app gets 20 ms (and its answers). The value: the status of the last thing the page did (a form's,
    * a link's), or 'blocked' / 'failed'.

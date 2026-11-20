@@ -13,12 +13,13 @@ import type { DebuggingPlaySession } from '~/composables/useDebuggingPlay'
 const props = defineProps<{ play: DebuggingPlaySession }>()
 
 const { t } = useI18n()
-const { cookieJar, storage, hasStorage, cache, hasCache, predicting } = props.play
+const { cookieJar, storage, hasStorage, cache, hasCache, security, hasSecurity, predicting } = props.play
 
 /** The storage kinds the panel shows; a level with a cache opens on it. */
-type Kind = 'cookies' | 'local' | 'session' | 'cache'
-const KINDS: Kind[] = [...(hasCache ? ['cache' as const] : []), 'cookies', ...(hasStorage ? ['local' as const, 'session' as const] : [])]
-const ICONS: Record<Kind, string> = { cookies: 'i-lucide-cookie', local: 'i-lucide-hard-drive', session: 'i-lucide-app-window', cache: 'i-lucide-layers' }
+type Kind = 'frames' | 'cookies' | 'local' | 'session' | 'cache'
+// chapter 7: Frames first (the page's headers and policies), as Chrome lists it above the storage
+const KINDS: Kind[] = [...(hasSecurity ? ['frames' as const] : []), ...(hasCache ? ['cache' as const] : []), 'cookies', ...(hasStorage ? ['local' as const, 'session' as const] : [])]
+const ICONS: Record<Kind, string> = { frames: 'i-lucide-shield', cookies: 'i-lucide-cookie', local: 'i-lucide-hard-drive', session: 'i-lucide-app-window', cache: 'i-lucide-layers' }
 const kind = ref<Kind>(KINDS[0]!)
 /** Copies in both caches. */
 const copies = computed(() => (cache.value?.browser.length ?? 0) + (cache.value?.cdn?.length ?? 0))
@@ -73,7 +74,7 @@ const expiresOf = (cookie: CookieRow) => cookie.expires === null ? t('web.applic
         data-testid="application-count"
       >{{ t('web.cache.count', copies) }}</span>
       <span
-        v-else-if="kind !== 'cookies' && kind !== 'cache' && storage"
+        v-else-if="kind !== 'cookies' && kind !== 'cache' && kind !== 'frames' && storage"
         class="font-mono text-dimmed tabular-nums"
         data-testid="application-count"
       >{{ t('web.application.items', items) }}</span>
@@ -116,6 +117,11 @@ const expiresOf = (cookie: CookieRow) => cookie.expires === null ? t('web.applic
         <WebCache
           v-if="kind === 'cache'"
           :cache="cache"
+          :predicting="predicting"
+        />
+        <WebFrames
+          v-else-if="kind === 'frames'"
+          :security="security"
           :predicting="predicting"
         />
         <template v-else-if="kind !== 'cookies'">

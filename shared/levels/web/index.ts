@@ -1,5 +1,5 @@
-// The Web fundamentals track (ADR 0009): its chapters and their levels, in play order. Chapters 1 to 6 are live,
-// chapter 7 is coming (no levels yet). A practice task goes right after the scenario it trains (`practises`); defineTrack
+// The Web fundamentals track (ADR 0009): its chapters and their levels, in play order. All seven chapters are live.
+// A practice task goes right after the scenario it trains (`practises`); defineTrack
 // checks it.
 import { fewestWrongPredictions } from '../progress'
 import { defineTrack, trackLevels } from '../track'
@@ -35,12 +35,18 @@ import { checkoutKeyboard } from './27-checkout'
 import { allergensOpen } from './28-allergens'
 import { silentError } from './29-silent-error'
 import { focusLost } from './30-focus-lost'
+import { letsItRun } from './31-lets-it-run'
+import { freeFlour } from './32-free-flour'
+import { phonesHome } from './33-phones-home'
+import { onlyWatched } from './34-only-watched'
+import { widgetMoved } from './35-widget-moved'
 import { consoleOrder, readableAnswers, sameOrigin, simpleOrPreflight, whichHeaders, whichMethods } from './practice/cors'
 import { attackerRequests, linkCookies, sameSiteOrNot, whichHosts, whichStored } from './practice/cookies'
 import { afterLogout, refreshCookie, scriptReads, whichRun, whichTokens } from './practice/auth'
 import { askOrNot, cdnKeeps, ownCondition, ownCopy, reachesToday } from './practice/caching'
 import { doesItFade, firstLine, tapOrder, whenPaint, whichReads } from './practice/loop'
 import { announced, readerSays, tabOrder, whichKeys, whichState } from './practice/accessibility'
+import { shopHeaders, twoPolicies, whichRequests, whichScripts, whoMayFrame } from './practice/headers'
 
 export const webTrack = defineTrack({
   id: 'web',
@@ -166,7 +172,18 @@ export const webTrack = defineTrack({
       title: 'Security headers & CSP',
       description: 'Content-Security-Policy, frame-ancestors and the headers a shop sends.',
       colour: 6,
-      levels: []
+      levels: [
+        letsItRun,
+        whichScripts,
+        freeFlour,
+        whoMayFrame,
+        phonesHome,
+        whichRequests,
+        onlyWatched,
+        twoPolicies,
+        widgetMoved,
+        shopHeaders
+      ]
     }
   ]
 })

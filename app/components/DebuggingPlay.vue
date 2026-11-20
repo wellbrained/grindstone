@@ -22,7 +22,7 @@ const props = defineProps<{
 const { t } = useI18n()
 
 const play = useDebuggingPlay(props.level)
-const { session, store, goals, next, stats, reloads, find, webLevel, predictionOnly, hasNetwork, hasServer, hasApplication, hasSites, hasLoop, hasA11y, hasElements, hasDebugger, hasPerformance, hasLogs, hasDeploys, requests, requestShown, picking, pickedAt, recordStatus, profileStatus, debriefOpen, progressBefore, sparkKey, mark, hint, reset, again } = play
+const { session, store, goals, next, stats, reloads, find, webLevel, predictionOnly, hasNetwork, hasServer, hasApplication, hasSites, hasLoop, hasA11y, hasSecurity, hasElements, hasDebugger, hasPerformance, hasLogs, hasDeploys, requests, requestShown, picking, pickedAt, recordStatus, profileStatus, debriefOpen, progressBefore, sparkKey, mark, hint, reset, again } = play
 
 type Lower = 'loop' | 'a11y' | 'elements' | 'debugger' | 'performance' | 'logs' | 'deploys' | 'console' | 'network' | 'server' | 'application' | 'site'
 type Panel = 'app' | Lower | 'code'
@@ -155,6 +155,7 @@ const topNote = computed(() => {
   if (predictionOnly) return t('web.practiceNote')
   if (webLevel && hasLoop) return t('web.loopNote')
   if (webLevel && hasA11y) return t('web.a11yNote')
+  if (webLevel && hasSecurity) return t('web.securityNote')
   if (webLevel) return t('web.note')
   if (find) return t('debugging.findNote')
   if (hasDebugger) return t('debugging.debuggerNote')

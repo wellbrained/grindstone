@@ -72,8 +72,16 @@ const statusText = (entry: NetworkEntry) => {
 /** The status column: the code alone (a copy the cache answered with is tagged by its name, as Chrome's Size column marks it). */
 const rowStatus = (entry: NetworkEntry) => entry.response?.fromCache ? statusLabel({ ...entry, response: { ...entry.response, fromCache: false } }) : statusLabel(entry)
 
-/** A request CORS refused that the server did answer (Web fundamentals: its answer is shown, kept from the page). */
-const answeredButBlocked = (entry: NetworkEntry) => entry.response?.failure === 'cors' && entry.response.status !== null && entry.response.reason !== null
+/**
+ * A request CORS refused that the server did answer (Web fundamentals: its answer is shown, kept from the page), or a
+ * frame whose answer said it may not be shown there (chapter 7).
+ */
+const answeredButBlocked = (entry: NetworkEntry) => (entry.response?.failure === 'cors' || entry.response?.failure === 'frame') && entry.response.status !== null && entry.response.reason !== null
+/** What kept it: CORS, the page's policy (chapter 7), a frame's headers; or a note on an answer that went through. */
+const reasonLabel = (entry: NetworkEntry) => {
+  const failure = entry.response?.failure
+  return failure === 'cors' || failure === 'csp' || failure === 'frame' ? t(`web.network.blockedBy.${failure}`) : t('web.network.note')
+}
 /** A request CORS refused before it was sent: its preflight's answer did not allow it. */
 const neverSent = (entry: NetworkEntry) => entry.response?.failure === 'cors' && entry.response.status === null && entry.response.reason !== null
 
@@ -114,7 +122,7 @@ const sections = computed(() => {
     { id: 'request', title: t('debugging.network.request'), headers: entry.requestHeaders, body: entry.requestBody, none: t('debugging.network.noBody') },
     {
       id: 'response',
-      title: answeredButBlocked(entry) ? t('web.network.keptFromPage') : t('debugging.network.response'),
+      title: answeredButBlocked(entry) ? t(entry.response?.failure === 'frame' ? 'web.network.notShown' : 'web.network.keptFromPage') : t('debugging.network.response'),
       headers: response?.headers ?? [],
       body: response?.failure && !answeredButBlocked(entry) ? null : response?.body ?? null,
       none: noBodyText(entry)
@@ -298,10 +306,14 @@ const viewOf = (body: string, headers: readonly HeaderPair[]) => bodyView(body, 
 
         <p
           v-if="selected.response?.reason"
-          class="mb-3 rounded-md border border-error/40 bg-error/10 px-2 py-1.5 text-xs text-highlighted"
+          class="mb-3 rounded-md border px-2 py-1.5 text-xs whitespace-pre-line text-highlighted"
+          :class="selected.response.failure ? 'border-error/40 bg-error/10' : 'border-warning/40 bg-warning/10'"
           data-testid="network-reason"
         >
-          <span class="font-medium text-error">{{ t('web.network.blocked') }}</span>
+          <span
+            class="font-medium"
+            :class="selected.response.failure ? 'text-error' : 'text-warning'"
+          >{{ reasonLabel(selected) }}</span>
           {{ ' ' }}{{ selected.response.reason }}
         </p>
         <section

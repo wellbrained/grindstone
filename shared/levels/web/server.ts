@@ -149,7 +149,12 @@ export const SERVER_RUNTIME_SOURCE = String.raw`(function (limits, emit) {
   /* jsonwebtoken (tokens.ts), on the scripted clock */
   var jwt = (${JWT_SOURCE})(now).module;
   /* crypto.randomUUID(), scripted: the same ids on every run (a real server's are random), a version 4 UUID's form */
-  var seed = [0x9e3779b9, 0x243f6a88, 0xb7e15162, 0x6a09e667];
+  /* limits.seed: a second server of the same load (chapter 7's fresh look at the page) draws its own values, random per
+     load (nothing shows them); every other server the scripted sequence, the same every run */
+  var given = limits.seed;
+  var seed = Array.isArray(given) && given.length === 4 && given.every(function (word) { return typeof word === 'number' && word >>> 0 === word && word !== 0; })
+    ? given.slice()
+    : [0x9e3779b9, 0x243f6a88, 0xb7e15162, 0x6a09e667];
   var next32 = function () {
     var t = seed[3];
     var first = seed[0];
@@ -194,7 +199,67 @@ export const SERVER_RUNTIME_SOURCE = String.raw`(function (limits, emit) {
       next();
     };
   };
-  var MODULES = { 'jsonwebtoken': jwt, 'cookie-parser': cookieParser, 'crypto': { randomUUID: randomUUID }, 'node:crypto': { randomUUID: randomUUID } };
+  /* crypto.randomBytes(n), scripted like randomUUID (a fresh value per call, the same sequence every run: chapter 7's
+     nonces), as a small Buffer: toString('base64' | 'base64url' | 'hex') */
+  var B64 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  var bufferOf = function (bytes) {
+    return {
+      length: bytes.length,
+      toString: function (encoding) {
+        var out = '';
+        var i;
+        if (encoding === 'hex') {
+          for (i = 0; i < bytes.length; i++) out += (bytes[i] < 16 ? '0' : '') + bytes[i].toString(16);
+          return out;
+        }
+        if (encoding !== 'base64' && encoding !== 'base64url') throw new TypeError('This trainer\'s Buffer reads as \'base64\', \'base64url\' or \'hex\' only');
+        for (i = 0; i < bytes.length; i += 3) {
+          var a = bytes[i];
+          var b = i + 1 < bytes.length ? bytes[i + 1] : 0;
+          var c = i + 2 < bytes.length ? bytes[i + 2] : 0;
+          out += B64.charAt(a >> 2) + B64.charAt(((a & 3) << 4) | (b >> 4));
+          out += i + 1 < bytes.length ? B64.charAt(((b & 15) << 2) | (c >> 6)) : '=';
+          out += i + 2 < bytes.length ? B64.charAt(c & 63) : '=';
+        }
+        return encoding === 'base64url' ? out.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '') : out;
+      }
+    };
+  };
+  var randomBytes = function (size) {
+    if (typeof size !== 'number' || !(size >= 0) || size % 1 !== 0 || size > 1024) throw new RangeError('The value of "size" is out of range. It must be >= 0 && <= 1024 in this trainer. Received ' + String(size));
+    var bytes = [];
+    while (bytes.length < size) {
+      var word = next32();
+      bytes.push(word >>> 24, (word >>> 16) & 0xff, (word >>> 8) & 0xff, word & 0xff);
+    }
+    return bufferOf(bytes.slice(0, size));
+  };
+  /* chapter 7: the page's files (index.html, app.js, …: every file of the level but server.js), which express.static,
+     res.sendFile and fs.readFileSync read; a folder in the path (public/, ./) is the folder they are kept in */
+  var FILES = limits.files || null;
+  var fileOf = function (path) {
+    var name = String(path).split(String.fromCharCode(92)).join('/').split('/').pop();
+    return FILES && name && Object.prototype.hasOwnProperty.call(FILES, name) ? name : null;
+  };
+  var TYPES = { html: 'text/html; charset=utf-8', js: 'text/javascript; charset=utf-8', mjs: 'text/javascript; charset=utf-8', css: 'text/css; charset=utf-8', json: 'application/json; charset=utf-8', txt: 'text/plain; charset=utf-8', svg: 'image/svg+xml', png: 'image/png', jpg: 'image/jpeg', gif: 'image/gif' };
+  var typeOf = function (name) {
+    var dot = name.lastIndexOf('.');
+    var ext = dot < 0 ? '' : name.slice(dot + 1).toLowerCase();
+    return Object.prototype.hasOwnProperty.call(TYPES, ext) ? TYPES[ext] : 'application/octet-stream';
+  };
+  var fs = {
+    readFileSync: function (path, encoding) {
+      var name = fileOf(path);
+      if (name === null) {
+        var missing = new Error('ENOENT: no such file or directory, open \'' + String(path) + '\'');
+        missing.code = 'ENOENT';
+        throw missing;
+      }
+      if (encoding !== 'utf8' && encoding !== 'utf-8' && !(encoding && encoding.encoding && /^utf-?8$/i.test(encoding.encoding))) throw new TypeError('This trainer\'s fs.readFileSync reads text only: pass \'utf8\'');
+      return FILES[name];
+    }
+  };
+  var MODULES = { 'jsonwebtoken': jwt, 'cookie-parser': cookieParser, 'crypto': { randomUUID: randomUUID, randomBytes: randomBytes }, 'node:crypto': { randomUUID: randomUUID, randomBytes: randomBytes }, 'fs': fs, 'node:fs': fs };
   /* SHA-1 (FIPS 180-4) over UTF-8 bytes, base64: what the etag package hashes a body with */
   var sha1Base64 = function (text) {
     var bytes = new TextEncoder().encode(text);
@@ -361,6 +426,20 @@ export const SERVER_RUNTIME_SOURCE = String.raw`(function (limits, emit) {
     var app = makeApp();
     apps.push(app);
     return app;
+  };
+  /* express.static(root): serves the page's files (chapter 7) for GET and HEAD, '/' as index.html, with their type by
+     extension; anything else goes on to the next handler. The root names the folder they are kept in. */
+  express.static = function (root) {
+    if (typeof root !== 'string') throw new TypeError('root path required');
+    return function serveStatic(req, res, next) {
+      if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+      var path = req.path === '/' || req.path === '' ? 'index.html' : decodeURIComponent(req.path).replace(/^\/+/, '');
+      if (path.indexOf('/') >= 0) return next();
+      var name = fileOf(path);
+      if (name === null) return next();
+      if (res.get('content-type') === undefined) res.set('Content-Type', typeOf(name));
+      res.end(FILES[name]);
+    };
   };
   /* The body as it came, kept beside the request (not on it: Express has no req.rawBody either). */
   var rawBodies = new WeakMap();
@@ -559,6 +638,22 @@ export const SERVER_RUNTIME_SOURCE = String.raw`(function (limits, emit) {
     };
     res.end = function (body) {
       return send(body === undefined || body === null ? null : String(body), null, false);
+    };
+    /* res.sendFile(path[, { root }]): one of the page's files (chapter 7), with its type; a path must be absolute or
+       have a root, as Express says; a file that isn't there is a 404 through next(err) */
+    res.sendFile = function (path, options) {
+      if (typeof path !== 'string') throw new TypeError('path must be a string to res.sendFile');
+      var root = options && typeof options === 'object' && typeof options.root === 'string' ? options.root : null;
+      if (root === null && path.charAt(0) !== '/') throw new TypeError('path must be absolute or specify root to res.sendFile');
+      var name = fileOf(path);
+      if (name === null) {
+        var missing = new Error('ENOENT: no such file or directory, stat \'' + path + '\'');
+        missing.status = 404;
+        missing.statusCode = 404;
+        throw missing;
+      }
+      if (res.get('content-type') === undefined) res.set('Content-Type', typeOf(name));
+      return res.end(FILES[name]);
     };
     res.sendStatus = function (code) {
       res.status(code);
@@ -796,6 +891,12 @@ const WORKER_PRELUDE = String.raw`(function (limits) {
   ['log', 'info', 'debug', 'table', 'dir'].forEach(function (name) { output[name] = logger('log'); });
   output.warn = logger('warn');
   output.error = logger('error');
+  /* server.js talks to nobody but its requests: no channel to another worker of the load (a second server.js, the
+     page), no worker of its own (the review of chapter 7: two server.js instances agreed on a nonce over one) */
+  ['BroadcastChannel', 'Worker', 'SharedWorker'].forEach(function (name) {
+    try { delete self[name]; } catch (error) { /* kept */ }
+    try { if (name in self) Object.defineProperty(self, name, { value: undefined, configurable: false, writable: false }); } catch (error) { /* kept */ }
+  });
   self.require = runtime.require;
   self.express = runtime.express;
   /* chapter 3: server.js's Date (and Intl's default date, performance.timeOrigin) tell the scripted time, which moves */
@@ -972,11 +1073,19 @@ export const SERVER_HOST_SOURCE = String.raw`(function (config, hooks) {
     }
     crash('server.js could not run', null);
   };
+  /* the worker's script as a blob address made now, when the host is made (before any of the app's code): a Blob built
+     later would read its parts through whatever Array.prototype[Symbol.iterator] the app put there (the review of
+     chapter 7: a second server.js made at probe time got a line of the app's in front); every start and restart uses it */
+  var scriptUrl = null;
+  var scriptProblem = null;
+  if (NativeWorker && config.source !== null && config.source !== undefined) {
+    try { scriptUrl = makeUrl(new NativeBlob([config.prelude + '\n' + config.source], { type: 'text/javascript' })); } catch (error) { scriptProblem = error; }
+  }
   var start = function () {
     if (!NativeWorker) { down = 'This browser cannot run server.js here.'; output('error', down, null); return false; }
-    var script = config.prelude + '\n' + config.source;
     try {
-      worker = new NativeWorker(makeUrl(new NativeBlob([script], { type: 'text/javascript' })));
+      if (scriptUrl === null) throw scriptProblem || new Error('no script');
+      worker = new NativeWorker(scriptUrl);
     } catch (error) {
       down = 'server.js could not start: ' + (error && error.message ? error.message : toText(error));
       output('error', down, null);
@@ -1016,7 +1125,7 @@ export const SERVER_HOST_SOURCE = String.raw`(function (config, hooks) {
  * the level's clock moves (chapter 3), so server.js's Date tells the scripted time. `etag` (chapter 4, a level with a
  * cache): res.send gives a body Express's ETag and answers a conditional GET with 304.
  */
-export function serverPrelude(statusText: Readonly<Record<number, string>>, time = false, etag = false): string {
-  const limits = JSON.stringify({ ...SERVER_LIMITS, statusText, time, etag })
+export function serverPrelude(statusText: Readonly<Record<number, string>>, time = false, etag = false, files: Readonly<Record<string, string>> | null = null, seed: readonly number[] | null = null): string {
+  const limits = JSON.stringify({ ...SERVER_LIMITS, statusText, time, etag, files, seed })
   return `${WORKER_PRELUDE.replace(/\s*\n\s*/g, ' ')}(${limits});`
 }

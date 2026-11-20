@@ -32,6 +32,7 @@ import { RECORDER_GLOBAL, RECORDER_SOURCE } from './recorder'
 import { WEB_BACKEND_SOURCE } from '../web/backend'
 import { LOOP_SOURCE } from '../web/loop'
 import { A11Y_SOURCE } from '../web/a11y'
+import { PAGE_LOAD_SOURCE } from '../web/pageload'
 
 /** The longest pause a probe may take (`{ wait }`): a check run gives up after 5 s. */
 export const MAX_PROBE_WAIT_MS = 2000
@@ -409,10 +410,16 @@ const SOURCE = String.raw`(function (config) {
   post({ type: 'files', urls: urls });
   var map = document.createElement('script');
   map.type = 'importmap';
+  /* chapter 7: the frame's second policy runs inline code with the load's nonce only */
+  if (config.web && config.web.security) map.nonce = config.web.security.nonce;
   map.textContent = JSON.stringify({ imports: imports });
   script.after(map);
+  /* chapter 7: the load's nonce leaves the bridge's tag once it ran (the import map holds it in its slot only) */
+  if (config.web && config.web.security) script.removeAttribute('nonce');
   /* What Grindstone put on the page (the base, the policy, the bridge, the import map): never shown in the Elements panel. */
   var own = [script, map, document.querySelector('base'), document.querySelector('meta[http-equiv]')];
+  /* chapter 7: the frame's second policy is Grindstone's too */
+  if (config.web && config.web.security) own.push(document.querySelectorAll('meta[http-equiv]')[1] || null);
 
   /* The Console: every call is posted with its call stack (an Error argument brings its own), then goes on as usual. */
   ['log', 'info', 'warn', 'error', 'debug'].forEach(function (level) {
@@ -445,6 +452,9 @@ const SOURCE = String.raw`(function (config) {
 
   onWindow('error', function (event) {
     if (!isInstance(NativeErrorEvent, event)) {
+      /* only the browser's own: chapter 7's page loader fires error on a script the page's policy refused, as Chrome
+         does, which Chrome never calls a failed module (isTrusted is the event's own, unforgeable) */
+      if (event.isTrusted !== true) return;
       var tag = null;
       try {
         var target = eventTargetOf(event);
@@ -555,6 +565,11 @@ const SOURCE = String.raw`(function (config) {
      the keyboard from Grindstone); in the app you see a real click or key still moves the model's focus. */
   var a11y = config.web && config.web.a11y ? (${A11Y_SOURCE})(config.web.a11y, { win: window, post: post, check: !!probes }) : null;
   if (a11y) a11y.install();
+  /* Web fundamentals (chapter 7): the page loads the way the browser loads it once it has the page's headers: the
+     document from server.js, its policies, then its scripts and event handlers through the policy model (pageload.ts).
+     Started now, before anything of the page's is parsed. */
+  var pageLoad = backend && backend.security ? (${PAGE_LOAD_SOURCE})(config.web.security, { win: window, doc: document, security: backend.security, post: post, origin: config.web.page }) : null;
+  if (pageLoad) pageLoad.start();
   var realFetch = window.fetch;
   window.fetch = function fetch(input, init) {
     return backend ? backend.fetch(input, init) : realFetch.apply(window, arguments);
@@ -1070,6 +1085,20 @@ const SOURCE = String.raw`(function (config) {
           next();
         });
       }
+      /* Web fundamentals (chapter 7): the next XSS, markup an attacker gets into the page some other day, asked of the
+         page's policy as the browser asks it: 'ran' or 'refused' */
+      /* chapter 7: how often a script from this address really ran (the page loader's own record) */
+      if (typeof step.ran === 'string') {
+        value = pageLoad ? pageLoad.ran(step.ran) : 0;
+        return next();
+      }
+      if (typeof step.inject === 'string') {
+        if (!pageLoad) return fail('There is no page policy in this run');
+        return pageLoad.inject(step, function (result) {
+          value = result;
+          settle(20, next);
+        });
+      }
       if (typeof step.fetchFrom === 'string') {
         if (!backend || !backend.from) return fail('There is no server to ask in this run');
         return backend.from(step, function (result) {
@@ -1159,6 +1188,8 @@ const SOURCE = String.raw`(function (config) {
     };
     /* chapter 5: the event loop starts with the load (its first frame paints the page) and runs until the page is quiet */
     if (loop) loop.start(afterLoad);
+    /* chapter 7: once the page's scripts have run (after the document's answer and the policy) */
+    else if (pageLoad) pageLoad.whenLoaded(function () { settle(30, afterLoad); });
     else settle(30, afterLoad);
   });
 })`

@@ -20,7 +20,7 @@ export type { DiffHunk as ReviewDiffHunk, DiffRow, FileDiff } from './review/dif
 export type { TestCase, TestFileProblem, TestFileRun, TestPlan, TestRun, TestStatus } from './review/test-sandbox'
 export type { TestLimits } from './review/test-runner'
 export type { ReviewView, SteerLevel, SteerRound } from './review/steer'
-export type { BridgeMessage, TestError, ConsoleEntryBody, ConsoleLevel, HeaderPair, InspectedMessage, RequestFailure, RequestMessage, ResponseMessage, ServerOutputMessage, CookiesMessage, CookieRow, RefusedCookieRow, RequestCookieRow, SetCookieRow, RequestDestination, StorageMessage, StorageAreaRow, ReplayMessage, CacheMessage, CacheRow, CdnLogRow, LoopMessage, ReaderMessage, A11yMessage } from './debugging/messages'
+export type { BridgeMessage, TestError, ConsoleEntryBody, ConsoleLevel, HeaderPair, InspectedMessage, RequestFailure, RequestMessage, ResponseMessage, ServerOutputMessage, CookiesMessage, CookieRow, RefusedCookieRow, RequestCookieRow, SetCookieRow, RequestDestination, StorageMessage, StorageAreaRow, ReplayMessage, CacheMessage, CacheRow, CdnLogRow, LoopMessage, ReaderMessage, A11yMessage, NetlogMessage, SecurityMessage } from './debugging/messages'
 export type { CssCondition, CssDeclaration, CssRule, CssSheet, Specificity } from './debugging/css'
 export type { BoxModel, DeclarationStatus, DeclarationView, DomNode, ElementStyles, InheritedView, Inspected, InspectedLevel, InspectedMatch, RuleView, ScrollSize, Sides, TreeMove, TreeRow } from './debugging/elements'
 export type { NetworkEntry, NetworkResponse, StatusTone } from './debugging/network'

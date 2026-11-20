@@ -138,6 +138,9 @@ for (const level of webLevels) {
     // chapter 6 (the levels on the accessibility model): what the screen reader said before the probes, in order
     const accessible = level.sandbox.web?.a11y === true
     if (accessible) expect(start.heard).toEqual(table.start.heard ?? [])
+    // chapter 7 (the levels with the page's security headers): the Referer every request carried
+    const headers = level.sandbox.web?.security !== undefined
+    if (headers) expect(start.referers).toEqual(table.start.referers ?? [])
     const lines = start.entries.map(entry => entry.text)
     // what the texts quote (in any order: requests sent together may be answered in any order; an order question
     // checks its own lines' order below)
@@ -159,6 +162,7 @@ for (const level of webLevels) {
       if ('layouts' in fact) return start.forced.length === fact.layouts
       if ('animated' in fact) return start.animated.includes(fact.animated)
       if ('heard' in fact) return start.heard.includes(fact.heard)
+      if ('referer' in fact) return start.referers.includes(fact.referer)
       return lines.some(line => line.startsWith(fact.says))
     }
     /** Where an order question's line shows: the Console, or (chapter 6) the reader. */
@@ -193,6 +197,10 @@ for (const level of webLevels) {
       expect(solved.replayed).toEqual(table.solved!.replayed ?? [])
     }
     if (caching) expect(solved.cdn).toEqual(table.solved!.cdn ?? [])
+    if (headers) {
+      expect(solved.referers).toEqual(table.solved!.referers ?? [])
+      for (const text of table.solved!.says ?? []) expect(solved.entries.some(entry => entry.text.startsWith(text)), text).toBe(true)
+    }
     if (looping) {
       expect(solved.painted).toEqual(table.solved!.painted ?? [])
       expect(solved.forced).toEqual(table.solved!.forced ?? [])
@@ -218,7 +226,8 @@ for (const level of webLevels) {
       await page.setContent('<!doctype html><title>check</title>')
       let files = startWebLevel(level).state.files
       for (const edit of fix.edits) files = { ...files, [edit.save]: editedText(files, edit as DebugStep & { save: string }) }
-      const result = await run(page, level, files)
+      // as a player gets it: chapter 7's servers draw their scripted values at random
+      const result = await runCheck(page, files, level.sandbox.probes, undefined, { web: level.sandbox.web, page: level.sandbox.page, randomSeeds: true })
       const session = reload({ ...startWebLevel(level), state: { ...startWebLevel(level).state, files, predicted: expected[level.id]!.answers } }, level, result.observation).session
       expect(session.solved, JSON.stringify({ probes: result.observation.probes, errors: result.observation.errors.map(error => error.text), server: result.serverOutput.map(line => line.text) }, null, 2)).toBe(fix.solves)
     })
@@ -555,6 +564,141 @@ test.describe('an app can\'t fake a name, a role, a Tab stop or an announcement 
       expect(result.observation.probes.wrong, JSON.stringify(result.observation.errors.map(error => error.text))).toBeLessThan(2)
       expect(result.reader.some(line => (line.kind === 'assertive' || line.kind === 'polite') && line.key === 'Enter')).toBe(false)
       expect(solved).toBe(false)
+    })
+  }
+})
+
+test.describe('chapter 7: the page\'s own code can\'t stand in for the page\'s policy, or fake what the probes ask the model', () => {
+  const lets = webLevels.find(each => each.id === 'web-31-lets-it-run')!
+  const phones = webLevels.find(each => each.id === 'web-33-phones-home')!
+  const solvedBy = async (page: Parameters<typeof runCheck>[0], level: WebLevel, files: Record<string, string>) => {
+    const result = await run(page, level, files)
+    const session = reload({ ...startWebLevel(level), state: { ...startWebLevel(level).state, files, predicted: expected[level.id]!.answers } }, level, result.observation).session
+    return { solved: session.solved, result }
+  }
+  const first = (files: Record<string, string>, code: string) => ({ ...files, 'app.js': `${code}\n${files['app.js']!}` })
+  const CHEATS: Record<string, string> = {
+    'a real meta policy the page adds at runtime (it stops the frame\'s eval, not the model)': 'const meta = document.createElement(\'meta\'); meta.httpEquiv = \'Content-Security-Policy\'; meta.content = "script-src \'none\'"; document.head.append(meta)',
+    'the built-ins the handlers and probes use replaced (addEventListener, getAttribute, MutationObserver, Function, Event)': [
+      'EventTarget.prototype.addEventListener = function () {}',
+      'Element.prototype.getAttribute = function () { return null }',
+      'window.MutationObserver = function () { return { observe () {}, disconnect () {} } }',
+      'window.Function = function () { return function () { return function () {} } }',
+      'window.Event = function () { return {} }'
+    ].join('\n'),
+    'setters on the prototypes for what the model decides (allowed, violations, list indices)': [
+      'Object.defineProperty(Object.prototype, \'allowed\', { configurable: true, set (value) { Object.defineProperty(this, \'allowed\', { value: false, writable: true, enumerable: true, configurable: true }) } })',
+      'for (let i = 0; i < 10; i++) Object.defineProperty(Array.prototype, i, { configurable: true, set (value) { Object.defineProperty(this, i, { value: { line: { level: \'error\', text: \'\' } }, writable: true, enumerable: true, configurable: true }) } })'
+    ].join('\n'),
+    'the page strips every on… attribute and drops the email request itself': [
+      'new MutationObserver(records => { for (const record of records) for (const node of record.addedNodes) if (node.querySelectorAll) for (const element of [node, ...node.querySelectorAll(\'*\')]) for (const name of element.getAttributeNames()) if (name.startsWith(\'on\')) element.removeAttribute(name) }).observe(document, { childList: true, subtree: true })',
+      'const send = window.fetch',
+      'window.fetch = (address, init) => String(address).includes(\'/account/email\') ? Promise.resolve(new Response(\'{}\')) : send(address, init)'
+    ].join('\n')
+  }
+  for (const [name, cheat] of Object.entries(CHEATS)) {
+    test(`7.1: ${name}`, async ({ page }) => {
+      await page.setContent('<!doctype html><title>check</title>')
+      const { solved, result } = await solvedBy(page, lets, first(startWebLevel(lets).state.files, cheat))
+      expect(solved).toBe(false)
+      // the model still says what the page's policy allows: the next attacker's handler and script run
+      expect(result.observation.probes).toMatchObject({ nextHandler: 'ran', nextInline: 'ran' })
+    })
+  }
+
+  test('7.3: fetch and Image patched by the page, the hacked widget\'s data kept home by the page: the policy still lets requests go', async ({ page }) => {
+    await page.setContent('<!doctype html><title>check</title>')
+    const cheat = [
+      'const send = window.fetch',
+      'window.fetch = (address, init) => String(address).startsWith(\'/\') || String(address).includes(\'cornerbakery.shop\') || String(address).includes(\'tastebuds\') ? send(address, init) : Promise.resolve(new Response(\'\'))',
+      'window.Image = function () { return {} }'
+    ].join('\n')
+    const { solved, result } = await solvedBy(page, phones, first(startWebLevel(phones).state.files, cheat))
+    expect(solved).toBe(false)
+    expect(result.observation.probes).toMatchObject({ leaked: 0, nextFetch: 'ran', nextImage: 'ran' })
+  })
+
+  test('the frame stays sealed under a page policy that allows everything: nothing reaches the network, the frame\'s own policy holds', async ({ page }) => {
+    await page.setContent('<!doctype html><title>check</title>')
+    const files = startWebLevel(lets).state.files
+    const open = { ...files, 'server.js': files['server.js']!.replace(`script-src 'self' https://widgets.tastebuds.example 'unsafe-inline'`, 'default-src * data: blob: \'unsafe-inline\' \'unsafe-eval\'') }
+    const probe = [
+      'const tried = []',
+      'try { await import(\'data:text/javascript,export default 1\'); tried.push(\'import ran\') } catch (error) { tried.push(\'import refused\') }',
+      'const script = document.createElement(\'script\'); script.textContent = \'window.__native = 1\'; document.head.append(script)',
+      'tried.push(window.__native === 1 ? \'native ran\' : \'native refused\')',
+      'console.log(tried.join(\' \'))'
+    ].join('\n')
+    const result = await run(page, lets, { ...open, 'app.js': `${probe}\n${open['app.js']!}` })
+    const lines = result.entries.map(entry => entry.text)
+    // a dynamic import of a data: URL is refused by the frame's own policy whatever the page's says; an inline script
+    // the page adds runs only through the model (the policy allows it here), never past the frame
+    expect(lines.some(line => line.startsWith('import refused'))).toBe(true)
+    expect(result.network.every(row => !row.startsWith('GET data:'))).toBe(true)
+  })
+})
+
+test.describe('chapter 7 (the review of 2026-11-20): built-ins the app replaces later change nothing the model reads', () => {
+  const flour = webLevels.find(each => each.id === 'web-32-free-flour')!
+  const moved = webLevels.find(each => each.id === 'web-35-widget-moved')!
+  const verdict = async (page: Parameters<typeof runCheck>[0], level: WebLevel, files: Record<string, string>) => {
+    const result = await run(page, level, files)
+    return { solved: reload({ ...startWebLevel(level), state: { ...startWebLevel(level).state, files, predicted: expected[level.id]!.answers } }, level, result.observation).session.solved, result }
+  }
+
+  test('7.2: RegExp.prototype.exec replaced so the market\'s frame loses its frame-ancestors: the frames are parsed as the browser does', async ({ page }) => {
+    await page.setContent('<!doctype html><title>check</title>')
+    const files = startWebLevel(flour).state.files
+    const edited = {
+      ...files,
+      'server.js': files['server.js']!.replace('  res.set(\'X-Content-Type-Options\', \'nosniff\')', '  res.set(\'X-Content-Type-Options\', \'nosniff\')\n  res.set(\'Content-Security-Policy\', "frame-ancestors \'none\'")'),
+      'app.js': `const ownExec = RegExp.prototype.exec\nRegExp.prototype.exec = function (text) { return text === 'frame-ancestors' ? null : ownExec.call(this, text) }\nString.prototype.split = function () { return [] }\nString.prototype[Symbol.split] = () => []\n${files['app.js']!}`
+    }
+    const { solved, result } = await verdict(page, flour, edited)
+    expect(solved).toBe(false)
+    expect(result.observation.probes).toMatchObject({ market: 'refused' })
+  })
+
+  test('7.5: Array.prototype[Symbol.iterator] replaced so the second server.js gets a line of the app\'s: its script was made before the app ran', async ({ page }) => {
+    await page.setContent('<!doctype html><title>check</title>')
+    const files = startWebLevel(moved).state.files
+    const route = [
+      'let served = 0',
+      'app.get(\'/\', (req, res) => {',
+      '  served += 1',
+      '  const nonce = !self.FRESH && served === 1 ? \'r4nd0m\' : require(\'crypto\').randomBytes(16).toString(\'base64\')',
+      '  res.set(\'Content-Security-Policy\', `script-src \'nonce-${nonce}\' \'strict-dynamic\'`)',
+      '  res.send(require(\'fs\').readFileSync(\'public/index.html\', \'utf8\').replaceAll(\'{{nonce}}\', nonce))',
+      '})'
+    ].join('\n')
+    const cheat = [
+      'const real = Array.prototype[Symbol.iterator]',
+      'Array.prototype[Symbol.iterator] = function () { return this.length === 1 && typeof this[0] === \'string\' && this[0].indexOf(\'(function (limits)\') === 0 ? real.call([\'self.FRESH = true;\', this[0]]) : real.call(this) }'
+    ].join('\n')
+    const edited = {
+      ...files,
+      'index.html': files['index.html']!.replace('<script type="module" src="./app.js"></script>', '<script type="module" src="./app.js" nonce="{{nonce}}"></script>').replace('async></script>', 'nonce="{{nonce}}" async></script>'),
+      'server.js': files['server.js']!.replace('  res.set(\'Content-Security-Policy\', "script-src \'self\' https://widgets.tastebuds.example")\n', '').replace('// The page and its files from public/', `${route}\n// The page and its files from public/`),
+      'app.js': `${cheat}\n${files['app.js']!}`
+    }
+    const { solved, result } = await verdict(page, moved, edited)
+    expect(solved).toBe(false)
+    expect(result.observation.probes).toMatchObject({ nextNonce: 'ran' })
+  })
+
+  for (const [name, patch] of [['String.prototype.charAt', 'String.prototype.charAt = function () { return \'"\' }'], ['window.RegExp', 'window.RegExp = function () { return /$^/g }']] as const) {
+    test(`7.5: a static nonce with ${name} replaced: the nonce the attacker saw still opens the page`, async ({ page }) => {
+      await page.setContent('<!doctype html><title>check</title>')
+      const files = startWebLevel(moved).state.files
+      const edited = {
+        ...files,
+        'index.html': files['index.html']!.replace('<script type="module" src="./app.js"></script>', '<script type="module" src="./app.js" nonce=r4nd0m></script>').replace('async></script>', 'nonce=r4nd0m async></script>'),
+        'server.js': files['server.js']!.replace(`script-src 'self' https://widgets.tastebuds.example`, 'script-src \'nonce-r4nd0m\' \'strict-dynamic\''),
+        'app.js': `${patch}\n${files['app.js']!}`
+      }
+      const { solved, result } = await verdict(page, moved, edited)
+      expect(solved).toBe(false)
+      expect(result.observation.probes).toMatchObject({ nextNonce: 'ran' })
     })
   }
 })

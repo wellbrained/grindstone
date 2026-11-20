@@ -133,7 +133,7 @@ describe('the best run and the radar', () => {
     expect(view.chapters[3]!.rows.map(row => row.teaches ?? row.taskKind)).toEqual(['max-age', 'predict', 'no-cache', 'predict', 'private', 'predict', 'Vary', 'predict', 'stale deploy', 'predict'])
     expect(view.chapters[4]!.rows.map(row => row.teaches ?? row.taskKind)).toEqual(['long task', 'predict', 'event dispatch', 'predict', 'forced layout', 'predict', 'transition', 'predict', 'microtasks', 'predict'])
     expect(view.chapters[5]!.rows.map(row => row.teaches ?? row.taskKind)).toEqual(['accessible name', 'predict', 'keyboard', 'predict', 'aria-expanded', 'predict', 'live region', 'predict', 'focus', 'predict'])
-    expect(view.chapters.slice(6).every(chapter => chapter.coming)).toBe(true)
+    expect(view.chapters[6]!.rows.map(row => row.teaches ?? row.taskKind)).toEqual(['unsafe-inline', 'predict', 'frame-ancestors', 'predict', 'connect-src', 'predict', 'Report-Only', 'predict', 'strict-dynamic', 'predict'])
   })
 })
 

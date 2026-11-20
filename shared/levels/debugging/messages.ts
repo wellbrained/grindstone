@@ -44,7 +44,7 @@ export type BridgeMessage
   /** The backend's answer to a request, or how it failed. */
     | ResponseMessage
   /** The browser's own Console line for a failed request (`GET … 404 (Not Found)`, a CORS refusal), with where it was sent from. */
-    | { type: 'netlog', text: string, stack: string }
+    | NetlogMessage
   /** Web fundamentals: a line of the API's server.js for the Server panel (an access line, its console, an error with its line). */
     | ServerOutputMessage
   /** Web fundamentals (chapter 2): the cookie jar after a change, for the Application panel. */
@@ -55,6 +55,8 @@ export type BridgeMessage
     | ReplayMessage
   /** Web fundamentals (chapter 4): the browser's cache and the CDN's after a change, and the CDN's log. */
     | CacheMessage
+  /** Web fundamentals (chapter 7): the page's address, status, security headers and policies, for the Application panel. */
+    | SecurityMessage
   /** Web fundamentals (chapter 5): what ran on the event loop since the last message (tasks, listeners, frames, forced layouts, logs). */
     | LoopMessage
   /** Web fundamentals (chapter 6): what the screen reader said since the last message (focus, states, live regions). */
@@ -104,6 +106,25 @@ export interface InspectedMessage extends Inspected {
 /** A header as name and value (names lower case, in the order they were sent). */
 export type HeaderPair = [name: string, value: string]
 
+/** The browser's own Console line (a failed request, a CORS refusal; chapter 7: a policy's line, at Chrome's level). */
+export interface NetlogMessage {
+  type: 'netlog'
+  text: string
+  stack: string
+  /** Chrome's level (chapter 7; absent: an error, as every earlier line): an error (red), or a report-only policy's info. */
+  level?: 'error' | 'warn' | 'info'
+}
+
+/** Chapter 7: the page as the browser loaded it: its address, the document's status, its security headers, its policies as parsed. */
+export interface SecurityMessage {
+  type: 'security'
+  url: string
+  status: number
+  headers: HeaderPair[]
+  policies: { source: 'header' | 'meta', type: 'enforce' | 'report', text: string, directives: HeaderPair[] }[]
+  referrer: string
+}
+
 export interface RequestMessage {
   type: 'request'
   id: number
@@ -122,7 +143,7 @@ export interface RequestMessage {
   cookies: RequestCookieRow[]
 }
 
-export type RequestDestination = 'fetch' | 'image' | 'document'
+export type RequestDestination = 'fetch' | 'image' | 'document' | 'script' | 'iframe' | 'report'
 
 /** A cookie a request carried (`sent`), or one of its site it did not, with why; a note when it went anyway. */
 export interface RequestCookieRow {
@@ -275,7 +296,7 @@ export interface A11yMessage {
 }
 
 /** How a request failed without an answer the app can read: refused by CORS, no connection, cancelled. */
-export type RequestFailure = 'cors' | 'network' | 'aborted'
+export type RequestFailure = 'cors' | 'network' | 'aborted' | 'csp' | 'frame'
 
 export interface ResponseMessage {
   type: 'response'
@@ -315,7 +336,10 @@ const MAX_ATTR_TEXT = 200
 const MAX_CHAIN = 64
 const MAX_COMPUTED = 30
 const LEVELS: readonly ConsoleLevel[] = ['log', 'info', 'warn', 'error', 'debug']
-const FAILURES: readonly RequestFailure[] = ['cors', 'network', 'aborted']
+const NETLOG_LEVELS: readonly NetlogMessage['level'][] = ['error', 'warn', 'info']
+/** Chapter 7: at most 20 policies a page, 30 directives each (the frame cuts them so), texts at 300 characters. */
+const MAX_POLICIES = 20
+const FAILURES: readonly RequestFailure[] = ['cors', 'network', 'aborted', 'csp', 'frame']
 const RECORD_ENDS: readonly RecordEndReason[] = ['stopped', 'steps', 'slow', 'work']
 const SERVER_LEVELS: readonly ServerOutputMessage['level'][] = ['access', 'log', 'warn', 'error']
 /** Characters of a CORS reason (Chrome's longest is about 300) and of a server.js line (the frame cuts them at 500). */
@@ -328,7 +352,7 @@ const MAX_COOKIE_TEXT = 301
 const SAME_SITES: readonly CookieRow['sameSite'][] = ['Strict', 'Lax', 'None', 'Unspecified']
 /** Storage areas: the frame sends at most this many areas (origins and kinds) and 200 items in each. */
 const MAX_AREAS = 50
-const DESTINATIONS: readonly RequestDestination[] = ['fetch', 'image', 'document']
+const DESTINATIONS: readonly RequestDestination[] = ['fetch', 'image', 'document', 'script', 'iframe', 'report']
 /** Cache rows: the frame sends at most 100 copies a cache and 200 CDN log lines, texts cut at 300 characters. */
 const MAX_CACHE_ROWS = 100
 const MAX_CDN_LOG = 200
@@ -533,6 +557,23 @@ function headerPairs(value: unknown): HeaderPair[] | null {
 }
 
 const cut = (value: unknown, max: number): string | null => typeof value === 'string' ? value.slice(0, max) : null
+
+/** Chapter 7's policies as the frame sends them (at most MAX_POLICIES); null when they are not that. */
+function securityPolicies(value: unknown): SecurityMessage['policies'] | null {
+  if (!Array.isArray(value)) return null
+  const policies: SecurityMessage['policies'] = []
+  for (const raw of value.slice(0, MAX_POLICIES)) {
+    if (!raw || typeof raw !== 'object') return null
+    const policy = raw as Record<string, unknown>
+    const source = policy.source === 'header' || policy.source === 'meta' ? policy.source : null
+    const type = policy.type === 'enforce' || policy.type === 'report' ? policy.type : null
+    const policyText = cut(policy.text, 301)
+    const directives = headerPairs(policy.directives)
+    if (!source || !type || policyText === null || directives === null) return null
+    policies.push({ source, type, text: policyText, directives: directives.map(([name, content]) => [name.slice(0, 40), content.slice(0, 301)]) })
+  }
+  return policies
+}
 const finite = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value)
 /** A whole number from -1 (none) up. */
 const nodeId = (value: unknown): number | undefined => value === -1 ? -1 : whole(value, Number.MAX_SAFE_INTEGER)
@@ -753,8 +794,19 @@ export function readBridgeMessage(data: unknown): BridgeMessage | null {
     case 'netlog': {
       const message = text(raw.text)
       const stack = text(raw.stack)
-      if (message === null || stack === null) return null
-      return { type: 'netlog', text: message, stack }
+      // chapter 7 says its level (Debugging's backend and the earlier chapters never do: an error)
+      const level = raw.level === undefined ? undefined : NETLOG_LEVELS.find(each => each === raw.level)
+      if (message === null || stack === null || (raw.level !== undefined && !level)) return null
+      return level ? { type: 'netlog', text: message, stack, level } : { type: 'netlog', text: message, stack }
+    }
+    case 'security': {
+      const url = cut(raw.url, 2000)
+      const status = whole(raw.status, 999)
+      const headers = headerPairs(raw.headers)
+      const policies = securityPolicies(raw.policies)
+      const referrer = cut(raw.referrer, 100)
+      if (url === null || status === undefined || headers === null || policies === null || referrer === null) return null
+      return { type: 'security', url, status, headers, policies, referrer }
     }
     case 'server': {
       const level = SERVER_LEVELS.find(each => each === raw.level)
@@ -924,7 +976,7 @@ export function consoleEntry(message: BridgeMessage, mapping: SourceMapping): Co
     }
     case 'netlog':
       // the browser's line links the code that sent the request (its initiator); it has no trace of its own
-      return { level: 'error', text: message.text, source: lineOf(mapFrames(parseStack(message.stack), mapping)[0]), frames: [] }
+      return { level: message.level ?? 'error', text: message.text, source: lineOf(mapFrames(parseStack(message.stack), mapping)[0]), frames: [] }
     case 'result': {
       if (message.ok) return { level: 'result', text: message.value, source: null, frames: [] }
       const frames = message.stack ? mapFrames(parseStack(message.stack), mapping) : []
@@ -949,7 +1001,8 @@ export function observe(messages: readonly BridgeMessage[], bridgeLine: number):
     } else if (message.type === 'error' || message.type === 'console' || message.type === 'netlog') {
       const entry = consoleEntry(message, mapping)!
       if (message.type === 'error') errors.push({ kind: message.kind, text: entry.text, source: entry.source })
-      else if (message.type === 'netlog') errors.push({ kind: 'network', text: entry.text, source: entry.source })
+      else if (message.type === 'netlog' && entry.level === 'error') errors.push({ kind: 'network', text: entry.text, source: entry.source })
+      else if (message.type === 'netlog') observation.logs.push(entry.text)
       else if (message.level === 'error') errors.push({ kind: 'console', text: entry.text, source: entry.source })
       else if (message.level === 'log' || message.level === 'info') observation.logs.push(entry.text)
     }

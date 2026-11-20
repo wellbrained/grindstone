@@ -31,7 +31,7 @@ const questionsOf = (level: WebLevel) => level.prediction.questions
 
 describe('the Web fundamentals levels', () => {
   it('are scenarios with one question and practice tasks with one or three, every one with a table', () => {
-    expect(webLevels.length).toBe(61)
+    expect(webLevels.length).toBe(71)
     for (const level of webLevels) {
       expect(level.id, level.id).toMatch(level.kind === 'scenario' ? /^web-\d\d-[a-z-]+$/ : /^web-practice-[a-z-]+$/)
       expect(level.hints).toHaveLength(level.kind === 'scenario' ? 3 : 1)
@@ -50,7 +50,7 @@ describe('the Web fundamentals levels', () => {
       }
     }
     // the scenarios' tags on the track page
-    expect(webLevels.filter(level => level.kind === 'scenario').map(level => level.teaches)).toEqual(['Allow-Origin', 'preflight', 'credentials', 'Allow-Headers', 'Allow-Methods', 'SameSite=None', 'CSRF', 'HttpOnly', 'Path', 'Strict', 'localStorage', 'innerHTML', 'exp', 'refresh', 'logout', 'max-age', 'no-cache', 'private', 'Vary', 'stale deploy', 'long task', 'event dispatch', 'forced layout', 'transition', 'microtasks', 'accessible name', 'keyboard', 'aria-expanded', 'live region', 'focus'])
+    expect(webLevels.filter(level => level.kind === 'scenario').map(level => level.teaches)).toEqual(['Allow-Origin', 'preflight', 'credentials', 'Allow-Headers', 'Allow-Methods', 'SameSite=None', 'CSRF', 'HttpOnly', 'Path', 'Strict', 'localStorage', 'innerHTML', 'exp', 'refresh', 'logout', 'max-age', 'no-cache', 'private', 'Vary', 'stale deploy', 'long task', 'event dispatch', 'forced layout', 'transition', 'microtasks', 'accessible name', 'keyboard', 'aria-expanded', 'live region', 'focus', 'unsafe-inline', 'frame-ancestors', 'connect-src', 'Report-Only', 'strict-dynamic'])
   })
 
   it('check every answer against what the app does: the right option\'s fact holds, a wrong one\'s does not, lines come in the answer\'s order', () => {
@@ -70,6 +70,7 @@ describe('the Web fundamentals levels', () => {
       if ('layouts' in fact) return (run.forced ?? []).length === fact.layouts
       if ('animated' in fact) return (run.animated ?? []).includes(fact.animated)
       if ('heard' in fact) return (run.heard ?? []).includes(fact.heard)
+      if ('referer' in fact) return (run.referers ?? []).includes(fact.referer)
       return (run.says ?? []).some(line => line.startsWith(fact.says))
     }
     /** Where an order question's line shows: the Console ('says') or, in chapter 6, the reader ('heard'). */
@@ -183,7 +184,9 @@ describe('the Web fundamentals levels', () => {
   it('load their servers as data the frame can take (webConfig checks each level\'s spec)', () => {
     for (const level of webLevels) {
       const config = webConfig(level.sandbox.web!, level.setup().files, SHOP_ORIGIN)
-      expect(config.api, level.id).toBe('https://api.cornerbakery.shop')
+      // chapter 7: server.js is the shop's own server, on the page's origin
+      expect(config.api, level.id).toBe(level.sandbox.web!.security ? 'https://cornerbakery.shop' : 'https://api.cornerbakery.shop')
+      expect(config.security !== null, level.id).toBe(level.sandbox.web!.security !== undefined)
       expect(config.source !== null, level.id).toBe(level.sandbox.web!.server !== undefined)
       // chapter 5: the event loop, and no API server (app.js is what you fix)
       expect(config.loop !== null, level.id).toBe(level.sandbox.web!.loop !== undefined)

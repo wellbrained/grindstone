@@ -31,9 +31,17 @@ export interface JwtInternals {
   ms: (text: string) => number | undefined
 }
 
-export const JWT_SOURCE = String.raw`(function (now) {
+/**
+ * SHA-256 (FIPS 180-4) over bytes (a Uint8Array): `() => (bytes) => Uint8Array(32)`. Shared by jsonwebtoken's HS256 and
+ * the policy model's hashes ('sha256-…' sources, csp.ts). Built-ins it uses are taken when the source is called.
+ */
+export const SHA256_SOURCE = String.raw`(function () {
   'use strict';
-  /* SHA-256 (FIPS 180-4) over bytes, and HMAC (RFC 2104) with it: what HS256 signs with. */
+  var Bytes = Uint8Array;
+  var pow = Math.pow;
+  var Words = Int32Array;
+  /* the typed arrays' own set, taken now (the app may replace it later) */
+  var setBytes = Function.prototype.call.bind(Object.getPrototypeOf(Bytes.prototype).set);
   var K = [
     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
     0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
@@ -47,12 +55,12 @@ export const JWT_SOURCE = String.raw`(function (now) {
   var sha256 = function (bytes) {
     var h = [0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19];
     var length = bytes.length;
-    var padded = new Uint8Array(((length + 9 + 63) >> 6) << 6);
-    padded.set(bytes);
+    var padded = new Bytes(((length + 9 + 63) >> 6) << 6);
+    setBytes(padded, bytes);
     padded[length] = 0x80;
     var bits = length * 8;
-    for (var b = 0; b < 8; b++) padded[padded.length - 1 - b] = (bits / Math.pow(2, 8 * b)) & 0xff;
-    var w = new Array(64);
+    for (var b = 0; b < 8; b++) padded[padded.length - 1 - b] = (bits / pow(2, 8 * b)) & 0xff;
+    var w = new Words(64);
     for (var offset = 0; offset < padded.length; offset += 64) {
       for (var t = 0; t < 16; t++) w[t] = (padded[offset + 4 * t] << 24) | (padded[offset + 4 * t + 1] << 16) | (padded[offset + 4 * t + 2] << 8) | padded[offset + 4 * t + 3];
       for (t = 16; t < 64; t++) {
@@ -75,7 +83,7 @@ export const JWT_SOURCE = String.raw`(function (now) {
       h[0] = (h[0] + a) | 0; h[1] = (h[1] + c1) | 0; h[2] = (h[2] + c2) | 0; h[3] = (h[3] + d) | 0;
       h[4] = (h[4] + e) | 0; h[5] = (h[5] + f) | 0; h[6] = (h[6] + g) | 0; h[7] = (h[7] + hh) | 0;
     }
-    var out = new Uint8Array(32);
+    var out = new Bytes(32);
     for (var i = 0; i < 8; i++) {
       out[4 * i] = h[i] >>> 24;
       out[4 * i + 1] = (h[i] >>> 16) & 0xff;
@@ -84,6 +92,13 @@ export const JWT_SOURCE = String.raw`(function (now) {
     }
     return out;
   };
+  return sha256;
+})`
+
+export const JWT_SOURCE = String.raw`(function (now) {
+  'use strict';
+  /* SHA-256 (FIPS 180-4) over bytes, and HMAC (RFC 2104) with it: what HS256 signs with. */
+  var sha256 = ${SHA256_SOURCE}();
   var concat = function (first, second) {
     var out = new Uint8Array(first.length + second.length);
     out.set(first);

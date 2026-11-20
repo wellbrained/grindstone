@@ -20,7 +20,7 @@ import {
 } from '#shared/levels'
 import type {
   Breakpoint, BridgeMessage, ColleagueMessage, ConsoleEntryBody, CssRule, DebugLevel, DebugRecord, DebugResult, DebugSession, DebugState, DeployPick, DomNode, Inspected, Instrumented, LogEntry, LoggedRequest, NetworkEntry, PickVerdict,
-  A11yMessage, A11yKey, CookiesMessage, LoopEntry, PredictionAnswer, ReaderLine, Profile, RecordEndReason, RecordedStep, ReplayMessage, ScopeEntries, ServerOutputMessage, SourceLine, SourceMapping, CacheMessage, StorageMessage, WebLevel
+  A11yMessage, A11yKey, CookiesMessage, LoopEntry, PredictionAnswer, ReaderLine, Profile, RecordEndReason, RecordedStep, ReplayMessage, ScopeEntries, SecurityMessage, ServerOutputMessage, SourceLine, SourceMapping, CacheMessage, StorageMessage, WebLevel
 } from '#shared/levels'
 import type { CompiledCondition } from '#shared/levels/debugging/condition'
 import type { LineTone } from '~/editor/codemirror'
@@ -272,6 +272,10 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
   const hasCache = web?.cache !== undefined
   /** Chapter 4: both caches' copies and the CDN's log, as the frame last posted them (null before the first). */
   const cache = shallowRef<CacheMessage | null>(null)
+  /** Chapter 7: the page's security headers decide (the Application panel's Frames). */
+  const hasSecurity = web?.security !== undefined
+  /** Chapter 7: the page as the browser loaded it (its headers, its policies), as the frame last posted it. */
+  const security = shallowRef<SecurityMessage | null>(null)
 
   /** Chapter 5: the Event loop panel's lines of this load (Clear empties what shows; the next lines still come). */
   const loopRows = shallowRef<LoopRow[]>([])
@@ -430,6 +434,7 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
     cookieJar.value = null
     storage.value = null
     cache.value = null
+    security.value = null
     // a Web fundamentals level runs its app only once the prediction is answered: until then there is no load
     if (predicting.value) {
       link?.close()
@@ -504,7 +509,8 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
   function onBridgeMessage(message: BridgeMessage, current: AppLoad) {
     if (current !== load.value) return
     if (message.type === 'files') {
-      mapping.value = { urls: message.urls, bridgeLine: current.bridgeLine }
+      // a load may name more files later (chapter 7: a script's copy, as it runs): added to what came before
+      mapping.value = { urls: { ...mapping.value.urls, ...message.urls }, bridgeLine: current.bridgeLine }
     } else if (message.type === 'ready') {
       ready.value = true
       treeSoon()
@@ -545,6 +551,8 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
       if (hasApplication && hasStorage) storage.value = message
     } else if (message.type === 'cache') {
       if (hasApplication && hasCache) cache.value = message
+    } else if (message.type === 'security') {
+      if (hasApplication && hasSecurity) security.value = message
     } else if (message.type === 'replay') {
       // the thief's request from outside the browser: a line of its own in the Server panel, under server.js's answer
       if (serverLines.value.length < MAX_SERVER_LINES) serverLines.value = [...serverLines.value, { level: 'outside', replay: { request: message.request, using: message.using, status: message.status, by: message.by }, text: message.request, line: null, id: nextServerLine++ }]
@@ -1158,6 +1166,8 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
     storage,
     hasCache,
     cache,
+    hasSecurity,
+    security,
     hasSites,
     sites,
     visitSite,

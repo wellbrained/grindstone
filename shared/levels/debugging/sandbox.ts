@@ -13,8 +13,10 @@ import { COMPUTED_PROPERTIES } from './elements'
 import { RECORD_LIMITS, countingLimits } from './recorder'
 import type { BackendSpec, LogsSpec, Probe } from './types'
 import { webConfig } from '../web/backend'
-import type { WebSpec } from '../web/backend'
+import type { ServerSeeds, WebSpec } from '../web/backend'
 import { loopMarker } from '../web/loop'
+import { INERT_HTTP_EQUIV, INERT_SCRIPT_TYPE, NONCE_TAG, SCRIPT_INDEX } from '../web/pageload'
+import type { PageScript } from '../web/pageload'
 
 export { resolveImport }
 
@@ -35,6 +37,129 @@ export const SANDBOX_CSP = [
   'base-uri \'none\'',
   'form-action \'none\''
 ].join('; ')
+
+/**
+ * Web fundamentals chapter 7: a second real policy on top of SANDBOX_CSP (two policies: both must allow, so it only
+ * takes away). The browser then runs no inline script or handler and no script from an address of its own accord:
+ * only blob URLs, eval for the Console and the handlers the policy model allowed, and inline code with the load's nonce
+ * (the bridge, its import map, what the page loader runs after the model said yes). pageload.ts has the rest.
+ */
+export const lockdownPolicy = (nonce: string) => `script-src 'nonce-${nonce}' blob: 'unsafe-eval'`
+
+/** A fresh nonce for a load's lockdown policy (base64 of 18 random bytes). */
+export function loadNonce(): string {
+  const bytes = new Uint8Array(18)
+  globalThis.crypto.getRandomValues(bytes)
+  return btoa(String.fromCharCode(...bytes))
+}
+
+/**
+ * Chapter 7: the page's own scripts made inert in place (a type no browser runs; lines kept), and its meta tags'
+ * http-equiv renamed, so the frame's real policy is never the page's: the page loader applies them through the policy
+ * model. Comments and the text of scripts are skipped, as the parser does. Returns the page and its scripts in order.
+ */
+/** HTML's JavaScript MIME type essences: a classic script's type the browser runs (anything else it never runs). */
+const JAVASCRIPT_TYPES = new Set(['application/ecmascript', 'application/javascript', 'application/x-ecmascript', 'application/x-javascript', 'text/ecmascript', 'text/javascript', 'text/javascript1.0', 'text/javascript1.1', 'text/javascript1.2', 'text/javascript1.3', 'text/javascript1.4', 'text/javascript1.5', 'text/jscript', 'text/livescript', 'text/x-ecmascript', 'text/x-javascript'])
+
+interface TagAttribute { name: string, value: string | null, nameStart: number, nameEnd: number, valueStart: number, valueEnd: number }
+
+/**
+ * A start tag's attributes as HTML's tokenizer reads them (after the tag name: names up to a space, a slash, `=` or
+ * `>`, values quoted or not), with where each sits in the text, and where the tag ends (a `>` inside quotes is no end).
+ */
+function startTag(html: string, from: number, nameLength: number): { attributes: TagAttribute[], end: number } {
+  const attributes: TagAttribute[] = []
+  const space = (char: string | undefined) => char === ' ' || char === '\t' || char === '\n' || char === '\f' || char === '\r'
+  let at = from + 1 + nameLength
+  while (at < html.length) {
+    while (at < html.length && (space(html[at]) || html[at] === '/')) at++
+    if (at >= html.length || html[at] === '>') break
+    const nameStart = at
+    while (at < html.length && !space(html[at]) && html[at] !== '/' && html[at] !== '>' && (html[at] !== '=' || at === nameStart)) at++
+    const nameEnd = at
+    let probe = at
+    while (probe < html.length && space(html[probe])) probe++
+    let value: string | null = null
+    let valueStart = -1
+    let valueEnd = -1
+    if (html[probe] === '=') {
+      probe++
+      while (probe < html.length && space(html[probe])) probe++
+      const quote = html[probe]
+      if (quote === '"' || quote === '\'') {
+        const close = html.indexOf(quote, probe + 1)
+        valueStart = probe
+        valueEnd = close < 0 ? html.length : close + 1
+        value = html.slice(probe + 1, close < 0 ? html.length : close)
+      } else {
+        valueStart = probe
+        while (probe < html.length && !space(html[probe]) && html[probe] !== '>') probe++
+        valueEnd = probe
+        value = html.slice(valueStart, valueEnd)
+      }
+      at = valueEnd
+    }
+    attributes.push({ name: html.slice(nameStart, nameEnd).toLowerCase(), value, nameStart, nameEnd, valueStart, valueEnd })
+  }
+  return { attributes, end: Math.min(at + 1, html.length) }
+}
+
+/**
+ * Chapter 7: the page's own scripts made inert in place (a type no browser runs, a number; lines kept), and its meta
+ * tags' http-equiv renamed, so the frame's real policy is never the page's: the page loader applies them through the
+ * policy model. Comments and the text of scripts are skipped, as the parser does; a `nomodule` script is left as it is
+ * (a browser with modules never runs it). Returns the page and its scripts in order.
+ */
+export function inertPage(html: string): { html: string, scripts: PageScript[] } {
+  const scripts: PageScript[] = []
+  // the edits to make, by position: [start, end, text]
+  const edits: [number, number, string][] = []
+  const lineAt = (index: number) => (html.slice(0, index).match(/\n/g) ?? []).length + 1
+  // which nonce attribute of the text each script tag carries: the loader reads the served page's nonces in this order
+  const nonceAt = new Map<number, number>()
+  const nonceTags = new RegExp(NONCE_TAG, 'gi')
+  for (let found = nonceTags.exec(html), k = 0; found; found = nonceTags.exec(html), k++) nonceAt.set(found.index, k)
+  const tag = /<!--|<script(?=[\s/>])|<meta(?=[\s/>])/gi
+  for (let match = tag.exec(html); match; match = tag.exec(html)) {
+    if (match[0] === '<!--') {
+      const end = html.indexOf('-->', match.index + 4)
+      tag.lastIndex = end < 0 ? html.length : end + 3
+      continue
+    }
+    const meta = match[0].toLowerCase() === '<meta'
+    const { attributes, end } = startTag(html, match.index, meta ? 4 : 6)
+    const find = (name: string) => attributes.find(each => each.name === name) ?? null
+    tag.lastIndex = end
+    if (meta) {
+      const equiv = find('http-equiv')
+      if (equiv) edits.push([equiv.nameStart, equiv.nameEnd, INERT_HTTP_EQUIV])
+      continue
+    }
+    const type = find('type')
+    const essence = type?.value?.trim().toLowerCase() ?? ''
+    const module = essence === 'module'
+    const classic = (type === null || essence === '' || JAVASCRIPT_TYPES.has(essence)) && find('nomodule') === null
+    if (module || classic) {
+      const src = find('src') !== null
+      const when = src && find('async') !== null ? 2 : module || (src && find('defer') !== null) ? 1 : 0
+      const stamp = `${SCRIPT_INDEX}="${scripts.length}"`
+      scripts.push({ module, when, line: lineAt(match.index), nonce: nonceAt.get(match.index) ?? -1 })
+      if (type === null) edits.push([match.index + 7, match.index + 7, ` type="${INERT_SCRIPT_TYPE}" ${stamp}`])
+      else if (type.valueStart < 0) edits.push([type.nameStart, type.nameEnd, `type="${INERT_SCRIPT_TYPE}" ${stamp}`])
+      else edits.push([type.valueStart, type.valueEnd, `"${INERT_SCRIPT_TYPE}" ${stamp}`])
+    }
+    // the script's text is no markup: go on after its end tag
+    const close = html.toLowerCase().indexOf('</script', end)
+    tag.lastIndex = close < 0 ? html.length : close
+  }
+  let out = ''
+  let at = 0
+  for (const [from, to, text] of edits.sort((a, b) => a[0] - b[0])) {
+    out += html.slice(at, from) + text
+    at = to
+  }
+  return { html: out + html.slice(at), scripts }
+}
 
 /**
  * A counting check run's policy (chapter 6): no eval, no `new Function`, no string timers. Code made from text at
@@ -77,6 +202,8 @@ export interface SandboxOptions {
   web?: WebSpec
   /** Web fundamentals: the page's path (the address bar's, `/order`): document.cookie's URL and the Referer's. */
   page?: string
+  /** Chapter 7, tests only: fixed seeds for the servers' scripted values (random per load otherwise). */
+  seeds?: ServerSeeds
 }
 
 /** What the bridge needs for the Elements panel: the page's rules (to test which match), the linked stylesheets' names, what to read. */
@@ -196,11 +323,16 @@ export function sandboxDocument(files: Readonly<Record<string, string>>, options
   const perf = options.performance ? { actions: recording !== null && options.count === 'profile' } : null
   // chapter 5: a fresh name per load for the call that says the page's script is over
   const marker = options.web?.loop ? loopMarker() : null
-  const web = options.web ? webConfig(options.web, files, SHOP_ORIGIN, options.page, marker) : null
+  const web = options.web ? webConfig(options.web, files, SHOP_ORIGIN, options.page, marker, options.seeds ?? null) : null
+  // chapter 7: the page's scripts and meta tags inert, a second real policy that only takes away, the load's nonce
+  const inert = web?.security ? inertPage(files['index.html'] ?? '') : null
+  const nonce = web?.security ? loadNonce() : null
+  if (web?.security && inert && nonce) web.security = { ...web.security, nonce, scripts: inert.scripts }
   const config = JSON.stringify({ token: options.token, modules, probes: options.probes ?? null, backend, elements, record, perf, web }).replace(/</g, '\\u003c')
-  const injected = `<base href="${SHOP_ORIGIN}"><meta http-equiv="Content-Security-Policy" content="${options.count === 'check' ? COUNTING_CSP : SANDBOX_CSP}"><script>${BRIDGE_SOURCE}(${config});</script>`
+  const policies = `<meta http-equiv="Content-Security-Policy" content="${options.count === 'check' ? COUNTING_CSP : SANDBOX_CSP}">${nonce ? `<meta http-equiv="Content-Security-Policy" content="${lockdownPolicy(nonce)}">` : ''}`
+  const injected = `<base href="${SHOP_ORIGIN}">${policies}<script${nonce ? ` nonce="${nonce}"` : ''}>${BRIDGE_SOURCE}(${config});</script>`
 
-  const page = rewriteStylesheets(rewriteScripts(files['index.html'] ?? '', files, marker ? `;${marker}()` : ''), files)
+  const page = rewriteStylesheets(inert ? inert.html : rewriteScripts(files['index.html'] ?? '', files, marker ? `;${marker}()` : ''), files)
   const at = injectionPoint(page)
   return {
     html: page.slice(0, at) + injected + page.slice(at),

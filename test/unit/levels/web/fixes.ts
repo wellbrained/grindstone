@@ -7,6 +7,7 @@
 import { a11yFixes } from './fixes-a11y'
 import { authFixes } from './fixes-auth'
 import { cachingFixes } from './fixes-caching'
+import { headersFixes } from './fixes-headers'
 import { cookieFixes } from './fixes-cookies'
 import { loopFixes } from './fixes-loop'
 
@@ -117,5 +118,6 @@ export const otherFixes: Record<string, OtherFix[]> = {
   ...authFixes,
   ...cachingFixes,
   ...loopFixes,
-  ...a11yFixes
+  ...a11yFixes,
+  ...headersFixes
 }
