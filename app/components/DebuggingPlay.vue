@@ -11,7 +11,8 @@ import type { DebugLevel, LevelPlace, WebLevel } from '#shared/levels'
 // chapter 7 the level panel also lists the colleagues' messages. No layout switch.
 // A Web fundamentals level (ADR 0009) plays here too: its prediction card under the story (the app runs once it is
 // answered), the Network panel with preflights and refusals, and a Server panel (what server.js did) after it; in
-// chapter 2 also the Application panel (cookies) and the Other site panel (the attacker's page, a webmail).
+// chapter 2 also the Application panel (cookies) and the Other site panel (the attacker's page, a webmail); in chapter 5
+// the Event loop panel (what ran, in order) instead of Network and Server.
 const props = defineProps<{
   level: DebugLevel | WebLevel
   place: LevelPlace
@@ -20,12 +21,13 @@ const props = defineProps<{
 const { t } = useI18n()
 
 const play = useDebuggingPlay(props.level)
-const { session, store, goals, next, stats, reloads, find, webLevel, predictionOnly, hasNetwork, hasServer, hasApplication, hasSites, hasElements, hasDebugger, hasPerformance, hasLogs, hasDeploys, requests, requestShown, picking, pickedAt, recordStatus, profileStatus, debriefOpen, progressBefore, sparkKey, mark, hint, reset, again } = play
+const { session, store, goals, next, stats, reloads, find, webLevel, predictionOnly, hasNetwork, hasServer, hasApplication, hasSites, hasLoop, hasElements, hasDebugger, hasPerformance, hasLogs, hasDeploys, requests, requestShown, picking, pickedAt, recordStatus, profileStatus, debriefOpen, progressBefore, sparkKey, mark, hint, reset, again } = play
 
-type Lower = 'elements' | 'debugger' | 'performance' | 'logs' | 'deploys' | 'console' | 'network' | 'server' | 'application' | 'site'
+type Lower = 'loop' | 'elements' | 'debugger' | 'performance' | 'logs' | 'deploys' | 'console' | 'network' | 'server' | 'application' | 'site'
 type Panel = 'app' | Lower | 'code'
 /** The panels under the code (from lg one at a time, as tabs): the ones this level has, the chapter's own panel first. */
 const LOWER: Lower[] = [
+  ...(hasLoop ? ['loop' as const] : []),
   ...(hasElements ? ['elements' as const] : []),
   ...(hasDebugger ? ['debugger' as const] : []),
   ...(hasPerformance ? ['performance' as const] : []),
@@ -130,7 +132,8 @@ const deploysPanel = useTemplateRef<{ focus: () => void }>('deploysPanel')
 const serverPanel = useTemplateRef<{ focus: () => void }>('serverPanel')
 const applicationPanel = useTemplateRef<{ focus: () => void }>('applicationPanel')
 const sitePanel = useTemplateRef<{ focus: () => void }>('sitePanel')
-const focusConsole = () => ({ console: consolePanel, network: networkPanel, elements: elementsPanel, debugger: debuggerPanel, performance: performancePanel, logs: logsPanel, deploys: deploysPanel, server: serverPanel, application: applicationPanel, site: sitePanel })[lower.value].value?.focus()
+const loopPanel = useTemplateRef<{ focus: () => void }>('loopPanel')
+const focusConsole = () => ({ loop: loopPanel, console: consolePanel, network: networkPanel, elements: elementsPanel, debugger: debuggerPanel, performance: performancePanel, logs: logsPanel, deploys: deploysPanel, server: serverPanel, application: applicationPanel, site: sitePanel })[lower.value].value?.focus()
 
 const shown = (name: Panel) => panel.value === name ? '' : 'max-lg:hidden'
 /** A lower panel: shown below lg as a tab of its own, from lg as the chosen one under the code. */
@@ -147,6 +150,7 @@ const answerWhere = computed(() => {
 })
 const topNote = computed(() => {
   if (predictionOnly) return t('web.practiceNote')
+  if (webLevel && hasLoop) return t('web.loopNote')
   if (webLevel) return t('web.note')
   if (find) return t('debugging.findNote')
   if (hasDebugger) return t('debugging.debuggerNote')
@@ -321,6 +325,16 @@ const topNote = computed(() => {
               >, {{ t('debugging.network.failed') }}</span>
             </button>
           </div>
+          <WebLoop
+            v-if="hasLoop"
+            id="debugging-loop"
+            ref="loopPanel"
+            role="tabpanel"
+            :aria-labelledby="labelledBy('loop')"
+            :play="play"
+            class="max-lg:h-[30rem] lg:min-h-0 lg:flex-1"
+            :class="shownLower('loop')"
+          />
           <DebuggingElements
             v-if="hasElements"
             id="debugging-elements"

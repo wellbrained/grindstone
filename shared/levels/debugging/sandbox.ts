@@ -14,6 +14,7 @@ import { RECORD_LIMITS, countingLimits } from './recorder'
 import type { BackendSpec, LogsSpec, Probe } from './types'
 import { webConfig } from '../web/backend'
 import type { WebSpec } from '../web/backend'
+import { loopMarker } from '../web/loop'
 
 export { resolveImport }
 
@@ -156,13 +157,17 @@ export function rewriteImports(source: string, from: string, files: Readonly<Rec
   })
 }
 
-/** `<script type="module" src="./app.js"></script>` loads the file through the import map, on the same lines (a tag spread over several lines keeps its line count). */
-function rewriteScripts(html: string, files: Readonly<Record<string, string>>): string {
+/**
+ * `<script type="module" src="./app.js"></script>` loads the file through the import map, on the same lines (a tag spread
+ * over several lines keeps its line count). `after`: code the module runs once the file has run (chapter 5: the event
+ * loop's marker, called when the page's synchronous script is over).
+ */
+function rewriteScripts(html: string, files: Readonly<Record<string, string>>, after = ''): string {
   return html.replace(/<script\b([^>]*)>(\s*)<\/script>/gi, (whole, attributes: string, inside: string) => {
     const src = attribute(attributes, 'src')
     const path = src === null ? null : pageFile(src, files)
     if (path === null || attribute(attributes, 'type')?.toLowerCase() !== 'module') return whole
-    return `<script type="module">import "${path}"${'\n'.repeat(((attributes + inside).match(/\n/g) ?? []).length)}</script>`
+    return `<script type="module">import "${path}"${after}${'\n'.repeat(((attributes + inside).match(/\n/g) ?? []).length)}</script>`
   })
 }
 
@@ -189,11 +194,13 @@ export function sandboxDocument(files: Readonly<Record<string, string>>, options
   const elements = options.elements && !options.probes ? elementsConfig(files) : null
   const record = recording ? options.count ? countingLimits(options.count) : RECORD_LIMITS : null
   const perf = options.performance ? { actions: recording !== null && options.count === 'profile' } : null
-  const web = options.web ? webConfig(options.web, files, SHOP_ORIGIN, options.page) : null
+  // chapter 5: a fresh name per load for the call that says the page's script is over
+  const marker = options.web?.loop ? loopMarker() : null
+  const web = options.web ? webConfig(options.web, files, SHOP_ORIGIN, options.page, marker) : null
   const config = JSON.stringify({ token: options.token, modules, probes: options.probes ?? null, backend, elements, record, perf, web }).replace(/</g, '\\u003c')
   const injected = `<base href="${SHOP_ORIGIN}"><meta http-equiv="Content-Security-Policy" content="${options.count === 'check' ? COUNTING_CSP : SANDBOX_CSP}"><script>${BRIDGE_SOURCE}(${config});</script>`
 
-  const page = rewriteStylesheets(rewriteScripts(files['index.html'] ?? '', files), files)
+  const page = rewriteStylesheets(rewriteScripts(files['index.html'] ?? '', files, marker ? `;${marker}()` : ''), files)
   const at = injectionPoint(page)
   return {
     html: page.slice(0, at) + injected + page.slice(at),

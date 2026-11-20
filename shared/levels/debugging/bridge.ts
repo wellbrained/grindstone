@@ -16,7 +16,9 @@
 // - in levels with the Elements panel, answers the panel (inspector.ts): snapshots, matching rules, outline, pick mode,
 // - in a recorded load (chapter 5), runs the recorder (recorder.ts) the instrumented modules report their steps to,
 // - in a Performance level (chapter 6), watches what the app changes on the page and keeps the server's clock (answers
-//   move it by their scripted delays); a recorded profile also reports the customer's actions to the counting recorder.
+//   move it by their scripted delays); a recorded profile also reports the customer's actions to the counting recorder,
+// - in a Web fundamentals event loop level (chapter 5), runs the page's timers, frames, messages and a customer's taps on
+//   the modelled event loop (web/loop.ts), installed before any of the app's code; probes drive its scripted clock.
 // It is JavaScript in a string, injected as one line (it never shifts index.html's lines), so it uses no line comments
 // and ends every statement with a semicolon. Tested in a real browser: e2e/debugging-levels.spec.ts, and
 // e2e/debugging-cheat.spec.ts (the app's code tries to post a check run's results itself).
@@ -25,6 +27,7 @@ import { INSPECTOR_SOURCE } from './inspector'
 import { BRIDGE_HELLO } from './messages'
 import { RECORDER_GLOBAL, RECORDER_SOURCE } from './recorder'
 import { WEB_BACKEND_SOURCE } from '../web/backend'
+import { LOOP_SOURCE } from '../web/loop'
 
 /** The longest pause a probe may take (`{ wait }`): a check run gives up after 5 s. */
 export const MAX_PROBE_WAIT_MS = 2000
@@ -412,7 +415,9 @@ const SOURCE = String.raw`(function (config) {
       var error = null;
       for (var i = 0; i < args.length; i++) if (args[i] instanceof Error) { error = args[i]; break; }
       var stack = error && error.stack ? String(error.stack) : String(new Error().stack || '');
-      post({ type: 'console', level: level, args: args.map(function (arg) { return preview(arg, true); }), stack: stack });
+      var shown = args.map(function (arg) { return preview(arg, true); });
+      post({ type: 'console', level: level, args: shown, stack: stack });
+      if (loop) loop.logged(level, shown.join(' '));
       return original.apply(console, args);
     };
   });
@@ -519,6 +524,25 @@ const SOURCE = String.raw`(function (config) {
     } catch (error) { /* a browser that keeps its own: the app then gets the sandbox's SecurityError */ }
   }
   if (backend && backend.installTime) backend.installTime(window);
+  /* Web fundamentals (chapter 5): the page's timers, frames, messages, listeners and clock go through the modelled event
+     loop, installed now, before any of the app's code. A check run's loop moves only while a probe drives it; a tap lands
+     where a finger would (what is on top at the element's centre). */
+  var loop = config.web && config.web.loop ? (${LOOP_SOURCE})(config.web.loop, {
+    win: window,
+    post: post,
+    check: !!probes,
+    describe: describe,
+    squash: squash,
+    hit: function (element) {
+      var point = centre(element);
+      var top = point && onScreen(point) ? elementAt(doc, point.x, point.y) : null;
+      if (top) return [top, point.x, point.y];
+      /* the app you see may be out of sight (another tab on a phone: its frame has no boxes); its scene's tap then goes
+         to the element itself. A check run decides the goals: there a tap lands where a finger would, or nowhere. */
+      return probes ? null : [element, 0, 0];
+    }
+  }) : null;
+  if (loop) loop.install();
   var realFetch = window.fetch;
   window.fetch = function fetch(input, init) {
     return backend ? backend.fetch(input, init) : realFetch.apply(window, arguments);
@@ -560,7 +584,10 @@ const SOURCE = String.raw`(function (config) {
       }
       return;
     }
-    if (data.type === 'eval' && typeof data.code === 'string') evaluate(data);
+    if (data.type === 'eval' && typeof data.code === 'string') {
+      if (loop) loop.run(function () { evaluate(data); });
+      else evaluate(data);
+    }
   };
 
   /* Console input: evaluated in the app's global scope; an object literal works as in DevTools, and so does a top-level
@@ -751,6 +778,7 @@ const SOURCE = String.raw`(function (config) {
     var startDom = domEnd;
     var startClock = clock.now;
     var startWork = workNow();
+    var startLoop = loop ? loop.mark() : null;
     var finish = function () {
       if (!quiet) post({ type: 'probe', id: probe.id, ok: problem === null, value: problem === null ? value : null, error: problem });
       then();
@@ -814,6 +842,50 @@ const SOURCE = String.raw`(function (config) {
       if (typeof step.waited === 'string') {
         if (!perf) return fail('The server\'s time is not kept in this run');
         value = step.waited === 'load' ? loadClock : clock.now - startClock;
+        return next();
+      }
+      /* chapter 5: a customer's taps, pauses and quiet go through the modelled event loop (its scripted clock) */
+      if (loop && (typeof step.click === 'string' || typeof step.tap === 'string')) {
+        var tapped = find(typeof step.click === 'string' ? step.click : step.tap);
+        if (!tapped) return missing(typeof step.click === 'string' ? step.click : step.tap);
+        var taps = mathMin(mathMax(step.times || 1, 1), 10);
+        var tapAgain = function () {
+          if (taps <= 0) return next();
+          taps -= 1;
+          loop.tap(tapped, tapAgain);
+        };
+        return tapAgain();
+      }
+      if (loop && typeof step.wait === 'number') return loop.wait(mathMin(mathMax(step.wait, 0), ${MAX_PROBE_WAIT_MS}), next);
+      if (loop && step.settle === true) return loop.settle(next);
+      if (typeof step.painted === 'string') {
+        if (!loop) return fail('There is no event loop in this run');
+        value = loop.painted(step.painted, startLoop, typeof step.within === 'number' ? step.within : null, step.rising === true);
+        return next();
+      }
+      if (typeof step.when === 'string') {
+        if (!loop) return fail('There is no event loop in this run');
+        value = loop.when(step.when, startLoop);
+        return next();
+      }
+      if (typeof step.longestGap === 'string') {
+        if (!loop) return fail('There is no event loop in this run');
+        value = loop.longestGap(step.longestGap, startLoop);
+        return next();
+      }
+      if (typeof step.faded === 'string') {
+        if (!loop) return fail('There is no event loop in this run');
+        value = loop.faded(step.faded, startLoop);
+        return next();
+      }
+      if (typeof step.forced === 'string') {
+        if (!loop) return fail('There is no event loop in this run');
+        value = loop.forced(step.forced === 'load' ? null : startLoop);
+        return next();
+      }
+      if (typeof step.animated === 'string') {
+        if (!loop) return fail('There is no event loop in this run');
+        value = loop.animated(step.animated, toText(step.property), startLoop);
         return next();
       }
       if (typeof step.click === 'string') {
@@ -983,7 +1055,7 @@ const SOURCE = String.raw`(function (config) {
   onWindow('load', function (event) {
     if (loaded || event.isTrusted !== true) return;
     loaded = true;
-    settle(30, function () {
+    var afterLoad = function () {
       loadWork = workNow();
       loadClock = clock.now;
       post({ type: 'ready' });
@@ -992,7 +1064,10 @@ const SOURCE = String.raw`(function (config) {
       var scene = config.web && config.web.scene ? config.web.scene : null;
       if (scene) runProbe({ id: '', steps: scene }, function () { if (probes) runProbes(0); }, true);
       else if (probes) runProbes(0);
-    });
+    };
+    /* chapter 5: the event loop starts with the load (its first frame paints the page) and runs until the page is quiet */
+    if (loop) loop.start(afterLoad);
+    else settle(30, afterLoad);
   });
 })`
 

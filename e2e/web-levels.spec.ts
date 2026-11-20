@@ -10,8 +10,10 @@ import { runCheck } from './helpers/sandbox'
 // lines, the preflights' questions, the Console's words), so the predictions' answers, which the unit tests check
 // against that table, are what the model does. Every goal but the prediction fails on a reload of the starting files,
 // the solution (an answer, the edits, a reload) solves it, other real fixes pass and tempting non-fixes do not
-// (test/unit/levels/web/fixes.ts), and an emptied or deleted server.js never solves. No dev server needed: the apps run
-// in a blank page.
+// (test/unit/levels/web/fixes.ts), and an emptied or deleted server.js (or, in chapter 5, app.js: every file a solution
+// changes) never solves. Chapter 5's levels also check the event loop's timeline: what each frame painted, every forced
+// layout and every transition, the same in Chromium, Firefox and WebKit. No dev server needed: the apps run in a blank
+// page.
 
 const run = (page: Parameters<typeof runCheck>[0], level: WebLevel, files: Readonly<Record<string, string>>, probes: readonly Probe[] = level.sandbox.probes) =>
   runCheck(page, files, probes, undefined, { web: level.sandbox.web, page: level.sandbox.page })
@@ -126,6 +128,13 @@ for (const level of webLevels) {
     // chapter 4 (the levels with a cache): what the CDN did with every request, in order
     const caching = level.sandbox.web?.cache !== undefined
     if (caching) expect(start.cdn).toEqual(table.start.cdn ?? [])
+    // chapter 5 (the levels on the event loop): what each frame painted, every forced layout, every transition, in order
+    const looping = level.sandbox.web?.loop !== undefined
+    if (looping) {
+      expect(start.painted).toEqual(table.start.painted ?? [])
+      expect(start.forced).toEqual(table.start.forced ?? [])
+      expect(start.animated).toEqual(table.start.animated ?? [])
+    }
     const lines = start.entries.map(entry => entry.text)
     // what the texts quote (in any order: requests sent together may be answered in any order; an order question
     // checks its own lines' order below)
@@ -142,6 +151,10 @@ for (const level of webLevels) {
       if ('readable' in fact) return start.readable.includes(fact.readable)
       if ('storage' in fact) return start.storage.includes(fact.storage)
       if ('replayed' in fact) return start.replayed.includes(fact.replayed)
+      if ('painted' in fact) return start.painted.some(item => item.startsWith(fact.painted))
+      if ('forced' in fact) return start.forced.includes(fact.forced)
+      if ('layouts' in fact) return start.forced.length === fact.layouts
+      if ('animated' in fact) return start.animated.includes(fact.animated)
       return lines.some(line => line.startsWith(fact.says))
     }
     for (const question of level.prediction.questions) {
@@ -174,14 +187,22 @@ for (const level of webLevels) {
       expect(solved.replayed).toEqual(table.solved!.replayed ?? [])
     }
     if (caching) expect(solved.cdn).toEqual(table.solved!.cdn ?? [])
+    if (looping) {
+      expect(solved.painted).toEqual(table.solved!.painted ?? [])
+      expect(solved.forced).toEqual(table.solved!.forced ?? [])
+      expect(solved.animated).toEqual(table.solved!.animated ?? [])
+    }
     const results = await playWebSolution(level, files => run(page, level, files).then(result => result.observation))
     expect(results.at(-1)!.session.solved).toBe(true)
 
-    // throwing server.js away (emptied or deleted) is no fix
-    for (const files of [{ ...startWebLevel(level).state.files, 'server.js': '' }, Object.fromEntries(Object.entries(startWebLevel(level).state.files).filter(([path]) => path !== 'server.js'))]) {
-      const observation = (await run(page, level, files)).observation
-      const session = reload({ ...startWebLevel(level), state: { ...startWebLevel(level).state, files, predicted: table.answers } }, level, observation).session
-      expect(session.solved, `${level.id} without server.js`).toBe(false)
+    // throwing away server.js, or any file the solution changes (emptied or deleted), is no fix
+    const changed = new Set([...(level.sandbox.web?.server ? [level.sandbox.web.server] : []), ...level.solution.flatMap(step => typeof step === 'object' && 'save' in step ? [step.save] : [])])
+    for (const path of changed) {
+      for (const files of [{ ...startWebLevel(level).state.files, [path]: '' }, Object.fromEntries(Object.entries(startWebLevel(level).state.files).filter(([each]) => each !== path))]) {
+        const observation = (await run(page, level, files)).observation
+        const session = reload({ ...startWebLevel(level), state: { ...startWebLevel(level).state, files, predicted: table.answers } }, level, observation).session
+        expect(session.solved, `${level.id} without ${path}`).toBe(false)
+      }
     }
   })
 
@@ -390,4 +411,74 @@ test('chapter 3: the page and server.js tell the scripted time, by every cheap w
   const at = Math.floor(Date.UTC(2026, 10, 17, 9, 41) / 1000)
   expect(result.entries.map(entry => entry.text)).toContain(`times ${at} ${at} ${at} 09:41 09:41`)
   expect(result.serverOutput.map(line => line.text)).toContain(`server ${at} ${at} 09:41`)
+})
+
+test.describe('an app can\'t fake a painted frame, a fade, or hide a forced layout through any frame API (chapter 5)', () => {
+  const solvedBy = async (page: Parameters<typeof runCheck>[0], level: WebLevel, files: Record<string, string>) => {
+    const result = await run(page, level, files)
+    const session = reload({ ...startWebLevel(level), state: { ...startWebLevel(level).state, files, predicted: expected[level.id]!.answers } }, level, result.observation).session
+    return { solved: session.solved, result }
+  }
+  // put first into app.js of the starting files, before any of its own code
+  const first = (level: WebLevel, code: string) => {
+    const start = startWebLevel(level).state.files
+    return { ...start, 'app.js': `${code}\n${start['app.js']!}` }
+  }
+  const quietly = (code: string) => `try { ${code} } catch (error) { console.info('refused: ' + error.name) }`
+  const SETTERS = [
+    'for (const key of [\'kind\', \'runAt\', \'seq\', \'cancelled\', \'length\', \'list\', \'index\', \'painted\', \'started\', \'changes\', \'start\', \'done\', \'stop\', \'immediate\', \'current\', \'handler\', \'removed\', \'target\', \'idle\']) Object.defineProperty(Object.prototype, key, Object.assign(Object.create(null), { configurable: true, set() {}, get() { return undefined } }))',
+    'for (let i = 0; i < 40; i++) Object.defineProperty(Array.prototype, i, Object.assign(Object.create(null), { configurable: true, set() {} }))'
+  ].join('\n')
+
+  const spinner = webLevels.find(each => each.id === 'web-21-spinner')!
+  const SPINNER_CHEATS: Record<string, string> = {
+    'setters on the prototypes for the loop\'s fields': SETTERS,
+    'the frame\'s and timers\' functions replaced by ones that run at once': 'window.requestAnimationFrame = callback => { callback(0); return 1 }\nwindow.setTimeout = callback => { callback(); return 1 }\nwindow.MessageChannel = function () { this.port1 = this.port2 = { postMessage() {}, set onmessage(fn) { fn() } } }',
+    'the style and box readers patched to say "shown"': [
+      'CSSStyleDeclaration.prototype.getPropertyValue = () => \'block\'',
+      quietly('Object.defineProperty(Element.prototype, \'getBoundingClientRect\', { value: () => ({ width: 100, height: 100 }) })'),
+      'Object.defineProperty(Node.prototype, \'textContent\', { configurable: true, get() { return \'spinner\' } })',
+      'Object.defineProperty(HTMLElement.prototype, \'hidden\', { configurable: true, get() { return false }, set() {} })'
+    ].join('\n'),
+    'the loop\'s private names and the marker looked for on the window': 'for (const name of Object.getOwnPropertyNames(window)) if (/^__gs/.test(name)) { try { window[name](); window[name] = null } catch (error) {} }'
+  }
+  for (const [name, cheat] of Object.entries(SPINNER_CHEATS)) {
+    test(`5.1: ${name} paints no spinner`, async ({ page }) => {
+      await page.setContent('<!doctype html><title>check</title>')
+      const { solved, result } = await solvedBy(page, spinner, first(spinner, cheat))
+      expect(result.observation.probes.spun ?? 0, JSON.stringify(result.observation.errors.map(error => error.text))).toBe(0)
+      expect(result.painted).not.toContain('spinner')
+      expect(solved).toBe(false)
+    })
+  }
+
+  const kitchen = webLevels.find(each => each.id === 'web-23-kitchen-screen')!
+  const KITCHEN_CHEATS: Record<string, string> = {
+    'setters on the prototypes for the loop\'s fields': SETTERS,
+    'the MutationObserver silenced': 'MutationObserver.prototype.takeRecords = () => []\nMutationObserver.prototype.observe = () => {}',
+    'the layout getters redefined, read from their descriptors, or taken from a frame of its own': [
+      quietly('Object.defineProperty(Element.prototype, \'scrollHeight\', { get() { return 1e6 } })'),
+      quietly('Object.defineProperty(HTMLElement.prototype, \'offsetHeight\', { get() { return 1 } })'),
+      'const own = Object.getOwnPropertyDescriptor(Element.prototype, \'scrollHeight\').get',
+      quietly('const frame = document.createElement(\'iframe\'); document.body.append(frame); const foreign = Object.getOwnPropertyDescriptor(frame.contentWindow.Element.prototype, \'scrollHeight\').get; Object.defineProperty(HTMLOListElement.prototype, \'scrollHeight\', { get() { return foreign.call(this) } })'),
+      'void own'
+    ].join('\n')
+  }
+  for (const [name, cheat] of Object.entries(KITCHEN_CHEATS)) {
+    test(`5.3: ${name} still counts 40 forced layouts`, async ({ page }) => {
+      await page.setContent('<!doctype html><title>check</title>')
+      const { solved, result } = await solvedBy(page, kitchen, first(kitchen, cheat))
+      expect(result.observation.probes.forced, JSON.stringify(result.observation.errors.map(error => error.text))).toBe(40)
+      expect(solved).toBe(false)
+    })
+  }
+
+  test('5.4: setters on the prototypes and a patched getAnimations make no fade', async ({ page }) => {
+    await page.setContent('<!doctype html><title>check</title>')
+    const toast = webLevels.find(each => each.id === 'web-24-toast')!
+    const cheat = `${SETTERS}\nDocument.prototype.getAnimations = () => [{ effect: { target: document.body } }]\nAnimation.prototype.pause = () => {}\nObject.defineProperty(Animation.prototype, 'currentTime', { configurable: true, set() {}, get() { return 0 } })`
+    const { solved, result } = await solvedBy(page, toast, first(toast, cheat))
+    expect(result.observation.probes.fade, JSON.stringify(result.observation.errors.map(error => error.text))).toBe(0)
+    expect(solved).toBe(false)
+  })
 })

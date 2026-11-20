@@ -17,6 +17,7 @@ import type { RecordEndReason } from './recorder'
 import { mapFrames, parseStack, sourceOf } from './trace'
 import type { SourceMapping } from './trace'
 import type { Observation, ObservedError, ProbeValue, SourceLine, TraceFrame } from './types'
+import type { LoopEntry, LoopEntryKind } from '../web/loop'
 
 export type ConsoleLevel = 'log' | 'info' | 'warn' | 'error' | 'debug'
 
@@ -52,6 +53,8 @@ export type BridgeMessage
     | ReplayMessage
   /** Web fundamentals (chapter 4): the browser's cache and the CDN's after a change, and the CDN's log. */
     | CacheMessage
+  /** Web fundamentals (chapter 5): what ran on the event loop since the last message (tasks, listeners, frames, forced layouts, logs). */
+    | LoopMessage
   /** The Elements panel: a snapshot of the app's DOM (in document order), cut at MAX_DOM_NODES. */
     | { type: 'dom', nodes: DomNode[], truncated: boolean }
   /** The Elements panel: the selected element's matching rules, box and computed values (`seq`: which request it answers). */
@@ -243,6 +246,13 @@ export interface CacheMessage {
   log: CdnLogRow[]
 }
 
+/** Chapter 5: entries of the event loop's timeline, `from` the index of the first (the page appends them in order). */
+export interface LoopMessage {
+  type: 'loop'
+  from: number
+  entries: LoopEntry[]
+}
+
 /** How a request failed without an answer the app can read: refused by CORS, no connection, cancelled. */
 export type RequestFailure = 'cors' | 'network' | 'aborted'
 
@@ -302,6 +312,13 @@ const DESTINATIONS: readonly RequestDestination[] = ['fetch', 'image', 'document
 const MAX_CACHE_ROWS = 100
 const MAX_CDN_LOG = 200
 const OUTCOMES: readonly CdnLogRow['outcome'][] = ['HIT', 'MISS', 'REVALIDATED', 'PASS']
+const LOOP_KINDS: readonly LoopEntryKind[] = ['task', 'listener', 'callback', 'render', 'layout', 'log', 'note']
+const LOOP_SOURCES = ['', 'script', 'timeout', 'interval', 'message', 'tap', 'event', 'console', 'sync', 'microtask', 'units', 'tasks', 'entries', 'animations'] as const
+/** Loop entries: at most 200 a message and 1000 a load (the frame stops there), texts cut at 300, 12 painted items a frame. */
+const MAX_LOOP_BATCH = 200
+const MAX_LOOP_TEXT = 301
+const MAX_LOOP_ITEMS = 12
+const MAX_LOOP_STACK = 4000
 
 const cookieText = (value: unknown): string | null => typeof value === 'string' ? value.slice(0, MAX_COOKIE_TEXT) : null
 const fields = (value: unknown): Record<string, unknown> | null => typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null
@@ -370,6 +387,28 @@ function cdnLogRow(value: unknown): CdnLogRow | null {
   const note = raw.note === null ? null : cookieText(raw.note)
   if (at === undefined || who === null || method === null || url === null || !outcome || status === undefined || age === undefined || (raw.note !== null && note === null)) return null
   return { at, who, method, url, outcome, status, age, note }
+}
+
+function loopTexts(value: unknown, max: number): string[] | null {
+  if (!Array.isArray(value)) return null
+  const texts = value.slice(0, MAX_LOOP_ITEMS).map(item => typeof item === 'string' ? item.slice(0, max) : null)
+  return texts.some(item => item === null) ? null : texts as string[]
+}
+
+function loopEntry(value: unknown): LoopEntry | null {
+  const raw = fields(value)
+  if (!raw) return null
+  const kind = LOOP_KINDS.find(each => each === raw.kind)
+  const source = LOOP_SOURCES.find(each => each === raw.source)
+  const at = typeof raw.at === 'number' && Number.isFinite(raw.at) && raw.at >= 0 && raw.at <= 1e9 ? raw.at : undefined
+  const text = typeof raw.text === 'string' ? raw.text.slice(0, MAX_LOOP_TEXT) : null
+  const target = typeof raw.target === 'string' ? raw.target.slice(0, MAX_LOOP_TEXT) : null
+  const total = whole(raw.count, 1e9)
+  const painted = loopTexts(raw.painted, MAX_LOOP_TEXT)
+  const started = loopTexts(raw.started, MAX_LOOP_TEXT)
+  const stack = raw.stack === null ? null : typeof raw.stack === 'string' ? raw.stack.slice(0, MAX_LOOP_STACK) : undefined
+  if (!kind || source === undefined || at === undefined || text === null || target === null || total === undefined || typeof raw.clamped !== 'boolean' || !painted || !started || stack === undefined) return null
+  return { kind, at, source, text, target, count: total, clamped: raw.clamped, painted, started, stack }
 }
 
 function storageArea(value: unknown): StorageAreaRow | null {
@@ -693,6 +732,13 @@ export function readBridgeMessage(data: unknown): BridgeMessage | null {
       const log = raw.log.slice(-MAX_CDN_LOG).map(cdnLogRow)
       if (browser.some(row => row === null) || (cdn && cdn.some(row => row === null)) || log.some(row => row === null)) return null
       return { type: 'cache', now: raw.now as number, browser: browser as CacheRow[], cdn: cdn as CacheRow[] | null, log: log as CdnLogRow[] }
+    }
+    case 'loop': {
+      const from = whole(raw.from, 1e6)
+      if (from === undefined || !Array.isArray(raw.entries)) return null
+      const entries = raw.entries.slice(0, MAX_LOOP_BATCH).map(loopEntry)
+      if (entries.some(entry => entry === null)) return null
+      return { type: 'loop', from, entries: entries as LoopEntry[] }
     }
     case 'replay': {
       const request = cut(raw.request, 2000)

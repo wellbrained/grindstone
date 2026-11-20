@@ -270,6 +270,25 @@ describe('the fake backend\'s messages', () => {
     expect([many.browser.length, many.browser[0]!.url.length, many.log.length, many.log[0]!.at]).toEqual([100, 301, 200, 100])
   })
 
+  it('reads chapter 5\'s event loop entries as plain data, capped, and refuses malformed ones', () => {
+    const entry = { kind: 'render', at: 48.01, source: '', text: '', target: '', count: 2, clamped: false, painted: ['spinner', 'status: Placing your order…'], started: ['p#spinner.spinner spin'], stack: null }
+    const timer = { kind: 'task', at: 21.02, source: 'timeout', text: 'setTimeout(tick, 0)', target: '', count: 0, clamped: true, painted: [], started: [], stack: 'Error\n    at blob:null/1:3:1' }
+    const loop = { type: 'loop', from: 3, entries: [entry, timer] }
+    expect(readBridgeMessage(loop)).toEqual(loop)
+    // malformed: a kind or a source that is none, a time that is no number or negative, painted items that are not text, no flag
+    expect(readBridgeMessage({ ...loop, entries: [{ ...entry, kind: 'paint' }] })).toBeNull()
+    expect(readBridgeMessage({ ...loop, entries: [{ ...timer, source: 'idle' }] })).toBeNull()
+    expect(readBridgeMessage({ ...loop, entries: [{ ...entry, at: -1 }] })).toBeNull()
+    expect(readBridgeMessage({ ...loop, entries: [{ ...entry, at: 'now' }] })).toBeNull()
+    expect(readBridgeMessage({ ...loop, entries: [{ ...entry, painted: [{ html: '<b>' }] }] })).toBeNull()
+    expect(readBridgeMessage({ ...loop, entries: [{ ...timer, clamped: 'yes' }] })).toBeNull()
+    expect(readBridgeMessage({ ...loop, from: -1 })).toBeNull()
+    // capped: 200 entries a message, 12 painted items a frame, texts cut at 301 characters, stacks at 4000
+    const many = readBridgeMessage({ ...loop, entries: Array.from({ length: 300 }, () => ({ ...timer, text: 'x'.repeat(5000), stack: 's'.repeat(9000), painted: Array.from({ length: 20 }, () => 'p') })) })
+    if (many?.type !== 'loop') throw new Error('no loop message')
+    expect([many.entries.length, many.entries[0]!.text.length, many.entries[0]!.stack!.length, many.entries[0]!.painted.length]).toEqual([200, 301, 4000, 12])
+  })
+
   it('refuses malformed ones: a made-up failure, headers that are not pairs of text, a status that is not one, a method that is not a word', () => {
     const read = (message: object) => readBridgeMessage(message)
     expect(read({ ...response, failure: 'teapot' })).toBeNull()

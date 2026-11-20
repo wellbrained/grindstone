@@ -9,15 +9,16 @@
 // session kept by the component alone, nothing recorded.
 // A Web fundamentals level (ADR 0009) runs here too: its app starts only once its prediction is answered (`predict`),
 // its API is the level's server.js (the Network panel shows preflights and refusals, the Server panel what server.js
-// did), and a practice task is a prediction only (the code is read-only).
+// did), and a practice task is a prediction only (the code is read-only). In chapter 5 the page runs on the modelled
+// event loop: the Event loop panel lists what ran (tasks, listeners, frames, forced layouts, the page's logs).
 import {
-  MAX_LOG_LINES, RECORD_LIMITS, consoleEntry, cssRules, deployById, differingPaths, fittingProfile, fittingSteps, historyEntries, isWebLevel, lineIn, liveEntries, needsCounting, frameStep, hitCounts, nextHit,
+  LOOP_LIMITS, MAX_LOG_LINES, RECORD_LIMITS, consoleEntry, mapFrames, parseStack, cssRules, deployById, differingPaths, fittingProfile, fittingSteps, historyEntries, isWebLevel, lineIn, liveEntries, needsCounting, frameStep, hitCounts, nextHit,
   nodeAtPath, nodePath, pickDeploy, pickLine, predict as predictAnswer, predictionDone, previousHit, reload, requestEntry, restart, restoreFiles, rollback, saveDebugFile, scopeAt, scopeValues, startDebugLevel, startExpanded, stepBack,
   stepInto, stepLine, stepOut, stepOver, takeHint, versionOf, withAncestors, withResponse, withoutInstrumentation
 } from '#shared/levels'
 import type {
   Breakpoint, BridgeMessage, ColleagueMessage, ConsoleEntryBody, CssRule, DebugLevel, DebugRecord, DebugResult, DebugSession, DebugState, DeployPick, DomNode, Inspected, Instrumented, LogEntry, LoggedRequest, NetworkEntry, PickVerdict,
-  CookiesMessage, PredictionAnswer, Profile, RecordEndReason, RecordedStep, ReplayMessage, ScopeEntries, ServerOutputMessage, SourceLine, SourceMapping, CacheMessage, StorageMessage, WebLevel
+  CookiesMessage, LoopEntry, PredictionAnswer, Profile, RecordEndReason, RecordedStep, ReplayMessage, ScopeEntries, ServerOutputMessage, SourceLine, SourceMapping, CacheMessage, StorageMessage, WebLevel
 } from '#shared/levels'
 import type { CompiledCondition } from '#shared/levels/debugging/condition'
 import type { LineTone } from '~/editor/codemirror'
@@ -54,6 +55,10 @@ export const MAX_SERVER_LINES = 300
  * request from outside the browser, after server.js's access line for it.
  */
 export type ServerLine = (Omit<ServerOutputMessage, 'type'> | { level: 'outside', replay: Omit<ReplayMessage, 'type'>, text: string, line: null }) & { id: number }
+/** A line of the Event loop panel: what the frame posted, numbered, with the line of the level it was set up on (if any). */
+export type LoopRow = LoopEntry & { id: number, line: SourceLine | null }
+/** The Event loop panel keeps at most this many lines per load (the frame stops at LOOP_LIMITS.entries and says so). */
+export const MAX_LOOP_ROWS = LOOP_LIMITS.entries + 2
 /** How long Stop waits for the recorder's last steps (a busy app may never answer). */
 const STOP_WAIT_MS = 600
 
@@ -169,8 +174,10 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
   const predictionOnly = webLevel?.kind === 'practice'
   /** The editor only reads: a find task (a click is the answer) or a prediction-only task. */
   const readOnly = find !== null || predictionOnly
+  /** Chapter 5: the page runs on the modelled event loop (the Event loop panel), with no API to show in Network. */
+  const hasLoop = web?.loop !== undefined
   /** The level scripts a backend (or has a server.js), so the page shows the Network panel. */
-  const hasNetwork = backend !== undefined || web !== undefined
+  const hasNetwork = backend !== undefined || (web !== undefined && !hasLoop)
   /** The level uses the Elements panel (chapter 3). */
   const hasElements = level.sandbox.elements === true
   /** The level uses the Debugger (chapter 5). */
@@ -254,6 +261,16 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
   const hasCache = web?.cache !== undefined
   /** Chapter 4: both caches' copies and the CDN's log, as the frame last posted them (null before the first). */
   const cache = shallowRef<CacheMessage | null>(null)
+
+  /** Chapter 5: the Event loop panel's lines of this load (Clear empties what shows; the next lines still come). */
+  const loopRows = shallowRef<LoopRow[]>([])
+  /** How many of this load's loop entries arrived (each message says where it starts). */
+  let loopReceived = 0
+  let nextLoopRow = 0
+
+  function clearLoop() {
+    loopRows.value = []
+  }
 
   /** Lena opens another site's page in this load (the Other site panel's Visit): its requests show in the panels. */
   function visitSite(origin: string) {
@@ -345,6 +362,8 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
     awaitingDom = hasElements
     mapping.value = { urls: {}, bridgeLine: 0 }
     serverLines.value = []
+    loopRows.value = []
+    loopReceived = 0
     cookieJar.value = null
     storage.value = null
     cache.value = null
@@ -463,6 +482,17 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
     } else if (message.type === 'replay') {
       // the thief's request from outside the browser: a line of its own in the Server panel, under server.js's answer
       if (serverLines.value.length < MAX_SERVER_LINES) serverLines.value = [...serverLines.value, { level: 'outside', replay: { request: message.request, using: message.using, status: message.status, by: message.by }, text: message.request, line: null, id: nextServerLine++ }]
+    } else if (message.type === 'loop') {
+      // the entries come in order; one out of place (a message lost) is dropped, as are lines past the cap
+      if (!hasLoop || message.from !== loopReceived) return
+      loopReceived += message.entries.length
+      const room = MAX_LOOP_ROWS - loopRows.value.length
+      if (room <= 0) return
+      const lineOf = (stack: string | null): SourceLine | null => {
+        const frame = stack ? mapFrames(parseStack(stack), mapping.value)[0] : undefined
+        return frame ? { path: frame.path, line: frame.line } : null
+      }
+      loopRows.value = [...loopRows.value, ...message.entries.slice(0, room).map(entry => ({ ...entry, id: nextLoopRow++, line: lineOf(entry.stack) }))]
     } else if (message.type === 'serverlog') {
       takeServerLog(message)
     } else if (message.type === 'request') {
@@ -1054,6 +1084,9 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
     hasSites,
     sites,
     visitSite,
+    hasLoop,
+    loopRows,
+    clearLoop,
     hasNetwork,
     hasElements,
     hasDebugger,

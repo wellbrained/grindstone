@@ -26,8 +26,13 @@ import type { Level, PracticeTask, Scenario, Session } from '../types'
  * - `server` with `times`: that access line at least this often (chapter 4: a whole 200 again),
  * - `cdn`: a line of the CDN's log, 'who METHOD address OUTCOME' ('Sam GET https://api.cornerbakery.shop/account HIT';
  *   chapter 4, the Application panel's Cache shows it). A row the browser's cache answered reads '… 200 (disk cache)'.
+ * - `painted`: a frame painted a watched element whose snapshot starts with this ('spinner', 'status: Thank you');
+ *   chapter 5, the Event loop panel shows it,
+ * - `forced`: the page's code forced a layout by this read ('offsetHeight'),
+ * - `layouts`: the page's code forced exactly this many layouts in the run,
+ * - `animated`: a transition or animation started, 'element property' ('p.toast.visible opacity').
  */
-export type PredictionFact = { row: string } | { server: string, times?: number } | { says: string } | { asks: string } | { sent: string } | { stored: string } | { refused: string } | { readable: string } | { storage: string } | { replayed: string } | { cdn: string }
+export type PredictionFact = { row: string } | { server: string, times?: number } | { says: string } | { asks: string } | { sent: string } | { stored: string } | { refused: string } | { readable: string } | { storage: string } | { replayed: string } | { cdn: string } | { painted: string } | { forced: string } | { layouts: number } | { animated: string }
 
 /** One answer to choose, one line to order or to pick. */
 export interface PredictionOption {

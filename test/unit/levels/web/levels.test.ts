@@ -31,7 +31,7 @@ const questionsOf = (level: WebLevel) => level.prediction.questions
 
 describe('the Web fundamentals levels', () => {
   it('are scenarios with one question and practice tasks with one or three, every one with a table', () => {
-    expect(webLevels.length).toBe(41)
+    expect(webLevels.length).toBe(51)
     for (const level of webLevels) {
       expect(level.id, level.id).toMatch(level.kind === 'scenario' ? /^web-\d\d-[a-z-]+$/ : /^web-practice-[a-z-]+$/)
       expect(level.hints).toHaveLength(level.kind === 'scenario' ? 3 : 1)
@@ -50,7 +50,7 @@ describe('the Web fundamentals levels', () => {
       }
     }
     // the scenarios' tags on the track page
-    expect(webLevels.filter(level => level.kind === 'scenario').map(level => level.teaches)).toEqual(['Allow-Origin', 'preflight', 'credentials', 'Allow-Headers', 'Allow-Methods', 'SameSite=None', 'CSRF', 'HttpOnly', 'Path', 'Strict', 'localStorage', 'innerHTML', 'exp', 'refresh', 'logout', 'max-age', 'no-cache', 'private', 'Vary', 'stale deploy'])
+    expect(webLevels.filter(level => level.kind === 'scenario').map(level => level.teaches)).toEqual(['Allow-Origin', 'preflight', 'credentials', 'Allow-Headers', 'Allow-Methods', 'SameSite=None', 'CSRF', 'HttpOnly', 'Path', 'Strict', 'localStorage', 'innerHTML', 'exp', 'refresh', 'logout', 'max-age', 'no-cache', 'private', 'Vary', 'stale deploy', 'long task', 'event dispatch', 'forced layout', 'transition', 'microtasks'])
   })
 
   it('check every answer against what the app does: the right option\'s fact holds, a wrong one\'s does not, lines come in the answer\'s order', () => {
@@ -65,6 +65,10 @@ describe('the Web fundamentals levels', () => {
       if ('readable' in fact) return (run.readable ?? []).includes(fact.readable)
       if ('storage' in fact) return (run.storage ?? []).includes(fact.storage)
       if ('replayed' in fact) return (run.replayed ?? []).includes(fact.replayed)
+      if ('painted' in fact) return (run.painted ?? []).some(item => item.startsWith(fact.painted))
+      if ('forced' in fact) return (run.forced ?? []).includes(fact.forced)
+      if ('layouts' in fact) return (run.forced ?? []).length === fact.layouts
+      if ('animated' in fact) return (run.animated ?? []).includes(fact.animated)
       return (run.says ?? []).some(line => line.startsWith(fact.says))
     }
     for (const level of webLevels) {
@@ -141,7 +145,12 @@ describe('the Web fundamentals levels', () => {
       'web-17-whole-menu': [['server.js', 36, 'res.set(\'Cache-Control\', \'no-store\')']],
       'web-18-someone-elses-account': [['server.js', 52, 'app.get(\'/account\', (req, res) => {']],
       'web-19-vary-origin': [['server.js', 26, 'if (SHOPS.includes(origin)) res.set(\'Access-Control-Allow-Origin\', origin)']],
-      'web-20-stale-deploy': [['app.js', 8, 'const response = await fetch(`${API}/menu`)'], ['server.js', 36, 'res.set(\'Cache-Control\', \'max-age=86400\')']]
+      'web-20-stale-deploy': [['app.js', 8, 'const response = await fetch(`${API}/menu`)'], ['server.js', 36, 'res.set(\'Cache-Control\', \'max-age=86400\')']],
+      'web-21-spinner': [['app.js', 22, 'console.log(\'Spinner shown\')']],
+      'web-22-pickup-menu': [['app.js', 29, 'document.addEventListener(\'click\', () => {']],
+      'web-23-kitchen-screen': [['app.js', 13, 'list.scrollTop = list.scrollHeight'], ['app.js', 17, 'for (const order of OVERNIGHT) addOrder(order)']],
+      'web-24-toast': [['app.js', 9, 'element.classList.add(\'visible\')']],
+      'web-25-progress-bar': [['app.js', 20, 'await Promise.resolve()']]
     }
     for (const [id, points] of Object.entries(POINTED_AT)) {
       const level = webLevels.find(each => each.id === id)!
@@ -166,6 +175,9 @@ describe('the Web fundamentals levels', () => {
       const config = webConfig(level.sandbox.web!, level.setup().files, SHOP_ORIGIN)
       expect(config.api, level.id).toBe('https://api.cornerbakery.shop')
       expect(config.source !== null, level.id).toBe(level.sandbox.web!.server !== undefined)
+      // chapter 5: the event loop, and no API server (app.js is what you fix)
+      expect(config.loop !== null, level.id).toBe(level.sandbox.web!.loop !== undefined)
+      if (config.loop) expect(level.sandbox.web!.server, level.id).toBeUndefined()
     }
   })
 })

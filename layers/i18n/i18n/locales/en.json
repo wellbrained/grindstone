@@ -1176,7 +1176,8 @@
       "deploys": "Deploys",
       "server": "Server",
       "application": "Application",
-      "site": "Other site"
+      "site": "Other site",
+      "loop": "Event loop"
     },
     "app": {
       "label": "App",
@@ -1676,10 +1677,12 @@
   "web": {
     "note": "Predict first, then read the panels (Network, Server and, for cookies, storage and tokens, Application), fix the code, Save and Reload: the goals are checked on every reload.",
     "practiceNote": "A prediction only: answer, then see in the app's panels who was right. Nothing to fix.",
+    "loopNote": "Predict first, then read the Event loop panel (every task, frame and forced layout) and the Console, fix app.js, Save and Reload: the goals are checked on every reload.",
     "wrongPredictions": "Wrong predictions: {n}",
     "readOnly": "Read only: a prediction",
     "appWaits": "Make your prediction first: the app runs once you answer.",
     "sealed": "The app runs in a sealed frame: it can't reach Grindstone or your progress. The browser's CORS and cookie rules are modelled after the Fetch spec and the cookie spec, and the API is the level's server.js, run in the frame too; nothing goes to the network.",
+    "loopSealed": "The app runs in a sealed frame: it can't reach Grindstone or your progress. Its timers, frames, messages and taps run on a scripted clock after the HTML standard's event loop, as Chrome runs it, so every run is the same; microtasks, styles and layout are your browser's own.",
     "prediction": {
       "title": "Predict first",
       "done": "Your prediction",
@@ -1855,6 +1858,44 @@
       "header": "Header",
       "payload": "Payload",
       "signature": "Signature: only the secret makes it. Anyone can read the rest, so nothing secret belongs in a token."
+    },
+    "loop": {
+      "label": "Event loop",
+      "lines": "What ran on the event loop in this load",
+      "tasks": "no tasks | 1 task | {n} tasks",
+      "frames": "no frames | 1 frame | {n} frames",
+      "forced": "no forced layouts | 1 forced layout | {n} forced layouts",
+      "clock": "Scripted clock: a frame every 16 ms when something needs painting. A line marked microtask ran after its task, before the next task or frame.",
+      "empty": "Nothing ran yet.",
+      "kind": {
+        "task": "task",
+        "listener": "listener",
+        "callback": "rAF",
+        "render": "frame",
+        "layout": "layout",
+        "log": "log",
+        "microtask": "microtask",
+        "note": "note"
+      },
+      "script": "The page's script runs",
+      "tap": "A tap on {target}",
+      "tapNothing": "A tap: nothing there to tap",
+      "message": "A message to {target}",
+      "event": "The browser's {type} event on {target}",
+      "console": "Console input",
+      "clamped": "waited 4 ms: nested more than five deep (the standard's clamp, as Chrome has it)",
+      "listener": "{type} listener on {target}",
+      "frame": "Frame {n}: style, layout and paint",
+      "painted": "On screen: {items}",
+      "paintedNothing": "On screen: none of the watched elements",
+      "started": "Started: {items}",
+      "forcedRead": "Forced layout: {read}",
+      "times": "×{n}",
+      "stoppedUnits": "The event loop stopped after {n} units of work: something keeps queueing work.",
+      "stoppedTasks": "The event loop stopped: more than 2,000 tasks were waiting at once. Something keeps queueing work.",
+      "stoppedAnimations": "The panel follows no more animations in this load (it followed {n}).",
+      "stoppedEntries": "The panel shows no more lines of this load.",
+      "at": "{ms} ms"
     }
   }
 }

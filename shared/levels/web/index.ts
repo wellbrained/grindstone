@@ -1,5 +1,5 @@
-// The Web fundamentals track (ADR 0009): its chapters and their levels, in play order. Chapters 1 to 4 are live,
-// chapters 5 to 7 are coming (no levels yet). A practice task goes right after the scenario it trains (`practises`); defineTrack
+// The Web fundamentals track (ADR 0009): its chapters and their levels, in play order. Chapters 1 to 5 are live,
+// chapters 6 and 7 are coming (no levels yet). A practice task goes right after the scenario it trains (`practises`); defineTrack
 // checks it.
 import { fewestWrongPredictions } from '../progress'
 import { defineTrack, trackLevels } from '../track'
@@ -25,17 +25,23 @@ import { wholeMenu } from './17-whole-menu'
 import { someoneElsesAccount } from './18-someone-elses-account'
 import { varyOrigin } from './19-vary-origin'
 import { staleDeploy } from './20-stale-deploy'
+import { spinnerNeverSpins } from './21-spinner'
+import { pickupMenu } from './22-pickup-menu'
+import { kitchenScreen } from './23-kitchen-screen'
+import { toastPops } from './24-toast'
+import { progressBar } from './25-progress-bar'
 import { consoleOrder, readableAnswers, sameOrigin, simpleOrPreflight, whichHeaders, whichMethods } from './practice/cors'
 import { attackerRequests, linkCookies, sameSiteOrNot, whichHosts, whichStored } from './practice/cookies'
 import { afterLogout, refreshCookie, scriptReads, whichRun, whichTokens } from './practice/auth'
 import { askOrNot, cdnKeeps, ownCondition, ownCopy, reachesToday } from './practice/caching'
+import { doesItFade, firstLine, tapOrder, whenPaint, whichReads } from './practice/loop'
 
 export const webTrack = defineTrack({
   id: 'web',
   title: 'Web fundamentals',
   scope: 'The rules the browser enforces: CORS, cookies, auth, caching, the event loop, accessibility and security headers.',
   tagline: 'Predict what the browser does, then fix it.',
-  description: 'The rules the browser enforces that bite in production, at Corner Bakery\'s shop and its API on another origin. Before each app runs you predict what the browser will do: which request it blocks, which cookie it keeps, which line comes first. Then read the Network and Application panels and fix the server\'s code or the page\'s until it works. The browser\'s rules are modelled on the Fetch and cookie specs, so every run is the same.',
+  description: 'The rules the browser enforces that bite in production, at Corner Bakery\'s shop and its API on another origin. Before each app runs you predict what the browser will do: which request it blocks, which cookie it keeps, which line comes first. Then read the Network, Application and Event loop panels and fix the server\'s code or the page\'s until it works. The browser\'s rules are modelled on the Fetch, cookie and HTML specs, so every run is the same.',
   status: 'live',
   // fewest wrong predictions, then fewest hints, then fewest reloads (ADR 0009)
   bestRun: fewestWrongPredictions,
@@ -118,7 +124,18 @@ export const webTrack = defineTrack({
       title: 'The event loop',
       description: 'Tasks, microtasks and rendering: predict the order things happen in.',
       colour: 4,
-      levels: []
+      levels: [
+        spinnerNeverSpins,
+        whenPaint,
+        pickupMenu,
+        tapOrder,
+        kitchenScreen,
+        whichReads,
+        toastPops,
+        doesItFade,
+        progressBar,
+        firstLine
+      ]
     },
     {
       id: 'accessibility',

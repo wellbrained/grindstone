@@ -39,6 +39,8 @@ import { SCRIPTED_DATE_SOURCE, SCRIPTED_TIME_SOURCE, SERVER_HOST_SOURCE, SERVER_
 import type { OtherSite, SiteAction } from './sites'
 import { STORAGE_LIMITS, STORAGE_SOURCE } from './storage'
 import type { StorageKind } from './storage'
+import { loopConfig } from './loop'
+import type { LoopConfig, LoopSpec } from './loop'
 
 /** The time each exchange with a server takes on the way (both ways together), like a quick local network. */
 export const WEB_DELAY_MS = 20
@@ -131,6 +133,12 @@ export interface WebSpec {
    * panel's Cache lists both caches.
    */
   cache?: CacheSpec
+  /**
+   * Chapter 5: the page's work runs on the modelled event loop (loop.ts): timers, frames, messages and a customer's tap
+   * on a scripted clock, the browser's own microtasks, frames that record what they paint, forced layouts counted; the
+   * Event loop panel shows it. A level of it may have no server.js at all.
+   */
+  loop?: LoopSpec
 }
 
 interface ShopRouteData {
@@ -178,6 +186,8 @@ export interface WebConfig {
   /** Chapter 4: the caches (a CDN or not) and the copies they kept from before, `ago` in ms; null: no cache at all. */
   cache: { cdn: boolean, seeds: { into: 'browser' | 'cdn', url: string, request: [string, string][], by: string, status: number, headers: [string, string][], body: string, ago: number }[] } | null
   shop: { origins: string[], routes: ShopRouteData[] }
+  /** Chapter 5: the modelled event loop; null: the browser's own timers and frames, as in chapters 1 to 4. */
+  loop: LoopConfig | null
 }
 
 const originOnly = (url: string, what: string) => {
@@ -186,8 +196,11 @@ const originOnly = (url: string, what: string) => {
   return origin
 }
 
-/** The level's servers as plain data for the frame (throws for what a level cannot mean: the level tests load each one). */
-export function webConfig(spec: WebSpec, files: Readonly<Record<string, string>>, page: string, path = '/'): WebConfig {
+/**
+ * The level's servers as plain data for the frame (throws for what a level cannot mean: the level tests load each one).
+ * `marker`: chapter 5, the global the page's module script calls when its synchronous part is over (sandbox.ts).
+ */
+export function webConfig(spec: WebSpec, files: Readonly<Record<string, string>>, page: string, path = '/', marker: string | null = null): WebConfig {
   const origin = new URL(page).origin
   const api = originOnly(spec.api, 'the API')
   if (api === origin) throw new Error('the API must be on another origin than the page')
@@ -258,7 +271,8 @@ export function webConfig(spec: WebSpec, files: Readonly<Record<string, string>>
           ? { status: 503, headers: [], body: null }
           : { status: answer.status, headers: Object.entries(answer.headers), body: answer.body })
       }))
-    }
+    },
+    loop: spec.loop ? loopConfig(spec.loop, marker) : null
   }
 }
 

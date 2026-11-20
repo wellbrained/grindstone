@@ -30,7 +30,16 @@ export interface ExpectedRun {
   replayed?: string[]
   /** Chapter 4: the CDN's log, 'who METHOD address OUTCOME', in order (a level with a cache; none without a CDN). */
   cdn?: string[]
+  /** Chapter 5: what each painted frame showed of the watched elements, every item in order (the Event loop panel's frames). */
+  painted?: string[]
+  /** Chapter 5: each layout the page's code forced, by the read that forced it, in order. */
+  forced?: string[]
+  /** Chapter 5: each transition or animation that started, 'element property', in order. */
+  animated?: string[]
 }
+
+/** The same line n times (a loop's forced layouts). */
+const times = (n: number, line: string): string[] => Array.from({ length: n }, () => line)
 
 export interface ExpectedLevel {
   /** The right answer to each question of the prediction. */
@@ -641,6 +650,182 @@ export const expected: Record<string, ExpectedLevel> = {
       server: ['GET /hours?v=2 200', 'GET /stock 200'],
       says: ['/specials: [{"name":"Plum cake","price":3.1}]', '/hours?v=2: {"weekdays":"7:00–19:00","saturday":"7:00–14:00"}', '/stock: [{"name":"Rye loaf","left":9}]'],
       cdn: []
+    }
+  },
+  'web-21-spinner': {
+    answers: ['never'],
+    start: {
+      probes: { idle: 'display: none', spun: 0, thanks: 'Thank you! Order 1042: 9.80 €', took: 900.02, after: 'display: none' },
+      errors: 0,
+      network: [],
+      server: [],
+      says: ['Spinner shown', 'Receipt ready', 'Spinner shown', 'Receipt ready'],
+      painted: ['status: Thank you! Order 1042: 9.80 €', 'status: Thank you! Order 1042: 9.80 €'],
+      forced: [],
+      animated: []
+    },
+    solved: {
+      probes: { idle: 'display: none', spun: 1, thanks: 'Thank you! Order 1042: 9.80 €', took: 911.02, after: 'display: none' },
+      errors: 0,
+      network: [],
+      server: [],
+      says: ['Spinner shown', 'Receipt ready', 'Spinner shown', 'Receipt ready'],
+      painted: ['spinner', 'status: Thank you! Order 1042: 9.80 €', 'spinner', 'status: Thank you! Order 1042: 9.80 €'],
+      forced: [],
+      animated: ['p#spinner.spinner spin', 'p#spinner.spinner spin']
+    }
+  },
+  'web-practice-when-paint': {
+    answers: ['no', 'no', 'yes'],
+    start: {
+      probes: {},
+      errors: 0,
+      network: [],
+      server: [],
+      painted: ['a: Done', 'a: Done', 'b: Done', 'a: Done', 'b: Done', 'c: Working…', 'a: Done', 'b: Done', 'c: Done'],
+      forced: [],
+      animated: []
+    }
+  },
+  'web-22-pickup-menu': {
+    answers: ['closes'],
+    start: {
+      probes: { open: 0, still: 'display: none', chosen: 'No time chosen yet', picked: 'display: none', elsewhere: 'display: none' },
+      errors: 0,
+      network: [],
+      server: [],
+      says: ['Menu opened', 'Menu closed', 'Menu opened', 'Menu closed', 'Menu opened', 'Menu closed'],
+      painted: [...times(4, 'chosen: No time chosen yet')],
+      forced: [],
+      animated: []
+    },
+    solved: {
+      probes: { open: 1, still: 'visible', chosen: 'Pickup at 8:00', picked: 'display: none', elsewhere: 'display: none' },
+      errors: 0,
+      network: [],
+      server: [],
+      says: ['Menu opened', 'Menu opened', 'Menu opened', 'Menu closed'],
+      painted: ['chosen: No time chosen yet', 'menu', 'chosen: No time chosen yet', 'menu', 'chosen: No time chosen yet', 'chosen: Pickup at 8:00', 'menu', 'chosen: Pickup at 8:00', 'chosen: Pickup at 8:00'],
+      forced: [],
+      animated: []
+    }
+  },
+  'web-practice-tap-order': {
+    answers: [['l1', 'm1', 'l2', 'm2']],
+    start: {
+      probes: {},
+      errors: 0,
+      network: [],
+      server: [],
+      says: ['Listener 1', 'Microtask from listener 1', 'Listener 2', 'Microtask from listener 2'],
+      painted: [],
+      forced: [],
+      animated: []
+    }
+  },
+  'web-23-kitchen-screen': {
+    answers: ['forty'],
+    start: {
+      probes: { forced: 40, rows: 40, count: '40 orders', newest: 'itself' },
+      errors: 0,
+      network: [],
+      server: [],
+      says: ['40 orders added'],
+      painted: ['count: 0 orders', 'count: 40 orders'],
+      forced: [...times(40, 'scrollHeight')],
+      animated: []
+    },
+    solved: {
+      probes: { forced: 1, rows: 40, count: '40 orders', newest: 'itself' },
+      errors: 0,
+      network: [],
+      server: [],
+      says: ['40 orders added'],
+      painted: ['count: 0 orders', 'count: 40 orders'],
+      forced: ['scrollHeight'],
+      animated: []
+    }
+  },
+  'web-practice-which-reads': {
+    answers: [['offset', 'rect', 'computed']],
+    start: {
+      probes: {},
+      errors: 0,
+      network: [],
+      server: [],
+      says: ['offsetHeight read: true', 'dataset.price read: 2.40', 'getBoundingClientRect read: true', 'textContent read: true', 'getComputedStyle(card).height read: true', 'className read: card'],
+      painted: [],
+      forced: ['offsetHeight', 'getBoundingClientRect', 'getComputedStyle'],
+      animated: []
+    }
+  },
+  'web-24-toast': {
+    answers: ['pops'],
+    start: {
+      probes: { fade: 0, text: 'Butter croissant is in your basket', out: 2 },
+      errors: 0,
+      network: [],
+      server: [],
+      painted: [...times(43, 'toast: Butter croissant is in your basket')],
+      forced: [],
+      animated: ['p.toast opacity', 'p.toast opacity']
+    },
+    solved: {
+      probes: { fade: 1, text: 'Butter croissant is in your basket', out: 2 },
+      errors: 0,
+      network: [],
+      server: [],
+      painted: [...times(83, 'toast: Butter croissant is in your basket')],
+      forced: [],
+      animated: ['p.toast.visible opacity', 'p.toast.visible opacity', 'p.toast opacity', 'p.toast opacity']
+    }
+  },
+  'web-practice-does-it-fade': {
+    answers: ['yes', 'no', 'yes'],
+    start: {
+      probes: {},
+      errors: 0,
+      network: [],
+      server: [],
+      painted: ['a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c', 'a', 'b', 'c'],
+      forced: ['offsetWidth'],
+      animated: ['p#a.toast.visible opacity', 'p#c.toast.visible opacity']
+    }
+  },
+  'web-25-progress-bar': {
+    answers: ['jumps'],
+    start: {
+      probes: { steps: 0, first: 0, gaps: 96.13, done: 'Imported 600 orders' },
+      errors: 0,
+      network: [],
+      server: [],
+      says: ['Import done', 'Import done'],
+      painted: ['progress: Not imported yet', 'progress: Imported 600 orders', 'progress: Imported 600 orders'],
+      forced: [],
+      animated: []
+    },
+    solved: {
+      probes: { steps: 7, first: 2, gaps: 21.19, done: 'Imported 600 orders' },
+      errors: 0,
+      network: [],
+      server: [],
+      says: ['Import done', 'Import done'],
+      painted: ['progress: Not imported yet', 'progress: Importing… 100 of 600', 'progress: Importing… 200 of 600', 'progress: Importing… 300 of 600', 'progress: Importing… 350 of 600', 'progress: Importing… 450 of 600', 'progress: Importing… 500 of 600', 'progress: Importing… 550 of 600', 'progress: Imported 600 orders', 'progress: Importing… 100 of 600', 'progress: Importing… 200 of 600', 'progress: Importing… 300 of 600', 'progress: Importing… 350 of 600', 'progress: Importing… 450 of 600', 'progress: Importing… 500 of 600', 'progress: Importing… 550 of 600', 'progress: Imported 600 orders'],
+      forced: [],
+      animated: []
+    }
+  },
+  'web-practice-first-line': {
+    answers: [['start', 'end', 'promise', 'microtask', 'timeout'], 'clamped', ['starts', 'after', 'goes-on', 'then']],
+    start: {
+      probes: {},
+      errors: 0,
+      network: [],
+      server: [],
+      says: ['Script start', 'Script end', 'Promise', 'Microtask', 'Timeout', 'Bake starts', 'After bake()', 'Bake goes on', 'Then', '100 ticks took about 400 ms'],
+      painted: [],
+      forced: [],
+      animated: []
     }
   }
 }

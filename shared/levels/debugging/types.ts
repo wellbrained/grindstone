@@ -28,7 +28,10 @@ export type ProbeStep
   /**
    * Clicks the first element that matches (like a customer would; `times` clicks back to back, a double click), then
    * lets the app react: 20 ms, and with a backend until every request it sent is answered. `settle: false` goes on after
-   * the 20 ms, while the answers are still on their way (a customer who clicks on: a race).
+   * the 20 ms, while the answers are still on their way (a customer who clicks on: a race). In an event loop level
+   * (chapter 5) a customer's tap: it lands on what is on top at the element's centre, 5 ms after a frame, its listeners
+   * each followed by the microtasks, then the page runs on for 500 ms of the scripted clock (`wait` and `settle` move
+   * that clock too).
    */
   = | { click: string, times?: number, settle?: false }
   /**
@@ -174,6 +177,39 @@ export type ProbeStep
    * shows it.
    */
     | { other: string, request: string, from?: string | null, cookie?: string, like?: boolean, json?: string, body?: Readonly<Record<string, string>>, headers?: Readonly<Record<string, string>> }
+  /**
+   * Web fundamentals (chapter 5, a level with `sandbox.web.loop`): how many frames painted since this probe started showed
+   * a watched element whose snapshot starts with this ('spinner', 'status: Thank you', 'progress: Importing'). `within`
+   * (ms): only frames painted that soon after the probe's tap (the first since it started, else the last before), so a
+   * spinner painted after the work, or a bar moved after the import, doesn't count. `rising`: only frames whose item's
+   * first number is more than the last one counted (steps of a progress, not frames that repeat one).
+   */
+    | { painted: string, within?: number, rising?: boolean }
+  /**
+   * Chapter 5: ms from the probe's tap (the first since it started, else the last before) to the first frame at or after
+   * it that painted an item starting with this (null when there is none).
+   */
+    | { when: string }
+  /**
+   * Chapter 5: the longest wait in ms between painted frames from the probe's tap to the first frame that painted an
+   * item starting with this (the tap to the first frame counts too; null when there is none): a page that renders
+   * nothing for a while shows it.
+   */
+    | { longestGap: string }
+  /**
+   * Chapter 5: how many watched elements that keep their opacity, first painted at or after the probe's tap, faded in
+   * where a customer can see it (each first painted at an opacity of at most 0.05, then a frame between 0.05 and 0.95,
+   * then, 96 ms or more after its first frame and painted every frame in between, a frame at 1); 0 when one of them
+   * didn't, so a decoy can't stand in for the toast.
+   */
+    | { faded: string }
+  /** Chapter 5: the layouts the page's code forced (a size or position read after a change) since this probe started ('here') or in the whole load ('load'). */
+    | { forced: 'here' | 'load' }
+  /**
+   * Chapter 5: how many transitions and animations started since this probe started on an element that matches, changing
+   * this CSS property (its first and last keyframe differ: a fade from 0 to 1, not a dummy animation).
+   */
+    | { animated: string, property: string }
 
 /** A scripted look at the app that goals read: steps run in order; its value is what the last read step read. */
 export interface Probe {

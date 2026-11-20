@@ -5,8 +5,8 @@
 // whose profile is posted once the probes are done, as Stop would); `performance` watches the page and keeps the server's
 // clock, like every load of a Performance level.
 import type { Page } from '@playwright/test'
-import { BRIDGE_HELLO, checkFrames, consoleEntry, mergeObservations, observe, readBridgeMessage, requestAddress, requestEntry, sandboxDocument, statusLabel, withResponse } from '../../shared/levels'
-import type { BackendSpec, BridgeMessage, ConsoleEntryBody, LogsSpec, NetworkEntry, Observation, Probe, Profile, RecordedStep, ServerLogMessage, ServerOutputMessage, WebSpec } from '../../shared/levels'
+import { BRIDGE_HELLO, checkFrames, consoleEntry, loopFacts, mergeObservations, observe, readBridgeMessage, requestAddress, requestEntry, sandboxDocument, statusLabel, withResponse } from '../../shared/levels'
+import type { BackendSpec, BridgeMessage, ConsoleEntryBody, LogsSpec, LoopEntry, NetworkEntry, Observation, Probe, Profile, RecordedStep, ServerLogMessage, ServerOutputMessage, WebSpec } from '../../shared/levels'
 import { checkFrameStyle } from '../../app/utils/sandbox-host'
 
 export interface CheckResult {
@@ -47,6 +47,14 @@ export interface CheckResult {
   cdn: string[]
   /** Chapter 4: the browser's copies once the run was over, by address. */
   cached: string[]
+  /** Chapter 5: the event loop's timeline (the Event loop panel's entries, in order; the first frame's). */
+  loop: LoopEntry[]
+  /** Chapter 5: what each frame painted of the watched elements, every item in order. */
+  painted: string[]
+  /** Chapter 5: each forced layout, by the read that forced it. */
+  forced: string[]
+  /** Chapter 5: each transition or animation that started, 'element property'. */
+  animated: string[]
 }
 
 export interface RunOptions {
@@ -112,6 +120,10 @@ async function runFrame(page: Page, files: Readonly<Record<string, string>>, pro
   const jar = messages.filter(message => message.type === 'cookies').at(-1)
   const kept = messages.filter(message => message.type === 'storage').at(-1)
   const caches = messages.filter(message => message.type === 'cache').at(-1)
+  // the loop's entries come in order, each message from where the last one ended (as the panel appends them)
+  const loop: LoopEntry[] = []
+  for (const message of messages) if (message.type === 'loop' && message.from === loop.length) loop.push(...message.entries)
+  const facts = loopFacts(loop)
   const pageOrigin = new URL(options.page ?? '/', 'https://cornerbakery.shop').origin
   return {
     observation: observe(messages, document.bridgeLine),
@@ -132,7 +144,11 @@ async function runFrame(page: Page, files: Readonly<Record<string, string>>, pro
     areas: kept?.type === 'storage' ? kept.areas.flatMap(area => area.items.map(([key]) => `${area.kind} ${area.origin} ${key}`)) : [],
     replayed: messages.flatMap(message => message.type === 'replay' ? [`${message.request} ${message.status ?? 'failed'}`] : []),
     cdn: caches?.type === 'cache' ? caches.log.map(line => `${line.who} ${line.method} ${line.url} ${line.outcome}`) : [],
-    cached: caches?.type === 'cache' ? caches.browser.map(row => row.url) : []
+    cached: caches?.type === 'cache' ? caches.browser.map(row => row.url) : [],
+    loop,
+    painted: facts.painted,
+    forced: facts.forced,
+    animated: facts.animated
   }
 }
 

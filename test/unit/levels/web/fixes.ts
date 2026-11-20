@@ -7,6 +7,7 @@
 import { authFixes } from './fixes-auth'
 import { cachingFixes } from './fixes-caching'
 import { cookieFixes } from './fixes-cookies'
+import { loopFixes } from './fixes-loop'
 
 export interface OtherFix {
   /** What the edit does, for the test's message. */
@@ -113,5 +114,6 @@ export const otherFixes: Record<string, OtherFix[]> = {
   ],
   ...cookieFixes,
   ...authFixes,
-  ...cachingFixes
+  ...cachingFixes,
+  ...loopFixes
 }

@@ -205,7 +205,7 @@ describe('track registry', () => {
     expect(nextLevel('git-practice-release-from-develop')).toBeNull()
   })
 
-  it('gives Web fundamentals its seven chapters (ADR 0009): Same-origin & CORS to HTTP caching live, the other three coming', () => {
+  it('gives Web fundamentals its seven chapters (ADR 0009): Same-origin & CORS to The event loop live, the other two coming', () => {
     const web = trackById('web')!
     expect(web).toMatchObject({ title: 'Web fundamentals', status: 'live', tagline: 'Predict what the browser does, then fix it.', cheatSheet: null, bestRun: ['wrongPredictions', 'hints', 'reloads'] })
     // the home card's text no longer promises performance (ADR 0009: that is Debugging's chapter 6)
@@ -215,7 +215,7 @@ describe('track registry', () => {
       [2, 'cookies', 'Cookies & sessions', 10, 1],
       [3, 'auth', 'Auth & tokens', 10, 2],
       [4, 'caching', 'HTTP caching', 10, 3],
-      [5, 'event-loop', 'The event loop', 0, 4],
+      [5, 'event-loop', 'The event loop', 10, 4],
       [6, 'accessibility', 'Accessibility', 0, 5],
       [7, 'security-headers', 'Security headers & CSP', 0, 6]
     ])
@@ -268,10 +268,23 @@ describe('track registry', () => {
       ['4.5', 'web-20-stale-deploy'],
       [null, 'web-practice-reaches-today']
     ])
+    expect(web.chapters[4]!.levels.map(level => [levelNumber(level.id), level.id])).toEqual([
+      ['5.1', 'web-21-spinner'],
+      [null, 'web-practice-when-paint'],
+      ['5.2', 'web-22-pickup-menu'],
+      [null, 'web-practice-tap-order'],
+      ['5.3', 'web-23-kitchen-screen'],
+      [null, 'web-practice-which-reads'],
+      ['5.4', 'web-24-toast'],
+      [null, 'web-practice-does-it-fade'],
+      ['5.5', 'web-25-progress-bar'],
+      [null, 'web-practice-first-line']
+    ])
     expect(nextLevel('web-practice-which-methods')).toBe(levelById('web-06-sign-in-lost'))
     expect(nextLevel('web-practice-link-cookies')).toBe(levelById('web-11-token-in-storage'))
     expect(nextLevel('web-practice-after-logout')).toBe(levelById('web-16-old-price'))
-    expect(nextLevel('web-practice-reaches-today')).toBeNull()
+    expect(nextLevel('web-practice-reaches-today')).toBe(levelById('web-21-spinner'))
+    expect(nextLevel('web-practice-first-line')).toBeNull()
   })
 
   it('gives Working with AI its seven chapters (ADR 0008), all live: Read the diff to Steer the assistant, and its cheat sheet', () => {
