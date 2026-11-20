@@ -207,7 +207,7 @@ describe('track registry', () => {
 
   it('gives Web fundamentals its seven chapters (ADR 0009): all seven live', () => {
     const web = trackById('web')!
-    expect(web).toMatchObject({ title: 'Web fundamentals', status: 'live', tagline: 'Predict what the browser does, then fix it.', cheatSheet: null, bestRun: ['wrongPredictions', 'hints', 'reloads'] })
+    expect(web).toMatchObject({ title: 'Web fundamentals', status: 'live', tagline: 'Predict what the browser does, then fix it.', cheatSheet: '/web/cheat-sheet', bestRun: ['wrongPredictions', 'hints', 'reloads'] })
     // the home card's text no longer promises performance (ADR 0009: that is Debugging's chapter 6)
     expect(`${web.scope} ${web.description}`).not.toMatch(/performance/i)
     expect(web.chapters.map(chapter => [chapter.number, chapter.id, chapter.title, chapter.levels.length, chapter.colour])).toEqual([

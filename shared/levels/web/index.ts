@@ -1,6 +1,6 @@
-// The Web fundamentals track (ADR 0009): its chapters and their levels, in play order. All seven chapters are live.
-// A practice task goes right after the scenario it trains (`practises`); defineTrack
-// checks it.
+// The Web fundamentals track (ADR 0009): its chapters and their levels, in play order. All seven chapters are live, and
+// so is its cheat sheet (/web/cheat-sheet, app/utils/web-cheatsheet.ts). A practice task goes right after the scenario
+// it trains (`practises`); defineTrack checks it.
 import { fewestWrongPredictions } from '../progress'
 import { defineTrack, trackLevels } from '../track'
 import { isWebLevel } from './types'
@@ -55,6 +55,7 @@ export const webTrack = defineTrack({
   tagline: 'Predict what the browser does, then fix it.',
   description: 'The rules the browser enforces that bite in production, at Corner Bakery\'s shop and its API on another origin. Before each app runs you predict what the browser will do: which request it blocks, which cookie it keeps, which line comes first, what a screen reader says. Then read the Network, Application, Event loop and Accessibility panels and fix the server\'s code or the page\'s until it works. The browser\'s rules are modelled on the Fetch, cookie, HTML and accessibility specs, so every run is the same.',
   status: 'live',
+  cheatSheet: '/web/cheat-sheet',
   // fewest wrong predictions, then fewest hints, then fewest reloads (ADR 0009)
   bestRun: fewestWrongPredictions,
   chapters: [

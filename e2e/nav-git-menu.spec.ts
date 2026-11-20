@@ -35,11 +35,12 @@ test('shows Levels and Cheat sheet under Git in the mobile menu', async ({ page 
   await expect(levels.nth(1)).toHaveAttribute('href', '/debugging')
   await expect(levels.nth(2)).toHaveAttribute('href', '/ai')
   await expect(levels.nth(3)).toHaveAttribute('href', '/web')
-  // one Cheat sheet link per track that has one: Git, Debugging and Working with AI (Web fundamentals' comes at its end)
+  // one Cheat sheet link per track: Git, Debugging, Working with AI and Web fundamentals
   const sheets = menu.getByRole('link', { name: 'Cheat sheet', exact: true })
-  await expect(sheets).toHaveCount(3)
+  await expect(sheets).toHaveCount(4)
   await expect(sheets.nth(1)).toHaveAttribute('href', '/debugging/cheat-sheet')
-  await expect(sheets.last()).toHaveAttribute('href', '/ai/cheat-sheet')
+  await expect(sheets.nth(2)).toHaveAttribute('href', '/ai/cheat-sheet')
+  await expect(sheets.last()).toHaveAttribute('href', '/web/cheat-sheet')
   await sheets.first().click()
   await expect(page).toHaveURL(/\/git\/cheat-sheet$/)
 })
@@ -84,17 +85,46 @@ test('filters the Debugging cheat sheet and finds an error message', async ({ pa
   await expect(page.getByText('Nothing matches "zzzz".')).toBeVisible()
 })
 
-for (const scheme of ['light', 'dark'] as const) {
-  test(`has no sideways scroll at 390px in ${scheme} mode`, async ({ page }) => {
-    await page.emulateMedia({ colorScheme: scheme })
-    await page.setViewportSize({ width: 390, height: 844 })
-    await page.goto('/debugging/cheat-sheet')
-    await expect(page.getByRole('heading', { level: 1, name: 'Debugging cheat sheet' })).toBeVisible()
-    await expect(page.locator('html')).toHaveClass(scheme === 'dark' ? /dark/ : /light/)
-    const wide = await page.evaluate(() => [...document.querySelectorAll('body *')]
-      .filter(el => el.getBoundingClientRect().right > window.innerWidth + 1)
-      .map(el => el.tagName + '.' + el.className))
-    expect(wide).toEqual([])
-    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
-  })
+// The Web fundamentals cheat sheet: reached from its track's menu, a filter over entries and the browser's messages,
+// and an entry links to its level.
+test('opens the Web fundamentals cheat sheet from its menu, filters it and finds a browser message', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.goto('/')
+  const nav = page.getByRole('navigation', { name: 'Main' }).filter({ visible: true })
+  await nav.getByRole('button', { name: 'Web fundamentals' }).click()
+  await page.getByRole('link', { name: 'Cheat sheet', exact: true }).click()
+  await expect(page).toHaveURL(/\/web\/cheat-sheet$/)
+  await expect(page.getByRole('heading', { level: 1, name: 'Web fundamentals cheat sheet' })).toBeVisible()
+  await expect(nav.getByRole('button', { name: 'Web fundamentals' })).toHaveClass(/text-primary/)
+  await expect(page.locator('#messages')).toContainText('Executing inline event handler violates the following Content Security Policy directive')
+
+  await page.getByRole('textbox', { name: 'Filter the sheet' }).fill('frame-ancestors')
+  await expect(page.locator('#security-headers')).toContainText('Who may frame the page')
+  await expect(page.locator('#messages')).toContainText('Framing \'https://cornerbakery.shop/\' violates')
+  await expect(page.locator('#cors')).toHaveCount(0)
+
+  await page.getByRole('textbox', { name: 'Filter the sheet' }).fill('zzzz')
+  await expect(page.getByText('Nothing matches "zzzz".')).toBeVisible()
+
+  await page.getByRole('textbox', { name: 'Filter the sheet' }).fill('')
+  const levelLink = page.locator('#cors').getByRole('link', { name: /1\.1 The menu stays empty/ }).first()
+  await levelLink.click()
+  await expect(page).toHaveURL(/\/web\/01-menu-blocked$/)
+})
+
+for (const [path, title] of [['/debugging/cheat-sheet', 'Debugging cheat sheet'], ['/web/cheat-sheet', 'Web fundamentals cheat sheet']] as const) {
+  for (const scheme of ['light', 'dark'] as const) {
+    test(`${title}: no sideways scroll at 390px in ${scheme} mode`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: scheme })
+      await page.setViewportSize({ width: 390, height: 844 })
+      await page.goto(path)
+      await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible()
+      await expect(page.locator('html')).toHaveClass(scheme === 'dark' ? /dark/ : /light/)
+      const wide = await page.evaluate(() => [...document.querySelectorAll('body *')]
+        .filter(el => el.getBoundingClientRect().right > window.innerWidth + 1)
+        .map(el => el.tagName + '.' + el.className))
+      expect(wide).toEqual([])
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
+    })
+  }
 }

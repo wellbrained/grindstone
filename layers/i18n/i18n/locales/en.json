@@ -583,6 +583,434 @@
       }
     }
   },
+  "webCheat": {
+    "kicker": "Web fundamentals track",
+    "title": "Web fundamentals cheat sheet",
+    "intro": "The browser's rules from every chapter and the messages it shows, in a few lines each. Filter, click a line to copy it, or jump to the level that practises it.",
+    "search": "Filter the sheet",
+    "sections": "Sections",
+    "none": "Nothing matches \"{query}\".",
+    "copy": "Copy {line}",
+    "practise": "Practise it in:",
+    "means": "Usually means",
+    "look": "Look first",
+    "groups": {
+      "cors": "Same-origin & CORS",
+      "cookies": "Cookies & sessions",
+      "auth": "Auth & tokens",
+      "caching": "HTTP caching",
+      "event-loop": "The event loop",
+      "accessibility": "Accessibility",
+      "security-headers": "Security headers & CSP",
+      "messages": "Browser messages"
+    },
+    "entries": {
+      "origin": {
+        "title": "Origin",
+        "summary": "An origin is scheme, host and port together. Two addresses are the same origin only when all three match; a subdomain, www or another port is another origin. A page may send requests anywhere, but reads another origin's answer only when that server allows it.",
+        "examples": {
+          "0": "The shop's page",
+          "1": "Its API: another origin",
+          "2": "www is another host, so another origin",
+          "3": "Another port, another origin"
+        }
+      },
+      "allow-origin": {
+        "title": "Access-Control-Allow-Origin",
+        "summary": "The server's word that a page from that origin may read its answer. The browser checks it, the server just answers: without it the request still arrives and runs, and the page gets \"Failed to fetch\". Fix it on the server, never in the page (no-cors only gets an answer nobody can read).",
+        "examples": {
+          "0": "The shop's page may read it",
+          "1": "Any page may read it (only without credentials)"
+        }
+      },
+      "preflight": {
+        "title": "Preflight",
+        "summary": "A request that a plain form couldn't send (application/json, a header of the page's own, DELETE, PUT, PATCH) asks first: an OPTIONS request with Access-Control-Request-Method and -Headers. The real request goes out only when that answer allows it; refused, server.js sees the OPTIONS and nothing else.",
+        "examples": {
+          "0": "A route for the preflight of the path the page calls",
+          "1": "The page's origin, as on the real answer",
+          "2": "Name the headers the page sets",
+          "3": "Answer with no body",
+          "4": "The end of the route"
+        }
+      },
+      "credentials": {
+        "title": "Credentials",
+        "summary": "With credentials (cookies) the answer is about one customer, so the star is never enough: the server names the page's exact origin and sends Access-Control-Allow-Credentials: true. Echo an Origin back only after checking it against a list of exact origins, and add Vary: Origin.",
+        "examples": {
+          "0": "The page sends its cookies along",
+          "1": "Exactly the word true",
+          "2": "Echo an origin only from a list of exact ones"
+        }
+      },
+      "allow-headers": {
+        "title": "Allow-Headers and Allow-Methods",
+        "summary": "Every header the page sets itself (Authorization, X-Basket-Id) and every method but GET, HEAD and POST must be named in the preflight's answer. With credentials the star is just a name and allows nothing.",
+        "examples": {
+          "0": "Each header of the page's own, by name (any case)",
+          "1": "Methods beyond GET, HEAD and POST, as written"
+        }
+      },
+      "not-browsers": {
+        "title": "curl is not a browser",
+        "summary": "curl, Postman and other servers send what you type and read every answer: there is no page to protect, so no CORS. A curl test proves nothing about the page, and CORS protects no route: anything that isn't a browser can still send the request, so the route checks who may do what."
+      },
+      "session-cookie": {
+        "title": "A session cookie",
+        "summary": "HttpOnly keeps it from scripts, Secure keeps it on https, SameSite=Lax keeps it from other sites' requests but a link, and Path=/ sends it to every address. res.cookie writes Path=/ for you; a line written by hand has to say it.",
+        "examples": {
+          "0": "Express writes the line for you, Path=/ included",
+          "1": "The same cookie written by hand: then Path=/ has to be there"
+        }
+      },
+      "same-site": {
+        "title": "SameSite",
+        "summary": "Which requests started by another site carry the cookie. Lax is what sessions want; Strict breaks every link from an email; None needs Secure and goes with every site's request (and so with every forged one).",
+        "examples": {
+          "0": "Only requests the cookie's own site starts, no links from elsewhere",
+          "1": "Also a top-level GET from another site (a link); no form POSTs, images or fetches",
+          "2": "Every request, any site; refused without Secure",
+          "3": "Chrome treats it as Lax, but sends it with another site's POST for its first two minutes"
+        }
+      },
+      "site": {
+        "title": "Site is not origin",
+        "summary": "SameSite is about sites: the scheme and the registrable domain. api.cornerbakery.shop and cornerbakery.shop are two origins and one site, so a Lax cookie goes with every request between them. CORS is about origins; cookies are about sites."
+      },
+      "csrf": {
+        "title": "Cross-site request forgery",
+        "summary": "A cookie goes with every request its SameSite allows, whoever starts it: with None, another site's form posts as the customer. CORS plays no part (a form is no fetch). Lax stops it; so does checking the Origin exactly, or a CSRF token. Never a loose check like startsWith or includes.",
+        "examples": {
+          "0": "The Origin compared exactly, before doing anything"
+        }
+      },
+      "http-only": {
+        "title": "HttpOnly",
+        "summary": "document.cookie shows every script on the page (yours, a widget's, an XSS) every cookie of the host that is not HttpOnly. HttpOnly keeps a session from being read and taken away; a script on the page can still send requests as the customer while she is there.",
+        "examples": {
+          "0": "Shows every cookie that is not HttpOnly"
+        }
+      },
+      "path-domain": {
+        "title": "Path and Domain",
+        "summary": "Without Path a cookie gets the folder of the address that set it (/auth for /auth/login) and goes only below it. Without Domain it goes to its own host only; with one, to every host under that domain. Neither is a wall against scripts.",
+        "examples": {
+          "0": "Every address of the host",
+          "1": "Every host under cornerbakery.shop"
+        }
+      },
+      "where-token": {
+        "title": "Where a token lives",
+        "summary": "Every script on the page reads localStorage and sessionStorage, and a Bearer token works for whoever sends it, from any machine. An HttpOnly cookie is the one place no script reaches; then it needs SameSite, as chapter 2 showed.",
+        "examples": {
+          "0": "server.js reads the session from the cookie",
+          "1": "The page sends the cookie with every API call"
+        }
+      },
+      "text-as-text": {
+        "title": "Text stays text",
+        "summary": "innerHTML turns a review into elements, and an image's onerror runs as the page's own code (cross-site scripting). textContent never makes an element. Stripping script tags with a regex misses the next spelling; a Content-Security-Policy is a second wall, not a replacement.",
+        "examples": {
+          "0": "One element per review",
+          "1": "Its text shown as written, angle brackets and all"
+        }
+      },
+      "expiry": {
+        "title": "A token that ends",
+        "summary": "A cookie's Max-Age only tells one browser when to forget it; a copy lives until the token itself ends. expiresIn writes exp into the token and jwt.verify refuses it from then on. jwt.decode checks nothing, a signature proves who made a token, not until when.",
+        "examples": {
+          "0": "A token that ends after 15 minutes",
+          "1": "Checks the signature and exp; decode checks neither"
+        }
+      },
+      "refresh": {
+        "title": "Refresh",
+        "summary": "A short session and a long refresh token that only goes to /auth, HttpOnly, each one used once. The browser renews nothing itself: the page's api helper, on a 401, refreshes once and sends the same request again; when the refresh fails too, it hands back the 401.",
+        "examples": {
+          "0": "Keep the request as a function, to send it again",
+          "1": "Trade the refresh token for a new session"
+        }
+      },
+      "sign-out": {
+        "title": "Signing out",
+        "summary": "clearCookie only asks one browser to forget. A copy works for as long as the server accepts it, so sign-out ends the session where it is checked: the refresh token deleted, the session token refused until it would run out anyway. Only that customer's session, nobody else's.",
+        "examples": {
+          "0": "Above the sign-out route: the sessions that ended",
+          "1": "In the route: this session ends",
+          "2": "In the route: its refresh token can't renew anything",
+          "3": "In customerOf, before its return: an ended session is nobody"
+        }
+      },
+      "cache-control": {
+        "title": "Cache-Control",
+        "summary": "How long an answer stays right, said where it is made: on the server. Within its max-age the browser doesn't ask at all; no-cache keeps a copy and asks every time; no-store keeps nothing; private keeps it out of shared caches.",
+        "examples": {
+          "0": "Use the copy for an hour without asking",
+          "1": "Keep a copy, ask before every use",
+          "2": "Keep no copy: the whole answer every time",
+          "3": "Only the customer's own browser may keep it",
+          "4": "Any cache may hand it to anyone for a minute: never for one customer's answer"
+        }
+      },
+      "revalidate": {
+        "title": "Asking with an ETag",
+        "summary": "With no-cache the browser sends its copy's ETag as If-None-Match. Express makes the ETag from the body: unchanged, it answers 304 with no body and the copy is used; changed, the new answer comes in full. An ETag that never changes keeps old prices forever.",
+        "examples": {
+          "0": "Never stale, and cheap while nothing changed"
+        }
+      },
+      "cache-rows": {
+        "title": "Cache rows in Network",
+        "summary": "How the Network panel shows where an answer came from.",
+        "examples": {
+          "0": "No request at all: the browser used its fresh copy",
+          "1": "Asked, nothing changed: no body, the copy is used",
+          "2": "A whole answer from the server"
+        }
+      },
+      "shared-cache": {
+        "title": "Shared caches",
+        "summary": "A CDN keeps one copy per address (and per header Vary names), never per person, and hands it to whoever asks next. An answer that depends on the cookie says private or no-store, its errors too; a unique address only hides it.",
+        "examples": {
+          "0": "Only her browser keeps the account"
+        }
+      },
+      "vary": {
+        "title": "Vary",
+        "summary": "Names the request headers an answer depends on, so a cache keeps one copy per value. An answer whose Allow-Origin depends on the Origin needs Vary: Origin on every answer of the route, or one page gets another page's copy.",
+        "examples": {
+          "0": "One copy per Origin"
+        }
+      },
+      "new-address": {
+        "title": "A copy you can't take back",
+        "summary": "A copy stays fresh for the max-age it came with, whatever the server says now: only an address the browser has no copy of reaches it (a versioned file name, a new query), or a page that asks to revalidate. Long max-age belongs to addresses whose content never changes.",
+        "examples": {
+          "0": "An address her browser has no copy of",
+          "1": "This request asks the server first"
+        }
+      },
+      "order": {
+        "title": "What runs when",
+        "summary": "One task at a time, each to its end. After every task all microtasks run, also the ones they queue. Between two tasks, when a frame is due (about every 16 ms), the browser may render: requestAnimationFrame callbacks, style, layout, paint.",
+        "examples": {
+          "0": "1. Runs now, to the end of the task",
+          "1": "2. Microtasks: all of them, before anything else",
+          "2": "3. Other tasks, one at a time: a 0 ms timer usually runs before the next frame",
+          "3": "4. When a frame is due, between two tasks: then style, layout and paint"
+        }
+      },
+      "paint-first": {
+        "title": "Paint before long work",
+        "summary": "The browser renders only between tasks, so what a task shows and hides again is never painted. Let a frame in first: wait for its callbacks, then for a task after it. setTimeout alone usually comes before the frame, and await Promise.resolve() never leaves the task.",
+        "examples": {
+          "0": "Waits until the frame with the spinner is painted"
+        }
+      },
+      "dispatch": {
+        "title": "A tap and its listeners",
+        "summary": "For a real tap the browser runs the microtasks after each listener, before the next one; element.click() from code runs every listener first. A test that clicks from code can pass where a tap fails. A listener on the document hears every tap that bubbles up.",
+        "examples": {
+          "0": "The closing listener ignores the toggle's own taps",
+          "1": "Or the toggle's listener stops its tap from bubbling up, before its await"
+        }
+      },
+      "forced-layout": {
+        "title": "Forced layout",
+        "summary": "Reading a size or position (scrollHeight, offsetHeight, getBoundingClientRect) after changing the page makes the browser lay it out at once. Write everything, then read once; a loop that writes and reads in turn lays the page out every time.",
+        "examples": {
+          "0": "Once, after all the rows are in",
+          "1": "Or build the rows off the page and add them at once"
+        }
+      },
+      "transition": {
+        "title": "A transition needs a before",
+        "summary": "A transition runs between two styles the browser computed. An element added and changed in the same task has only one. Two frames give it a before; so does reading its computed style first. A single requestAnimationFrame is the classic miss.",
+        "examples": {
+          "0": "The class added two frames later",
+          "1": "Forces the style (not a layout), which is enough"
+        }
+      },
+      "yield": {
+        "title": "Break up long work",
+        "summary": "Microtasks never let a frame in: a loop of await Promise.resolve() runs to its end in one checkpoint and the page paints once, at the end. Awaiting a task (a timer, a message) or a frame lets the browser render in between.",
+        "examples": {
+          "0": "A real break: a frame may come in",
+          "1": "One chunk per frame"
+        }
+      },
+      "name": {
+        "title": "Accessible name",
+        "summary": "What a reader says a control is called: aria-labelledby, then aria-label, then the label or alt, then the content, last a title. An icon hidden with aria-hidden gives none. The name should say which one it is, not just what it does.",
+        "examples": {
+          "0": "A name that says which product",
+          "1": "Or text for readers, hidden on screen (the class is in style.css)",
+          "2": "Hides the icon from readers: then the button needs a name"
+        }
+      },
+      "button": {
+        "title": "Use a button",
+        "summary": "A button is in the Tab order, has a role and clicks on Enter and on Space, so its click listener runs for the keyboard too. A div with a click listener is for the mouse only; rebuilding it takes role, tabindex and a keydown handler, all three.",
+        "examples": {
+          "0": "Tab, role and keys for free"
+        }
+      },
+      "keys": {
+        "title": "Keys",
+        "summary": "What the keyboard does in the levels, as browsers do it.",
+        "examples": {
+          "0": "Next or previous control in page order",
+          "1": "Clicks a button, follows a link",
+          "2": "Clicks a button; on a link it scrolls the page",
+          "3": "Closes a dialog when its code says so (showModal does it itself)"
+        }
+      },
+      "expanded": {
+        "title": "Open or closed",
+        "summary": "A reader knows a button opens something only from aria-expanded, kept in step with what is shown in the one place it is shown or hidden. A details element with a summary does it all natively. A label that changes is a new name, not a state.",
+        "examples": {
+          "0": "Closed at the start",
+          "1": "In the one place the list is shown or hidden",
+          "2": "Instead of the button: details wraps the list, summary is its button, no script at all"
+        }
+      },
+      "live": {
+        "title": "Live regions",
+        "summary": "A reader hears a change only in a live region that was on the page, live and shown, before the change, or where focus goes. Keep an empty region in the markup and write into it; clearing it first lets the same message be said again.",
+        "examples": {
+          "0": "There from the start, filled when the address is wrong",
+          "1": "Polite: said when the reader is done",
+          "2": "Or focus the field and point it at its error"
+        }
+      },
+      "focus": {
+        "title": "Where focus goes",
+        "summary": "When the focused element disappears, focus falls back to the page. The code that hides a dialog puts focus back on the button that opened it, on every way out. showModal does all of it, and keeps Tab inside; aria-modal alone keeps nobody in.",
+        "examples": {
+          "0": "Back to the button that opened the dialog",
+          "1": "On a dialog element (not a div): focus in, page inert, Escape, focus back"
+        }
+      },
+      "inline": {
+        "title": "Inline code",
+        "summary": "A Content-Security-Policy can't tell the page's inline code from an attacker's: unsafe-inline allows every inline handler and script. Move the page's own code into files, list where scripts may come from, and everything inline is refused.",
+        "examples": {
+          "0": "Scripts only from the shop and the widget, nothing inline",
+          "1": "The handler in app.js instead of onclick in the markup"
+        }
+      },
+      "framing": {
+        "title": "Who may frame the page",
+        "summary": "Any site may show any page in a frame unless the page says who may; a see-through frame turns a click on the bait into a click on the page. frame-ancestors lists exactly who; X-Frame-Options is the older header, without a list. Neither works in a meta tag.",
+        "examples": {
+          "0": "The shop itself and the market, nobody else",
+          "1": "Nobody at all, the market too (ignored once frame-ancestors is there)"
+        }
+      },
+      "fetch-directives": {
+        "title": "Where the page may send",
+        "summary": "script-src decides which scripts run; connect-src where they may send requests, img-src where images come from. Without them, or default-src, a script the policy let in may send what it reads anywhere. A directive of its own replaces default-src for that kind.",
+        "examples": {
+          "0": "The shop by default, scripts and requests to the widget and the stats"
+        }
+      },
+      "report-only": {
+        "title": "Report-only",
+        "summary": "Content-Security-Policy-Report-Only is a dry run: each violation goes to the Console (as info) and to report-uri, and the code runs anyway. Fix what the reports name on the page's side, then send the same policy as Content-Security-Policy. It has no meta-tag form.",
+        "examples": {
+          "0": "Watch: reports, refuses nothing",
+          "1": "Enforce: the same policy, now it refuses"
+        }
+      },
+      "strict": {
+        "title": "A strict policy",
+        "summary": "An allowlist trusts addresses, and a big CDN serves anyone's files. A nonce the server makes fresh for every page, on the page's own tags, trusts the tags instead; strict-dynamic passes that trust to the scripts they add and ignores addresses. A nonce that never changes is no nonce.",
+        "examples": {
+          "0": "A fresh nonce for every page",
+          "1": "The policy with that nonce; Google's recommended one adds object-src 'none' and base-uri 'none'",
+          "2": "The page's own tags carry it (server.js puts the nonce in for the marker)"
+        }
+      },
+      "more-headers": {
+        "title": "More headers",
+        "summary": "Two more a shop sends on every answer: nosniff runs a script only when it is served as JavaScript, and Referrer-Policy decides how much of the page's address other sites see.",
+        "examples": {
+          "0": "A text file is never run as a script",
+          "1": "Other sites see only the origin (the default)"
+        }
+      }
+    },
+    "messages": {
+      "no-allow-origin": {
+        "means": "The server answered, but didn't say your page may read it. Fixed on that server, or by calling your own origin, never in the page.",
+        "look": "The origin the message names, then the server's answer headers in Network."
+      },
+      "failed-fetch": {
+        "means": "The browser kept the answer from the page, or never sent the request: CORS, a policy, or no network. The reason is in another Console line.",
+        "look": "The Console line before it, and the request's row in Network."
+      },
+      "preflight": {
+        "means": "The request asked first (OPTIONS), and that answer didn't allow it; the real request was never sent.",
+        "look": "The OPTIONS row in Network and in the Server panel: is there a route that answers it?"
+      },
+      "wildcard": {
+        "means": "The request sends cookies, and the star doesn't cover that: the server has to name the page's origin and allow credentials.",
+        "look": "Access-Control-Allow-Origin and Access-Control-Allow-Credentials in the answer."
+      },
+      "header-not-allowed": {
+        "means": "The page sets a header of its own, and the preflight's answer doesn't name it.",
+        "look": "Access-Control-Allow-Headers in the OPTIONS answer, against the headers the page sets."
+      },
+      "method-not-allowed": {
+        "means": "The method needs a yes from the preflight, and Access-Control-Allow-Methods doesn't list it.",
+        "look": "Access-Control-Allow-Methods in the OPTIONS answer."
+      },
+      "none-insecure": {
+        "means": "The browser refused to store the cookie: SameSite=None needs Secure too. Usually the fix is Lax, not Secure.",
+        "look": "The answer's Set-Cookie under Cookies, in the request's details in Network."
+      },
+      "lax-blocked": {
+        "means": "Another site started the request and it was no link, so the Lax cookie stayed home: the protection working.",
+        "look": "Where the request came from (From in the request's details in Network), and whether it should carry the cookie at all."
+      },
+      "not-on-path": {
+        "means": "The cookie belongs to another path, usually the folder of the address that set it.",
+        "look": "The cookie's Path in Application, against the request's address."
+      },
+      "strict-blocked": {
+        "means": "A link from another site (an email) carries no Strict cookie, so the page looks signed out until a reload.",
+        "look": "The cookie's SameSite in Application; a session wants Lax."
+      },
+      "inline-handler": {
+        "means": "An onclick, onerror or other handler in the markup was refused by the policy, the page's own or an attacker's.",
+        "look": "Where the handler comes from: move the page's own into app.js with addEventListener."
+      },
+      "script-src": {
+        "means": "A script from an address the policy doesn't list was refused before it ran.",
+        "look": "Whether you meant that script: if so, add its address to the policy; if not, nothing to fix."
+      },
+      "framing": {
+        "means": "The page's frame-ancestors doesn't list the site that framed it, so the frame stays empty. Shown in the framing site's Console.",
+        "look": "The frame-ancestors list in the framed page's answer."
+      },
+      "x-frame-options": {
+        "means": "The page's X-Frame-Options refuses to be framed there. DENY refuses everyone; SAMEORIGIN everyone but itself.",
+        "look": "The framed page's answer headers; frame-ancestors can list exactly who may."
+      },
+      "connect-src": {
+        "means": "A script asked to send a request to an address the policy's connect-src (or default-src) doesn't list; the request never left.",
+        "look": "Which script sent it, and whether that address belongs on the list."
+      },
+      "report-only": {
+        "means": "The report-only policy would refuse this, but only reports it: the code ran.",
+        "look": "Fix what it names on the page's side, then send the policy as Content-Security-Policy."
+      },
+      "nosniff": {
+        "means": "nosniff is on and the file isn't served as JavaScript, so the browser won't run it as a script.",
+        "look": "The file's Content-Type in Network: serve scripts as text/javascript."
+      }
+    }
+  },
   "debugCheat": {
     "kicker": "Debugging track",
     "title": "Debugging cheat sheet",
