@@ -31,7 +31,7 @@ const questionsOf = (level: WebLevel) => level.prediction.questions
 
 describe('the Web fundamentals levels', () => {
   it('are scenarios with one question and practice tasks with one or three, every one with a table', () => {
-    expect(webLevels.length).toBe(51)
+    expect(webLevels.length).toBe(61)
     for (const level of webLevels) {
       expect(level.id, level.id).toMatch(level.kind === 'scenario' ? /^web-\d\d-[a-z-]+$/ : /^web-practice-[a-z-]+$/)
       expect(level.hints).toHaveLength(level.kind === 'scenario' ? 3 : 1)
@@ -50,7 +50,7 @@ describe('the Web fundamentals levels', () => {
       }
     }
     // the scenarios' tags on the track page
-    expect(webLevels.filter(level => level.kind === 'scenario').map(level => level.teaches)).toEqual(['Allow-Origin', 'preflight', 'credentials', 'Allow-Headers', 'Allow-Methods', 'SameSite=None', 'CSRF', 'HttpOnly', 'Path', 'Strict', 'localStorage', 'innerHTML', 'exp', 'refresh', 'logout', 'max-age', 'no-cache', 'private', 'Vary', 'stale deploy', 'long task', 'event dispatch', 'forced layout', 'transition', 'microtasks'])
+    expect(webLevels.filter(level => level.kind === 'scenario').map(level => level.teaches)).toEqual(['Allow-Origin', 'preflight', 'credentials', 'Allow-Headers', 'Allow-Methods', 'SameSite=None', 'CSRF', 'HttpOnly', 'Path', 'Strict', 'localStorage', 'innerHTML', 'exp', 'refresh', 'logout', 'max-age', 'no-cache', 'private', 'Vary', 'stale deploy', 'long task', 'event dispatch', 'forced layout', 'transition', 'microtasks', 'accessible name', 'keyboard', 'aria-expanded', 'live region', 'focus'])
   })
 
   it('check every answer against what the app does: the right option\'s fact holds, a wrong one\'s does not, lines come in the answer\'s order', () => {
@@ -69,8 +69,13 @@ describe('the Web fundamentals levels', () => {
       if ('forced' in fact) return (run.forced ?? []).includes(fact.forced)
       if ('layouts' in fact) return (run.forced ?? []).length === fact.layouts
       if ('animated' in fact) return (run.animated ?? []).includes(fact.animated)
+      if ('heard' in fact) return (run.heard ?? []).includes(fact.heard)
       return (run.says ?? []).some(line => line.startsWith(fact.says))
     }
+    /** Where an order question's line shows: the Console ('says') or, in chapter 6, the reader ('heard'). */
+    const placeOf = (fact: PredictionFact, run: ExpectedRun): number => 'heard' in fact
+      ? (run.heard ?? []).indexOf(fact.heard)
+      : (run.says ?? []).findIndex(line => line.startsWith((fact as { says: string }).says))
     for (const level of webLevels) {
       const run = expected[level.id]!.start
       for (const question of questionsOf(level) as Question[]) {
@@ -78,7 +83,7 @@ describe('the Web fundamentals levels', () => {
         // every question is checked by at least one fact
         expect(question.options.some(option => option.fact), name).toBe(true)
         if (question.form === 'order') {
-          const at = question.answer.map(id => (run.says ?? []).findIndex(line => line.startsWith((question.options.find(option => option.id === id)!.fact as { says: string }).says)))
+          const at = question.answer.map(id => placeOf(question.options.find(option => option.id === id)!.fact!, run))
           expect(at.every(index => index >= 0), name).toBe(true)
           expect([...at].sort((a, b) => a - b), name).toEqual(at)
           continue
@@ -150,7 +155,12 @@ describe('the Web fundamentals levels', () => {
       'web-22-pickup-menu': [['app.js', 29, 'document.addEventListener(\'click\', () => {']],
       'web-23-kitchen-screen': [['app.js', 13, 'list.scrollTop = list.scrollHeight'], ['app.js', 17, 'for (const order of OVERNIGHT) addOrder(order)']],
       'web-24-toast': [['app.js', 9, 'element.classList.add(\'visible\')']],
-      'web-25-progress-bar': [['app.js', 20, 'await Promise.resolve()']]
+      'web-25-progress-bar': [['app.js', 20, 'await Promise.resolve()']],
+      'web-26-every-button': [['app.js', 21, '<button class="add icon-button" type="button">']],
+      'web-27-checkout': [['index.html', 25, '<div id="checkout" class="checkout">Check out</div>']],
+      'web-28-allergens': [['index.html', 21, '<button id="allergens-toggle"'], ['app.js', 6, 'list.hidden = !list.hidden']],
+      'web-29-silent-error': [['index.html', 22, '<input id="email"']],
+      'web-30-focus-lost': [['app.js', 22, 'dialog.hidden = true'], ['app.js', 21, 'function close() {']]
     }
     for (const [id, points] of Object.entries(POINTED_AT)) {
       const level = webLevels.find(each => each.id === id)!
@@ -178,7 +188,11 @@ describe('the Web fundamentals levels', () => {
       // chapter 5: the event loop, and no API server (app.js is what you fix)
       expect(config.loop !== null, level.id).toBe(level.sandbox.web!.loop !== undefined)
       if (config.loop) expect(level.sandbox.web!.server, level.id).toBeUndefined()
+      // chapter 6: the accessibility model, and no API server either (index.html and app.js are what you fix)
+      expect(config.a11y !== null, level.id).toBe(level.sandbox.web!.a11y === true)
+      if (config.a11y) expect(level.sandbox.web!.server, level.id).toBeUndefined()
     }
+    expect(() => webConfig({ api: 'https://api.cornerbakery.shop', loop: { watch: [] }, a11y: true }, {}, SHOP_ORIGIN)).toThrow(/not both/)
   })
 })
 

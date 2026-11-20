@@ -18,6 +18,8 @@ import { mapFrames, parseStack, sourceOf } from './trace'
 import type { SourceMapping } from './trace'
 import type { Observation, ObservedError, ProbeValue, SourceLine, TraceFrame } from './types'
 import type { LoopEntry, LoopEntryKind } from '../web/loop'
+import { READER_KINDS } from '../web/a11y'
+import type { A11yRow, ReaderLine } from '../web/a11y'
 
 export type ConsoleLevel = 'log' | 'info' | 'warn' | 'error' | 'debug'
 
@@ -55,6 +57,10 @@ export type BridgeMessage
     | CacheMessage
   /** Web fundamentals (chapter 5): what ran on the event loop since the last message (tasks, listeners, frames, forced layouts, logs). */
     | LoopMessage
+  /** Web fundamentals (chapter 6): what the screen reader said since the last message (focus, states, live regions). */
+    | ReaderMessage
+  /** Web fundamentals (chapter 6): the accessibility tree, when the Accessibility panel asked for it. */
+    | A11yMessage
   /** The Elements panel: a snapshot of the app's DOM (in document order), cut at MAX_DOM_NODES. */
     | { type: 'dom', nodes: DomNode[], truncated: boolean }
   /** The Elements panel: the selected element's matching rules, box and computed values (`seq`: which request it answers). */
@@ -253,6 +259,21 @@ export interface LoopMessage {
   entries: LoopEntry[]
 }
 
+/** Chapter 6: lines the screen reader said, `from` the index of the first (the frame appends them in order). */
+export interface ReaderMessage {
+  type: 'reader'
+  from: number
+  lines: ReaderLine[]
+}
+
+/** Chapter 6: the accessibility tree (at most MAX_A11Y_ROWS rows) and what the reader says for what has focus (null: the page). */
+export interface A11yMessage {
+  type: 'a11y'
+  rows: A11yRow[]
+  focus: string | null
+  truncated: boolean
+}
+
 /** How a request failed without an answer the app can read: refused by CORS, no connection, cancelled. */
 export type RequestFailure = 'cors' | 'network' | 'aborted'
 
@@ -319,6 +340,13 @@ const MAX_LOOP_BATCH = 200
 const MAX_LOOP_TEXT = 301
 const MAX_LOOP_ITEMS = 12
 const MAX_LOOP_STACK = 4000
+/** Reader lines: at most 20 a message and texts cut at 301; tree rows: at most 400, 60 deep, 8 states each, texts cut at 301. */
+const MAX_READER_BATCH = 20
+const MAX_A11Y_TEXT = 301
+export const MAX_A11Y_ROWS = 400
+const MAX_A11Y_DEPTH = 60
+const MAX_A11Y_STATES = 8
+const A11Y_KEYS = ['Tab', 'Shift+Tab', 'Enter', 'Space', 'Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'user', '']
 
 const cookieText = (value: unknown): string | null => typeof value === 'string' ? value.slice(0, MAX_COOKIE_TEXT) : null
 const fields = (value: unknown): Record<string, unknown> | null => typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null
@@ -409,6 +437,31 @@ function loopEntry(value: unknown): LoopEntry | null {
   const stack = raw.stack === null ? null : typeof raw.stack === 'string' ? raw.stack.slice(0, MAX_LOOP_STACK) : undefined
   if (!kind || source === undefined || at === undefined || text === null || target === null || total === undefined || typeof raw.clamped !== 'boolean' || !painted || !started || stack === undefined) return null
   return { kind, at, source, text, target, count: total, clamped: raw.clamped, painted, started, stack }
+}
+
+function readerLine(value: unknown): ReaderLine | null {
+  const raw = fields(value)
+  if (!raw) return null
+  const kind = READER_KINDS.find(each => each === raw.kind)
+  const text = typeof raw.text === 'string' ? raw.text.slice(0, MAX_A11Y_TEXT) : null
+  const key = A11Y_KEYS.find(each => each === raw.key)
+  if (!kind || text === null || key === undefined || typeof raw.probe !== 'boolean') return null
+  return { kind, text, key, probe: raw.probe }
+}
+
+function a11yRow(value: unknown): A11yRow | null {
+  const raw = fields(value)
+  if (!raw) return null
+  // a deeper row is kept at the deepest indent the panel shows, not dropped with the whole tree
+  const deep = whole(raw.depth, 1e6)
+  const depth = deep === undefined ? undefined : Math.min(deep, MAX_A11Y_DEPTH)
+  const role = typeof raw.role === 'string' ? raw.role.slice(0, 40) : null
+  const name = typeof raw.name === 'string' ? raw.name.slice(0, MAX_A11Y_TEXT) : null
+  const shown = typeof raw.value === 'string' ? raw.value.slice(0, MAX_A11Y_TEXT) : null
+  const description = typeof raw.description === 'string' ? raw.description.slice(0, MAX_A11Y_TEXT) : null
+  const states = Array.isArray(raw.states) ? raw.states.slice(0, MAX_A11Y_STATES).map(state => typeof state === 'string' ? state.slice(0, 40) : null) : null
+  if (depth === undefined || role === null || name === null || shown === null || description === null || !states || states.some(state => state === null) || typeof raw.focused !== 'boolean') return null
+  return { depth, role, name, value: shown, states: states as string[], description, focused: raw.focused }
 }
 
 function storageArea(value: unknown): StorageAreaRow | null {
@@ -739,6 +792,20 @@ export function readBridgeMessage(data: unknown): BridgeMessage | null {
       const entries = raw.entries.slice(0, MAX_LOOP_BATCH).map(loopEntry)
       if (entries.some(entry => entry === null)) return null
       return { type: 'loop', from, entries: entries as LoopEntry[] }
+    }
+    case 'reader': {
+      const from = whole(raw.from, 1e6)
+      if (from === undefined || !Array.isArray(raw.lines)) return null
+      const lines = raw.lines.slice(0, MAX_READER_BATCH).map(readerLine)
+      if (lines.some(line => line === null)) return null
+      return { type: 'reader', from, lines: lines as ReaderLine[] }
+    }
+    case 'a11y': {
+      if (!Array.isArray(raw.rows) || typeof raw.truncated !== 'boolean') return null
+      const rows = raw.rows.slice(0, MAX_A11Y_ROWS).map(a11yRow)
+      const focus = raw.focus === null ? null : typeof raw.focus === 'string' ? raw.focus.slice(0, MAX_A11Y_TEXT) : undefined
+      if (rows.some(row => row === null) || focus === undefined) return null
+      return { type: 'a11y', rows: rows as A11yRow[], focus, truncated: raw.truncated || raw.rows.length > MAX_A11Y_ROWS }
     }
     case 'replay': {
       const request = cut(raw.request, 2000)

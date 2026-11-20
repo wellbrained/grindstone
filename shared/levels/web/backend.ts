@@ -41,6 +41,8 @@ import { STORAGE_LIMITS, STORAGE_SOURCE } from './storage'
 import type { StorageKind } from './storage'
 import { loopConfig } from './loop'
 import type { LoopConfig, LoopSpec } from './loop'
+import { a11yConfig } from './a11y'
+import type { A11yConfig } from './a11y'
 
 /** The time each exchange with a server takes on the way (both ways together), like a quick local network. */
 export const WEB_DELAY_MS = 20
@@ -139,6 +141,12 @@ export interface WebSpec {
    * Event loop panel shows it. A level of it may have no server.js at all.
    */
   loop?: LoopSpec
+  /**
+   * Chapter 6: focus, the keyboard, dialogs and what a screen reader gets are the accessibility model's (a11y.ts): the
+   * tree from the real DOM, the Tab order, Enter and Space, live regions; the Accessibility panel shows it. A level of it
+   * may have no server.js at all; never together with `loop`.
+   */
+  a11y?: true
 }
 
 interface ShopRouteData {
@@ -188,6 +196,8 @@ export interface WebConfig {
   shop: { origins: string[], routes: ShopRouteData[] }
   /** Chapter 5: the modelled event loop; null: the browser's own timers and frames, as in chapters 1 to 4. */
   loop: LoopConfig | null
+  /** Chapter 6: the accessibility model; null: the browser's own focus and keyboard, as in chapters 1 to 5. */
+  a11y: A11yConfig | null
 }
 
 const originOnly = (url: string, what: string) => {
@@ -204,6 +214,7 @@ export function webConfig(spec: WebSpec, files: Readonly<Record<string, string>>
   const origin = new URL(page).origin
   const api = originOnly(spec.api, 'the API')
   if (api === origin) throw new Error('the API must be on another origin than the page')
+  if (spec.loop && spec.a11y) throw new Error('a level runs on the event loop model or the accessibility model, not both')
   if (!path.startsWith('/')) throw new Error(`the page's path ${path} must start with /`)
   const routes = spec.shop?.routes ?? []
   for (const route of routes) {
@@ -272,7 +283,8 @@ export function webConfig(spec: WebSpec, files: Readonly<Record<string, string>>
           : { status: answer.status, headers: Object.entries(answer.headers), body: answer.body })
       }))
     },
-    loop: spec.loop ? loopConfig(spec.loop, marker) : null
+    loop: spec.loop ? loopConfig(spec.loop, marker) : null,
+    a11y: spec.a11y ? a11yConfig() : null
   }
 }
 

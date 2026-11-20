@@ -60,7 +60,8 @@ export type ProbeStep
     | { style: string, property: string }
   /**
    * Whether the first element that matches can be seen: 'visible', or why not: 'display: none' (also 'display: none on
-   * section.summary' for an ancestor), 'visibility: hidden', 'opacity: 0' (or on an ancestor), 'no size', 'off screen'.
+   * section.summary' for an ancestor), 'in a closed details' (since 0.4.6: browsers keep its boxes), 'visibility: hidden',
+   * 'opacity: 0' (or on an ancestor), 'no size', 'off screen'.
    */
     | { visible: string }
   /**
@@ -210,6 +211,43 @@ export type ProbeStep
    * this CSS property (its first and last keyframe differ: a fade from 0 to 1, not a dummy animation).
    */
     | { animated: string, property: string }
+  /**
+   * Web fundamentals (chapter 6, a level with `sandbox.web.a11y`): keys on the modelled keyboard, on whatever has focus
+   * ('Tab', 'Shift+Tab', 'Enter', 'Space', 'Escape', an arrow; `times` in a row): keydown, what the browser does by
+   * default (Tab moves focus, Enter clicks a button or a link, Space a button or a checkbox, Escape closes a modal
+   * dialog) unless the page prevented it, keyup; then the app gets 20 ms.
+   */
+    | { keyboard: string, times?: number }
+  /** Chapter 6: Tab until the first element that matches has focus (the value: how many presses); the probe fails when Tab never gets there. */
+    | { tabTo: string }
+  /** Chapter 6: focus on the first element that matches, as a click or a script would put it there; the probe fails when it can't take focus. */
+    | { focusOn: string }
+  /** Chapter 6: back to a fresh page: nothing has focus, the next Tab starts at the top. */
+    | { focusTop: true }
+  /** Chapter 6: 1 when the element with focus matches the selector, else 0. */
+    | { focused: string }
+  /**
+   * Chapter 6: what a screen reader says for the first element that matches ('Add Butter croissant, button'; null when
+   * it is hidden from it); with `has`, 1 when that text is in it (any case), else 0.
+   */
+    | { reads: string, has?: string }
+  /** Chapter 6: the accessible name of the first element that matches (null when hidden); with `has`, 1 when that text is in it (any case). */
+    | { name: string, has?: string }
+  /** Chapter 6: the computed role of the first element that matches ('button'), 'hidden' when it is left out of the tree. */
+    | { role: string }
+  /** Chapter 6: a state of the first element that matches: 'true', 'false', 'mixed', or null when it doesn't have it. */
+    | { state: string, of: 'checked' | 'expanded' | 'pressed' | 'selected' | 'disabled' | 'invalid' | 'required' }
+  /**
+   * Chapter 6: how many lines the screen reader said since this probe started that include this text (focus, states,
+   * live regions); `after: 'Enter'`: only lines that followed that modelled key (the last one pressed before them;
+   * typing, a click or a focus move ends what follows a key); `scene: true`: the scene's lines instead (what was said
+   * before the probes), so the first try is checked too.
+   */
+    | { heard: string, after?: string, scene?: true }
+  /** Chapter 6: the same, counting only what live regions announced. */
+    | { announced: string }
+  /** Chapter 6: from the top of the page, how many Tab stops there are before Tab leaves it (or comes round again). */
+    | { tabStops: true }
 
 /** A scripted look at the app that goals read: steps run in order; its value is what the last read step read. */
 export interface Probe {

@@ -289,6 +289,36 @@ describe('the fake backend\'s messages', () => {
     expect([many.entries.length, many.entries[0]!.text.length, many.entries[0]!.stack!.length, many.entries[0]!.painted.length]).toEqual([200, 301, 4000, 12])
   })
 
+  it('reads chapter 6\'s reader lines and accessibility tree as plain data, capped, and refuses malformed ones', () => {
+    const line = { kind: 'focus', text: 'Add Butter croissant, button', key: 'Tab', probe: false }
+    const reader = { type: 'reader', from: 2, lines: [line, { kind: 'assertive', text: 'Enter a whole email address', key: '', probe: true }] }
+    expect(readBridgeMessage(reader)).toEqual(reader)
+    // malformed: a kind that is none, a key the keyboard doesn't have, no flag, text that is not text, a negative start
+    expect(readBridgeMessage({ ...reader, lines: [{ ...line, kind: 'shout' }] })).toBeNull()
+    expect(readBridgeMessage({ ...reader, lines: [{ ...line, key: 'F5' }] })).toBeNull()
+    expect(readBridgeMessage({ ...reader, lines: [{ ...line, probe: 'no' }] })).toBeNull()
+    expect(readBridgeMessage({ ...reader, lines: [{ ...line, text: { html: '<b>' } }] })).toBeNull()
+    expect(readBridgeMessage({ ...reader, from: -1 })).toBeNull()
+    const row = { depth: 2, role: 'button', name: 'Allergens', value: '', states: ['collapsed', 'focused'], description: '', focused: true }
+    const tree = { type: 'a11y', rows: [{ ...row, depth: 0, role: 'document', name: 'Corner Bakery · Order', states: [], focused: false }, row], focus: 'Allergens, button, collapsed', truncated: false }
+    expect(readBridgeMessage(tree)).toEqual(tree)
+    expect(readBridgeMessage({ ...tree, focus: null })).toEqual({ ...tree, focus: null })
+    expect(readBridgeMessage({ ...tree, rows: [{ ...row, depth: -1 }] })).toBeNull()
+    // a row deeper than the panel shows is kept at the deepest indent, not dropped with the whole tree
+    const deep = readBridgeMessage({ ...tree, rows: [{ ...row, depth: 100 }] })
+    expect(deep?.type === 'a11y' ? deep.rows[0]!.depth : null).toBe(60)
+    expect(readBridgeMessage({ ...tree, rows: [{ ...row, states: [1] }] })).toBeNull()
+    expect(readBridgeMessage({ ...tree, rows: [{ ...row, focused: 'yes' }] })).toBeNull()
+    expect(readBridgeMessage({ ...tree, focus: 42 })).toBeNull()
+    // capped: 20 lines a message, 400 rows (then truncated), 8 states, texts cut at 301 characters
+    const lines = readBridgeMessage({ ...reader, lines: Array.from({ length: 50 }, () => ({ ...line, text: 'x'.repeat(5000) })) })
+    if (lines?.type !== 'reader') throw new Error('no reader message')
+    expect([lines.lines.length, lines.lines[0]!.text.length]).toEqual([20, 301])
+    const rows = readBridgeMessage({ ...tree, rows: Array.from({ length: 500 }, () => ({ ...row, name: 'n'.repeat(5000), states: Array.from({ length: 20 }, () => 'expanded') })) })
+    if (rows?.type !== 'a11y') throw new Error('no tree message')
+    expect([rows.rows.length, rows.rows[0]!.name.length, rows.rows[0]!.states.length, rows.truncated]).toEqual([400, 301, 8, true])
+  })
+
   it('refuses malformed ones: a made-up failure, headers that are not pairs of text, a status that is not one, a method that is not a word', () => {
     const read = (message: object) => readBridgeMessage(message)
     expect(read({ ...response, failure: 'teapot' })).toBeNull()

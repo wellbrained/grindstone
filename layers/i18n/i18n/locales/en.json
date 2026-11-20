@@ -1177,7 +1177,8 @@
       "server": "Server",
       "application": "Application",
       "site": "Other site",
-      "loop": "Event loop"
+      "loop": "Event loop",
+      "a11y": "Accessibility"
     },
     "app": {
       "label": "App",
@@ -1678,11 +1679,13 @@
     "note": "Predict first, then read the panels (Network, Server and, for cookies, storage and tokens, Application), fix the code, Save and Reload: the goals are checked on every reload.",
     "practiceNote": "A prediction only: answer, then see in the app's panels who was right. Nothing to fix.",
     "loopNote": "Predict first, then read the Event loop panel (every task, frame and forced layout) and the Console, fix app.js, Save and Reload: the goals are checked on every reload.",
+    "a11yNote": "Predict first, then read the Accessibility panel (the tree, and what the screen reader says as you press its keys), fix the page, Save and Reload: the goals are checked on every reload.",
     "wrongPredictions": "Wrong predictions: {n}",
     "readOnly": "Read only: a prediction",
     "appWaits": "Make your prediction first: the app runs once you answer.",
     "sealed": "The app runs in a sealed frame: it can't reach Grindstone or your progress. The browser's CORS and cookie rules are modelled after the Fetch spec and the cookie spec, and the API is the level's server.js, run in the frame too; nothing goes to the network.",
     "loopSealed": "The app runs in a sealed frame: it can't reach Grindstone or your progress. Its timers, frames, messages and taps run on a scripted clock after the HTML standard's event loop, as Chrome runs it, so every run is the same; microtasks, styles and layout are your browser's own.",
+    "a11ySealed": "The app runs in a sealed frame: it can't reach Grindstone or your progress. Its accessibility tree comes from your browser's own DOM and styles, read after HTML-AAM and the accessible name spec as Chrome has them; focus, the keyboard and the screen reader are modelled, so every run is the same.",
     "prediction": {
       "title": "Predict first",
       "done": "Your prediction",
@@ -1896,6 +1899,50 @@
       "stoppedAnimations": "The panel follows no more animations in this load (it followed {n}).",
       "stoppedEntries": "The panel shows no more lines of this load.",
       "at": "{ms} ms"
+    },
+    "a11y": {
+      "label": "Accessibility",
+      "focus": "Focus:",
+      "focusPage": "the page itself (nothing has focus)",
+      "focusUnknown": "not read yet",
+      "hiddenFromReader": "(nothing: hidden from screen readers)",
+      "keys": "The modelled keyboard: keys pressed in the app on whatever has focus",
+      "press": "Press {key} in the app",
+      "key": {
+        "Tab": "Tab",
+        "Shift+Tab": "Shift+Tab",
+        "Enter": "Enter",
+        "Space": "Space",
+        "Escape": "Esc",
+        "ArrowUp": "↑",
+        "ArrowDown": "↓",
+        "ArrowLeft": "←",
+        "ArrowRight": "→"
+      },
+      "user": "your click or key",
+      "note": "Grindstone's reader says name, role, value, states, description, and what live regions announce; a real one words it its own way.",
+      "reader": "What the screen reader said",
+      "lines": "What the screen reader said in this load",
+      "silent": "Nothing said yet: press Tab.",
+      "after": "after {key}",
+      "kind": {
+        "focus": "focus",
+        "dialog": "dialog",
+        "state": "state",
+        "name": "name",
+        "polite": "polite",
+        "assertive": "assertive",
+        "leave": "leaves"
+      },
+      "tree": "Accessibility tree",
+      "treeLabel": "The accessibility tree: role, name, value, states and description of each node",
+      "treeEmpty": "Not read yet.",
+      "refresh": "Refresh",
+      "truncated": "The tree has more rows than the panel shows.",
+      "named": "“{name}”",
+      "separator": " · ",
+      "focusedMark": "· focused",
+      "leftPage": "Tab left the page: the browser's own controls (the address bar) have focus"
     }
   }
 }

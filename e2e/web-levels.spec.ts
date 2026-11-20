@@ -12,8 +12,8 @@ import { runCheck } from './helpers/sandbox'
 // the solution (an answer, the edits, a reload) solves it, other real fixes pass and tempting non-fixes do not
 // (test/unit/levels/web/fixes.ts), and an emptied or deleted server.js (or, in chapter 5, app.js: every file a solution
 // changes) never solves. Chapter 5's levels also check the event loop's timeline: what each frame painted, every forced
-// layout and every transition, the same in Chromium, Firefox and WebKit. No dev server needed: the apps run in a blank
-// page.
+// layout and every transition, the same in Chromium, Firefox and WebKit; chapter 6's levels what the screen reader said
+// (focus, states, live regions), the same in the three. No dev server needed: the apps run in a blank page.
 
 const run = (page: Parameters<typeof runCheck>[0], level: WebLevel, files: Readonly<Record<string, string>>, probes: readonly Probe[] = level.sandbox.probes) =>
   runCheck(page, files, probes, undefined, { web: level.sandbox.web, page: level.sandbox.page })
@@ -135,6 +135,9 @@ for (const level of webLevels) {
       expect(start.forced).toEqual(table.start.forced ?? [])
       expect(start.animated).toEqual(table.start.animated ?? [])
     }
+    // chapter 6 (the levels on the accessibility model): what the screen reader said before the probes, in order
+    const accessible = level.sandbox.web?.a11y === true
+    if (accessible) expect(start.heard).toEqual(table.start.heard ?? [])
     const lines = start.entries.map(entry => entry.text)
     // what the texts quote (in any order: requests sent together may be answered in any order; an order question
     // checks its own lines' order below)
@@ -155,11 +158,14 @@ for (const level of webLevels) {
       if ('forced' in fact) return start.forced.includes(fact.forced)
       if ('layouts' in fact) return start.forced.length === fact.layouts
       if ('animated' in fact) return start.animated.includes(fact.animated)
+      if ('heard' in fact) return start.heard.includes(fact.heard)
       return lines.some(line => line.startsWith(fact.says))
     }
+    /** Where an order question's line shows: the Console, or (chapter 6) the reader. */
+    const placeOf = (fact: PredictionFact) => 'heard' in fact ? start.heard.indexOf(fact.heard) : lines.findIndex(line => line.startsWith((fact as { says: string }).says))
     for (const question of level.prediction.questions) {
       if (question.form === 'order') {
-        const order = question.answer.map(id => lines.findIndex(line => line.startsWith((question.options.find(option => option.id === id)!.fact as { says: string }).says)))
+        const order = question.answer.map(id => placeOf(question.options.find(option => option.id === id)!.fact!))
         expect(order.every(index => index >= 0) && order.every((index, i) => i === 0 || index > order[i - 1]!), `${question.id}: ${order}`).toBe(true)
         continue
       }
@@ -192,6 +198,7 @@ for (const level of webLevels) {
       expect(solved.forced).toEqual(table.solved!.forced ?? [])
       expect(solved.animated).toEqual(table.solved!.animated ?? [])
     }
+    if (accessible) expect(solved.heard).toEqual(table.solved!.heard ?? [])
     const results = await playWebSolution(level, files => run(page, level, files).then(result => result.observation))
     expect(results.at(-1)!.session.solved).toBe(true)
 
@@ -481,4 +488,73 @@ test.describe('an app can\'t fake a painted frame, a fade, or hide a forced layo
     expect(result.observation.probes.fade, JSON.stringify(result.observation.errors.map(error => error.text))).toBe(0)
     expect(solved).toBe(false)
   })
+})
+
+test.describe('an app can\'t fake a name, a role, a Tab stop or an announcement through any frame API (chapter 6)', () => {
+  const solvedBy = async (page: Parameters<typeof runCheck>[0], level: WebLevel, files: Record<string, string>) => {
+    const result = await run(page, level, files)
+    const session = reload({ ...startWebLevel(level), state: { ...startWebLevel(level).state, files, predicted: expected[level.id]!.answers } }, level, result.observation).session
+    return { solved: session.solved, result }
+  }
+  // put first into app.js of the starting files, before any of its own code
+  const first = (level: WebLevel, code: string) => {
+    const start = startWebLevel(level).state.files
+    return { ...start, 'app.js': `${code}\n${start['app.js']!}` }
+  }
+  const SETTERS = [
+    'for (const key of [\'kind\', \'text\', \'key\', \'probe\', \'root\', \'labelledby\', \'nested\', \'hiddenOk\', \'dialog\', \'element\', \'host\', \'box\', \'value\']) Object.defineProperty(Object.prototype, key, Object.assign(Object.create(null), { configurable: true, set() {}, get() { return undefined } }))',
+    'for (let i = 0; i < 40; i++) Object.defineProperty(Array.prototype, i, Object.assign(Object.create(null), { configurable: true, set() {} }))'
+  ].join('\n')
+  const STRINGS = 'String.prototype.toLowerCase = function () { return \'button\' }; String.prototype.indexOf = () => 0; String.prototype.slice = function () { return \'Add Butter croissant Pain au chocolat Cinnamon bun\' }; String.prototype.charCodeAt = () => 48; RegExp.prototype.exec = () => null'
+
+  const names = webLevels.find(each => each.id === 'web-26-every-button')!
+  const NAME_CHEATS: Record<string, string> = {
+    'getAttribute and hasAttribute patched to give every Add button a label': 'const get = Element.prototype.getAttribute\nElement.prototype.getAttribute = function (name) { return name === \'aria-label\' && this.classList.contains(\'add\') ? \'Add \' + this.closest(\'li\').querySelector(\'.name\').textContent : get.call(this, name) }\nconst has = Element.prototype.hasAttribute\nElement.prototype.hasAttribute = function (name) { return name === \'aria-label\' || has.call(this, name) }',
+    'matches, the computed style and textContent patched': 'Element.prototype.matches = () => true\nCSSStyleDeclaration.prototype.getPropertyValue = () => \'block\'\nwindow.getComputedStyle = () => ({ getPropertyValue: () => \'block\' })\nObject.defineProperty(Node.prototype, \'textContent\', { configurable: true, get() { return \'Add Butter croissant Pain au chocolat Cinnamon bun\' } })',
+    'setters on the prototypes for the model\'s fields': SETTERS,
+    'String\'s and RegExp\'s functions replaced': STRINGS
+  }
+  for (const [name, cheat] of Object.entries(NAME_CHEATS)) {
+    test(`6.1: ${name} names no button`, async ({ page }) => {
+      await page.setContent('<!doctype html><title>check</title>')
+      const { solved, result } = await solvedBy(page, names, first(names, cheat))
+      expect([result.observation.probes.croissant, result.observation.probes.pain, result.observation.probes.bun], JSON.stringify(result.observation.errors.map(error => error.text))).toEqual([0, 0, 0])
+      expect(result.heard).toEqual(['focus: button'])
+      expect(solved).toBe(false)
+    })
+  }
+
+  const checkout = webLevels.find(each => each.id === 'web-27-checkout')!
+  const KEY_CHEATS: Record<string, string> = {
+    'the role and tabindex faked through getAttribute, and activeElement and focus redefined': 'const get = Element.prototype.getAttribute\nElement.prototype.getAttribute = function (name) { if (this.id === \'checkout\') { if (name === \'role\') return \'button\'; if (name === \'tabindex\') return \'0\' } return get.call(this, name) }\nObject.defineProperty(Document.prototype, \'activeElement\', { configurable: true, get() { return document.querySelector(\'#checkout\') } })\nHTMLElement.prototype.focus = function () {}',
+    'the keyboard\'s events, dispatchEvent and click() replaced': 'window.KeyboardEvent = function () { return new Event(\'keydown\') }\nconst dispatch = EventTarget.prototype.dispatchEvent\nEventTarget.prototype.dispatchEvent = function (event) { if (event.type === \'keydown\') document.querySelector(\'#checkout\').click(); return dispatch.call(this, event) }\nHTMLElement.prototype.click = function () { document.querySelector(\'#status\').textContent = \'Thanks, Lena! Order 1043 is in.\' }',
+    'Tab caught by the page and sent to the div': 'document.addEventListener(\'keydown\', (event) => { if (event.key === \'Tab\' && document.activeElement && document.activeElement.id === \'more\') { event.preventDefault(); document.querySelector(\'#checkout\').focus() } }, true)',
+    'setters on the prototypes for the model\'s fields': SETTERS
+  }
+  for (const [name, cheat] of Object.entries(KEY_CHEATS)) {
+    test(`6.2: ${name} makes no Tab stop`, async ({ page }) => {
+      await page.setContent('<!doctype html><title>check</title>')
+      const { solved, result } = await solvedBy(page, checkout, first(checkout, cheat))
+      expect(result.observation.probes.order ?? 0, JSON.stringify(result.observation.errors.map(error => error.text))).toBe(0)
+      expect(result.observation.probes.role).not.toBe('button')
+      expect(solved).toBe(false)
+    })
+  }
+
+  const silent = webLevels.find(each => each.id === 'web-29-silent-error')!
+  const LIVE_CHEATS: Record<string, string> = {
+    'the MutationObserver silenced and its records replaced': 'MutationObserver.prototype.takeRecords = () => []\nMutationObserver.prototype.observe = () => {}\nwindow.MutationObserver = function () { return { observe() {}, takeRecords: () => [], disconnect() {} } }',
+    'the error text said twice by a live region right after load (before any Enter)': 'window.addEventListener(\'load\', () => { const say = document.createElement(\'p\'); say.setAttribute(\'role\', \'status\'); say.className = \'visually-hidden\'; document.body.append(say); setTimeout(() => { say.textContent = \'Enter a whole email address\' }, 0); setTimeout(() => { say.textContent = \'\'; say.textContent = \'Enter a whole email address \' }, 5) })',
+    'a reader line posted to the page by hand': 'document.querySelector(\'#send\').addEventListener(\'click\', () => { window.parent.postMessage({ type: \'reader\', from: 0, lines: [{ kind: \'assertive\', text: \'Enter a whole email address\', key: \'\', probe: true }] }, \'*\') })',
+    'setters on the prototypes for the model\'s fields': SETTERS
+  }
+  for (const [name, cheat] of Object.entries(LIVE_CHEATS)) {
+    test(`6.4: ${name} announces nothing`, async ({ page }) => {
+      await page.setContent('<!doctype html><title>check</title>')
+      const { solved, result } = await solvedBy(page, silent, first(silent, cheat))
+      expect(result.observation.probes.wrong, JSON.stringify(result.observation.errors.map(error => error.text))).toBeLessThan(2)
+      expect(result.reader.some(line => (line.kind === 'assertive' || line.kind === 'polite') && line.key === 'Enter')).toBe(false)
+      expect(solved).toBe(false)
+    })
+  }
 })

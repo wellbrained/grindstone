@@ -10,7 +10,9 @@
 // A Web fundamentals level (ADR 0009) runs here too: its app starts only once its prediction is answered (`predict`),
 // its API is the level's server.js (the Network panel shows preflights and refusals, the Server panel what server.js
 // did), and a practice task is a prediction only (the code is read-only). In chapter 5 the page runs on the modelled
-// event loop: the Event loop panel lists what ran (tasks, listeners, frames, forced layouts, the page's logs).
+// event loop: the Event loop panel lists what ran (tasks, listeners, frames, forced layouts, the page's logs). In
+// chapter 6 focus, the keyboard and the screen reader are the accessibility model's: the Accessibility panel shows the
+// tree when it asks for it, what the reader said, and presses the model's keys in the app you see.
 import {
   LOOP_LIMITS, MAX_LOG_LINES, RECORD_LIMITS, consoleEntry, mapFrames, parseStack, cssRules, deployById, differingPaths, fittingProfile, fittingSteps, historyEntries, isWebLevel, lineIn, liveEntries, needsCounting, frameStep, hitCounts, nextHit,
   nodeAtPath, nodePath, pickDeploy, pickLine, predict as predictAnswer, predictionDone, previousHit, reload, requestEntry, restart, restoreFiles, rollback, saveDebugFile, scopeAt, scopeValues, startDebugLevel, startExpanded, stepBack,
@@ -18,7 +20,7 @@ import {
 } from '#shared/levels'
 import type {
   Breakpoint, BridgeMessage, ColleagueMessage, ConsoleEntryBody, CssRule, DebugLevel, DebugRecord, DebugResult, DebugSession, DebugState, DeployPick, DomNode, Inspected, Instrumented, LogEntry, LoggedRequest, NetworkEntry, PickVerdict,
-  CookiesMessage, LoopEntry, PredictionAnswer, Profile, RecordEndReason, RecordedStep, ReplayMessage, ScopeEntries, ServerOutputMessage, SourceLine, SourceMapping, CacheMessage, StorageMessage, WebLevel
+  A11yMessage, A11yKey, CookiesMessage, LoopEntry, PredictionAnswer, ReaderLine, Profile, RecordEndReason, RecordedStep, ReplayMessage, ScopeEntries, ServerOutputMessage, SourceLine, SourceMapping, CacheMessage, StorageMessage, WebLevel
 } from '#shared/levels'
 import type { CompiledCondition } from '#shared/levels/debugging/condition'
 import type { LineTone } from '~/editor/codemirror'
@@ -59,6 +61,13 @@ export type ServerLine = (Omit<ServerOutputMessage, 'type'> | { level: 'outside'
 export type LoopRow = LoopEntry & { id: number, line: SourceLine | null }
 /** The Event loop panel keeps at most this many lines per load (the frame stops at LOOP_LIMITS.entries and says so). */
 export const MAX_LOOP_ROWS = LOOP_LIMITS.entries + 2
+/** A line of the Accessibility panel's reader: what the frame posted, numbered. */
+export type ReaderRow = ReaderLine & { id: number }
+/** The reader keeps at most this many lines per load (the frame stops at A11Y_LIMITS.lines). */
+export const MAX_READER_ROWS = 300
+/** How long the tree waits after the frame last spoke before it asks for a fresh one, and how often it asks anyway. */
+const TREE_AFTER_MS = 120
+const TREE_EVERY_MS = 1500
 /** How long Stop waits for the recorder's last steps (a busy app may never answer). */
 const STOP_WAIT_MS = 600
 
@@ -176,8 +185,10 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
   const readOnly = find !== null || predictionOnly
   /** Chapter 5: the page runs on the modelled event loop (the Event loop panel), with no API to show in Network. */
   const hasLoop = web?.loop !== undefined
+  /** Chapter 6: focus, the keyboard and the screen reader are the accessibility model's (the Accessibility panel). */
+  const hasA11y = web?.a11y === true
   /** The level scripts a backend (or has a server.js), so the page shows the Network panel. */
-  const hasNetwork = backend !== undefined || (web !== undefined && !hasLoop)
+  const hasNetwork = backend !== undefined || (web !== undefined && !hasLoop && !hasA11y)
   /** The level uses the Elements panel (chapter 3). */
   const hasElements = level.sandbox.elements === true
   /** The level uses the Debugger (chapter 5). */
@@ -272,6 +283,54 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
     loopRows.value = []
   }
 
+  /** Chapter 6: what the reader said in this load (Clear empties what shows; the next lines still come). */
+  const readerRows = shallowRef<ReaderRow[]>([])
+  let readerReceived = 0
+  let nextReaderRow = 0
+  /** Chapter 6: the accessibility tree as the frame last answered (null before the first answer of this load). */
+  const a11yTree = shallowRef<A11yMessage | null>(null)
+  /** A tree is read only when one was asked for. */
+  let awaitingTree = false
+  let treeTimer: ReturnType<typeof setTimeout> | null = null
+  let treeEvery: ReturnType<typeof setInterval> | null = null
+
+  function clearReader() {
+    readerRows.value = []
+  }
+
+  /** Asks this load's bridge for the tree (Refresh, after the frame spoke, now and then while the app runs). */
+  function refreshTree() {
+    if (!hasA11y || !load.value || predicting.value) return
+    awaitingTree = true
+    toFrame({ type: 'a11yTree' })
+  }
+
+  /** The tree a moment after the frame last spoke (a burst of lines asks once). */
+  function treeSoon() {
+    if (treeTimer) clearTimeout(treeTimer)
+    treeTimer = setTimeout(() => {
+      treeTimer = null
+      refreshTree()
+    }, TREE_AFTER_MS)
+  }
+
+  /** Presses a key of the modelled keyboard in the app you see, on whatever has focus there. */
+  function pressKey(key: A11yKey) {
+    if (!hasA11y || !load.value || predicting.value) return
+    awaitingTree = true
+    toFrame({ type: 'key', key })
+  }
+
+  if (hasA11y && typeof window !== 'undefined') {
+    treeEvery = setInterval(() => {
+      if (ready.value && typeof document !== 'undefined' && document.visibilityState === 'visible') refreshTree()
+    }, TREE_EVERY_MS)
+    onScopeDispose(() => {
+      if (treeEvery) clearInterval(treeEvery)
+      if (treeTimer) clearTimeout(treeTimer)
+    })
+  }
+
   /** Lena opens another site's page in this load (the Other site panel's Visit): its requests show in the panels. */
   function visitSite(origin: string) {
     if (!load.value || predicting.value || !sites.some(site => site.origin === origin)) return
@@ -364,6 +423,10 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
     serverLines.value = []
     loopRows.value = []
     loopReceived = 0
+    readerRows.value = []
+    readerReceived = 0
+    a11yTree.value = null
+    awaitingTree = false
     cookieJar.value = null
     storage.value = null
     cache.value = null
@@ -440,9 +503,12 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
   /** A message of this load's bridge (read from its port, checked by readBridgeMessage). */
   function onBridgeMessage(message: BridgeMessage, current: AppLoad) {
     if (current !== load.value) return
-    if (message.type === 'files') mapping.value = { urls: message.urls, bridgeLine: current.bridgeLine }
-    else if (message.type === 'ready') ready.value = true
-    else if (message.type === 'dom') {
+    if (message.type === 'files') {
+      mapping.value = { urls: message.urls, bridgeLine: current.bridgeLine }
+    } else if (message.type === 'ready') {
+      ready.value = true
+      treeSoon()
+    } else if (message.type === 'dom') {
       if (!hasElements || (!awaitingDom && !picking.value)) return
       awaitingDom = false
       takeSnapshot(message.nodes, message.truncated)
@@ -482,6 +548,17 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
     } else if (message.type === 'replay') {
       // the thief's request from outside the browser: a line of its own in the Server panel, under server.js's answer
       if (serverLines.value.length < MAX_SERVER_LINES) serverLines.value = [...serverLines.value, { level: 'outside', replay: { request: message.request, using: message.using, status: message.status, by: message.by }, text: message.request, line: null, id: nextServerLine++ }]
+    } else if (message.type === 'reader') {
+      // the lines come in order; one out of place (a message lost) is dropped, as are lines past the cap
+      if (!hasA11y || message.from !== readerReceived) return
+      readerReceived += message.lines.length
+      const room = MAX_READER_ROWS - readerRows.value.length
+      if (room > 0) readerRows.value = [...readerRows.value, ...message.lines.slice(0, room).map(line => ({ ...line, id: nextReaderRow++ }))]
+      treeSoon()
+    } else if (message.type === 'a11y') {
+      if (!hasA11y || !awaitingTree) return
+      awaitingTree = false
+      a11yTree.value = message
     } else if (message.type === 'loop') {
       // the entries come in order; one out of place (a message lost) is dropped, as are lines past the cap
       if (!hasLoop || message.from !== loopReceived) return
@@ -1087,6 +1164,12 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
     hasLoop,
     loopRows,
     clearLoop,
+    hasA11y,
+    readerRows,
+    clearReader,
+    a11yTree,
+    refreshTree,
+    pressKey,
     hasNetwork,
     hasElements,
     hasDebugger,

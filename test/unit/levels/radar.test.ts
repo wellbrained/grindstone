@@ -172,7 +172,7 @@ describe('the overview radar (ADR 0008): one axis per live track', () => {
     expect(axes.map(axis => axis.chapter.colour)).toEqual([0, 1, 2, 3])
     expect(axes.every(axis => !axis.coming && axis.total > 0)).toBe(true)
     expect(axes[2]!.total).toBe(100)
-    expect(axes[3]!.total).toBe(51)
+    expect(axes[3]!.total).toBe(61)
   })
 
   it('draws every chapter of Working with AI solid once Steer the assistant is live: the track is complete', () => {

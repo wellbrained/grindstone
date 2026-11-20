@@ -3,6 +3,9 @@
 // the CORS model, server.js and the app really do this (so neither the table nor an answer can drift).
 import type { PredictionAnswer, ProbeValue } from '../../../../shared/levels'
 import { ORDER_FAILED, ORDER_IN } from '../../../../shared/levels/web/02-order-preflight'
+import { ORDER_IN as CHECKED_OUT } from '../../../../shared/levels/web/27-checkout'
+import { EMAIL_ERROR } from '../../../../shared/levels/web/29-silent-error'
+import { OUT_OF_PAGE } from '../../../../shared/levels/web/30-focus-lost'
 
 export interface ExpectedRun {
   probes: Record<string, ProbeValue>
@@ -36,6 +39,18 @@ export interface ExpectedRun {
   forced?: string[]
   /** Chapter 5: each transition or animation that started, 'element property', in order. */
   animated?: string[]
+  /** Chapter 6: what the screen reader said before the probes (the scene's lines), 'kind: text', in order. */
+  heard?: string[]
+}
+
+/** 6.1: no Add button's name has another product's name in it (before the fix and after: none has any name, then each its own). */
+const ONLY_OWN = {
+  'croissant-not-pain-au-chocolat': 0,
+  'croissant-not-cinnamon-bun': 0,
+  'pain-au-chocolat-not-butter-croissant': 0,
+  'pain-au-chocolat-not-cinnamon-bun': 0,
+  'cinnamon-bun-not-butter-croissant': 0,
+  'cinnamon-bun-not-pain-au-chocolat': 0
 }
 
 /** The same line n times (a loop's forced layouts). */
@@ -826,6 +841,142 @@ export const expected: Record<string, ExpectedLevel> = {
       painted: [],
       forced: [],
       animated: []
+    }
+  },
+  'web-26-every-button': {
+    answers: ['button'],
+    start: {
+      probes: { croissant: 0, pain: 0, bun: 0, ...ONLY_OWN, role: 'button', shown: 'visible', heard: 0, enter: '1', mouse: '2' },
+      errors: 0,
+      network: [],
+      server: [],
+      heard: ['focus: button']
+    },
+    solved: {
+      probes: { croissant: 1, pain: 1, bun: 1, ...ONLY_OWN, role: 'button', shown: 'visible', heard: 1, enter: '1', mouse: '2' },
+      errors: 0,
+      network: [],
+      server: [],
+      heard: ['focus: Add Butter croissant to your basket, button']
+    }
+  },
+  'web-practice-reader-says': {
+    answers: ['label', 'label', 'title'],
+    start: {
+      probes: {},
+      errors: 0,
+      network: [],
+      server: [],
+      heard: ['focus: Close the basket, button', 'focus: Find, searchbox', 'focus: Save to favourites, button']
+    }
+  },
+  'web-27-checkout': {
+    answers: ['link'],
+    start: {
+      probes: { order: 0, back: 0, role: 'generic', name: '', space: '', mouse: CHECKED_OUT(1043), stops: 3 },
+      errors: 0,
+      network: [],
+      server: [],
+      heard: ['focus: One Butter croissant more, button', 'focus: Allergen information, link']
+    },
+    solved: {
+      probes: { order: 1, back: 1, role: 'button', name: 'Check out', enter: CHECKED_OUT(1043), space: CHECKED_OUT(1044), mouse: CHECKED_OUT(1045), stops: 4 },
+      errors: 0,
+      network: [],
+      server: [],
+      heard: ['focus: One Butter croissant more, button', 'focus: Check out, button']
+    }
+  },
+  'web-practice-which-keys': {
+    answers: [['order-enter', 'order-space', 'menu-enter', 'gift-space']],
+    start: {
+      probes: {},
+      errors: 0,
+      network: [],
+      server: [],
+      says: ['Order clicked (Enter)', 'Order clicked (Space)', 'Menu clicked (Enter)', 'Gift wrap clicked (Space)'],
+      heard: ['focus: Order, button', 'focus: Menu, link', 'focus: Favourite, button', 'focus: Gift wrap, checkbox, not checked', 'state: checked']
+    }
+  },
+  'web-28-allergens': {
+    answers: ['plain'],
+    start: {
+      probes: { open: null, shown: 'visible', close: 0, closed: null, gone: 'hidden', unseen: 'display: none', mouse: null, space: 0 },
+      errors: 0,
+      network: [],
+      server: [],
+      heard: ['focus: Allergens, button']
+    },
+    solved: {
+      probes: { open: 'true', shown: 'visible', close: 1, closed: 'false', gone: 'hidden', unseen: 'display: none', mouse: 'true', space: 1 },
+      errors: 0,
+      network: [],
+      server: [],
+      heard: ['focus: Allergens, button, collapsed', 'state: expanded']
+    }
+  },
+  'web-practice-which-state': {
+    answers: ['pressed', 'expanded', 'nothing'],
+    start: {
+      probes: {},
+      errors: 0,
+      network: [],
+      server: [],
+      heard: ['focus: Vegan only, button, not pressed', 'state: pressed', 'focus: Opening hours, button, collapsed', 'state: expanded', 'focus: Gift wrap']
+    }
+  },
+  'web-29-silent-error': {
+    answers: ['nothing'],
+    start: {
+      probes: { first: 0, wrong: 0, shown: 'visible', says: EMAIL_ERROR, right: 0, sent: 'Your receipt goes to tomas@example.com.' },
+      errors: 0,
+      network: [],
+      server: [],
+      heard: ['focus: Email for your receipt, textbox, tomas@', 'focus: Send receipt, button']
+    },
+    solved: {
+      probes: { first: 1, wrong: 1, shown: 'visible', says: EMAIL_ERROR, right: 0, sent: 'Your receipt goes to tomas@example.com.' },
+      errors: 0,
+      network: [],
+      server: [],
+      heard: ['focus: Email for your receipt, textbox, tomas@', 'focus: Send receipt, button', `assertive: ${EMAIL_ERROR}`]
+    }
+  },
+  'web-practice-announced': {
+    answers: [['a', 'b']],
+    start: {
+      probes: {},
+      errors: 0,
+      network: [],
+      server: [],
+      heard: ['polite: A: 2 croissants in your basket', 'assertive: B: Payment failed']
+    }
+  },
+  'web-30-focus-lost': {
+    answers: ['out'],
+    start: {
+      probes: { into: 1, escape: 0, mouse: '8:00', picked: 0, time: '9:00', closed: 'display: none', next: 0 },
+      errors: 0,
+      network: [],
+      server: [],
+      heard: ['focus: Change pickup time, button', 'dialog: Pickup time, dialog', 'focus: 7:00, button', 'focus: 8:00, button', OUT_OF_PAGE]
+    },
+    solved: {
+      probes: { into: 1, escape: 1, cancel: 1, mouse: '8:00', picked: 1, time: '9:00', closed: 'display: none', next: 1 },
+      errors: 0,
+      network: [],
+      server: [],
+      heard: ['focus: Change pickup time, button', 'dialog: Pickup time, dialog', 'focus: 7:00, button', 'focus: 8:00, button', 'focus: Change pickup time, button', 'focus: Check out, button']
+    }
+  },
+  'web-practice-tab-order': {
+    answers: [['newsletter', 'search', 'skip', 'add']],
+    start: {
+      probes: {},
+      errors: 0,
+      network: [],
+      server: [],
+      heard: ['focus: Newsletter, button', 'focus: Search the menu, searchbox', 'focus: Skip to the menu, link', 'focus: Add croissant, button']
     }
   }
 }

@@ -18,7 +18,10 @@
 // - in a Performance level (chapter 6), watches what the app changes on the page and keeps the server's clock (answers
 //   move it by their scripted delays); a recorded profile also reports the customer's actions to the counting recorder,
 // - in a Web fundamentals event loop level (chapter 5), runs the page's timers, frames, messages and a customer's taps on
-//   the modelled event loop (web/loop.ts), installed before any of the app's code; probes drive its scripted clock.
+//   the modelled event loop (web/loop.ts), installed before any of the app's code; probes drive its scripted clock,
+// - in a Web fundamentals accessibility level (chapter 6), makes focus, the keyboard, dialogs and what a screen reader
+//   gets the accessibility model's (web/a11y.ts), installed before any of the app's code; probes press its keys and read
+//   its tree and its reader, and the Accessibility panel asks for the tree and presses keys in the app you see.
 // It is JavaScript in a string, injected as one line (it never shifts index.html's lines), so it uses no line comments
 // and ends every statement with a semicolon. Tested in a real browser: e2e/debugging-levels.spec.ts, and
 // e2e/debugging-cheat.spec.ts (the app's code tries to post a check run's results itself).
@@ -28,6 +31,7 @@ import { BRIDGE_HELLO } from './messages'
 import { RECORDER_GLOBAL, RECORDER_SOURCE } from './recorder'
 import { WEB_BACKEND_SOURCE } from '../web/backend'
 import { LOOP_SOURCE } from '../web/loop'
+import { A11Y_SOURCE } from '../web/a11y'
 
 /** The longest pause a probe may take (`{ wait }`): a check run gives up after 5 s. */
 export const MAX_PROBE_WAIT_MS = 2000
@@ -121,6 +125,9 @@ const SOURCE = String.raw`(function (config) {
   var nodeTypeOf = getterOf(Node.prototype, 'nodeType');
   var nodeDataOf = getterOf(CharacterData.prototype, 'data');
   var contains = uncurry(Node.prototype.contains);
+  var firstChildOf = getterOf(Node.prototype, 'firstChild');
+  var nextSiblingOf = getterOf(Node.prototype, 'nextSibling');
+  var hasAttributeOf = uncurry(Element.prototype.hasAttribute);
   var tagOf = getterOf(Element.prototype, 'tagName');
   var idOf = getterOf(Element.prototype, 'id');
   var classesOf = getterOf(Element.prototype, 'classList');
@@ -543,6 +550,11 @@ const SOURCE = String.raw`(function (config) {
     }
   }) : null;
   if (loop) loop.install();
+  /* Web fundamentals (chapter 6): focus, the keyboard, dialogs and what a screen reader gets are the accessibility
+     model's, installed now, before any of the app's code. The browser's own focus never moves (a check run must not take
+     the keyboard from Grindstone); in the app you see a real click or key still moves the model's focus. */
+  var a11y = config.web && config.web.a11y ? (${A11Y_SOURCE})(config.web.a11y, { win: window, post: post, check: !!probes }) : null;
+  if (a11y) a11y.install();
   var realFetch = window.fetch;
   window.fetch = function fetch(input, init) {
     return backend ? backend.fetch(input, init) : realFetch.apply(window, arguments);
@@ -577,6 +589,13 @@ const SOURCE = String.raw`(function (config) {
     if (inspector && data.type === 'highlight' && typeof data.node === 'number') { inspector.highlight(data.node); return; }
     if (inspector && data.type === 'pick') { inspector.pick(data.on === true); return; }
     if (recorder && data.type === 'recordStop') { recorder.stop('stopped'); return; }
+    /* the Accessibility panel (chapter 6): the tree when it asks, and its keys pressed in the app you see */
+    if (a11y && data.type === 'a11yTree') { a11y.tree(); return; }
+    if (a11y && !probes && data.type === 'key' && typeof data.key === 'string') {
+      a11y.key(data.key);
+      wait(30, function () { a11y.tree(); });
+      return;
+    }
     /* the Other site panel's Visit: Lena opens that site's page (only a site the level shows) */
     if (backend && backend.visit && data.type === 'visit' && typeof data.site === 'string' && config.web && config.web.sites) {
       for (var v = 0; v < config.web.sites.length; v++) {
@@ -663,10 +682,20 @@ const SOURCE = String.raw`(function (config) {
   var onScreen = function (point) { return point.x >= 0 && point.x < clientWidthOf(rootOf(doc)) && point.y >= 0 && point.y < innerHeightOf(win); };
   var styleOfNode = function (node, property) { return styleValue(styleOf(node), property); };
   var isElement = function (node) { return !!node && nodeTypeOf(node) === 1; };
+  var hasOpen = function (element) { return hasAttributeOf(element, 'open'); };
+  var firstSummaryOf = function (details) {
+    for (var child = firstChildOf(details); child; child = nextSiblingOf(child)) if (isElement(child) && tagOf(child) === 'SUMMARY') return child;
+    return null;
+  };
   var visibility = function (element) {
     var node;
     for (node = element; isElement(node); node = parentOf(node)) {
       if (styleOfNode(node, 'display') === 'none') return node === element ? 'display: none' : 'display: none on ' + describe(node);
+    }
+    /* inside a closed <details> (but its summary): not shown, though browsers keep its boxes (content-visibility) */
+    for (node = element; isElement(node); node = parentOf(node)) {
+      var holder = parentOf(node);
+      if (isElement(holder) && tagOf(holder) === 'DETAILS' && !hasOpen(holder) && firstSummaryOf(holder) !== node) return 'in a closed details';
     }
     var hidden = styleOfNode(element, 'visibility');
     if (hidden !== 'visible') return 'visibility: ' + hidden;
@@ -779,6 +808,7 @@ const SOURCE = String.raw`(function (config) {
     var startClock = clock.now;
     var startWork = workNow();
     var startLoop = loop ? loop.mark() : null;
+    var startReader = a11y ? a11y.mark() : 0;
     var finish = function () {
       if (!quiet) post({ type: 'probe', id: probe.id, ok: problem === null, value: problem === null ? value : null, error: problem });
       then();
@@ -792,6 +822,8 @@ const SOURCE = String.raw`(function (config) {
       if (problem !== null || at >= steps.length) return finish();
       var step = steps[at];
       at += 1;
+      /* chapter 6: typing, a click or a tap is no key of the modelled keyboard: what the reader says next follows none */
+      if (a11y && (typeof step.keys === 'string' || typeof step.press === 'string' || typeof step.type === 'string' || typeof step.click === 'string' || typeof step.tap === 'string')) a11y.act();
       if (typeof step.keys === 'string') {
         var typed = find(step.keys);
         if (!typed) return missing(step.keys);
@@ -843,6 +875,60 @@ const SOURCE = String.raw`(function (config) {
         if (!perf) return fail('The server\'s time is not kept in this run');
         value = step.waited === 'load' ? loadClock : clock.now - startClock;
         return next();
+      }
+      /* Web fundamentals (chapter 6): the modelled keyboard and focus, and what a screen reader gets from the page */
+      if (typeof step.keyboard === 'string') {
+        if (!a11y) return fail('There is no modelled keyboard in this run');
+        for (var keyPresses = mathMin(mathMax(step.times || 1, 1), 20); keyPresses > 0; keyPresses--) a11y.key(toText(step.keyboard));
+        /* the page gets until it is quiet (an async check, a debounce), as after a click */
+        return a11y.quiet(next);
+      }
+      if (typeof step.tabTo === 'string') {
+        if (!a11y) return fail('There is no modelled keyboard in this run');
+        var tabTarget = find(step.tabTo);
+        if (!tabTarget) return missing(step.tabTo);
+        var tabs = a11y.tabTo(tabTarget);
+        if (tabs < 0) return fail('Tab never reaches ' + step.tabTo);
+        value = tabs;
+        return a11y.quiet(next);
+      }
+      if (typeof step.focusOn === 'string') {
+        if (!a11y) return fail('There is no modelled keyboard in this run');
+        var focusTarget = find(step.focusOn);
+        if (!focusTarget) return missing(step.focusOn);
+        if (!a11y.focusOn(focusTarget)) return fail(step.focusOn + ' can\'t take focus');
+        return a11y.quiet(next);
+      }
+      if (step.focusTop === true) {
+        if (!a11y) return fail('There is no modelled keyboard in this run');
+        a11y.top();
+        return next();
+      }
+      if (typeof step.focused === 'string') {
+        if (!a11y) return fail('There is no modelled keyboard in this run');
+        value = a11y.focused(step.focused);
+        return next();
+      }
+      if (typeof step.reads === 'string' || typeof step.name === 'string' || typeof step.role === 'string' || typeof step.state === 'string') {
+        if (!a11y) return fail('There is no accessibility tree in this run');
+        var selector = typeof step.reads === 'string' ? step.reads : typeof step.name === 'string' ? step.name : typeof step.role === 'string' ? step.role : step.state;
+        var looked = find(selector);
+        if (!looked) return missing(selector);
+        if (typeof step.reads === 'string') value = a11y.reads(looked, typeof step.has === 'string' ? step.has : null);
+        else if (typeof step.name === 'string') value = a11y.name(looked, typeof step.has === 'string' ? step.has : null);
+        else if (typeof step.role === 'string') value = a11y.role(looked);
+        else value = a11y.state(looked, toText(step.of));
+        return next();
+      }
+      if (typeof step.heard === 'string' || typeof step.announced === 'string') {
+        if (!a11y) return fail('There is no screen reader in this run');
+        value = a11y.heard(toText(typeof step.heard === 'string' ? step.heard : step.announced), startReader, typeof step.announced === 'string', typeof step.after === 'string' ? step.after : null, step.scene === true);
+        return next();
+      }
+      if (step.tabStops === true) {
+        if (!a11y) return fail('There is no modelled keyboard in this run');
+        value = a11y.tabStops();
+        return a11y.quiet(next);
       }
       /* chapter 5: a customer's taps, pauses and quiet go through the modelled event loop (its scripted clock) */
       if (loop && (typeof step.click === 'string' || typeof step.tap === 'string')) {
@@ -1062,8 +1148,14 @@ const SOURCE = String.raw`(function (config) {
       if (inspector) inspector.snapshot();
       /* Web fundamentals: the level's scene (Lena signs in, opens another site) in every load, before the probes */
       var scene = config.web && config.web.scene ? config.web.scene : null;
-      if (scene) runProbe({ id: '', steps: scene }, function () { if (probes) runProbes(0); }, true);
-      else if (probes) runProbes(0);
+      /* chapter 6: what is live now is what later changes are compared with; the probes' reader lines are marked */
+      if (a11y) a11y.start();
+      var probesFrom = function () {
+        if (a11y) a11y.probing();
+        runProbes(0);
+      };
+      if (scene) runProbe({ id: '', steps: scene }, function () { if (probes) probesFrom(); }, true);
+      else if (probes) probesFrom();
     };
     /* chapter 5: the event loop starts with the load (its first frame paints the page) and runs until the page is quiet */
     if (loop) loop.start(afterLoad);

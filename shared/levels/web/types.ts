@@ -30,9 +30,11 @@ import type { Level, PracticeTask, Scenario, Session } from '../types'
  *   chapter 5, the Event loop panel shows it,
  * - `forced`: the page's code forced a layout by this read ('offsetHeight'),
  * - `layouts`: the page's code forced exactly this many layouts in the run,
- * - `animated`: a transition or animation started, 'element property' ('p.toast.visible opacity').
+ * - `animated`: a transition or animation started, 'element property' ('p.toast.visible opacity'),
+ * - `heard`: the screen reader said this line before the probes, 'kind: text' ('focus: button', 'state: expanded',
+ *   'polite: Saved'); chapter 6, the Accessibility panel's reader shows it.
  */
-export type PredictionFact = { row: string } | { server: string, times?: number } | { says: string } | { asks: string } | { sent: string } | { stored: string } | { refused: string } | { readable: string } | { storage: string } | { replayed: string } | { cdn: string } | { painted: string } | { forced: string } | { layouts: number } | { animated: string }
+export type PredictionFact = { row: string } | { server: string, times?: number } | { says: string } | { asks: string } | { sent: string } | { stored: string } | { refused: string } | { readable: string } | { storage: string } | { replayed: string } | { cdn: string } | { painted: string } | { forced: string } | { layouts: number } | { animated: string } | { heard: string }
 
 /** One answer to choose, one line to order or to pick. */
 export interface PredictionOption {

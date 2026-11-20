@@ -4,6 +4,7 @@
 // shop to read with credentials, echoing any origin back. The unit tests check that every edit applies to the level's
 // files; e2e/web-levels.spec.ts runs them in a real browser.
 
+import { a11yFixes } from './fixes-a11y'
 import { authFixes } from './fixes-auth'
 import { cachingFixes } from './fixes-caching'
 import { cookieFixes } from './fixes-cookies'
@@ -115,5 +116,6 @@ export const otherFixes: Record<string, OtherFix[]> = {
   ...cookieFixes,
   ...authFixes,
   ...cachingFixes,
-  ...loopFixes
+  ...loopFixes,
+  ...a11yFixes
 }

@@ -5,8 +5,8 @@
 // whose profile is posted once the probes are done, as Stop would); `performance` watches the page and keeps the server's
 // clock, like every load of a Performance level.
 import type { Page } from '@playwright/test'
-import { BRIDGE_HELLO, checkFrames, consoleEntry, loopFacts, mergeObservations, observe, readBridgeMessage, requestAddress, requestEntry, sandboxDocument, statusLabel, withResponse } from '../../shared/levels'
-import type { BackendSpec, BridgeMessage, ConsoleEntryBody, LogsSpec, LoopEntry, NetworkEntry, Observation, Probe, Profile, RecordedStep, ServerLogMessage, ServerOutputMessage, WebSpec } from '../../shared/levels'
+import { BRIDGE_HELLO, checkFrames, consoleEntry, heardFacts, loopFacts, mergeObservations, observe, readBridgeMessage, requestAddress, requestEntry, sandboxDocument, statusLabel, withResponse } from '../../shared/levels'
+import type { A11yMessage, BackendSpec, BridgeMessage, ConsoleEntryBody, LogsSpec, LoopEntry, ReaderLine, NetworkEntry, Observation, Probe, Profile, RecordedStep, ServerLogMessage, ServerOutputMessage, WebSpec } from '../../shared/levels'
 import { checkFrameStyle } from '../../app/utils/sandbox-host'
 
 export interface CheckResult {
@@ -55,6 +55,12 @@ export interface CheckResult {
   forced: string[]
   /** Chapter 5: each transition or animation that started, 'element property'. */
   animated: string[]
+  /** Chapter 6: every line the screen reader said, in order (the scene's and the probes'). */
+  reader: ReaderLine[]
+  /** Chapter 6: what the reader said before the probes, 'kind: text' (what the predictions' facts read). */
+  heard: string[]
+  /** Chapter 6: the last accessibility tree the frame posted (none unless the page asked). */
+  tree: A11yMessage | null
 }
 
 export interface RunOptions {
@@ -124,6 +130,10 @@ async function runFrame(page: Page, files: Readonly<Record<string, string>>, pro
   const loop: LoopEntry[] = []
   for (const message of messages) if (message.type === 'loop' && message.from === loop.length) loop.push(...message.entries)
   const facts = loopFacts(loop)
+  // the reader's lines come in order too
+  const reader: ReaderLine[] = []
+  for (const message of messages) if (message.type === 'reader' && message.from === reader.length) reader.push(...message.lines)
+  const tree = messages.filter((message): message is A11yMessage => message.type === 'a11y').at(-1) ?? null
   const pageOrigin = new URL(options.page ?? '/', 'https://cornerbakery.shop').origin
   return {
     observation: observe(messages, document.bridgeLine),
@@ -148,7 +158,10 @@ async function runFrame(page: Page, files: Readonly<Record<string, string>>, pro
     loop,
     painted: facts.painted,
     forced: facts.forced,
-    animated: facts.animated
+    animated: facts.animated,
+    reader,
+    heard: heardFacts(reader),
+    tree
   }
 }
 
