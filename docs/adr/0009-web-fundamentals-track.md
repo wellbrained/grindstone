@@ -31,7 +31,7 @@ Status: accepted, 2026-11-17. Grilled with Nik (Q1–Q9, all on Claude's recomme
 ## Other decisions
 
 - **World**: Corner Bakery grows up: an API on its own origin (`api.cornerbakery.shop`), customer logins, a CDN.
-- **Release**: one chapter at a time, each Opus-reviewed and deployed (patch versions from 0.4.1); the cheat sheet at the end; 0.5.0 when Nik calls the track complete.
+- **Release**: one chapter at a time, each Opus-reviewed and deployed (patch versions from 0.4.1); the cheat sheet at the end (0.4.8); the track counts as complete since 0.5.0 (Nik, 2026-11-21).
 - **Radar**: the track gets its own radar and an axis on the home overview, as the registry gives every live track.
 
 ## Update 2026-11-17: the track and chapter 1, Same-origin & CORS (built as 0.4.1)
@@ -336,4 +336,4 @@ The release plan's last piece ("the cheat sheet at the end"), on Claude's recomm
 - **The Debugging sheet's frame, not a new one**: the same page, card for card (filter, jump links, columns, lines to copy, a last group of messages with "Usually means" and "Look first"), so the four sheets read alike. The page is a copy of the Debugging one with its own data; a shared component for the two is left for when a third such sheet needs it.
 - **One group per chapter**, named as the chapter: Web fundamentals teaches the browser's rules, not panels, so the chapters are the natural index. Each entry is a rule and the lines that apply it, mostly the levels' own fixes; it links only to its chapter's scenarios.
 - **Browser messages quoted, never retyped**: each is checked word for word against the recorded runs of the levels it links, the cookie model's tables or the policy model's own output, so a change to a model's wording fails the test instead of leaving the sheet behind.
-- **Version**: a patch (0.4.8) like every chapter; 0.5.0 still waits for Nik to call the track complete.
+- **Version**: a patch (0.4.8) like every chapter. Nik then called the track complete ("release it"): released as 0.5.0 the same day.
