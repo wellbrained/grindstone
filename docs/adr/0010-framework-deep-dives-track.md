@@ -43,7 +43,7 @@ Status: accepted, 2026-11-21. Designed on the Mac by Claude (Opus, high effort) 
 ## Q6 · World, release, radar, home
 
 - **World**: Corner Bakery's new Vue storefront; Jonas (who wrote the tablet app in Web fundamentals chapter 5) is moving the basket, the menu and the kitchen screen to Vue, and Lena still shops there. No real company names (CLAUDE.md).
-- **Release**: chapter by chapter, each a patch (0.5.4 with the track's foundation and chapter 1, then 0.5.5 …), each with lint, typecheck, unit and the full e2e suite green, a Sonnet code review and an Impeccable critique of the new pages before it ships; the cheat sheet (`/frameworks/cheat-sheet`) last; the finished track as **0.6.0** (approved for the finished track only).
+- **Release**: planned chapter by chapter; built in one push and released as 0.5.4 (all six chapters and the cheat sheet), then 0.6.0 for the finished track (the brief approved the minor bump for the finished track), each with lint, typecheck, unit and the full e2e suite green, a Sonnet code review and an Impeccable critique of the new pages before it ships; the cheat sheet (`/frameworks/cheat-sheet`) last; the finished track as **0.6.0** (approved for the finished track only).
 - **Radar**: the track's own radar (an axis per chapter, short labels that fit a phone), and a fifth axis on the home overview radar. The header menu, the phone menu, the home overview and app.config/README name it.
 - **Tagline**: "Predict what the framework does, then fix it."
 
