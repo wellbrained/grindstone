@@ -49,7 +49,10 @@ function revealTab() {
 }
 onMounted(revealTab)
 watch(active, revealTab)
-useResizeObserver(tabs, () => measure())
+useResizeObserver(tabs, () => {
+  measure()
+  revealTab()
+})
 const fade = computed(() => {
   const start = !arrivedState.left
   const end = !arrivedState.right

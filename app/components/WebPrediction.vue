@@ -232,7 +232,7 @@ const rightText = (item: Question) => answerText(item, item.answer)
               type="radio"
               :name="`prediction-${question.id}`"
               :value="option.id"
-              class="mt-1 shrink-0 accent-(--ui-primary)"
+              class="mt-1 shrink-0 accent-(--ui-primary) focus-visible:outline-none"
             >
             <InlineText :text="option.text" />
           </label>
@@ -252,7 +252,7 @@ const rightText = (item: Question) => answerText(item, item.answer)
               v-model="lines"
               type="checkbox"
               :value="option.id"
-              class="mt-1 shrink-0 accent-(--ui-primary)"
+              class="mt-1 shrink-0 accent-(--ui-primary) focus-visible:outline-none"
             >
             <InlineText :text="option.text" />
           </label>

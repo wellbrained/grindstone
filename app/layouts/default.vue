@@ -112,7 +112,7 @@ function skipToContent() {
                   :to="child.to"
                   :aria-current="child.current ? 'page' : undefined"
                   class="inline-flex min-h-11 shrink-0 items-center rounded-md px-3 text-sm hover:bg-elevated hover:text-highlighted"
-                  :class="child.current ? 'bg-elevated font-medium text-highlighted ring ring-accented' : 'text-muted'"
+                  :class="child.current ? 'bg-elevated font-medium text-primary' : 'text-muted'"
                   @click="menuOpen = false"
                 >{{ child.label }}</NuxtLink>
               </div>
@@ -121,7 +121,7 @@ function skipToContent() {
                 :to="item.to"
                 :aria-current="item.active ? 'page' : undefined"
                 class="-mx-3 flex min-h-11 items-center rounded-md px-3 font-medium hover:bg-elevated hover:text-highlighted"
-                :class="item.active ? 'bg-elevated text-highlighted ring ring-accented' : 'text-toned'"
+                :class="item.active ? 'bg-elevated text-primary' : 'text-toned'"
                 @click="menuOpen = false"
               >{{ item.label }}</NuxtLink>
             </li>

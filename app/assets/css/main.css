@@ -139,6 +139,11 @@ body {
     outline: 2px solid var(--ui-primary);
     outline-offset: 2px;
   }
+  /* text fields keep Nuxt UI's own ring and halo, which sit on the field */
+  input:focus-visible,
+  textarea:focus-visible {
+    outline-offset: 0;
+  }
 }
 
 [data-slot]:not(input, textarea, [contenteditable]):focus-visible {

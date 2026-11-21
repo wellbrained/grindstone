@@ -68,13 +68,18 @@ function onFocusIn(event: FocusEvent) {
 onMounted(() => document.addEventListener('focusin', onFocusIn))
 onBeforeUnmount(() => document.removeEventListener('focusin', onFocusIn))
 
-function act(event: MouseEvent, name: 'hint' | 'reset') {
+function act(event: MouseEvent | PointerEvent, name: 'hint' | 'reset') {
   const button = event.currentTarget instanceof HTMLElement ? event.currentTarget : null
   if (name === 'hint') emit('hint')
   else emit('reset')
   // keyboard (Enter or Space give no click count): the focus stays
   if (event.detail === 0) return
+  // a tap: refocusing an input would open the phone's keyboard
+  if ('pointerType' in event && event.pointerType !== 'mouse' && event.pointerType !== '') return
   nextTick(() => {
+    // the parent may have moved the focus on purpose (Reset into the editor): only restore from the button itself
+    const active = document.activeElement
+    if (active !== button && active !== document.body && active !== null) return
     if (workFocus?.isConnected && !workFocus.closest('[inert]')) workFocus.focus({ preventScroll: true })
     else button?.blur()
   })

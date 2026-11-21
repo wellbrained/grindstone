@@ -29,7 +29,9 @@ const back = computed(() => missing.value?.kind === 'level'
   : { to: '/', label: t('notFound.tracks') })
 const sheets = liveTracks(tracks).filter(track => track.cheatSheet)
 
-useHead({ title: () => text.value.title })
+// app.vue's titleTemplate doesn't apply here (error.vue replaces app.vue)
+const { site } = useAppConfig()
+useHead({ title: () => `${text.value.title} · ${site.name}` })
 </script>
 
 <template>
@@ -40,7 +42,7 @@ useHead({ title: () => text.value.title })
         data-testid="error-page"
       >
         <div class="max-w-2xl">
-          <h1 class="text-3xl font-semibold tracking-tight text-balance text-highlighted">
+          <h1 class="text-3xl font-semibold tracking-tight text-balance wrap-anywhere text-highlighted">
             {{ text.title }}
           </h1>
           <p class="mt-3 text-lg text-toned">
