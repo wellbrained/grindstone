@@ -11,7 +11,11 @@ const emit = defineEmits<{ review: [] }>()
 const { t } = useI18n()
 const { comments, statusOf } = props.play
 
-function show(id: number) {
+const showPane = inject(SHOW_REVIEW_PANE, null)
+
+async function show(id: number) {
+  // phones: the comment is in the Diff tab
+  await showPane?.('diff')
   const card = document.getElementById(`review-comment-${id}`)
   if (!card) return
   card.scrollIntoView({ block: 'center', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' })

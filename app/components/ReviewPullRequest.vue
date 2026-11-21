@@ -3,8 +3,8 @@ import type { ReviewPlaySession } from '~/composables/useReviewPlay'
 
 // Sous's pull request (docs/features/ui.md, "Working with AI play page"), GitHub-like and without its chrome: the title
 // with its number and branches, Sous's description and claims as numbered lines (ReviewFile, so a comment can sit on a
-// claim), the issue it says it fixes, the diff file by file (ReviewFile) with your comments in it, and at the end the
-// review box (ReviewSubmit). Everything Sous wrote is text: `backticks` become code, nothing else is markup. A steer
+// claim), the issue it says it fixes, and the diff file by file (ReviewFile) with your comments in it; ReviewPlay puts
+// the review box (ReviewSubmit) after it (on phones, a tab of its own). Everything Sous wrote is text: `backticks` become code, nothing else is markup. A steer
 // level (chapter 7) shows its round in the header and, once Sous has pushed, the rounds so far (SteerTimeline) before
 // the diff, which is the whole pull request as the current round has it (ReviewPlay mounts this anew each round).
 const props = defineProps<{ play: ReviewPlaySession }>()
@@ -16,9 +16,6 @@ const rounds = level.steer?.rounds ?? null
 
 const added = computed(() => diff.value.reduce((sum, file) => sum + file.added, 0))
 const removed = computed(() => diff.value.reduce((sum, file) => sum + file.removed, 0))
-
-const review = useTemplateRef<{ focus: () => void }>('review')
-defineExpose({ focusReview: () => review.value?.focus() })
 </script>
 
 <template>
@@ -117,11 +114,6 @@ defineExpose({ focusReview: () => review.value?.focus() })
       :key="file.path"
       :play="play"
       :file="file"
-    />
-
-    <ReviewSubmit
-      ref="review"
-      :play="play"
     />
   </article>
 </template>

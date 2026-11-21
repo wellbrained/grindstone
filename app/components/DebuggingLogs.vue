@@ -11,6 +11,8 @@ import type { DebuggingPlaySession } from '~/composables/useDebuggingPlay'
 const props = defineProps<{ play: DebuggingPlaySession }>()
 
 const { t } = useI18n()
+// a tab names the panel: its header drops the name (utils/panel-chrome.ts)
+const chrome = inject(PANEL_CHROME, null)
 const { logLines, logsCut, requests, showRequest, openLine, find, level } = props.play
 
 const levelFilter = ref<LogFilter>('all')
@@ -70,11 +72,16 @@ const linked = (entry: LogEntry) => entry.requestId !== null && known.value.has(
   >
     <header class="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-b border-(--app-terminal-border) px-3 py-1.5 text-xs text-muted">
       <span class="flex items-center gap-1.5">
-        <UIcon
-          name="i-lucide-scroll-text"
-          class="size-4"
-        />
-        {{ t('debugging.logs.label') }}
+        <span
+          class="flex items-center gap-1.5"
+          :class="chrome?.nameClass"
+        >
+          <UIcon
+            name="i-lucide-scroll-text"
+            class="size-4"
+          />
+          {{ t('debugging.logs.label') }}
+        </span>
         <span
           class="font-mono text-dimmed tabular-nums"
           data-testid="logs-count"

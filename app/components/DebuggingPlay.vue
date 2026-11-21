@@ -96,29 +96,15 @@ const lowerLabel = computed(() => {
   const names = LOWER.map(name => t(`debugging.panel.${name}`))
   return names.length > 1 ? t('debugging.lowerList', { first: names.slice(0, -1).join(', '), last: names.at(-1) }) : names[0]!
 })
-// six tabs (chapter 7) take two rows of three on a phone: one row of six would cut their names
-const TAB_COLUMNS: Record<number, string> = { 3: 'grid-cols-3', 4: 'grid-cols-4', 5: 'grid-cols-5', 6: 'grid-cols-3', 7: 'grid-cols-4' }
-
-/** Arrow keys move along a tab set (they wrap), Home and End jump to its ends; the new tab gets the focus. */
-function moveTab<T extends string>(event: KeyboardEvent, names: readonly T[], current: T, choose: (name: T) => void, list: HTMLElement | null) {
-  const index = names.indexOf(current)
-  const count = names.length
-  const to = event.key === 'ArrowRight'
-    ? (index + 1) % count
-    : event.key === 'ArrowLeft' ? (index + count - 1) % count : event.key === 'Home' ? 0 : event.key === 'End' ? count - 1 : -1
-  if (to < 0) return
-  event.preventDefault()
-  choose(names[to]!)
-  nextTick(() => list?.querySelector<HTMLElement>(`[data-panel="${names[to]}"]`)?.focus())
-}
-const tabList = useTemplateRef<HTMLElement>('tabList')
 const lowerList = useTemplateRef<HTMLElement>('lowerList')
-const onTabKey = (event: KeyboardEvent) => moveTab(event, PANELS, panel.value, (name) => {
-  panel.value = name
-}, tabList.value)
-const onLowerKey = (event: KeyboardEvent) => moveTab(event, LOWER, lower.value, (name) => {
-  lower.value = name
-}, lowerList.value)
+/** Arrow keys move along the lower tab set (they wrap), Home and End jump to its ends; the new tab gets the focus. */
+function onLowerKey(event: KeyboardEvent) {
+  const next = tabAfterKey(LOWER, lower.value, event.key)
+  if (!next) return
+  event.preventDefault()
+  lower.value = next
+  nextTick(() => lowerList.value?.querySelector<HTMLElement>(`[data-panel="${next}"]`)?.focus())
+}
 
 /** Some request failed (a 4xx or 5xx, CORS, no connection): the Network tab says so. */
 const networkFailed = computed(() => requests.value.some(entry => statusTone(entry) === 'error'))
@@ -143,6 +129,12 @@ const shown = (name: Panel) => panel.value === name ? '' : 'max-lg:hidden'
 const shownLower = (name: Lower) => [shown(name), LOWER.length > 1 && lower.value !== name ? 'lg:hidden' : '']
 /** The tab that names a panel: the phone's tab below lg, the lower tab from lg. */
 const labelledBy = (name: Lower) => wide.value && LOWER.length > 1 ? `debugging-lower-tab-${name}` : `debugging-tab-${name}`
+// a tab names every panel below lg, and from lg when there are several under the code: their headers drop the name
+// then, and the open one's actions (Clear) sit in the tab row (utils/panel-chrome.ts)
+provide(PANEL_CHROME, {
+  nameClass: LOWER.length > 1 ? 'hidden' : 'max-lg:hidden',
+  actionsInTabRow: name => wide.value && LOWER.length > 1 && lower.value === name
+})
 
 const revealedHints = computed(() => props.level.kind === 'scenario' ? props.level.hints.slice(0, session.value.hintsUsed) : [])
 /** Where a wrong answer was: a line, or (chapter 7) a deploy. */
@@ -163,34 +155,17 @@ const topNote = computed(() => {
   if (hasLogs) return t('debugging.incidentNote')
   return t('debugging.note')
 })
+const counters = computed(() => stripCounters(webLevel
+  ? { track: 'web', wrongPredictions: session.value.wrongPredictions ?? 0, reloads: reloads.value, predictionOnly }
+  : { track: 'debugging', reloads: reloads.value }))
 </script>
 
 <template>
-  <div class="mb-3 flex min-h-8 flex-wrap items-center justify-between gap-x-4 gap-y-2">
-    <p class="flex min-w-0 flex-1 basis-48 items-center gap-2 text-xs text-muted">
-      <UIcon
-        :name="webLevel ? 'i-lucide-telescope' : find ? 'i-lucide-mouse-pointer-click' : 'i-lucide-bug'"
-        class="size-4 shrink-0"
-      />
-      {{ topNote }}
-    </p>
-    <div class="flex shrink-0 items-center gap-2">
-      <p
-        v-if="webLevel"
-        class="rounded-md border border-default px-2.5 py-1 font-mono text-xs text-muted tabular-nums"
-        data-testid="wrong-predictions"
-      >
-        {{ t('web.wrongPredictions', { n: session.wrongPredictions ?? 0 }) }}
-      </p>
-      <p
-        v-if="!predictionOnly"
-        class="rounded-md border border-default px-2.5 py-1 font-mono text-xs text-muted tabular-nums"
-        data-testid="reloads"
-      >
-        {{ t('debugging.reloads', { n: reloads }) }}
-      </p>
-    </div>
-  </div>
+  <PlayStrip
+    :icon="webLevel ? 'i-lucide-telescope' : find ? 'i-lucide-mouse-pointer-click' : 'i-lucide-bug'"
+    :note="topNote"
+    :counters="counters"
+  />
 
   <PlayFrame tabs>
     <template #panel>
@@ -254,39 +229,24 @@ const topNote = computed(() => {
 
     <template #default>
       <!-- below lg: one panel at a time -->
-      <div
-        ref="tabList"
-        role="tablist"
-        :aria-label="t('debugging.panels')"
-        class="mb-3 grid gap-1 rounded-lg border border-default bg-elevated p-1 lg:hidden"
-        :class="TAB_COLUMNS[PANELS.length]"
-        @keydown="onTabKey"
+      <PlayTabs
+        v-model="panel"
+        :names="PANELS"
+        :label="t('debugging.panels')"
+        id-prefix="debugging"
       >
-        <button
-          v-for="name in PANELS"
-          :id="`debugging-tab-${name}`"
-          :key="name"
-          type="button"
-          role="tab"
-          :aria-selected="panel === name"
-          :aria-controls="`debugging-${name}`"
-          :tabindex="panel === name ? 0 : -1"
-          :data-panel="name"
-          class="relative min-w-0 cursor-pointer rounded-md px-1 py-1.5 text-sm focus-visible:outline-2 focus-visible:outline-primary sm:px-3"
-          :class="panel === name ? 'bg-accented font-medium text-highlighted' : 'text-muted hover:text-highlighted'"
-          @click="panel = name"
-        >
-          <template v-if="name === 'performance'">
+        <template #tab="{ tab }">
+          <template v-if="tab === 'performance'">
             <span aria-hidden="true">{{ t('debugging.panelShort.performance') }}</span><span class="sr-only">{{ t('debugging.panel.performance') }}</span>
           </template>
           <template v-else>
-            {{ t(`debugging.panel.${name}`) }}
+            {{ t(`debugging.panel.${tab}`) }}
           </template><span
-            v-if="name === 'network' && networkFailed"
+            v-if="tab === 'network' && networkFailed"
             class="absolute top-1 right-1 size-1.5 rounded-full bg-error"
           ><span class="sr-only">, {{ t('debugging.network.failed') }}</span></span>
-        </button>
-      </div>
+        </template>
+      </PlayTabs>
       <div class="flex min-h-0 flex-1 flex-col gap-4">
         <DebuggingCode
           id="debugging-code"
@@ -297,43 +257,52 @@ const topNote = computed(() => {
           :class="[shown('code'), hasElements || hasDebugger || hasPerformance ? 'lg:flex-[1.1_1_0]' : 'lg:flex-[1.6_1_0]']"
         />
         <div class="flex min-h-0 flex-col gap-2 max-lg:contents lg:min-h-44 lg:flex-[1_1_0]">
-          <!-- from lg: Elements, Console or Network under the code -->
+          <!-- from lg: the panels under the code as tabs, the open one's actions (the Console's and Network's Clear) at
+               the right end of their row -->
           <div
             v-if="LOWER.length > 1"
-            ref="lowerList"
-            role="tablist"
-            :aria-label="lowerLabel"
-            class="flex gap-1 self-start rounded-lg border border-default bg-elevated p-0.5 max-lg:hidden"
-            @keydown="onLowerKey"
+            class="flex min-h-7 items-center justify-between gap-2 max-lg:hidden"
           >
-            <button
-              v-for="name in LOWER"
-              :id="`debugging-lower-tab-${name}`"
-              :key="name"
-              type="button"
-              role="tab"
-              :aria-selected="lower === name"
-              :aria-controls="`debugging-${name}`"
-              :tabindex="lower === name ? 0 : -1"
-              :data-panel="name"
-              data-testid="lower-tab"
-              class="cursor-pointer rounded-md px-3 py-1 text-xs focus-visible:outline-2 focus-visible:outline-primary"
-              :class="lower === name ? 'bg-accented font-medium text-highlighted' : 'text-muted hover:text-highlighted'"
-              @click="lower = name"
+            <div
+              ref="lowerList"
+              role="tablist"
+              :aria-label="lowerLabel"
+              class="flex gap-1 rounded-lg border border-default bg-elevated p-0.5"
+              @keydown="onLowerKey"
             >
-              {{ t(`debugging.panel.${name}`) }}<UIcon
-                v-if="name === 'network' && networkFailed"
-                name="i-lucide-circle-alert"
-                class="ms-1.5 size-3.5 align-[-0.125rem] text-error"
-              /><span
-                v-if="name === 'network' && requests.length"
-                class="ms-1 font-mono tabular-nums"
-                :class="lower === name ? 'text-toned' : 'text-muted'"
-              >{{ requests.length }}</span><span
-                v-if="name === 'network' && networkFailed"
-                class="sr-only"
-              >, {{ t('debugging.network.failed') }}</span>
-            </button>
+              <button
+                v-for="name in LOWER"
+                :id="`debugging-lower-tab-${name}`"
+                :key="name"
+                type="button"
+                role="tab"
+                :aria-selected="lower === name"
+                :aria-controls="`debugging-${name}`"
+                :tabindex="lower === name ? 0 : -1"
+                :data-panel="name"
+                data-testid="lower-tab"
+                class="cursor-pointer rounded-md px-3 py-1 text-xs focus-visible:outline-2 focus-visible:outline-primary"
+                :class="lower === name ? 'bg-accented font-medium text-highlighted' : 'text-muted hover:text-highlighted'"
+                @click="lower = name"
+              >
+                {{ t(`debugging.panel.${name}`) }}<UIcon
+                  v-if="name === 'network' && networkFailed"
+                  name="i-lucide-circle-alert"
+                  class="ms-1.5 size-3.5 align-[-0.125rem] text-error"
+                /><span
+                  v-if="name === 'network' && requests.length"
+                  class="ms-1 font-mono tabular-nums"
+                  :class="lower === name ? 'text-toned' : 'text-muted'"
+                >{{ requests.length }}</span><span
+                  v-if="name === 'network' && networkFailed"
+                  class="sr-only"
+                >, {{ t('debugging.network.failed') }}</span>
+              </button>
+            </div>
+            <div
+              id="debugging-lower-actions"
+              class="flex shrink-0 items-center gap-1.5"
+            />
           </div>
           <WebLoop
             v-if="hasLoop"

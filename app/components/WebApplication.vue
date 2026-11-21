@@ -13,6 +13,8 @@ import type { DebuggingPlaySession } from '~/composables/useDebuggingPlay'
 const props = defineProps<{ play: DebuggingPlaySession }>()
 
 const { t } = useI18n()
+// a tab names the panel: its header drops the name (utils/panel-chrome.ts)
+const chrome = inject(PANEL_CHROME, null)
 const { cookieJar, storage, hasStorage, cache, hasCache, security, hasSecurity, predicting } = props.play
 
 /** The storage kinds the panel shows; a level with a cache opens on it. */
@@ -57,12 +59,21 @@ const expiresOf = (cookie: CookieRow) => cookie.expires === null ? t('web.applic
     :aria-label="t('web.application.label')"
     class="@container flex min-h-0 flex-col overflow-hidden rounded-lg border border-(--app-terminal-border) bg-(--app-terminal) text-[13px] focus-within:ring-2 focus-within:ring-primary"
   >
-    <header class="flex items-center gap-1.5 border-b border-(--app-terminal-border) px-3 py-1 text-xs text-muted">
-      <UIcon
-        name="i-lucide-database"
-        class="size-4 shrink-0"
-      />
-      {{ t('web.application.label') }}
+    <!-- Frames has no count: where a tab names the panel its header would be empty, so it goes -->
+    <header
+      class="flex items-center gap-1.5 border-b border-(--app-terminal-border) px-3 py-1 text-xs text-muted"
+      :class="kind === 'frames' ? chrome?.nameClass : undefined"
+    >
+      <span
+        class="flex items-center gap-1.5"
+        :class="chrome?.nameClass"
+      >
+        <UIcon
+          name="i-lucide-database"
+          class="size-4 shrink-0"
+        />
+        {{ t('web.application.label') }}
+      </span>
       <span
         v-if="kind === 'cookies' && cookieJar"
         class="font-mono text-dimmed tabular-nums"

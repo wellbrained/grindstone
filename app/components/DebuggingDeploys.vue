@@ -11,6 +11,8 @@ import type { DebuggingPlaySession } from '~/composables/useDebuggingPlay'
 const props = defineProps<{ play: DebuggingPlaySession }>()
 
 const { t } = useI18n()
+// a tab names the panel: its header drops the name (utils/panel-chrome.ts)
+const chrome = inject(PANEL_CHROME, null)
 const { ask } = useConfirm()
 const { deployHistory, savedVersion, rollbackPreview, rollbackTo, canUndoRollback, undoRollback, answerDeploy, openDiffLine, find, store, checking, unsaved } = props.play
 
@@ -106,11 +108,16 @@ const answered = (id: string) => store.value.answer && 'deploy' in store.value.a
   >
     <header class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-b border-(--app-terminal-border) px-3 py-1.5 text-xs text-muted">
       <span class="flex items-center gap-1.5">
-        <UIcon
-          name="i-lucide-rocket"
-          class="size-4"
-        />
-        {{ t('debugging.deploys.label') }}
+        <span
+          class="flex items-center gap-1.5"
+          :class="chrome?.nameClass"
+        >
+          <UIcon
+            name="i-lucide-rocket"
+            class="size-4"
+          />
+          {{ t('debugging.deploys.label') }}
+        </span>
         <span class="font-mono text-dimmed tabular-nums">{{ t('debugging.deploys.count', deploys.length) }}</span>
       </span>
       <p

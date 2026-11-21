@@ -16,6 +16,9 @@ const props = defineProps<{ play: DebuggingPlaySession }>()
 
 const { t } = useI18n()
 const { requests, clearNetwork, openLine, find, networkSelected: selectedId, requestShown } = props.play
+const chrome = inject(PANEL_CHROME, null)
+/** From lg, the open one of several panels under the code: Clear sits in the tab row. */
+const inTabRow = computed(() => chrome?.actionsInTabRow('network') ?? false)
 
 const selected = computed(() => requests.value.find(entry => entry.id === selectedId.value) ?? null)
 // a reload (or Clear) empties the list: nothing stays selected
@@ -138,26 +141,43 @@ const viewOf = (body: string, headers: readonly HeaderPair[]) => bodyView(body, 
     :aria-label="t('debugging.network.label')"
     class="@container flex min-h-0 flex-col overflow-hidden rounded-lg border border-(--app-terminal-border) bg-(--app-terminal) text-[13px] focus-within:ring-2 focus-within:ring-primary"
   >
-    <header class="flex items-center justify-between gap-3 border-b border-(--app-terminal-border) px-3 py-1 text-xs text-muted">
+    <!-- where a tab names the panel, the header drops its name, and from lg (the tab shows the count) Clear moves into
+         the tab row -->
+    <header
+      v-show="!inTabRow"
+      class="flex items-center justify-between gap-3 border-b border-(--app-terminal-border) px-3 py-1 text-xs text-muted"
+    >
       <span class="flex items-center gap-1.5">
-        <UIcon
-          name="i-lucide-arrow-down-up"
-          class="size-4"
-        />
-        {{ t('debugging.network.label') }}
+        <span
+          class="flex items-center gap-1.5"
+          :class="chrome?.nameClass"
+        >
+          <UIcon
+            name="i-lucide-arrow-down-up"
+            class="size-4"
+          />
+          {{ t('debugging.network.label') }}
+        </span>
         <span
           class="font-mono text-dimmed tabular-nums"
           data-testid="network-count"
         >{{ t('debugging.network.count', requests.length) }}</span>
       </span>
-      <UButton
-        size="xs"
-        color="neutral"
-        icon="i-lucide-ban"
-        :label="t('debugging.console.clear')"
-        data-testid="network-clear"
-        @click="clearNetwork"
-      />
+      <Teleport
+        defer
+        :to="PANEL_ACTIONS_TARGET"
+        :disabled="!inTabRow"
+      >
+        <UButton
+          size="xs"
+          color="neutral"
+          icon="i-lucide-ban"
+          :label="t('debugging.console.clear')"
+          :aria-label="inTabRow ? t('debugging.network.clearLabel') : undefined"
+          data-testid="network-clear"
+          @click="clearNetwork"
+        />
+      </Teleport>
     </header>
 
     <div class="min-h-0 flex-1 overflow-y-auto @xl:grid @xl:grid-cols-[minmax(12rem,2fr)_3fr] @xl:overflow-hidden">

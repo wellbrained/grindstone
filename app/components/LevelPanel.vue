@@ -145,18 +145,20 @@ onMounted(() => {
           </li>
         </ol>
       </nav>
-      <div class="mt-1 flex items-start justify-between gap-2">
-        <h1 class="text-2xl font-semibold text-balance text-highlighted">
+      <!-- the ⋯ menu floats beside the title's first line: a long title wraps under it to the full width, a short one
+           stays on one line, the same on every track -->
+      <div class="mt-1 flow-root">
+        <MoreMenu
+          class="float-right ms-2 -me-1.5"
+          :items="menu"
+          :label="t('menu.entry.label', { name: level.title })"
+        />
+        <h1 class="text-2xl font-semibold text-pretty text-highlighted">
           <span
             v-if="place.number"
             class="mr-2 font-mono font-normal text-muted tabular-nums"
           >{{ place.number }}</span>{{ level.title }}
         </h1>
-        <MoreMenu
-          class="-mr-1.5 shrink-0"
-          :items="menu"
-          :label="t('menu.entry.label', { name: level.title })"
-        />
       </div>
       <p
         v-if="practice"

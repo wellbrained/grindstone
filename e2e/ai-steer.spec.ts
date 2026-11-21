@@ -151,8 +151,11 @@ for (const colorScheme of ['light', 'dark'] as const) {
     await form.getByTestId('comment-category').selectOption('bug')
     await form.getByTestId('comment-text').fill('A very long comment about the key that goes on and on, to see how it wraps on a phone without pushing anything sideways at all.')
     await form.getByTestId('comment-save').click()
+    // the review box is a tab of its own on a phone; Sous's commit brings the Diff tab back with its round
+    await page.getByRole('tab', { name: 'Review' }).tap()
     await page.getByTestId('request-changes').tap()
     await expect(page.getByTestId('steer-round-badge')).toHaveText('Round 2 of 3')
+    await expect(page.getByRole('tab', { name: 'Diff' })).toHaveAttribute('aria-selected', 'true')
     const round = page.locator('[data-testid="steer-round"][data-round="1"]')
     await expect(round.getByTestId('steer-sous')).toContainText('put together from its parts')
     await expect(round.getByTestId('steer-commit-diff')).toBeVisible()

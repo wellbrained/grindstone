@@ -58,7 +58,13 @@
     "debrief": "Show debrief",
     "storyMore": "Read the whole story",
     "storyLess": "Show less",
-    "keyboard": "Best with a keyboard: type the commands into the terminal below.",
+    "keyboard": "Type git commands into the terminal: the graph shows what each one did.",
+    "counter": {
+      "commands": "Commands: {n}",
+      "reloads": "Reloads: {n}",
+      "falseAlarms": "False alarms: {n}",
+      "wrongPredictions": "Wrong predictions: {n}"
+    },
     "layout": {
       "label": "Layout",
       "terminal": "Terminal",
@@ -1621,8 +1627,7 @@
   "debugging": {
     "note": "Edit the code, Save, then Reload: the goals are checked on every reload.",
     "findNote": "Answer with a click: the line in the editor, or a link to it in the panels below.",
-    "debuggerNote": "Record a run of the app and step through it, then fix the code, Save and Reload: the goals are checked on every reload.",
-    "reloads": "Reloads: {n}",
+    "debuggerNote": "Record a run, step through it, then fix the code, Save and Reload.",
     "hints": "Hints",
     "notIt": "Not {where}.",
     "panels": "Panels",
@@ -1658,6 +1663,7 @@
     "console": {
       "label": "Console",
       "clear": "Clear",
+      "clearLabel": "Clear the Console",
       "log": "Console messages",
       "empty": "Nothing logged yet.",
       "input": "Console input: type an expression to run in the app and press Enter",
@@ -1685,6 +1691,7 @@
     "network": {
       "label": "Network",
       "count": "no requests | 1 request | {n} requests",
+      "clearLabel": "Clear the Network panel",
       "list": "Requests the app sent",
       "empty": "No requests yet. What the app asks the server for shows here.",
       "pick": "Select a request to see what was sent and what came back.",
@@ -1801,7 +1808,7 @@
       "condition": "Condition of the breakpoint at {where}",
       "conditionPlaceholder": "Condition (optional), e.g. i === 6"
     },
-    "performanceNote": "Record a run of the app and see what it costs, then fix the code, Save and Reload: the goals are checked on every reload.",
+    "performanceNote": "Record a run and see what it costs, then fix the code, Save and Reload.",
     "panelShort": {
       "performance": "Perf"
     },
@@ -1873,7 +1880,7 @@
       "rangePending": "from {start} ms",
       "sentFrom": "Sent from"
     },
-    "incidentNote": "Read the server's logs and the shop's deploys, then fix the code (or roll back), Save and Reload: the goals are checked on every reload.",
+    "incidentNote": "Read the logs and the deploys, then fix the code or roll back, Save and Reload.",
     "logs": {
       "label": "Logs",
       "count": "no lines | 1 line | {n} lines",
@@ -1938,8 +1945,13 @@
     }
   },
   "review": {
-    "note": "Sous is scripted: its pull requests are written into the level, no AI is called. Comment on lines, then send your review.",
-    "falseAlarms": "False alarms: {n}",
+    "note": "Comment on lines, then send your review. Sous is scripted: no AI is called.",
+    "panes": {
+      "label": "Pull request, review and run",
+      "diff": "Diff",
+      "review": "Review",
+      "run": "Run"
+    },
     "pr": {
       "label": "Pull request #{number}: {title}",
       "open": "Open",
@@ -2141,11 +2153,10 @@
     }
   },
   "web": {
-    "note": "Predict first, then read the panels (Network, Server and, for cookies, storage and tokens, Application), fix the code, Save and Reload: the goals are checked on every reload.",
-    "practiceNote": "A prediction only: answer, then see in the app's panels who was right. Nothing to fix.",
-    "loopNote": "Predict first, then read the Event loop panel (every task, frame and forced layout) and the Console, fix app.js, Save and Reload: the goals are checked on every reload.",
-    "a11yNote": "Predict first, then read the Accessibility panel (the tree, and what the screen reader says as you press its keys), fix the page, Save and Reload: the goals are checked on every reload.",
-    "wrongPredictions": "Wrong predictions: {n}",
+    "note": "Predict first, then read the panels, fix the code, Save and Reload.",
+    "practiceNote": "A prediction only: answer, then see in the panels who was right.",
+    "loopNote": "Predict first, then read the Event loop panel, fix app.js, Save and Reload.",
+    "a11yNote": "Predict first, then read the Accessibility panel, fix the page, Save and Reload.",
     "readOnly": "Read only: a prediction",
     "appWaits": "Make your prediction first: the app runs once you answer.",
     "sealed": "The app runs in a sealed frame: it can't reach Grindstone or your progress. The browser's CORS and cookie rules are modelled after the Fetch spec and the cookie spec, and the API is the level's server.js, run in the frame too; nothing goes to the network.",
@@ -2423,7 +2434,7 @@
       "focusedMark": "· focused",
       "leftPage": "Tab left the page: the browser's own controls (the address bar) have focus"
     },
-    "securityNote": "Predict first, then read the panels (the Console in Chrome's words, Network with the page's own request first, Server, Application's Frames and Other site), fix server.js or the page, Save and Reload: the goals are checked on every reload.",
+    "securityNote": "Predict first, then read the panels, fix server.js or the page, Save and Reload.",
     "securitySealed": "The app runs in a sealed frame: it can't reach Grindstone or your progress. The page's security headers (Content-Security-Policy, X-Frame-Options, X-Content-Type-Options, Referrer-Policy) are applied by a modelled browser, as Chrome applies them, on top of the frame's own policy; server.js is the shop's own server, run in the frame too, and nothing goes to the network.",
     "frames": {
       "loading": "The page shows here once the app has loaded.",

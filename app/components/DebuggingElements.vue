@@ -15,6 +15,8 @@ const props = defineProps<{
 }>()
 
 const { t } = useI18n()
+// a tab names the panel: its header drops the name (utils/panel-chrome.ts)
+const chrome = inject(PANEL_CHROME, null)
 const { dom, domTruncated, rules, selected, expanded, inspected, picking, hovered, pickedAt, find, refreshDom, selectNode, highlightNode, toggleNode, setPicking, openLine } = props.play
 
 const rows = computed(() => treeRows(dom.value, expanded.value))
@@ -106,11 +108,16 @@ const sticksOut = computed(() => {
   >
     <header class="flex items-center justify-between gap-2 border-b border-(--app-terminal-border) px-3 py-1 text-xs text-muted">
       <span class="flex min-w-0 items-center gap-1.5">
-        <UIcon
-          name="i-lucide-code-xml"
-          class="size-4 shrink-0"
-        />
-        {{ t('debugging.elements.label') }}
+        <span
+          class="flex items-center gap-1.5"
+          :class="chrome?.nameClass"
+        >
+          <UIcon
+            name="i-lucide-code-xml"
+            class="size-4 shrink-0"
+          />
+          {{ t('debugging.elements.label') }}
+        </span>
       </span>
       <span class="flex shrink-0 items-center gap-1.5">
         <UButton

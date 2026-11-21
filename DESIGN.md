@@ -236,9 +236,14 @@ Soft but restrained. Rows and buttons use 0.5rem (rounded-lg), the Continue card
 ### Buttons
 - **Shape:** 0.5rem radius; sizes lg (Continue) and xl (track card).
 - **Primary:** solid ember fill with the terminal-well ink, trailing arrow icon (Lucide through UIcon). One per context.
-- **Default (outline):** every other button is outlined, transparent, with a visible hover (15% tint of its colour and a coloured ring; neutral goes to accented fill) and a pointer cursor. Active is 25% tint.
+- **Default (outline):** every other button is outlined, transparent, with a visible hover (15% tint of its colour and a coloured ring, its text a step toward the highlighted text so it keeps 4.5:1 on the tint; neutral goes to accented fill) and a pointer cursor. Active is 25% tint.
 - **Focus:** one style for every control you can reach with Tab, site-wide: a 2px ember outline 2px outside it (inside the box for items of a menu, list or tab strip, and for panels that scroll). Set once in `main.css` (a base-layer rule, plus an unlayered rule over Nuxt UI's own 25%-alpha outline), never per component; 6.3:1 on the dark page, 5.1:1 on the light one.
 - **Toggled:** a chosen segment or pressed toggle is neutral and filled ("subtle"), never ember.
+
+### Play strip
+Every play page opens with one slim strip (`PlayStrip`), the same on every track: an icon and one short instruction in muted 12px Inter on the left (one line at 1440; detail belongs in the story and the hints, never here), the run's counters as mono 12px pills with a 1px hairline on the right, and a track's own control last (git's Terminal / IDE switch). 32px high on every track. Below it, panels that a tab already names do not repeat the name in a header; their actions (Clear) sit at the right end of the tab row. Below lg a play page shows one panel at a time through the same phone tab set (`PlayTabs`) on every track that has panels.
+
+**The One Strip Rule.** A play page has exactly one strip above its panels, built from `PlayStrip`: instruction left, counters right, one height on every track. No second row of notes above or below it.
 
 ### Continue card
 Elevated surface, 1px strong border, 0.75rem radius, 16 to 20px padding, container-query layout (row from 42rem of its own width). Heading is the level ("3.2 Merge conflict") with a mono number, a muted meta line, a two-line story, an ember button. Done state shows a success check and links to the cheat sheet.

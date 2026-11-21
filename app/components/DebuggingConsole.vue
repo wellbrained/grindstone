@@ -9,6 +9,9 @@ const props = defineProps<{ play: DebuggingPlaySession }>()
 
 const { t } = useI18n()
 const { entries, evaluate, clearConsole, openLine, find } = props.play
+const chrome = inject(PANEL_CHROME, null)
+/** From lg, the open one of several panels under the code: Clear sits in the tab row. */
+const inTabRow = computed(() => chrome?.actionsInTabRow('console') ?? false)
 
 const value = ref('')
 const history: string[] = []
@@ -71,22 +74,37 @@ defineExpose({ focus: () => input.value?.focus() })
     :aria-label="t('debugging.console.label')"
     class="flex min-h-0 flex-col overflow-hidden rounded-lg border border-(--app-terminal-border) bg-(--app-terminal) font-mono text-[13px] focus-within:ring-2 focus-within:ring-primary"
   >
-    <header class="flex items-center justify-between gap-3 border-b border-(--app-terminal-border) px-3 py-1 font-sans text-xs text-muted">
-      <span class="flex items-center gap-1.5">
+    <!-- where a tab names the Console, the header drops its name, and from lg its Clear moves into the tab row -->
+    <header
+      v-show="!inTabRow"
+      class="flex items-center justify-between gap-3 border-b border-(--app-terminal-border) px-3 py-1 font-sans text-xs text-muted"
+    >
+      <span
+        class="flex items-center gap-1.5"
+        :class="chrome?.nameClass"
+      >
         <UIcon
           name="i-lucide-square-chevron-right"
           class="size-4"
         />
         {{ t('debugging.console.label') }}
       </span>
-      <UButton
-        size="xs"
-        color="neutral"
-        icon="i-lucide-ban"
-        :label="t('debugging.console.clear')"
-        data-testid="console-clear"
-        @click="clearConsole"
-      />
+      <Teleport
+        defer
+        :to="PANEL_ACTIONS_TARGET"
+        :disabled="!inTabRow"
+      >
+        <UButton
+          size="xs"
+          color="neutral"
+          icon="i-lucide-ban"
+          :label="t('debugging.console.clear')"
+          :aria-label="inTabRow ? t('debugging.console.clearLabel') : undefined"
+          class="ms-auto"
+          data-testid="console-clear"
+          @click="clearConsole"
+        />
+      </Teleport>
     </header>
 
     <div

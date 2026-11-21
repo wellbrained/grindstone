@@ -36,7 +36,11 @@ watch(side, () => {
   missing.value = null
 })
 
-function showLine({ path, line }: SourceLine, which?: 'new' | 'old') {
+const showPane = inject(SHOW_REVIEW_PANE, null)
+
+async function showLine({ path, line }: SourceLine, which?: 'new' | 'old') {
+  // phones: the line is in the Diff tab
+  await showPane?.('diff')
   const numbers = which ?? (side.value === 'head' ? 'new' : 'old')
   const button = document.querySelector<HTMLElement>(`[data-file="${CSS.escape(path)}"] [data-testid="diff-number"][data-${numbers}="${line}"]`)
   // a collapsed file's rows are not on screen

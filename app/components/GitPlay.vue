@@ -27,7 +27,8 @@ function openFile(path: string) {
 }
 
 const play = useGitPlay(props.level, { onEdit: openFile })
-const { editor, debriefOpen, progressBefore, stats, next, save, gitEditor, gitDraft, submitGitEditor, cancelGitEditor } = play
+const { session, editor, debriefOpen, progressBefore, stats, next, save, gitEditor, gitDraft, submitGitEditor, cancelGitEditor } = play
+const counters = computed(() => stripCounters({ track: 'git', commands: session.value.commandCount }))
 
 // the file git waits for (git rebase -i): a dialog in the Terminal layout, the editor pane in the IDE (GitWorkbench)
 const gitDialog = computed(() => layout.value === 'terminal' ? gitEditor.value : null)
@@ -37,20 +38,19 @@ const focusTerminal = () => workbench.value?.focusTerminal()
 </script>
 
 <template>
-  <!-- the switch sits right in its own row in both layouts, so it never moves under the cursor -->
-  <div class="mb-3 flex items-center justify-between gap-4">
-    <p class="flex min-w-0 items-center gap-2 text-xs text-muted md:invisible">
-      <UIcon
-        name="i-lucide-keyboard"
-        class="size-4 shrink-0"
+  <!-- the switch is the strip's last item in both layouts, so it never moves under the cursor -->
+  <PlayStrip
+    icon="i-lucide-keyboard"
+    :note="t('play.keyboard')"
+    :counters="counters"
+  >
+    <template #end>
+      <LayoutSwitch
+        v-model="layoutModel"
+        class="shrink-0"
       />
-      {{ t('play.keyboard') }}
-    </p>
-    <LayoutSwitch
-      v-model="layoutModel"
-      class="shrink-0"
-    />
-  </div>
+    </template>
+  </PlayStrip>
 
   <GitWorkbench
     ref="workbench"
