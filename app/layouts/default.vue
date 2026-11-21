@@ -32,9 +32,12 @@ const menuItems = computed(() => navigation.value.map(item => item.children ? { 
         <AppLogo class="shrink-0" />
       </template>
 
+      <!-- a track's menu opens under its own entry, as wide as its two links (contentOrientation vertical anchors the
+           dropdown to the trigger; the default horizontal one spans the whole nav) -->
       <UNavigationMenu
         :items="menuItems"
-        :ui="{ childList: 'grid w-full min-w-44 grid-cols-1 gap-0', childLink: 'hover:before:bg-accented' }"
+        content-orientation="vertical"
+        :ui="{ content: 'w-auto min-w-44 p-1', childList: 'gap-0.5', childLink: 'hover:before:bg-accented' }"
         :aria-label="t('layout.nav.label')"
       />
 
