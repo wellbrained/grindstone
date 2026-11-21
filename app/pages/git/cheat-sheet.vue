@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { levelNumber, trackById } from '#shared/levels'
+import { trackById } from '#shared/levels'
 import { cheatGroups, groupKey, levelsUsing, noteKey, summaryKey } from '~/utils/git-cheatsheet'
 
 const { t } = useI18n()
@@ -149,21 +149,10 @@ async function copy(line: string) {
                 </button>
               </li>
             </ul>
-            <p
-              v-if="levelsUsing(command.name).length"
-              class="mt-3 text-xs text-muted"
-            >
-              {{ t('cheat.practise') }}
-              <template
-                v-for="(level, index) in levelsUsing(command.name)"
-                :key="level.id"
-              >
-                <NuxtLink
-                  :to="levelPath(level)"
-                  class="text-highlighted underline decoration-(--ui-border-accented) underline-offset-2 hover:text-primary hover:decoration-primary"
-                >{{ levelNumber(level.id) }} {{ level.title }}</NuxtLink><span v-if="index < levelsUsing(command.name).length - 1"> · </span>
-              </template>
-            </p>
+            <CheatLevelLinks
+              :levels="levelsUsing(command.name)"
+              :label="t('cheat.practise')"
+            />
           </li>
         </ul>
       </section>

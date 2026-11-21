@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { levelNumber, trackById } from '#shared/levels'
+import { trackById } from '#shared/levels'
 import { aiCheatGroups, aiCheatLevels, aiGroupKey, aiNoteKey, aiSummaryKey, aiTitleKey } from '~/utils/ai-cheatsheet'
 
 // The Working with AI cheat sheet (ADR 0008; docs/features/ui.md "Working with AI cheat sheet"): what to check in an AI
@@ -149,21 +149,10 @@ async function copy(line: string) {
                 </button>
               </li>
             </ul>
-            <p
-              v-if="aiCheatLevels(entry.levels).length"
-              class="mt-3 text-xs text-muted"
-            >
-              {{ t('aiCheat.practise') }}
-              <template
-                v-for="(level, index) in aiCheatLevels(entry.levels)"
-                :key="level.id"
-              >
-                <NuxtLink
-                  :to="levelPath(level)"
-                  class="text-highlighted underline decoration-(--ui-border-accented) underline-offset-2 hover:text-primary hover:decoration-primary"
-                >{{ levelNumber(level.id) }} {{ level.title }}</NuxtLink><span v-if="index < aiCheatLevels(entry.levels).length - 1"> · </span>
-              </template>
-            </p>
+            <CheatLevelLinks
+              :levels="aiCheatLevels(entry.levels)"
+              :label="t('aiCheat.practise')"
+            />
           </li>
         </ul>
       </section>

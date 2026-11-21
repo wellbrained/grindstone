@@ -5,6 +5,7 @@
 // fundamentals cheat sheet").
 import { levelById } from '../../shared/levels'
 import type { Level } from '../../shared/levels'
+import type { CheatSource } from './cheat-sheet'
 
 export interface WebCheatExample {
   /** A header, a line of server.js or of the page, or a key (data, not translated). Its note is an i18n key, see `webNoteKey`. */
@@ -319,12 +320,32 @@ export const browserMessages: BrowserMessage[] = [
 export const webGroupKey = (groupId: string) => `webCheat.groups.${groupId}`
 /** i18n key of an entry's title. */
 export const webTitleKey = (entryId: string) => `webCheat.entries.${entryId}.title`
-/** i18n key of an entry's summary. */
+/** i18n key of an entry's one-line rule. */
+export const webRuleKey = (entryId: string) => `webCheat.entries.${entryId}.rule`
+/** i18n key of an entry's summary (shown behind the entry's "Why and how" disclosure). */
 export const webSummaryKey = (entryId: string) => `webCheat.entries.${entryId}.summary`
 /** i18n key of the note above an example line (counted from 0 in the order of `examples`). */
 export const webNoteKey = (entryId: string, index: number) => `webCheat.entries.${entryId}.examples.${index}`
 /** i18n key of what a message usually means, or where to look first (`part`). */
 export const webMessageKey = (messageId: string, part: 'means' | 'look') => `webCheat.messages.${messageId}.${part}`
+
+/** The sheet's data and where its texts live, for the page to turn into cards (`buildCheatSheet`, `app/utils/cheat-sheet.ts`). */
+export const webCheatSource: CheatSource = {
+  groups: webCheatGroups,
+  messages: browserMessages,
+  messagesId: 'messages',
+  keys: {
+    group: webGroupKey,
+    title: webTitleKey,
+    rule: webRuleKey,
+    summary: webSummaryKey,
+    note: webNoteKey,
+    means: messageId => webMessageKey(messageId, 'means'),
+    look: messageId => webMessageKey(messageId, 'look')
+  },
+  labels: { why: 'webCheat.why', look: 'webCheat.look' },
+  levels: ids => webCheatLevels(ids)
+}
 
 /** The levels behind a list of ids, in the order given; an unknown id is skipped (the unit test pins that none is). */
 export function webCheatLevels(ids: readonly string[]): Level[] {

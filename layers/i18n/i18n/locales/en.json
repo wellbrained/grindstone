@@ -612,13 +612,13 @@
   },
   "webCheat": {
     "title": "Web fundamentals cheat sheet",
-    "intro": "The browser's rules from every chapter and the messages it shows, in a few lines each. Filter, click a line to copy it, or jump to the level that practises it.",
+    "intro": "The browser's rules from every chapter and the messages it shows: a one-line rule per card, the detail one click away. Filter, click a line to copy it, or open a level that practises it.",
     "search": "Filter the sheet",
     "sections": "Sections",
     "none": "Nothing matches \"{query}\".",
     "copy": "Copy {line}",
     "practise": "Practise it in:",
-    "means": "Usually means",
+    "why": "Why and how",
     "look": "Look first",
     "groups": {
       "cors": "Same-origin & CORS",
@@ -633,6 +633,7 @@
     "entries": {
       "origin": {
         "title": "Origin",
+        "rule": "Same origin means the same scheme, host and port; anything else is another origin.",
         "summary": "An origin is scheme, host and port together. Two addresses are the same origin only when all three match; a subdomain, www or another port is another origin. A page may send requests anywhere, but reads another origin's answer only when that server allows it.",
         "examples": {
           "0": "The shop's page",
@@ -643,6 +644,7 @@
       },
       "allow-origin": {
         "title": "Access-Control-Allow-Origin",
+        "rule": "The server's word that a page from that origin may read its answer; fix it there.",
         "summary": "The server's word that a page from that origin may read its answer. The browser checks it, the server just answers: without it the request still arrives and runs, and the page gets \"Failed to fetch\". Fix it on the server, never in the page (no-cors only gets an answer nobody can read).",
         "examples": {
           "0": "The shop's page may read it",
@@ -651,6 +653,7 @@
       },
       "preflight": {
         "title": "Preflight",
+        "rule": "A request a plain form could not send asks first with OPTIONS; if refused, it is never sent.",
         "summary": "A request that a plain form couldn't send (application/json, a header of the page's own, DELETE, PUT, PATCH) asks first: an OPTIONS request with Access-Control-Request-Method and -Headers. The real request goes out only when that answer allows it; refused, server.js sees the OPTIONS and nothing else.",
         "examples": {
           "0": "A route for the preflight of the path the page calls",
@@ -662,6 +665,7 @@
       },
       "credentials": {
         "title": "Credentials",
+        "rule": "With cookies the star is never enough: name the exact origin and allow credentials.",
         "summary": "With credentials (cookies) the answer is about one customer, so the star is never enough: the server names the page's exact origin and sends Access-Control-Allow-Credentials: true. Echo an Origin back only after checking it against a list of exact origins, and add Vary: Origin.",
         "examples": {
           "0": "The page sends its cookies along",
@@ -671,6 +675,7 @@
       },
       "allow-headers": {
         "title": "Allow-Headers and Allow-Methods",
+        "rule": "Name every header the page sets itself and every method except GET, HEAD and POST.",
         "summary": "Every header the page sets itself (Authorization, X-Basket-Id) and every method but GET, HEAD and POST must be named in the preflight's answer. With credentials the star is just a name and allows nothing.",
         "examples": {
           "0": "Each header of the page's own, by name (any case)",
@@ -679,10 +684,12 @@
       },
       "not-browsers": {
         "title": "curl is not a browser",
+        "rule": "curl and Postman have no page to protect, so no CORS: a curl test proves nothing here.",
         "summary": "curl, Postman and other servers send what you type and read every answer: there is no page to protect, so no CORS. A curl test proves nothing about the page, and CORS protects no route: anything that isn't a browser can still send the request, so the route checks who may do what."
       },
       "session-cookie": {
         "title": "A session cookie",
+        "rule": "HttpOnly, Secure, SameSite=Lax and an explicit Path=/ on a hand-written line.",
         "summary": "HttpOnly keeps it from scripts, Secure keeps it on https, SameSite=Lax keeps it from other sites' requests but a link, and Path=/ sends it to every address. res.cookie writes Path=/ for you; a line written by hand has to say it.",
         "examples": {
           "0": "Express writes the line for you, Path=/ included",
@@ -691,6 +698,7 @@
       },
       "same-site": {
         "title": "SameSite",
+        "rule": "Which requests started by another site carry the cookie: Lax for sessions.",
         "summary": "Which requests started by another site carry the cookie. Lax is what sessions want; Strict breaks every link from an email; None needs Secure and goes with every site's request (and so with every forged one).",
         "examples": {
           "0": "Only requests the cookie's own site starts, no links from elsewhere",
@@ -701,10 +709,12 @@
       },
       "site": {
         "title": "Site is not origin",
+        "rule": "Two origins can be one site: CORS is about origins, cookies are about sites.",
         "summary": "SameSite is about sites: the scheme and the registrable domain. api.cornerbakery.shop and cornerbakery.shop are two origins and one site, so a Lax cookie goes with every request between them. CORS is about origins; cookies are about sites."
       },
       "csrf": {
         "title": "Cross-site request forgery",
+        "rule": "Lax, an exact Origin check or a CSRF token stops another site posting as the customer.",
         "summary": "A cookie goes with every request its SameSite allows, whoever starts it: with None, another site's form posts as the customer. CORS plays no part (a form is no fetch). Lax stops it; so does checking the Origin exactly, or a CSRF token. Never a loose check like startsWith or includes.",
         "examples": {
           "0": "The Origin compared exactly, before doing anything"
@@ -712,6 +722,7 @@
       },
       "http-only": {
         "title": "HttpOnly",
+        "rule": "HttpOnly keeps every script on the page from reading the session cookie.",
         "summary": "document.cookie shows every script on the page (yours, a widget's, an XSS) every cookie of the host that is not HttpOnly. HttpOnly keeps a session from being read and taken away; a script on the page can still send requests as the customer while she is there.",
         "examples": {
           "0": "Shows every cookie that is not HttpOnly"
@@ -719,6 +730,7 @@
       },
       "path-domain": {
         "title": "Path and Domain",
+        "rule": "No Path means the setting address's folder; no Domain means its own host only.",
         "summary": "Without Path a cookie gets the folder of the address that set it (/auth for /auth/login) and goes only below it. Without Domain it goes to its own host only; with one, to every host under that domain. Neither is a wall against scripts.",
         "examples": {
           "0": "Every address of the host",
@@ -727,6 +739,7 @@
       },
       "where-token": {
         "title": "Where a token lives",
+        "rule": "Scripts can read localStorage; an HttpOnly cookie is the one place none can reach.",
         "summary": "Every script on the page reads localStorage and sessionStorage, and a Bearer token works for whoever sends it, from any machine. An HttpOnly cookie is the one place no script reaches; then it needs SameSite, as chapter 2 showed.",
         "examples": {
           "0": "server.js reads the session from the cookie",
@@ -735,6 +748,7 @@
       },
       "text-as-text": {
         "title": "Text stays text",
+        "rule": "Show text with textContent: innerHTML turns a review into elements that can run code.",
         "summary": "innerHTML turns a review into elements, and an image's onerror runs as the page's own code (cross-site scripting). textContent never makes an element. Stripping script tags with a regex misses the next spelling; a Content-Security-Policy is a second wall, not a replacement.",
         "examples": {
           "0": "One element per review",
@@ -743,6 +757,7 @@
       },
       "expiry": {
         "title": "A token that ends",
+        "rule": "A token has to end itself: expiresIn writes exp and jwt.verify refuses it afterwards.",
         "summary": "A cookie's Max-Age only tells one browser when to forget it; a copy lives until the token itself ends. expiresIn writes exp into the token and jwt.verify refuses it from then on. jwt.decode checks nothing, a signature proves who made a token, not until when.",
         "examples": {
           "0": "A token that ends after 15 minutes",
@@ -751,6 +766,7 @@
       },
       "refresh": {
         "title": "Refresh",
+        "rule": "A short session and a long refresh token; the page's helper refreshes once on a 401.",
         "summary": "A short session and a long refresh token that only goes to /auth, HttpOnly, each one used once. The browser renews nothing itself: the page's api helper, on a 401, refreshes once and sends the same request again; when the refresh fails too, it hands back the 401.",
         "examples": {
           "0": "Keep the request as a function, to send it again",
@@ -759,6 +775,7 @@
       },
       "sign-out": {
         "title": "Signing out",
+        "rule": "Sign out where the token is checked: delete the refresh token, refuse the session token.",
         "summary": "clearCookie only asks one browser to forget. A copy works for as long as the server accepts it, so sign-out ends the session where it is checked: the refresh token deleted, the session token refused until it would run out anyway. Only that customer's session, nobody else's.",
         "examples": {
           "0": "Above the sign-out route: the sessions that ended",
@@ -769,6 +786,7 @@
       },
       "cache-control": {
         "title": "Cache-Control",
+        "rule": "max-age skips asking, no-cache asks every time, no-store keeps no copy.",
         "summary": "How long an answer stays right, said where it is made: on the server. Within its max-age the browser doesn't ask at all; no-cache keeps a copy and asks every time; no-store keeps nothing; private keeps it out of shared caches.",
         "examples": {
           "0": "Use the copy for an hour without asking",
@@ -780,6 +798,7 @@
       },
       "revalidate": {
         "title": "Asking with an ETag",
+        "rule": "Unchanged since the ETag: a 304 with no body, and the copy is used.",
         "summary": "With no-cache the browser sends its copy's ETag as If-None-Match. Express makes the ETag from the body: unchanged, it answers 304 with no body and the copy is used; changed, the new answer comes in full. An ETag that never changes keeps old prices forever.",
         "examples": {
           "0": "Never stale, and cheap while nothing changed"
@@ -787,6 +806,7 @@
       },
       "cache-rows": {
         "title": "Cache rows in Network",
+        "rule": "Read the Network rows to tell a cached answer from a revalidated one or a fresh one.",
         "summary": "How the Network panel shows where an answer came from.",
         "examples": {
           "0": "No request at all: the browser used its fresh copy",
@@ -796,6 +816,7 @@
       },
       "shared-cache": {
         "title": "Shared caches",
+        "rule": "A CDN keeps one copy per address for everyone: mark personal answers private or no-store.",
         "summary": "A CDN keeps one copy per address (and per header Vary names), never per person, and hands it to whoever asks next. An answer that depends on the cookie says private or no-store, its errors too; a unique address only hides it.",
         "examples": {
           "0": "Only her browser keeps the account"
@@ -803,6 +824,7 @@
       },
       "vary": {
         "title": "Vary",
+        "rule": "Vary names the request headers an answer depends on, so each value gets its own copy.",
         "summary": "Names the request headers an answer depends on, so a cache keeps one copy per value. An answer whose Allow-Origin depends on the Origin needs Vary: Origin on every answer of the route, or one page gets another page's copy.",
         "examples": {
           "0": "One copy per Origin"
@@ -810,6 +832,7 @@
       },
       "new-address": {
         "title": "A copy you can't take back",
+        "rule": "A copy stays fresh for its max-age: only a new address reaches it, so version file names.",
         "summary": "A copy stays fresh for the max-age it came with, whatever the server says now: only an address the browser has no copy of reaches it (a versioned file name, a new query), or a page that asks to revalidate. Long max-age belongs to addresses whose content never changes.",
         "examples": {
           "0": "An address her browser has no copy of",
@@ -818,6 +841,7 @@
       },
       "order": {
         "title": "What runs when",
+        "rule": "One task at a time; microtasks after each; the browser may render between tasks.",
         "summary": "One task at a time, each to its end. After every task all microtasks run, also the ones they queue. Between two tasks, when a frame is due (about every 16 ms), the browser may render: requestAnimationFrame callbacks, style, layout, paint.",
         "examples": {
           "0": "1. Runs now, to the end of the task",
@@ -828,6 +852,7 @@
       },
       "paint-first": {
         "title": "Paint before long work",
+        "rule": "The browser paints only between tasks: let a frame in before long work.",
         "summary": "The browser renders only between tasks, so what a task shows and hides again is never painted. Let a frame in first: wait for its callbacks, then for a task after it. setTimeout alone usually comes before the frame, and await Promise.resolve() never leaves the task.",
         "examples": {
           "0": "Waits until the frame with the spinner is painted"
@@ -835,6 +860,7 @@
       },
       "dispatch": {
         "title": "A tap and its listeners",
+        "rule": "A real tap runs microtasks between listeners; element.click() from code does not.",
         "summary": "For a real tap the browser runs the microtasks after each listener, before the next one; element.click() from code runs every listener first. A test that clicks from code can pass where a tap fails. A listener on the document hears every tap that bubbles up.",
         "examples": {
           "0": "The closing listener ignores the toggle's own taps",
@@ -843,6 +869,7 @@
       },
       "forced-layout": {
         "title": "Forced layout",
+        "rule": "Write everything, then read once: reading a size after a change forces layout at once.",
         "summary": "Reading a size or position (scrollHeight, offsetHeight, getBoundingClientRect) after changing the page makes the browser lay it out at once. Write everything, then read once; a loop that writes and reads in turn lays the page out every time.",
         "examples": {
           "0": "Once, after all the rows are in",
@@ -851,6 +878,7 @@
       },
       "transition": {
         "title": "A transition needs a before",
+        "rule": "A transition needs two computed styles: wait two frames, or read the style first.",
         "summary": "A transition runs between two styles the browser computed. An element added and changed in the same task has only one. Two frames give it a before; so does reading its computed style first. A single requestAnimationFrame is the classic miss.",
         "examples": {
           "0": "The class added two frames later",
@@ -859,6 +887,7 @@
       },
       "yield": {
         "title": "Break up long work",
+        "rule": "Awaiting a task or a frame lets the browser paint; microtasks never do.",
         "summary": "Microtasks never let a frame in: a loop of await Promise.resolve() runs to its end in one checkpoint and the page paints once, at the end. Awaiting a task (a timer, a message) or a frame lets the browser render in between.",
         "examples": {
           "0": "A real break: a frame may come in",
@@ -867,6 +896,7 @@
       },
       "name": {
         "title": "Accessible name",
+        "rule": "The name says which control it is: aria-labelledby, aria-label, label or alt, then content.",
         "summary": "What a reader says a control is called: aria-labelledby, then aria-label, then the label or alt, then the content, last a title. An icon hidden with aria-hidden gives none. The name should say which one it is, not just what it does.",
         "examples": {
           "0": "A name that says which product",
@@ -876,6 +906,7 @@
       },
       "button": {
         "title": "Use a button",
+        "rule": "A button gets Tab, a role and Enter and Space for free; a div needs all three added.",
         "summary": "A button is in the Tab order, has a role and clicks on Enter and on Space, so its click listener runs for the keyboard too. A div with a click listener is for the mouse only; rebuilding it takes role, tabindex and a keydown handler, all three.",
         "examples": {
           "0": "Tab, role and keys for free"
@@ -883,6 +914,7 @@
       },
       "keys": {
         "title": "Keys",
+        "rule": "Tab moves on, Enter and Space click a button, Escape closes a dialog if its code says so.",
         "summary": "What the keyboard does in the levels, as browsers do it.",
         "examples": {
           "0": "Next or previous control in page order",
@@ -893,6 +925,7 @@
       },
       "expanded": {
         "title": "Open or closed",
+        "rule": "aria-expanded tells a reader a button opens something; a details element does it natively.",
         "summary": "A reader knows a button opens something only from aria-expanded, kept in step with what is shown in the one place it is shown or hidden. A details element with a summary does it all natively. A label that changes is a new name, not a state.",
         "examples": {
           "0": "Closed at the start",
@@ -902,6 +935,7 @@
       },
       "live": {
         "title": "Live regions",
+        "rule": "Keep an empty live region in the markup and write into it; a new region stays silent.",
         "summary": "A reader hears a change only in a live region that was on the page, live and shown, before the change, or where focus goes. Keep an empty region in the markup and write into it; clearing it first lets the same message be said again.",
         "examples": {
           "0": "There from the start, filled when the address is wrong",
@@ -911,6 +945,7 @@
       },
       "focus": {
         "title": "Where focus goes",
+        "rule": "When a dialog closes, focus must return to its opener; showModal does it and traps Tab.",
         "summary": "When the focused element disappears, focus falls back to the page. The code that hides a dialog puts focus back on the button that opened it, on every way out. showModal does all of it, and keeps Tab inside; aria-modal alone keeps nobody in.",
         "examples": {
           "0": "Back to the button that opened the dialog",
@@ -919,6 +954,7 @@
       },
       "inline": {
         "title": "Inline code",
+        "rule": "unsafe-inline allows every inline handler, an attacker's too: move code into files.",
         "summary": "A Content-Security-Policy can't tell the page's inline code from an attacker's: unsafe-inline allows every inline handler and script. Move the page's own code into files, list where scripts may come from, and everything inline is refused.",
         "examples": {
           "0": "Scripts only from the shop and the widget, nothing inline",
@@ -927,6 +963,7 @@
       },
       "framing": {
         "title": "Who may frame the page",
+        "rule": "Any site may frame the page unless frame-ancestors says who may.",
         "summary": "Any site may show any page in a frame unless the page says who may; a see-through frame turns a click on the bait into a click on the page. frame-ancestors lists exactly who; X-Frame-Options is the older header, without a list. Neither works in a meta tag.",
         "examples": {
           "0": "The shop itself and the market, nobody else",
@@ -935,6 +972,7 @@
       },
       "fetch-directives": {
         "title": "Where the page may send",
+        "rule": "script-src says which scripts run, connect-src where they may send requests.",
         "summary": "script-src decides which scripts run; connect-src where they may send requests, img-src where images come from. Without them, or default-src, a script the policy let in may send what it reads anywhere. A directive of its own replaces default-src for that kind.",
         "examples": {
           "0": "The shop by default, scripts and requests to the widget and the stats"
@@ -942,6 +980,7 @@
       },
       "report-only": {
         "title": "Report-only",
+        "rule": "A dry run: violations are reported but the code runs anyway; then send it enforcing.",
         "summary": "Content-Security-Policy-Report-Only is a dry run: each violation goes to the Console (as info) and to report-uri, and the code runs anyway. Fix what the reports name on the page's side, then send the same policy as Content-Security-Policy. It has no meta-tag form.",
         "examples": {
           "0": "Watch: reports, refuses nothing",
@@ -950,6 +989,7 @@
       },
       "strict": {
         "title": "A strict policy",
+        "rule": "Trust a fresh nonce on the page's own tags, not a list of addresses.",
         "summary": "An allowlist trusts addresses, and a big CDN serves anyone's files. A nonce the server makes fresh for every page, on the page's own tags, trusts the tags instead; strict-dynamic passes that trust to the scripts they add and ignores addresses. A nonce that never changes is no nonce.",
         "examples": {
           "0": "A fresh nonce for every page",
@@ -959,6 +999,7 @@
       },
       "more-headers": {
         "title": "More headers",
+        "rule": "nosniff and Referrer-Policy go on every answer.",
         "summary": "Two more a shop sends on every answer: nosniff runs a script only when it is served as JavaScript, and Referrer-Policy decides how much of the page's address other sites see.",
         "examples": {
           "0": "A text file is never run as a script",
@@ -1039,13 +1080,13 @@
   },
   "debugCheat": {
     "title": "Debugging cheat sheet",
-    "intro": "Every panel and the error messages from the levels, in a few lines each. Filter, click an example to copy it, or jump to the level that practises it.",
+    "intro": "Every panel and the error messages from the levels: a one-line rule per card, the detail one click away. Filter, click an example line to copy it, or open a level that practises it.",
     "search": "Filter the sheet",
     "sections": "Sections",
     "none": "Nothing matches \"{query}\".",
     "copy": "Copy {line}",
     "practise": "Practise it in:",
-    "means": "Usually means",
+    "why": "Why and how",
     "look": "Look first",
     "groups": {
       "console": "Console",
@@ -1060,14 +1101,17 @@
     "entries": {
       "read-trace": {
         "title": "Read an error and its stack",
+        "rule": "The top frame threw it, the ones below called it. Errors go to the Console, not the page.",
         "summary": "The first line says what went wrong, the frames under it say where. The top frame is the line that threw; each frame below it is the line that called the one above. Start at the top, and if that code has always worked, step down to the call that handed it a wrong value. A link or frame opens its line in Code. A button that \"does nothing\" has usually thrown here: errors go to the Console, not to the page."
       },
       "syntax": {
         "title": "Syntax errors and the blank page",
+        "rule": "A syntax error stops the whole module before it runs, so the page goes blank.",
         "summary": "A syntax error is found before any code runs, so no line of that module (or of any module that imports it) runs: the page is blank. It has no frames, only where the browser gave up, which is usually after the real mistake. Read the lines above it for a missing bracket; the indentation often gives it away."
       },
       "input": {
         "title": "The input line",
+        "rule": "Type an expression at the bottom of the Console; it runs inside the app.",
         "summary": "Type an expression at the bottom of the Console and press Enter: it runs inside the app. › is your input, ← the value as a one-line preview, and an error shows in red. Up and Down bring back your earlier inputs. Clear empties the Console, and so does a Reload. Look at the value first, then find out where it came from.",
         "examples": {
           "0": "What is it? A function, or an object that holds formatPrice and toCents?",
@@ -1077,6 +1121,7 @@
       },
       "await": {
         "title": "Top-level await",
+        "rule": "Use await in the input line to see what a promise settles to.",
         "summary": "The input line accepts await, so you can see what a promise settles to without writing an async function. A rejection shows in red. const x = await … defines x for your later inputs.",
         "examples": {
           "0": "The price once the promise settles",
@@ -1086,6 +1131,7 @@
       },
       "log": {
         "title": "Log what you do not expect",
+        "rule": "A bare catch hides the real error: log it, or handle only the failures you know.",
         "summary": "A catch that only says \"failed\" throws the real error away, and the Console stays quiet. Log it, or handle only the failures you know.",
         "examples": {
           "0": "Show the real error from a catch",
@@ -1094,6 +1140,7 @@
       },
       "status": {
         "title": "Status codes",
+        "rule": "2xx worked, 4xx means the request was wrong, 5xx means the server failed.",
         "summary": "A status says whether the server understood the request. 2xx worked, 4xx means the request was wrong, 5xx means the server failed. The Network panel colours 2xx green and 4xx and 5xx red. Read the response body: the server often says what went wrong.",
         "examples": {
           "0": "Worked",
@@ -1108,6 +1155,7 @@
       },
       "no-code": {
         "title": "Status words without a code",
+        "rule": "No readable answer: the Network panel shows a word, and the Console says why.",
         "summary": "When there is no answer the page can read, the Network panel shows a word instead of a code. The Console line above or below it says why.",
         "examples": {
           "0": "The request is still on its way",
@@ -1118,10 +1166,12 @@
       },
       "details": {
         "title": "Request and response",
+        "rule": "Select a request to compare what the page sent with what the server answered.",
         "summary": "The panel lists requests in the order sent: method, name, status, time. Select one for its URL, Status, Time, Sent from (opens the line that sent it), and the headers and body of the Request and of the Response. Compare what the page sent with what the server built from it, and with the API description (api.md)."
       },
       "address": {
         "title": "A 404 is a wrong address",
+        "rule": "fetch does not fail on a 404: compare the path with the API's real paths.",
         "summary": "fetch does not fail on a 404: the server did answer. Compare the path in the Network panel with the paths the API really has, then follow it back (Sent from) to the line that builds the address.",
         "examples": {
           "0": "The path the API lists, not the old one"
@@ -1129,6 +1179,7 @@
       },
       "ok": {
         "title": "Check response.ok",
+        "rule": "fetch rejects only when no answer arrives: check response.ok before reading the body.",
         "summary": "fetch rejects only when no answer arrives. A 404 or a 500 is an answer, so the promise resolves and response.ok is false. Check it right after the fetch, before you read the body as a success.",
         "examples": {
           "0": "Handle a failed answer before anything else",
@@ -1137,6 +1188,7 @@
       },
       "payload": {
         "title": "Check the payload",
+        "rule": "Look at the request body first: did the page send it wrong, or the server read it wrong?",
         "summary": "When data arrives wrong, look at the request body in the Network panel first: it tells you whether the page sent the wrong thing or the server read it wrong. JSON keeps types: \"3\" and 3 are different for the server, and a field the server does not know is usually ignored without a word.",
         "examples": {
           "0": "Form fields give text: send a number as a number"
@@ -1144,6 +1196,7 @@
       },
       "cors": {
         "title": "CORS",
+        "rule": "The page may read another origin's answer only if that server allows it.",
         "summary": "A page may send a request to another origin, but may read the answer only if that server allows it. Without an Access-Control-Allow-Origin header for the page's origin (or *), the browser hides the answer and fetch fails with \"Failed to fetch\"; the reason is in the Console. It works in curl or Postman because they are not browsers. Fix it on the server, never in the page, or send the call to your own origin, which forwards it.",
         "examples": {
           "0": "What the other server has to send",
@@ -1152,6 +1205,7 @@
       },
       "double": {
         "title": "Two POSTs for one click",
+        "rule": "Ignore clicks while a request is on its way; a server also needs a unique id per order.",
         "summary": "A slow answer invites a second click, and the browser sends what the code says: two clicks, two requests. Ignore clicks while a request is on its way and turn the button back on when the answer is in. This only makes duplicates rarer: a server that takes money also needs a unique id per order (an idempotency key).",
         "examples": {
           "0": "Ignore clicks while it sends"
@@ -1159,14 +1213,17 @@
       },
       "tree": {
         "title": "The tree and Refresh",
+        "rule": "The tree is a snapshot: press Refresh to see the page as it is now.",
         "summary": "The tree shows the page as markup. It is a snapshot: press Refresh to see the page as it is now. An element without a box is dimmed (\"not shown\"), and one whose content is wider than its box gets a scroll badge. Keys: Up and Down, Home and End, Right and Left open and close."
       },
       "styles": {
         "title": "Matched rules and overridden declarations",
+        "rule": "Rules are listed winner first; a struck-through declaration lost to a stronger one.",
         "summary": "Styles lists element.style, then the rules that match from the winner down, each with its media query, its selector, its specificity and where it is written (a link to the line). A declaration struck through lost to a stronger one; one with a warning is refused by the browser. A property that nothing else sets stays active, which is how a price can get bold but not red."
       },
       "specificity": {
         "title": "Specificity",
+        "rule": "Ids beat classes, classes beat element names; file order only breaks a tie.",
         "summary": "When two rules set the same property, the browser compares selectors: ids first, then classes (and attributes and pseudo-classes), then element names. The panel shows it as ids · classes · types. The order in the file only breaks a tie. Match the specificity or lower the old rule; !important just starts an arms race.",
         "examples": {
           "0": "1 · 1 · 0: the id wins over any number of classes",
@@ -1177,6 +1234,7 @@
       },
       "variables": {
         "title": "Variables that are not defined",
+        "rule": "An undefined var() fails silently: compare its name with the ones defined under :root.",
         "summary": "var(--name) with no such property makes the declaration invalid at computed-value time, and the browser reports it nowhere. The property then behaves as if it were not set: a property that is not inherited, like background, gets its starting value (transparent), while an inherited one, like color, takes its parent's value. The panel marks it \"--brown is not defined\" under the declaration. Look at the :root rule under Inherited from for the real names.",
         "examples": {
           "0": "An invisible button: the variable does not exist"
@@ -1184,14 +1242,17 @@
       },
       "computed": {
         "title": "Computed values and contrast",
+        "rule": "Computed shows what the page really gets; the rules only show how it got there.",
         "summary": "Computed is what the page really gets; the rules show how it got there. It lists display, visibility, opacity, position, z-index, pointer-events, color, background-color, width, height, min-width, overflow, text-overflow and white-space. Invisible is not gone: text and background of the same colour keep their box, so Pick can still select it. Normal text needs a contrast of at least 4.5 : 1."
       },
       "pick": {
         "title": "Pick mode",
+        "rule": "Pick selects what is really under the pointer, so it finds something invisible on top.",
         "summary": "Pick, then click in the app: the element that is really under the pointer is selected (the app never gets that click), the tree opens to it, and hovering outlines it. Escape stops. It shows what a tap lands on, so when a button \"does nothing\" without an error, pick it: something invisible may sit on top."
       },
       "covered": {
         "title": "Something on top of the button",
+        "rule": "A click goes to the topmost element, so an invisible box can swallow a button's taps.",
         "summary": "The browser sends a click to the topmost element under the pointer. A transparent box with a higher z-index takes every tap meant for what is below. Let clicks pass through it, or stack or move it differently. Nothing invisible should sit on top of a button.",
         "examples": {
           "0": "The element ignores the pointer, and so do its children",
@@ -1201,6 +1262,7 @@
       },
       "box": {
         "title": "The box and what sticks out",
+        "rule": "Box shows what sticks out; a flex item will not shrink below its content unless allowed.",
         "summary": "Box shows margin, border, padding and content with their sides (a dash for 0), and says \"Its content is 512 px wide in a 340 px box: it sticks out.\" when it does. A flex item will not get narrower than its content unless you allow it, and white-space: nowrap makes that content the whole text.",
         "examples": {
           "0": "Let a flex item shrink below its content",
@@ -1210,6 +1272,7 @@
       },
       "media": {
         "title": "Media queries",
+        "rule": "Media queries test the page's width, not the device: try a phone width and a laptop width.",
         "summary": "A media query is a condition on the width of the page, not on the device. Elements lists only the rules whose query holds right now, and the App shows its width next to the address. Test a layout change at both ends: a phone and a laptop width.",
         "examples": {
           "0": "Holds from 600 px wide and up: not \"on desktop\"",
@@ -1218,6 +1281,7 @@
       },
       "missing-await": {
         "title": "Missing await",
+        "rule": "A call to an async function returns a promise at once, not the result: await it.",
         "summary": "Calling an async function gives you a promise at once, not the result. Written into the page it reads [object Promise]; used as a list it throws \"map is not a function\" or \"is not iterable\". await waits for the result: inside an async function, or at the top level of a module. In the Console a promise shows as a Promise, not as its value.",
         "examples": {
           "0": "Wait for the result",
@@ -1226,6 +1290,7 @@
       },
       "race": {
         "title": "Races and AbortController",
+        "rule": "The newer request answers first and the old one wins: ignore stale answers or abort them.",
         "summary": "Two requests are on their way and the newer one answers first, so the old answer arrives last and wins. It only happens sometimes. Decide what is still wanted when an answer arrives, or cancel the old request. An aborted fetch rejects with an AbortError (the Network panel says canceled), so catch it and ignore it. A debounce sends fewer requests but does not fix the race.",
         "examples": {
           "0": "A counter: take a ticket per request",
@@ -1238,6 +1303,7 @@
       },
       "closure": {
         "title": "Closures and var in a loop",
+        "rule": "Handlers made in a loop share a var; let and const give each round its own.",
         "summary": "A function made in a loop keeps the variables themselves, not a copy of their values, and reads them when it runs, long after the loop. var belongs to the whole function, so every handler shares one variable and sees the last value. let and const make a fresh one per round.",
         "examples": {
           "0": "Each round gets its own product",
@@ -1246,6 +1312,7 @@
       },
       "copy": {
         "title": "Shallow copies",
+        "rule": "A spread copies only the top level; a nested object stays shared.",
         "summary": "A variable holds a reference to an object, not the object. A spread copies the top level only, so a nested object stays shared and changing one thing changes the other. Check with === in the Console: true means one object. Object.assign is shallow too.",
         "examples": {
           "0": "Copy everything",
@@ -1255,6 +1322,7 @@
       },
       "chain": {
         "title": "Promise chains that lose their value",
+        "rule": "A then callback that returns nothing passes undefined on; async and await avoid that.",
         "summary": "Each then hands the next one what its callback returns. A callback that returns nothing passes undefined on, and the next one throws. A catch that treats every error as \"the server said no\" hides the real one. With async and await the code reads top to bottom and nothing can be forgotten between the steps.",
         "examples": {
           "0": "Return it, or the next then gets undefined",
@@ -1264,14 +1332,17 @@
       },
       "record": {
         "title": "Record, then step",
+        "rule": "Press Record, use the app, press Stop; then move through the run step by step.",
         "summary": "The Debugger records a run: press Record, use the app, press Stop. The app is never paused: you move through what it already did and see each value as it was then, so you can go back as well as forward. Edited the code? Save, then Record again. A Reload, Reset or Again ends a recording. It opens at the first step a breakpoint stops at."
       },
       "breakpoints": {
         "title": "Breakpoints",
+        "rule": "Click the gutter in Code; the hit count says how often each breakpoint stopped.",
         "summary": "Click the gutter in Code (Ctrl or Cmd+B, or Breakpoint here in the panel, work without the mouse). Each breakpoint is listed with its line and how often it stopped in the recording (\"hit 2 times\", \"not hit\"); a breakpoint that stopped twice for one action shows that something runs twice. Remove it from its list. The breakpoints stay while you are on the page."
       },
       "condition": {
         "title": "Conditional breakpoints",
+        "rule": "A condition stops only where it holds: it finds the one odd row of a thousand.",
         "summary": "Give a breakpoint a condition (the field under it: Enter or leaving it sets it) and it stops only where the condition holds, checked on the values each round had. That finds the one odd row of a thousand. A condition that cannot be read shows why under the field.",
         "examples": {
           "0": "Stop on the cheap row",
@@ -1281,10 +1352,12 @@
       },
       "stepping": {
         "title": "Step over, into, out and back",
+        "rule": "Step over runs a line; compare the Scope before and after to see what it changed.",
         "summary": "Resume goes to the next breakpoint (with none ahead, to the end). Step over runs the line, Step into goes inside the function it calls, Step out runs to the end of the current function. Step back and Back to the previous breakpoint go the other way. The scrubber shows \"Step 37 of 412\". Stepping over a line and comparing the Scope before and after shows what it changed."
       },
       "shortcuts": {
         "title": "Shortcuts",
+        "rule": "The keys DevTools uses, while there is a recording and no dialog is open.",
         "summary": "The keys DevTools uses, while there is a recording and no dialog is open. Step back and Back to the previous breakpoint have no key. Plain F11 stays the browser's full screen.",
         "examples": {
           "0": "Resume",
@@ -1295,26 +1368,32 @@
       },
       "scope": {
         "title": "Scope",
+        "rule": "Scope shows the raw values the code compares, not what the page shows.",
         "summary": "Scope lists the variables of the current step: Block, Local (with this), Closure and Module. Values look like the browser's preview: strings green, numbers and booleans amber, undefined and null dimmed, functions blue; an object opens. It shows the raw value, with every digit, which is what the code compares: 24.999999999999996 shows as 25.00 on the page. When what the page shows and what the code decides disagree, put a breakpoint where it decides."
       },
       "stack": {
         "title": "Call stack",
+        "rule": "Click a frame to see its line and its variables then: who called this, and each time.",
         "summary": "The frames of the current step, top first, each with its function and file:line. Click a frame to see its line in Code and its variables at that moment: the way to find out who called a function, and each time. An \"async\" line marks the call that started an async function now back from an await."
       },
       "units": {
         "title": "Counted, not timed",
+        "rule": "Work is counted in statements, not timed: the same run gives the same numbers anywhere.",
         "summary": "The Performance panel counts: one unit of work is one statement of the app's code that ran (a built-in like sort or toFixed counts as part of the statement that calls it), and request times are the server's scripted delays. The same run shows the same numbers on every computer. Record, use the app, Stop. Show picks the whole recording or one action; the totals are Work, Renders, Requests and Server time."
       },
       "functions": {
         "title": "Functions: calls, self and total",
+        "rule": "Many calls of a small function: work in a loop that could be done once, outside it.",
         "summary": "Calls is how often a function ran. Self is its own statements, Total is itself and everything it called. A function with a big total and a small self spends its time in what it calls. A huge number of calls of a small function means work inside a loop that does not depend on the round: do it once, outside, or look it up in a Map."
       },
       "renders": {
         "title": "Renders and nodes",
+        "rule": "One Add should cost a few nodes, not the whole menu: draw again only what changed.",
         "summary": "A render is a call of a function that changed the page; its nodes are the elements and texts it added, removed or changed. One Add should cost the basket a few nodes, not the whole menu 48. Draw again only the part whose data changed (a framework does that bookkeeping for you)."
       },
       "requests": {
         "title": "Requests over time",
+        "rule": "Look for a waterfall, a request thrown away, and a request per key typed.",
         "summary": "Each request has a bar from its start to its end. \"Sent once menu answered\" marks a waterfall: it waited for another answer though it did not need it. \"The same request again\" marks an answer that was thrown away. A request per key typed is the third thing to look for.",
         "examples": {
           "0": "Start them together and wait for all",
@@ -1324,6 +1403,7 @@
       },
       "logs": {
         "title": "Logs",
+        "rule": "The server's own story: filter by level or text, and search by the request id.",
         "summary": "The Logs panel is the server's own story: time on the server's clock, level, route, request id, message and the stack where it failed. Filter by level or by text. A page that shows the server's reference for a failed request (x-request-id) gives you the id to search for; an id of this load links to that request in Network. Compare when the first failure came with when things last worked.",
         "examples": {
           "0": "Filter on a request id"
@@ -1331,18 +1411,22 @@
       },
       "deploys": {
         "title": "Deploys and diffs",
+        "rule": "Read the diff for who else uses what changed: the damage is often in an untouched file.",
         "summary": "Deploys lists the versions newest first: id, who and when, the message, and the live one. \"Changes in …\" opens the diff per file: added lines green, removed lines red, with their line numbers; a changed line opens in Code. Read the diff for who else uses what changed: damage is often in a file the deploy never touched."
       },
       "which": {
         "title": "Which deploy broke it?",
+        "rule": "Last good request, first failure, the deploy in between; with many suspects, bisect.",
         "summary": "Put the timeline from the Logs next to the list of deploys: the last good request, the first failure, the deploy in between. With several suspects, bisect: roll back to the middle, check the shop, keep halving."
       },
       "rollback": {
         "title": "Roll back",
+        "rule": "Roll back when the cause is unknown or the fix is slow; fix forward when it is clear.",
         "summary": "Roll back to a version sends your saved code back to it (Reload runs it), after asking what changes, which saved changes of your own are replaced and which unsaved edits are dropped. Go back to the last version that worked and no further, then check what it changes and check the shop. Back to live returns to the newest version, and Undo roll back brings your replaced changes back, until you save again. Roll back when you do not know the cause yet or the fix takes longer than customers can wait; with a clear one-line cause, fix forward."
       },
       "flags": {
         "title": "Feature flags",
+        "rule": "Behaviour that differs by environment: look at which flags it picked, and fail loudly.",
         "summary": "A feature flag switches a feature on or off from configuration, so you can turn it off without another deploy. When code behaves differently in one environment, look at the flags it picked: here the deploy named them \"live\" while the script calls the environment \"production\", and a fallback quietly handed production the staging flags. Fail loudly instead of falling back.",
         "examples": {
           "0": "Look up the flags by the environment's name",
@@ -1351,6 +1435,7 @@
       },
       "json": {
         "title": "Never build JSON or HTML by hand",
+        "rule": "Never glue text into JSON or HTML: JSON.stringify and textContent escape it for you.",
         "summary": "Gluing text into JSON breaks on exactly the characters JSON gives a meaning to: a quote, a line break, a backslash. Failures that hit only some customers often share such a character: put the failed requests side by side in the Logs. Let JSON.stringify escape it; the same goes for textContent instead of innerHTML. Test with the input real people type.",
         "examples": {
           "0": "The server reads the note exactly as typed",
