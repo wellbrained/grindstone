@@ -50,7 +50,7 @@ function onToggle(event: Event) {
 
 <template>
   <li
-    class="rounded-lg border border-default bg-elevated p-5"
+    class="mb-4 break-inside-avoid rounded-lg border border-default bg-elevated p-5"
     :data-entry="card.id"
     data-testid="cheat-card"
   >

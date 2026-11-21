@@ -71,7 +71,8 @@ const shown = computed(() => filterCheatSheet(props.sections, query.value))
       {{ t(`${prefix}.none`, { query }) }}
     </p>
 
-    <!-- sections stacked in the order of the chips above; the cards of one section in a grid, read left to right, top to bottom -->
+    <!-- sections stacked in the order of the chips above; inside a section the cards flow in columns of at least 20rem
+         (down a column, then the next), so a short card never leaves a hole beside a tall one -->
     <section
       v-for="section in shown"
       :id="section.id"
@@ -82,7 +83,7 @@ const shown = computed(() => filterCheatSheet(props.sections, query.value))
       <h2 class="text-xl font-semibold tracking-tight text-highlighted">
         {{ section.title }}
       </h2>
-      <ul class="mt-4 grid grid-cols-[repeat(auto-fill,minmax(min(20rem,100%),1fr))] items-start gap-4">
+      <ul class="mt-4 gap-x-4 sm:columns-[20rem]">
         <CheatCard
           v-for="card in section.cards"
           :key="card.id"

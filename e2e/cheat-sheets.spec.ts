@@ -109,7 +109,7 @@ for (const sheet of sheets) {
       await expect(page).toHaveURL(new RegExp(`#${chips[0]}$`))
     })
 
-    test('the cards of a section read left to right, top to bottom', async ({ page }) => {
+    test('the cards of a section flow down a column, then into the next', async ({ page }) => {
       await page.setViewportSize({ width: 1440, height: 900 })
       await page.goto(sheet.path)
       const section = page.getByTestId('cheat-group').first()
@@ -119,11 +119,11 @@ for (const sheet of sheets) {
         return { top: Math.round(box.top), left: Math.round(box.left) }
       }))
       expect(boxes.length).toBeGreaterThan(4)
-      // several columns, and each next card is later in the row, or in a row below
+      // several columns, and each next card is below the one before in its column, or starts the next column to the right
       expect(new Set(boxes.map(box => box.left)).size).toBeGreaterThan(1)
       for (let i = 1; i < boxes.length; i++) {
         const [before, after] = [boxes[i - 1]!, boxes[i]!]
-        expect(after.top > before.top || (after.top === before.top && after.left > before.left)).toBe(true)
+        expect((after.left === before.left && after.top > before.top) || after.left > before.left).toBe(true)
       }
     })
 
