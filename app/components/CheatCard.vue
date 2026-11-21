@@ -77,6 +77,13 @@ function onToggle(event: Event) {
     </p>
 
     <!-- a small console: each example as a "# what it does" comment above its line; click a line to copy it, a key or a status word is plain -->
+    <!-- the copy feedback for screen readers (the check icon is visual only) -->
+    <p
+      class="sr-only"
+      role="status"
+    >
+      {{ copied ? t(`${prefix}.copied`, { line: copied }) : '' }}
+    </p>
     <ul
       v-if="card.examples.length"
       class="mt-3 space-y-1 rounded-r-lg border-l-2 border-accented bg-(--app-terminal) py-2 font-mono text-sm"

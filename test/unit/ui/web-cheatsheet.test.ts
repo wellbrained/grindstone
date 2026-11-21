@@ -42,7 +42,7 @@ describe('web fundamentals cheat sheet', () => {
     }
     // every page text is used: the heading, intro, filter, section chips, none, copy label, practise label, the two disclosure labels
     expect(Object.keys(en.webCheat).filter(key => typeof (en.webCheat as Record<string, unknown>)[key] === 'string').sort())
-      .toEqual(['copy', 'intro', 'look', 'none', 'practise', 'search', 'sections', 'title', 'why'])
+      .toEqual(['copied', 'copy', 'intro', 'look', 'none', 'practise', 'search', 'sections', 'title', 'why'])
     expect(Object.keys(sheet.messages).sort()).toEqual(browserMessages.map(message => message.id).sort())
   })
 

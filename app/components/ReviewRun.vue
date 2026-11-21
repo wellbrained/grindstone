@@ -39,12 +39,18 @@ watch(side, () => {
 const showPane = inject(SHOW_REVIEW_PANE, null)
 
 async function showLine({ path, line }: SourceLine, which?: 'new' | 'old') {
-  // phones: the line is in the Diff tab
-  await showPane?.('diff')
   const numbers = which ?? (side.value === 'head' ? 'new' : 'old')
   const button = document.querySelector<HTMLElement>(`[data-file="${CSS.escape(path)}"] [data-testid="diff-number"][data-${numbers}="${line}"]`)
-  // a collapsed file's rows are not on screen
-  if (!button || button.offsetParent === null) {
+  if (!button) {
+    // not in the diff: stay here, where the message shows
+    missing.value = `${path}:${line}`
+    return
+  }
+  // phones: the line is in the Diff tab
+  await showPane?.('diff')
+  // a collapsed file's rows are not on screen: back to Run, where the message shows
+  if (button.offsetParent === null) {
+    await showPane?.('run')
     missing.value = `${path}:${line}`
     return
   }

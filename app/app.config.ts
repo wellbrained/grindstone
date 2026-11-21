@@ -27,12 +27,12 @@ export default defineAppConfig({
         variant: 'outline'
       },
       compoundVariants: [
-        { color: 'primary', variant: 'outline', class: 'hover:bg-primary/15 hover:ring-primary hover:text-(--app-ink-primary) active:bg-primary/25 active:text-(--app-ink-primary)' },
-        { color: 'secondary', variant: 'outline', class: 'hover:bg-secondary/15 hover:ring-secondary hover:text-(--app-ink-secondary) active:bg-secondary/25 active:text-(--app-ink-secondary)' },
-        { color: 'success', variant: 'outline', class: 'hover:bg-success/15 hover:ring-success hover:text-(--app-ink-success) active:bg-success/25 active:text-(--app-ink-success)' },
-        { color: 'warning', variant: 'outline', class: 'hover:bg-warning/15 hover:ring-warning hover:text-(--app-ink-warning) active:bg-warning/25 active:text-(--app-ink-warning)' },
-        { color: 'info', variant: 'outline', class: 'hover:bg-info/15 hover:ring-info hover:text-(--app-ink-info) active:bg-info/25 active:text-(--app-ink-info)' },
-        { color: 'error', variant: 'outline', class: 'hover:bg-error/15 hover:ring-error hover:text-(--app-ink-error) active:bg-error/25 active:text-(--app-ink-error)' },
+        { color: 'primary', variant: 'outline', class: 'not-disabled:hover:bg-primary/15 not-disabled:hover:ring-primary not-disabled:hover:text-(--app-ink-primary) not-disabled:active:bg-primary/25 not-disabled:active:text-(--app-ink-primary)' },
+        { color: 'secondary', variant: 'outline', class: 'not-disabled:hover:bg-secondary/15 not-disabled:hover:ring-secondary not-disabled:hover:text-(--app-ink-secondary) not-disabled:active:bg-secondary/25 not-disabled:active:text-(--app-ink-secondary)' },
+        { color: 'success', variant: 'outline', class: 'not-disabled:hover:bg-success/15 not-disabled:hover:ring-success not-disabled:hover:text-(--app-ink-success) not-disabled:active:bg-success/25 not-disabled:active:text-(--app-ink-success)' },
+        { color: 'warning', variant: 'outline', class: 'not-disabled:hover:bg-warning/15 not-disabled:hover:ring-warning not-disabled:hover:text-(--app-ink-warning) not-disabled:active:bg-warning/25 not-disabled:active:text-(--app-ink-warning)' },
+        { color: 'info', variant: 'outline', class: 'not-disabled:hover:bg-info/15 not-disabled:hover:ring-info not-disabled:hover:text-(--app-ink-info) not-disabled:active:bg-info/25 not-disabled:active:text-(--app-ink-info)' },
+        { color: 'error', variant: 'outline', class: 'not-disabled:hover:bg-error/15 not-disabled:hover:ring-error not-disabled:hover:text-(--app-ink-error) not-disabled:active:bg-error/25 not-disabled:active:text-(--app-ink-error)' },
         { color: 'neutral', variant: 'outline', class: 'bg-transparent hover:bg-accented hover:ring-(--ui-border-inverted)/40 hover:text-highlighted active:bg-accented' }
       ]
     },

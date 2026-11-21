@@ -99,6 +99,8 @@ const lowerLabel = computed(() => {
 const lowerList = useTemplateRef<HTMLElement>('lowerList')
 /** Arrow keys move along the lower tab set (they wrap), Home and End jump to its ends; the new tab gets the focus. */
 function onLowerKey(event: KeyboardEvent) {
+  // Alt+arrows go back and forward, Ctrl/Cmd/Shift arrows are the browser's or the system's
+  if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return
   const next = tabAfterKey(LOWER, lower.value, event.key)
   if (!next) return
   event.preventDefault()

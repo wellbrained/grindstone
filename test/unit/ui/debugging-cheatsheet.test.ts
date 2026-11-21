@@ -31,7 +31,7 @@ describe('debugging cheat sheet', () => {
     }
     // every page text is used: the heading, intro, filter, section chips, none, copy label, practise label, the two disclosure labels
     expect(Object.keys(en.debugCheat).filter(key => typeof (en.debugCheat as Record<string, unknown>)[key] === 'string').sort())
-      .toEqual(['copy', 'intro', 'look', 'none', 'practise', 'search', 'sections', 'title', 'why'])
+      .toEqual(['copied', 'copy', 'intro', 'look', 'none', 'practise', 'search', 'sections', 'title', 'why'])
     expect(Object.keys(sheet.errors).sort()).toEqual(debugErrorTypes.map(error => error.id).sort())
   })
 

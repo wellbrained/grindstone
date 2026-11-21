@@ -100,17 +100,17 @@
 }
 
 /*
- * an outlined coloured button's text on hover and press (app.config.ts): its colour moved 30% toward the highlighted
- * text, so it keeps >= 4.5:1 on its own 15% hover tint on the page, a card and the terminal in both themes (the pure
+ * an outlined coloured button's text on hover and press (app.config.ts): its colour moved 40% toward the highlighted
+ * text, so it keeps >= 4.5:1 on its own 15% hover and 25% press tint on the page, a card and the terminal in both themes (the pure
  * colour on that tint measured 3.97:1 for error on a dark card). Resolved per theme because the tokens are.
  */
 :root {
-  --app-ink-primary: color-mix(in oklab, var(--ui-primary) 70%, var(--ui-text-highlighted));
-  --app-ink-secondary: color-mix(in oklab, var(--ui-secondary) 70%, var(--ui-text-highlighted));
-  --app-ink-success: color-mix(in oklab, var(--ui-success) 70%, var(--ui-text-highlighted));
-  --app-ink-warning: color-mix(in oklab, var(--ui-warning) 70%, var(--ui-text-highlighted));
-  --app-ink-info: color-mix(in oklab, var(--ui-info) 70%, var(--ui-text-highlighted));
-  --app-ink-error: color-mix(in oklab, var(--ui-error) 70%, var(--ui-text-highlighted));
+  --app-ink-primary: color-mix(in oklab, var(--ui-primary) 60%, var(--ui-text-highlighted));
+  --app-ink-secondary: color-mix(in oklab, var(--ui-secondary) 60%, var(--ui-text-highlighted));
+  --app-ink-success: color-mix(in oklab, var(--ui-success) 60%, var(--ui-text-highlighted));
+  --app-ink-warning: color-mix(in oklab, var(--ui-warning) 60%, var(--ui-text-highlighted));
+  --app-ink-info: color-mix(in oklab, var(--ui-info) 60%, var(--ui-text-highlighted));
+  --app-ink-error: color-mix(in oklab, var(--ui-error) 60%, var(--ui-text-highlighted));
 }
 
 /* a class per palette slot (app/utils/branch-palette.ts picks the slot): sets `color`, so `currentColor` carries it into SVG */
