@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import en from '../../../layers/i18n/i18n/locales/en.json'
-import { debugCheatGroups, debugCheatLevels, debugErrorKey, debugGroupKey, debugNoteKey, debugSummaryKey, debugTitleKey, debugErrorTypes } from '../../../app/utils/debugging-cheatsheet'
+import { debugCheatGroups, debugCheatLevels, debugErrorKey, debugGroupKey, debugNoteKey, debugRuleKey, debugSummaryKey, debugTitleKey, debugErrorTypes } from '../../../app/utils/debugging-cheatsheet'
 import { debuggingLevels, levelById } from '../../../shared/levels'
 
 /** The text behind a dotted i18n key, or undefined when a part of the path is missing. */
@@ -11,11 +11,11 @@ const lookup = (key: string) => key.split('.').reduce<unknown>((node, part) => (
 const entries = debugCheatGroups.flatMap(group => group.entries)
 
 describe('debugging cheat sheet', () => {
-  it('has an English text for every group, title, summary, example note and error text', () => {
+  it('has an English text for every group, title, rule, summary, example note and error text', () => {
     const keys = [
       ...debugCheatGroups.map(group => debugGroupKey(group.id)),
       debugGroupKey('errors'),
-      ...entries.flatMap(entry => [debugTitleKey(entry.id), debugSummaryKey(entry.id), ...entry.examples.map((_, i) => debugNoteKey(entry.id, i))]),
+      ...entries.flatMap(entry => [debugTitleKey(entry.id), debugRuleKey(entry.id), debugSummaryKey(entry.id), ...entry.examples.map((_, i) => debugNoteKey(entry.id, i))]),
       ...debugErrorTypes.flatMap(error => [debugErrorKey(error.id, 'means'), debugErrorKey(error.id, 'look')])
     ]
     expect(keys.filter(key => typeof lookup(key) !== 'string' || lookup(key) === '')).toEqual([])
@@ -27,8 +27,22 @@ describe('debugging cheat sheet', () => {
     expect(Object.keys(sheet.entries).sort()).toEqual(entries.map(entry => entry.id).sort())
     for (const entry of entries) {
       expect(Object.keys(sheet.entries[entry.id]!.examples ?? {}), entry.id).toHaveLength(entry.examples.length)
+      expect(Object.keys(sheet.entries[entry.id]!).filter(key => key !== 'examples').sort(), entry.id).toEqual(['rule', 'summary', 'title'])
     }
+    // every page text is used: the heading, intro, filter, section chips, none, copy label, practise label, the two disclosure labels
+    expect(Object.keys(en.debugCheat).filter(key => typeof (en.debugCheat as Record<string, unknown>)[key] === 'string').sort())
+      .toEqual(['copy', 'intro', 'look', 'none', 'practise', 'search', 'sections', 'title', 'why'])
     expect(Object.keys(sheet.errors).sort()).toEqual(debugErrorTypes.map(error => error.id).sort())
+  })
+
+  it('gives every card a one-line rule of its own: short, not the title, not the summary', () => {
+    for (const entry of entries) {
+      const rule = lookup(debugRuleKey(entry.id)) as string
+      expect(rule.length, entry.id).toBeLessThanOrEqual(95)
+      expect(rule.includes('\n'), entry.id).toBe(false)
+      expect(rule, entry.id).not.toBe(lookup(debugTitleKey(entry.id)))
+      expect(rule, entry.id).not.toBe(lookup(debugSummaryKey(entry.id)))
+    }
   })
 
   it('keeps the characters vue-i18n reads as syntax (braces, pipes, at signs) out of the texts', () => {

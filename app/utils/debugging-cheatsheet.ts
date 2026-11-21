@@ -4,6 +4,7 @@
 // docs/features/ui.md ("Debugging play page").
 import { levelById } from '../../shared/levels'
 import type { Level } from '../../shared/levels'
+import type { CheatSource } from './cheat-sheet'
 
 export interface DebugCheatExample {
   /** A Console input, a snippet, a selector, a key or a status word (data, not translated). Its note is an i18n key, see `debugNoteKey`. */
@@ -223,12 +224,32 @@ export const debugErrorTypes: ErrorType[] = [
 export const debugGroupKey = (groupId: string) => `debugCheat.groups.${groupId}`
 /** i18n key of an entry's title. */
 export const debugTitleKey = (entryId: string) => `debugCheat.entries.${entryId}.title`
-/** i18n key of an entry's summary. */
+/** i18n key of an entry's one-line rule. */
+export const debugRuleKey = (entryId: string) => `debugCheat.entries.${entryId}.rule`
+/** i18n key of an entry's summary (shown behind the entry's "Why and how" disclosure). */
 export const debugSummaryKey = (entryId: string) => `debugCheat.entries.${entryId}.summary`
 /** i18n key of the note above an example line (counted from 0 in the order of `examples`). */
 export const debugNoteKey = (entryId: string, index: number) => `debugCheat.entries.${entryId}.examples.${index}`
 /** i18n key of what an error usually means, or where to look first (`part`). */
 export const debugErrorKey = (errorId: string, part: 'means' | 'look') => `debugCheat.errors.${errorId}.${part}`
+
+/** The sheet's data and where its texts live, for the page to turn into cards (`buildCheatSheet`, `app/utils/cheat-sheet.ts`). */
+export const debugCheatSource: CheatSource = {
+  groups: debugCheatGroups,
+  messages: debugErrorTypes,
+  messagesId: 'errors',
+  keys: {
+    group: debugGroupKey,
+    title: debugTitleKey,
+    rule: debugRuleKey,
+    summary: debugSummaryKey,
+    note: debugNoteKey,
+    means: errorId => debugErrorKey(errorId, 'means'),
+    look: errorId => debugErrorKey(errorId, 'look')
+  },
+  labels: { why: 'debugCheat.why', look: 'debugCheat.look' },
+  levels: ids => debugCheatLevels(ids)
+}
 
 /** The levels behind a list of ids, in the order given; an unknown id is skipped (the unit test pins that none is). */
 export function debugCheatLevels(ids: readonly string[]): Level[] {

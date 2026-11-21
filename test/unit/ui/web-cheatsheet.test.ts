@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import en from '../../../layers/i18n/i18n/locales/en.json'
-import { browserMessages, webCheatGroups, webCheatLevels, webGroupKey, webMessageKey, webNoteKey, webSummaryKey, webTitleKey } from '../../../app/utils/web-cheatsheet'
+import { browserMessages, webCheatGroups, webCheatLevels, webGroupKey, webMessageKey, webNoteKey, webRuleKey, webSummaryKey, webTitleKey } from '../../../app/utils/web-cheatsheet'
 import { editedText, levelById, startWebLevel, trackById, webLevels } from '../../../shared/levels'
 import type { WebLevel } from '../../../shared/levels'
 import { CSP_SOURCE } from '../../../shared/levels/web/csp'
@@ -22,11 +22,11 @@ describe('web fundamentals cheat sheet', () => {
     for (const chapter of web.chapters) expect(lookup(webGroupKey(chapter.id)), chapter.id).toBe(chapter.title)
   })
 
-  it('has an English text for every group, title, summary, example note and message text', () => {
+  it('has an English text for every group, title, rule, summary, example note and message text', () => {
     const keys = [
       ...webCheatGroups.map(group => webGroupKey(group.id)),
       webGroupKey('messages'),
-      ...entries.flatMap(entry => [webTitleKey(entry.id), webSummaryKey(entry.id), ...entry.examples.map((_, i) => webNoteKey(entry.id, i))]),
+      ...entries.flatMap(entry => [webTitleKey(entry.id), webRuleKey(entry.id), webSummaryKey(entry.id), ...entry.examples.map((_, i) => webNoteKey(entry.id, i))]),
       ...browserMessages.flatMap(message => [webMessageKey(message.id, 'means'), webMessageKey(message.id, 'look')])
     ]
     expect(keys.filter(key => typeof lookup(key) !== 'string' || lookup(key) === '')).toEqual([])
@@ -38,8 +38,22 @@ describe('web fundamentals cheat sheet', () => {
     expect(Object.keys(sheet.entries).sort()).toEqual(entries.map(entry => entry.id).sort())
     for (const entry of entries) {
       expect(Object.keys(sheet.entries[entry.id]!.examples ?? {}), entry.id).toHaveLength(entry.examples.length)
+      expect(Object.keys(sheet.entries[entry.id]!).filter(key => key !== 'examples').sort(), entry.id).toEqual(['rule', 'summary', 'title'])
     }
+    // every page text is used: the heading, intro, filter, section chips, none, copy label, practise label, the two disclosure labels
+    expect(Object.keys(en.webCheat).filter(key => typeof (en.webCheat as Record<string, unknown>)[key] === 'string').sort())
+      .toEqual(['copy', 'intro', 'look', 'none', 'practise', 'search', 'sections', 'title', 'why'])
     expect(Object.keys(sheet.messages).sort()).toEqual(browserMessages.map(message => message.id).sort())
+  })
+
+  it('gives every card a one-line rule of its own: short, not the title, not the summary', () => {
+    for (const entry of entries) {
+      const rule = lookup(webRuleKey(entry.id)) as string
+      expect(rule.length, entry.id).toBeLessThanOrEqual(95)
+      expect(rule.includes('\n'), entry.id).toBe(false)
+      expect(rule, entry.id).not.toBe(lookup(webTitleKey(entry.id)))
+      expect(rule, entry.id).not.toBe(lookup(webSummaryKey(entry.id)))
+    }
   })
 
   it('keeps the characters vue-i18n reads as syntax (braces, pipes, at signs) out of the texts', () => {
