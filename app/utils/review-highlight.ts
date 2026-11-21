@@ -20,7 +20,7 @@ const highlighter = tagHighlighter([
   { tag: [tags.keyword, tags.modifier, tags.controlKeyword, tags.operatorKeyword, tags.definitionKeyword, tags.moduleKeyword], class: 'text-secondary' },
   { tag: [tags.string, tags.special(tags.string), tags.regexp], class: 'text-success' },
   { tag: [tags.number, tags.bool, tags.null, tags.atom], class: 'text-warning' },
-  { tag: [tags.comment, tags.lineComment, tags.blockComment], class: 'text-dimmed italic' },
+  { tag: [tags.comment, tags.lineComment, tags.blockComment], class: 'text-muted italic' },
   { tag: [tags.function(tags.variableName), tags.function(tags.propertyName)], class: 'text-info' },
   { tag: [tags.typeName, tags.className], class: 'text-warning' },
   { tag: [tags.tagName], class: 'text-secondary' },

@@ -149,7 +149,7 @@ const emphasisId = computed(() => emphasisTrackId(live, resumeTrack.value?.id ??
       <p class="mt-6 text-sm">
         <NuxtLink
           to="/about"
-          class="inline-flex items-center gap-1.5 rounded-sm text-primary hover:underline focus-visible:outline-2 focus-visible:outline-primary"
+          class="inline-flex min-h-6 items-center gap-1.5 rounded-sm text-primary hover:underline pointer-coarse:min-h-11"
         >
           {{ t('home.about') }}
           <UIcon

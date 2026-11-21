@@ -82,7 +82,7 @@ const focusTerminal = () => workbench.value?.focusTerminal()
     :track-to="trackPath(place.track.id)"
     @closed="focusTerminal"
   >
-    <template #stats>
+    <template #results>
       <GitRunStats :stats="stats" />
     </template>
   </DebriefDialog>

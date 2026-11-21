@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { levelNumber } from '#shared/levels'
+import { levelNumber, trackById } from '#shared/levels'
 import { debugCheatGroups, debugCheatLevels, debugErrorKey, debugGroupKey, debugNoteKey, debugSummaryKey, debugTitleKey, debugErrorTypes } from '~/utils/debugging-cheatsheet'
 
 const { t } = useI18n()
+const trackTitle = trackById('debugging')!.title
 useHead({ title: t('debugCheat.title') })
 useSeoMeta({ description: t('debugCheat.intro') })
 
@@ -50,10 +51,21 @@ async function copy(line: string) {
 <template>
   <div class="mx-auto w-full max-w-[110rem] px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
     <!-- same frame as the Git cheat sheet: full page width, as many columns of at least 20rem as fit -->
-    <p class="font-mono text-sm text-primary">
-      {{ t('debugCheat.kicker') }}
-    </p>
-    <h1 class="mt-3 text-3xl font-semibold tracking-tight text-highlighted sm:text-4xl">
+    <!-- no kicker above the title: the way back to the track's levels instead (a link, muted) -->
+    <nav :aria-label="t('play.breadcrumb')">
+      <NuxtLink
+        to="/debugging"
+        class="-ms-1 inline-flex min-h-6 items-center gap-1 rounded-sm px-1 text-sm text-muted hover:text-highlighted pointer-coarse:min-h-11"
+        data-testid="cheat-back"
+      >
+        <UIcon
+          name="i-lucide-arrow-left"
+          class="size-4"
+        />
+        {{ t('track.levelsOf', { track: trackTitle }) }}
+      </NuxtLink>
+    </nav>
+    <h1 class="mt-2 text-3xl font-semibold tracking-tight text-highlighted sm:text-4xl">
       {{ t('debugCheat.title') }}
     </h1>
     <p class="mt-4 max-w-3xl text-toned">
@@ -184,7 +196,7 @@ async function copy(line: string) {
           >
             <h3 class="font-mono text-base leading-snug font-bold text-highlighted wrap-break-word">
               <span
-                class="mr-2 text-primary"
+                class="mr-2 text-muted"
                 aria-hidden="true"
               >!</span>{{ error.message }}
             </h3>

@@ -182,7 +182,7 @@ A grey-blue ground with off-white text, one warm ember and a ring of muted, cont
 - **Text ladder** (dark / light): highlighted #eceff4 / #0b1220 for headings and titles, text #e5e9f0 / #1c2533, toned #d8dee9 / #334155 for body prose, muted #a7b0c0 / #475467 for meta and counts, dimmed #8e97a8 / #5d6b7e for terminal intro and coming-state rings.
 
 ### Semantic
-- **Success green** #9ece6a / #1c7437 (solved, added files, conflict "current" tint), **Warning amber** #f0c05a / #8a5a00 (modified), **Info blue** #7fb4ff / #1d63c9 (teammate notices, conflict "incoming" tint), **Error rose** #f7768e / #be123c (errors, conflicted, deleted).
+- **Success green** #9ece6a / #1c7437 (solved, added files, conflict "current" tint), **Warning amber** #f0c05a / #8a5a00 (modified), **Info blue** #7fb4ff / #1a5ab8 (teammate notices, conflict "incoming" tint), **Error rose** #f7768e / #be123c (errors, conflicted, deleted).
 
 ### Branch palette
 Eight slots, `--branch-0` to `--branch-7` (dark values in the frontmatter, light values in the sidecar). `main` is always slot 0; other branches hash to slots 1 to 6; slot 7 is used only by chapters so the graph's colours never moved. `--branch-ink` (#1b1f27 dark, #ffffff light) is text on a filled pill. A `.branch-c-N` class sets `color`, so SVG and borders use `currentColor`.
@@ -191,6 +191,7 @@ Eight slots, `--branch-0` to `--branch-7` (dark values in the frontmatter, light
 **The One Ember Rule.** Ember means active or next. Never decorate with it; a screen holds one primary action and one next-up marker.
 **The One Colour Per Line Rule.** A branch or chapter has exactly one palette slot everywhere (dot, rail marker, mini bar, lane, graph line, prompt). Never recolour it per surface.
 **The Text Beside Colour Rule.** A colour never carries a state alone; the dot, status letter or tint always has written text next to it.
+**The No Kicker Rule.** No eyebrow label above a heading; when it carried navigation it becomes a muted back link ("← Git levels").
 
 ## Typography
 
@@ -236,7 +237,8 @@ Soft but restrained. Rows and buttons use 0.5rem (rounded-lg), the Continue card
 - **Shape:** 0.5rem radius; sizes lg (Continue) and xl (track card).
 - **Primary:** solid ember fill with the terminal-well ink, trailing arrow icon (Lucide through UIcon). One per context.
 - **Default (outline):** every other button is outlined, transparent, with a visible hover (15% tint of its colour and a coloured ring; neutral goes to accented fill) and a pointer cursor. Active is 25% tint.
-- **Focus:** 2px ember outline.
+- **Focus:** one style for every control you can reach with Tab, site-wide: a 2px ember outline 2px outside it (inside the box for items of a menu, list or tab strip, and for panels that scroll). Set once in `main.css` (a base-layer rule, plus an unlayered rule over Nuxt UI's own 25%-alpha outline), never per component; 6.3:1 on the dark page, 5.1:1 on the light one.
+- **Toggled:** a chosen segment or pressed toggle is neutral and filled ("subtle"), never ember.
 
 ### Continue card
 Elevated surface, 1px strong border, 0.75rem radius, 16 to 20px padding, container-query layout (row from 42rem of its own width). Heading is the level ("3.2 Merge conflict") with a mono number, a muted meta line, a two-line story, an ember button. Done state shows a success check and links to the cheat sheet.
@@ -257,7 +259,7 @@ Filled in the chapter colour when solved, hollow (filled with the ground behind 
 A thin fully-round bar on an accented track; the fill is `currentColor`, so a chapter colour or ember sets it. The count is always written beside it.
 
 ### Terminal pane
-0.5rem radius, 1px terminal border, terminal-well fill, mono 14px; header strip with a terminal icon and key hints; focus ring is 2px ember on the whole pane. Output is a polite `role="log"`. Prompt shows the branch in its palette colour; errors in error colour, hints dimmed, teammate notices an info-bordered 10% tint line with an icon, "Level solved" in semibold success.
+0.5rem radius, 1px terminal border, terminal-well fill, mono 14px; header strip with a terminal icon and key hints; focus ring is 2px ember on the whole pane. Output is a polite `role="log"`. Prompt shows `you@grindstone` in toned text and the branch in its palette colour; errors in error colour, hints dimmed, teammate notices an info-bordered 10% tint line with an icon, "Level solved" in semibold success.
 
 ### Logo
 The skill-radar mark (hexagon, spokes, inner rings, ember filled polygon with a dot per axis) beside the lowercase Tektur wordmark: "grind" at weight 900 in current text colour, "stone" at 500 in ember.

@@ -115,11 +115,15 @@ defineExpose({ focus })
           </button>
         </li>
       </ul>
-      <div class="flex shrink-0 items-center gap-1 px-1.5">
+      <!-- with no file open the empty state below has the one "Open file"; Save is there only for an open file, and
+           only enabled once it has changes -->
+      <div
+        v-if="active"
+        class="flex shrink-0 items-center gap-1 px-1.5"
+      >
         <UButton
           size="xs"
           color="neutral"
-          variant="ghost"
           icon="i-lucide-search"
           :label="t('editor.openFile')"
           :ui="{ label: 'max-sm:sr-only' }"
@@ -131,7 +135,7 @@ defineExpose({ focus })
           color="primary"
           icon="i-lucide-save"
           :label="t('editor.save')"
-          :disabled="!active"
+          :disabled="!isDirty(active)"
           :title="t('editor.saveKeys')"
           data-testid="save-file"
           @click="save"
@@ -187,6 +191,7 @@ defineExpose({ focus })
           color="neutral"
           icon="i-lucide-search"
           :label="t('editor.openFile')"
+          data-testid="open-file"
           @click="pickerOpen = true"
         />
       </div>

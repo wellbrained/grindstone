@@ -129,7 +129,7 @@ defineExpose({ focus: () => input.value?.focus() })
           <button
             v-if="entry.source"
             type="button"
-            class="shrink-0 rounded-sm text-info underline underline-offset-2 hover:text-highlighted focus-visible:outline-2 focus-visible:outline-primary"
+            class="-my-0.5 inline-flex min-h-6 shrink-0 items-center rounded-sm text-info underline underline-offset-2 hover:text-highlighted"
             :aria-label="linkLabel(entry.source)"
             data-testid="console-source"
             @click="openLine(entry.source)"
@@ -145,11 +145,11 @@ defineExpose({ focus: () => input.value?.focus() })
           <li
             v-for="(frame, index) in entry.frames"
             :key="index"
-            class="break-words"
+            class="leading-6 break-words"
           >
             {{ t('debugging.console.at') }} {{ frame.fn }} (<button
               type="button"
-              class="rounded-sm text-info underline underline-offset-2 hover:text-highlighted focus-visible:outline-2 focus-visible:outline-primary"
+              class="inline-block rounded-sm text-info underline underline-offset-2 hover:text-highlighted"
               :aria-label="linkLabel(frame)"
               :data-frame="where(frame)"
               @click="openLine(frame)"
@@ -180,7 +180,7 @@ defineExpose({ focus: () => input.value?.focus() })
         autocorrect="off"
         spellcheck="false"
         enterkeyhint="go"
-        class="min-w-0 flex-1 bg-transparent text-highlighted caret-primary outline-none placeholder:text-dimmed"
+        class="min-h-6 min-w-0 flex-1 bg-transparent text-highlighted caret-primary outline-none placeholder:text-dimmed pointer-coarse:min-h-11"
         data-testid="console-input"
         @keydown.up="walk(-1, $event)"
         @keydown.down="walk(1, $event)"

@@ -7,12 +7,16 @@ export interface NavLink {
   to: string
 }
 
+export interface NavChild extends NavLink {
+  /** The page you are on (exactly): the menu marks it and gives it aria-current="page". */
+  current: boolean
+}
+
 export interface NavItem extends NavLink {
+  /** You are on this entry's page or below it (a track: its page, its levels, its cheat sheet). */
   active: boolean
   /** A live track: its Levels page and, when it has one, its cheat sheet, shown as a menu under the entry. */
-  children?: NavLink[]
-  /** Opens the children from the start in the vertical (mobile) menu. */
-  defaultOpen?: boolean
+  children?: NavChild[]
 }
 
 export const liveTracks = (all: readonly Track[]): Track[] => all.filter(track => track.status === 'live')
@@ -31,10 +35,9 @@ export function navigationItems(path: string, all: readonly Track[], labels: { h
       to: `/${track.id}`,
       active: current === `/${track.id}` || current.startsWith(`/${track.id}/`),
       children: [
-        { label: labels.levels, to: `/${track.id}` },
-        ...(track.cheatSheet ? [{ label: labels.cheat, to: track.cheatSheet }] : [])
-      ],
-      defaultOpen: true
+        { label: labels.levels, to: `/${track.id}`, current: current === `/${track.id}` },
+        ...(track.cheatSheet ? [{ label: labels.cheat, to: track.cheatSheet, current: current === track.cheatSheet }] : [])
+      ]
     })),
     { label: labels.about, to: '/about', active: current === '/about' }
   ]

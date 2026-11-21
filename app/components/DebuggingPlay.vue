@@ -22,7 +22,7 @@ const props = defineProps<{
 const { t } = useI18n()
 
 const play = useDebuggingPlay(props.level)
-const { session, store, goals, next, stats, reloads, find, webLevel, predictionOnly, hasNetwork, hasServer, hasApplication, hasSites, hasLoop, hasA11y, hasSecurity, hasElements, hasDebugger, hasPerformance, hasLogs, hasDeploys, requests, requestShown, picking, pickedAt, recordStatus, profileStatus, debriefOpen, progressBefore, sparkKey, mark, hint, reset, again } = play
+const { session, store, goals, next, stats, reloads, find, webLevel, predictionOnly, predicting, hasNetwork, hasServer, hasApplication, hasSites, hasLoop, hasA11y, hasSecurity, hasElements, hasDebugger, hasPerformance, hasLogs, hasDeploys, requests, requestShown, picking, pickedAt, recordStatus, profileStatus, debriefOpen, progressBefore, sparkKey, mark, hint, reset, again } = play
 
 type Lower = 'loop' | 'a11y' | 'elements' | 'debugger' | 'performance' | 'logs' | 'deploys' | 'console' | 'network' | 'server' | 'application' | 'site'
 type Panel = 'app' | Lower | 'code'
@@ -202,6 +202,7 @@ const topNote = computed(() => {
         :hints-used="session.hintsUsed"
         :solved="session.solved"
         :next="next"
+        :story-collapsed="predicting"
         @hint="hint"
         @reset="reset"
         @again="again"
@@ -320,10 +321,14 @@ const topNote = computed(() => {
               :class="lower === name ? 'bg-accented font-medium text-highlighted' : 'text-muted hover:text-highlighted'"
               @click="lower = name"
             >
-              {{ t(`debugging.panel.${name}`) }}<span
+              {{ t(`debugging.panel.${name}`) }}<UIcon
+                v-if="name === 'network' && networkFailed"
+                name="i-lucide-circle-alert"
+                class="ms-1.5 size-3.5 align-[-0.125rem] text-error"
+              /><span
                 v-if="name === 'network' && requests.length"
-                class="ms-1.5 font-mono tabular-nums"
-                :class="networkFailed ? 'text-error' : 'text-dimmed'"
+                class="ms-1 font-mono tabular-nums"
+                :class="lower === name ? 'text-toned' : 'text-muted'"
               >{{ requests.length }}</span><span
                 v-if="name === 'network' && networkFailed"
                 class="sr-only"
@@ -478,7 +483,7 @@ const topNote = computed(() => {
     :track-to="trackPath(place.track.id)"
     @closed="focusConsole"
   >
-    <template #stats>
+    <template #results>
       <DebuggingRunStats :stats="stats" />
     </template>
   </DebriefDialog>

@@ -35,6 +35,8 @@ export default defineAppConfig({
         { color: 'neutral', variant: 'outline', class: 'bg-transparent hover:bg-accented hover:ring-(--ui-border-inverted)/40 hover:text-highlighted active:bg-accented' }
       ]
     },
+    // focus: one 2px ember outline everywhere (main.css); the nav's own faint ring on a pseudo element goes
+    navigationMenu: { slots: { link: 'focus-visible:before:outline-0', childLink: 'focus-visible:before:outline-0' } },
     // a dialog's title and description keep clear of its close button (absolute, top-4 end-4) at every width
     modal: { slots: { header: 'pe-14 sm:pe-14' } },
     // fields stand out from the page in light, sit on it in dark

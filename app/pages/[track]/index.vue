@@ -10,8 +10,12 @@ const track = trackById(String(route.params.track))
 if (!track || track.status !== 'live') throw createError({ statusCode: 404, statusMessage: 'Track not found', fatal: true })
 useHead({ title: t('track.title', { track: track.title }) })
 useSeoMeta({ description: track.scope })
+// after the 404 above the error page takes over; the template's guard keeps this page from rendering without a track
 </script>
 
 <template>
-  <TrackOverview :track="track" />
+  <TrackOverview
+    v-if="track"
+    :track="track"
+  />
 </template>

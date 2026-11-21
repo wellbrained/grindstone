@@ -33,7 +33,7 @@
   --ui-secondary: #6d28d9;
   --ui-success: #1c7437;
   --ui-warning: #8a5a00;
-  --ui-info: #1d63c9;
+  --ui-info: #1a5ab8;
   --ui-error: #be123c;
 
   --app-terminal: #f6f7f9;
@@ -121,6 +121,38 @@ html {
 
 body {
   overflow-x: clip;
+}
+
+/*
+ * One focus style for everything you can reach with Tab (DESIGN.md, "Focus"): a 2px ember outline, 2px outside the
+ * control. Ember against the page measures 6.3:1 in dark and 5.1:1 in light (WCAG asks 3:1).
+ * - base layer: any element without a focus style of its own (a component's `focus-visible:outline-*` utilities win).
+ * - unlayered: every Nuxt UI control (they all carry data-slot). Nuxt UI's own focus is a 3px outline at 25% alpha
+ *   (about 1.5:1) or a faint ring on a pseudo element; this rule beats those utilities because it sits outside the
+ *   layers. Text fields keep their own full-colour ring; items inside a menu, list or tab strip get the outline inside
+ *   their box, so a scrolling parent never cuts it off.
+ */
+@layer base {
+  /* a[href] outranks Nuxt UI's own `a:focus-visible { outline-offset: 0 }` */
+  :focus-visible,
+  a[href]:focus-visible {
+    outline: 2px solid var(--ui-primary);
+    outline-offset: 2px;
+  }
+}
+
+[data-slot]:not(input, textarea, [contenteditable]):focus-visible {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: 2px;
+}
+
+[data-slot]:is([role="menuitem"], [role="menuitemcheckbox"], [role="menuitemradio"], [role="option"], [role="treeitem"], [role="tab"]):focus-visible {
+  outline-offset: -2px;
+}
+
+/* the page's content, focused by the skip link: the next Tab goes on from there, no box around the whole page */
+#main:focus {
+  outline: none;
 }
 
 /* anything clickable shows the hand cursor; Tailwind 4 leaves buttons on the arrow */
@@ -303,6 +335,14 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .lane-draw {
+    animation: none;
+  }
+}
+
+/* every spinner (UButton's `loading` icon, the panels' own) stands still under reduced motion: the button's label and its
+   disabled state still say it is busy */
+@media (prefers-reduced-motion: reduce) {
+  .animate-spin {
     animation: none;
   }
 }

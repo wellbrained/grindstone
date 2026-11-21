@@ -72,7 +72,7 @@ describe('syntax colours of the diff', () => {
     const classOf = (line: number, piece: string) => lines[line]!.find(token => token.text === piece)?.cls
     expect(classOf(0, 'export')).toBe('text-secondary')
     expect(classOf(0, '12')).toBe('text-warning')
-    expect(classOf(0, '// most')).toBe('text-dimmed italic')
+    expect(classOf(0, '// most')).toBe('text-muted italic')
     expect(classOf(2, '\'x\'')).toBe('text-success')
   })
 

@@ -130,11 +130,11 @@ const focusReview = () => pullRequest.value?.focusReview()
     :track-to="trackPath(place.track.id)"
     @closed="focusReview"
   >
-    <template #stats>
-      <ReviewRunStats
-        :level="level"
-        :stats="stats"
-      />
+    <template #results>
+      <ReviewRunStats :stats="stats" />
+    </template>
+    <template #details>
+      <ReviewIssues :level="level" />
     </template>
   </DebriefDialog>
 </template>

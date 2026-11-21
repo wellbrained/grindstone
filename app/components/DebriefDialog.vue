@@ -2,9 +2,10 @@
 import { formatCredit, radarGain, trackRadar } from '#shared/levels'
 import type { Level, LevelPlace, Progress, Scenario } from '#shared/levels'
 
-// Shown when a level is solved, in every track: why the solution works, the skill radar with this chapter's axis lit (it
-// grows once from the shape before the solve, ADR 0007), how you did (the `stats` slot: each track counts its own run,
-// git: GitRunStats) and where to go next.
+// Shown when a level is solved, in every track. Results first: how you did, as one strip (the `results` slot: each track
+// counts its own run, git: GitRunStats). Then why the solution works beside the skill radar with this chapter's axis lit
+// (it grows once from the shape before the solve, ADR 0007; on phones under the lesson), then the track's own details
+// (the `details` slot: Working with AI lists what was wrong in the pull request) and where to go next.
 const props = defineProps<{
   level: Scenario
   /** Where the level sits: its track's radar, its chapter's axis. */
@@ -48,7 +49,9 @@ function onCloseAutoFocus(event: Event) {
     :content="{ onCloseAutoFocus }"
   >
     <template #body>
-      <div class="sm:grid sm:grid-cols-[minmax(0,1fr)_11.875rem] sm:items-center sm:gap-6">
+      <slot name="results" />
+
+      <div class="mt-5 sm:grid sm:grid-cols-[minmax(0,1fr)_11.875rem] sm:items-center sm:gap-6">
         <div>
           <div class="space-y-3 text-default">
             <p
@@ -76,7 +79,7 @@ function onCloseAutoFocus(event: Event) {
         />
       </div>
 
-      <slot name="stats" />
+      <slot name="details" />
     </template>
     <template #footer>
       <div class="flex w-full flex-wrap items-center justify-end gap-2">

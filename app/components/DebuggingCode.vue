@@ -31,6 +31,34 @@ const activeStep = computed(() => recordStatus.value === 'recorded' && debugLine
 
 const tabs = useTemplateRef<HTMLElement>('tabs')
 
+// More files than the strip shows (narrow columns, 1024px): the open file's tab is scrolled into view (on mount and on
+// every change), and an edge with tabs beyond it fades out, so you can see there are more.
+const FADE = 24
+const { arrivedState, measure } = useScroll(tabs, { offset: { left: 2, right: 2 } })
+function revealTab() {
+  nextTick(() => {
+    const list = tabs.value
+    const tab = list?.querySelector<HTMLElement>(`[data-file="${CSS.escape(active.value)}"]`)
+    if (!list || !tab) return
+    const box = list.getBoundingClientRect()
+    const at = tab.getBoundingClientRect()
+    if (at.left < box.left + FADE) list.scrollLeft -= box.left + FADE - at.left
+    else if (at.right > box.right - FADE) list.scrollLeft += at.right - (box.right - FADE)
+    measure()
+  })
+}
+onMounted(revealTab)
+watch(active, revealTab)
+useResizeObserver(tabs, () => measure())
+const fade = computed(() => {
+  const start = !arrivedState.left
+  const end = !arrivedState.right
+  if (!start && !end) return undefined
+  const from = start ? `transparent, black ${FADE}px` : 'black'
+  const to = end ? `black calc(100% - ${FADE}px), transparent` : 'black'
+  return { maskImage: `linear-gradient(to right, ${from}, ${to})` }
+})
+
 /** Arrow keys move along the file tabs, Home and End jump to the ends. */
 function onTabKey(event: KeyboardEvent) {
   const list = files.value
@@ -55,7 +83,9 @@ function onTabKey(event: KeyboardEvent) {
         ref="tabs"
         role="tablist"
         :aria-label="t('debugging.code.files')"
-        class="flex min-w-0 flex-1 items-stretch overflow-x-auto"
+        class="flex min-w-0 flex-1 items-stretch overflow-x-auto [scrollbar-width:thin]"
+        :style="fade"
+        data-testid="file-tabs"
         @keydown="onTabKey"
       >
         <button

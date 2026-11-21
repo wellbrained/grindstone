@@ -1,11 +1,29 @@
 {
+  "notFound": {
+    "level": "No level “{slug}” in {track}",
+    "levelBody": "{track} has no level at this address. Its levels are all on the track page.",
+    "levels": "{track} levels",
+    "track": "No track “{slug}”",
+    "trackBody": "Grindstone has no track at this address.",
+    "coming": "{track} is not open yet",
+    "comingBody": "It is one of the coming tracks: no levels to play yet.",
+    "page": "Page not found",
+    "pageBody": "There is nothing at this address.",
+    "error": "Something went wrong",
+    "errorBody": "This page could not be shown. Your progress is safe: it lives in this browser.",
+    "tracks": "All tracks",
+    "sheets": "Cheat sheets",
+    "sheet": "{track} cheat sheet"
+  },
   "layout": {
     "colorMode": "Switch between light and dark mode",
+    "skip": "Skip to content",
     "footer": "{name}: practice real developer skills, in the browser.",
     "version": "v{version}",
     "nav": {
       "label": "Main",
       "footer": "Footer",
+      "dialog": "Site navigation",
       "tracks": "Tracks",
       "about": "About",
       "levels": "Levels",
@@ -38,6 +56,8 @@
     "reset": "Reset",
     "solved": "Level solved",
     "debrief": "Show debrief",
+    "storyMore": "Read the whole story",
+    "storyLess": "Show less",
     "keyboard": "Best with a keyboard: type the commands into the terminal below.",
     "layout": {
       "label": "Layout",
@@ -137,15 +157,17 @@
   },
   "debrief": {
     "solved": "{title}: solved.",
-    "commands": "Commands (shortest solution)",
-    "hints": "Hints used",
+    "result": "Result",
+    "solvedShort": "Solved",
+    "commands": "Commands",
+    "shortest": "shortest solution {n}",
+    "hints": "Hints",
     "verdictBest": "That matches the shortest solution we know. Nicely done.",
-    "verdictMore": "{n} command more than the shortest solution. | {n} commands more than the shortest solution.",
+    "verdictMore": "Solved. The shortest solution we know takes {n} command, if you want to try it again; checking with status or log on the way is never wrong. | Solved. The shortest solution we know takes {n} commands, if you want to try it again; checking with status or log on the way is never wrong.",
     "stay": "Stay here",
     "next": "Next level",
     "all": "Back to the track",
-    "best": "Your best run",
-    "bestHints": "· no hints | · {n} hint | · {n} hints",
+    "best": "Best run",
     "radarGain": "{chapter} {from} → {to} of {total}",
     "radarGainLong": "Skill radar, {chapter}: {from} to {to} of {total}",
     "reloads": "Reloads",
@@ -179,7 +201,6 @@
     }
   },
   "cheat": {
-    "kicker": "Git track",
     "title": "Git cheat sheet",
     "intro": "The commands you need day to day, in one line each, with typical examples. Click an example to copy it, or jump to the level that practises it.",
     "search": "Filter commands",
@@ -383,7 +404,6 @@
     }
   },
   "aiCheat": {
-    "kicker": "Working with AI track",
     "title": "Working with AI cheat sheet",
     "intro": "What to check in an AI pull request, chapter by chapter, and how to ask for the fix. Filter, click a line to copy it, or jump to the level that practises it.",
     "search": "Filter the sheet",
@@ -585,7 +605,6 @@
     }
   },
   "webCheat": {
-    "kicker": "Web fundamentals track",
     "title": "Web fundamentals cheat sheet",
     "intro": "The browser's rules from every chapter and the messages it shows, in a few lines each. Filter, click a line to copy it, or jump to the level that practises it.",
     "search": "Filter the sheet",
@@ -1013,7 +1032,6 @@
     }
   },
   "debugCheat": {
-    "kicker": "Debugging track",
     "title": "Debugging cheat sheet",
     "intro": "Every panel and the error messages from the levels, in a few lines each. Filter, click an example to copy it, or jump to the level that practises it.",
     "search": "Filter the sheet",
@@ -1394,7 +1412,6 @@
     }
   },
   "about": {
-    "kicker": "About",
     "title": "Practice the skills you use every day",
     "intro": "Grindstone is a training ground for developers: short, game-like levels that run in your browser. Four tracks are live: Git, Debugging, Working with AI and Web fundamentals. Git came first, because everyone uses it and almost everyone is a little afraid of rebase.",
     "differentTitle": "What makes it different",
@@ -1432,6 +1449,7 @@
     }
   },
   "track": {
+    "levelsOf": "{track} levels",
     "title": "{track} track",
     "size": "{levels} in {chapters}",
     "levels": "{n} level | {n} levels",
@@ -2018,7 +2036,8 @@
       "summaryPlaceholder": "Anything you want to tell Sous about the whole change",
       "reasonPlaceholder": "Approve or request changes, and say why",
       "reasonMissing": "Say why in one line before you send it.",
-      "notRead": "Grindstone doesn't read what you write: the lines you comment on and their categories decide."
+      "notRead": "Grindstone doesn't read what you write: the lines you comment on and their categories decide.",
+    "sent": "sent"
     },
     "verdict": {
       "approve": "Approve",

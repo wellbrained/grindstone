@@ -10,10 +10,7 @@ const later = ['tracks', 'profile'] as const
 <template>
   <div class="mx-auto w-full max-w-[110rem] px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
     <!-- full page width like the header (docs/features/ui.md, "Page width") -->
-    <p class="font-mono text-sm text-primary">
-      {{ t('about.kicker') }}
-    </p>
-    <h1 class="mt-3 text-3xl font-semibold tracking-tight text-highlighted sm:text-4xl">
+    <h1 class="text-3xl font-semibold tracking-tight text-highlighted sm:text-4xl">
       {{ t('about.title') }}
     </h1>
     <p class="mt-4 max-w-[70ch] text-lg text-pretty text-toned">

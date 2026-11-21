@@ -2,6 +2,7 @@
 import { isRight, nextQuestion } from '#shared/levels'
 import type { PredictionAnswer, Question } from '#shared/levels'
 import type { DebuggingPlaySession } from '~/composables/useDebuggingPlay'
+import { plainText } from '~/utils/inline-text'
 
 // The prediction card of a Web fundamentals level (ADR 0009, docs/features/ui.md "Web fundamentals play page"): before
 // the app runs, a form asks one question (a practice task: one or three) in one of three forms: pick one (a radio
@@ -30,8 +31,8 @@ watch(question, (next) => {
 }, { immediate: true })
 
 const optionOf = (item: Question, id: string) => item.options.find(option => option.id === id)
-/** An option's text without its `code` marks (for names that are read out). */
-const plain = (text: string) => text.replace(/`/g, '')
+/** An option's text without its marks (for names that are read out). */
+const plain = plainText
 const valid = computed(() => question.value?.form !== 'one' || choice.value !== null)
 const last = computed(() => current.value !== null && current.value === questions.value.length - 1)
 
@@ -224,7 +225,7 @@ const rightText = (item: Question) => answerText(item, item.answer)
           <label
             v-for="option in question.options"
             :key="option.id"
-            class="flex cursor-pointer items-start gap-2 rounded-md border border-default bg-default px-2.5 py-2 text-sm text-toned has-checked:border-primary has-checked:bg-primary/10 has-focus-visible:outline-2 has-focus-visible:outline-primary"
+            class="flex cursor-pointer items-start gap-2 rounded-md border border-default bg-default px-2.5 py-1.5 text-sm text-toned has-checked:border-primary has-checked:bg-primary/10 has-focus-visible:outline-2 has-focus-visible:outline-primary"
           >
             <input
               v-model="choice"
@@ -245,7 +246,7 @@ const rightText = (item: Question) => answerText(item, item.answer)
           <label
             v-for="option in question.options"
             :key="option.id"
-            class="flex cursor-pointer items-start gap-2 rounded-md border border-default bg-default px-2.5 py-2 text-sm text-toned has-checked:border-primary has-checked:bg-primary/10 has-focus-visible:outline-2 has-focus-visible:outline-primary"
+            class="flex cursor-pointer items-start gap-2 rounded-md border border-default bg-default px-2.5 py-1.5 text-sm text-toned has-checked:border-primary has-checked:bg-primary/10 has-focus-visible:outline-2 has-focus-visible:outline-primary"
           >
             <input
               v-model="lines"

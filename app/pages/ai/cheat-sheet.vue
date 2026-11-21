@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { levelNumber } from '#shared/levels'
+import { levelNumber, trackById } from '#shared/levels'
 import { aiCheatGroups, aiCheatLevels, aiGroupKey, aiNoteKey, aiSummaryKey, aiTitleKey } from '~/utils/ai-cheatsheet'
 
 // The Working with AI cheat sheet (ADR 0008; docs/features/ui.md "Working with AI cheat sheet"): what to check in an AI
 // pull request, one section per chapter's kind of problem and one for steering, each check with the lines from the
 // levels that show it and links to the scenarios that practise it. The same frame as the Debugging cheat sheet.
 const { t } = useI18n()
+const trackTitle = trackById('ai')!.title
 useHead({ title: t('aiCheat.title') })
 useSeoMeta({ description: t('aiCheat.intro') })
 
@@ -45,10 +46,21 @@ async function copy(line: string) {
 <template>
   <div class="mx-auto w-full max-w-[110rem] px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
     <!-- same frame as the Git and Debugging cheat sheets: full page width, as many columns of at least 20rem as fit -->
-    <p class="font-mono text-sm text-primary">
-      {{ t('aiCheat.kicker') }}
-    </p>
-    <h1 class="mt-3 text-3xl font-semibold tracking-tight text-highlighted sm:text-4xl">
+    <!-- no kicker above the title: the way back to the track's levels instead (a link, muted) -->
+    <nav :aria-label="t('play.breadcrumb')">
+      <NuxtLink
+        to="/ai"
+        class="-ms-1 inline-flex min-h-6 items-center gap-1 rounded-sm px-1 text-sm text-muted hover:text-highlighted pointer-coarse:min-h-11"
+        data-testid="cheat-back"
+      >
+        <UIcon
+          name="i-lucide-arrow-left"
+          class="size-4"
+        />
+        {{ t('track.levelsOf', { track: trackTitle }) }}
+      </NuxtLink>
+    </nav>
+    <h1 class="mt-2 text-3xl font-semibold tracking-tight text-highlighted sm:text-4xl">
       {{ t('aiCheat.title') }}
     </h1>
     <p class="mt-4 max-w-3xl text-toned">

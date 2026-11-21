@@ -32,21 +32,21 @@ describe('navigation', () => {
   it('gives a live track a menu: Levels, plus the cheat sheet only when the track has one', () => {
     const git = navigationItems('/', tracks, labels).find(item => item.to === '/git')
     expect(git?.children).toEqual([
-      { label: 'Levels', to: '/git' },
-      { label: 'Cheat sheet', to: '/git/cheat-sheet' }
+      { label: 'Levels', to: '/git', current: false },
+      { label: 'Cheat sheet', to: '/git/cheat-sheet', current: false }
     ])
     // Debugging's sheet came after chapter 7 (ADR 0007)
     expect(navigationItems('/', tracks, labels).find(item => item.to === '/debugging')?.children).toEqual([
-      { label: 'Levels', to: '/debugging' },
-      { label: 'Cheat sheet', to: '/debugging/cheat-sheet' }
+      { label: 'Levels', to: '/debugging', current: false },
+      { label: 'Cheat sheet', to: '/debugging/cheat-sheet', current: false }
     ])
     expect(navigationItems('/debugging/01-add-to-cart', tracks, labels).find(item => item.active)?.to).toBe('/debugging')
     // Working with AI's came after chapter 7 too (ADR 0008)
-    expect(navigationItems('/ai/01-twelve-croissants', tracks, labels).find(item => item.active)).toMatchObject({ to: '/ai', children: [{ label: 'Levels', to: '/ai' }, { label: 'Cheat sheet', to: '/ai/cheat-sheet' }] })
+    expect(navigationItems('/ai/01-twelve-croissants', tracks, labels).find(item => item.active)).toMatchObject({ to: '/ai', children: [{ label: 'Levels', to: '/ai', current: false }, { label: 'Cheat sheet', to: '/ai/cheat-sheet', current: false }] })
     expect(navigationItems('/ai/cheat-sheet', tracks, labels).find(item => item.active)?.to).toBe('/ai')
     // the fixture track has no cheat sheet; home and About are plain links
     const items = navigationItems('/', withWeb, labels)
-    expect(items.find(item => item.to === '/web')?.children).toEqual([{ label: 'Levels', to: '/web' }])
+    expect(items.find(item => item.to === '/web')?.children).toEqual([{ label: 'Levels', to: '/web', current: false }])
     expect(items.filter(item => item.to === '/' || item.to === '/about').every(item => item.children === undefined)).toBe(true)
   })
 
@@ -57,6 +57,15 @@ describe('navigation', () => {
     expect(navigationItems('/debugging/cheat-sheet', tracks, labels).find(item => item.active)?.to).toBe('/debugging')
     expect(navigationItems('/gitlab', tracks, labels).some(item => item.active)).toBe(false)
     expect(navigationItems('/about', tracks, labels).find(item => item.active)?.to).toBe('/about')
+  })
+
+  it('marks the child you are on as current, exactly: Levels on the track page, Cheat sheet on the sheet, neither on a level', () => {
+    const children = (path: string) => navigationItems(path, tracks, labels).find(item => item.to === '/git')?.children?.map(child => [child.label, child.current])
+    expect(children('/git')).toEqual([['Levels', true], ['Cheat sheet', false]])
+    expect(children('/git/')).toEqual([['Levels', true], ['Cheat sheet', false]])
+    expect(children('/git/cheat-sheet')).toEqual([['Levels', false], ['Cheat sheet', true]])
+    expect(children('/git/04-merge-conflict')).toEqual([['Levels', false], ['Cheat sheet', false]])
+    expect(children('/debugging')).toEqual([['Levels', false], ['Cheat sheet', false]])
   })
 
   it('picks up a second live track from data alone, in the nav and on the home page', () => {

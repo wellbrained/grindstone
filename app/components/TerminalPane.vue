@@ -120,17 +120,18 @@ defineExpose({ focus })
     class="flex h-full min-h-72 flex-col overflow-hidden rounded-lg border border-(--app-terminal-border) bg-(--app-terminal) font-mono text-sm focus-within:ring-2 focus-within:ring-primary"
     @click="onPaneClick"
   >
-    <header class="flex items-center justify-between gap-3 border-b border-(--app-terminal-border) px-3 py-1.5 text-xs text-muted">
-      <span class="flex items-center gap-1.5">
+    <header class="flex items-start justify-between gap-3 border-b border-(--app-terminal-border) px-3 py-1.5 text-xs text-muted">
+      <span class="flex shrink-0 items-center gap-1.5">
         <UIcon
           name="i-lucide-terminal"
           class="size-4"
         />
         {{ t('terminal.title') }}
       </span>
+      <!-- the keys wrap onto a second line in a narrow column rather than being cut off -->
       <span
         id="terminal-keys"
-        class="hidden truncate sm:inline"
+        class="hidden min-w-0 text-end text-pretty sm:inline"
       >{{ t('terminal.keys') }}</span>
     </header>
 
@@ -206,7 +207,7 @@ defineExpose({ focus })
           autocorrect="off"
           spellcheck="false"
           enterkeyhint="send"
-          class="min-w-24 flex-1 basis-40 bg-transparent text-highlighted caret-primary outline-none"
+          class="min-h-6 min-w-24 flex-1 basis-40 bg-transparent text-highlighted caret-primary outline-none pointer-coarse:min-h-11"
           @keydown="onKeydown"
         >
       </form>

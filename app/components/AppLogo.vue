@@ -5,9 +5,15 @@ const { site } = useAppConfig()
 <!--
   The logo (docs/adr/0005-logo.md): the radar mark (one axis per track, your strengths filled in)
   and the wordmark "grind" (Tektur 900) + "stone" (Tektur 500, ember).
+  One name, once: the whole logo is an image named after the site, its mark and wordmark are drawing (in the header the
+  link around it carries the same name).
 -->
 <template>
-  <span class="inline-flex items-center gap-2 text-highlighted">
+  <span
+    role="img"
+    :aria-label="site.name"
+    class="inline-flex items-center gap-2 text-highlighted"
+  >
     <svg
       viewBox="0 0 32 32"
       class="size-7 shrink-0"
@@ -68,7 +74,6 @@ const { site } = useAppConfig()
         </g>
       </g>
     </svg>
-    <span class="sr-only">{{ site.name }}</span>
     <span
       class="font-brand text-[1.375rem] leading-none font-black tracking-[-0.01em]"
       aria-hidden="true"

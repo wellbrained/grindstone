@@ -1,13 +1,14 @@
 <script setup lang="ts">
 import type { Prompt } from '~/utils/terminal'
 
-// you@grindstone ~/project (feature/login) $ : the branch in its palette colour.
+// you@grindstone ~/project (feature/login) $ : the branch in its palette colour; user@host is plain text (ember marks only
+// what is active or next, DESIGN.md "The One Ember Rule").
 defineProps<{ prompt: Prompt }>()
 </script>
 
 <template>
   <span class="whitespace-pre-wrap select-none">
-    <span class="text-primary">you@grindstone</span>
+    <span class="text-toned">you@grindstone</span>
     <span class="text-muted"> ~/project</span>
     <template v-if="prompt.branch">
       <span class="text-muted"> (</span>

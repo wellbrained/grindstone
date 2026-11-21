@@ -31,7 +31,7 @@ const columns = isDescription ? 2 : 3
 
 const SIGN: Record<DiffRow['kind'], string> = { add: '+', del: '−', same: ' ' }
 const ROW_TONE: Record<DiffRow['kind'], string> = { add: 'bg-success/10', del: 'bg-error/10', same: '' }
-const NUMBER_TONE: Record<DiffRow['kind'], string> = { add: 'bg-success/15 text-success', del: 'bg-error/15 text-error', same: 'text-dimmed' }
+const NUMBER_TONE: Record<DiffRow['kind'], string> = { add: 'bg-success/15 text-toned', del: 'bg-error/15 text-toned', same: 'text-muted' }
 
 // the code in the editor's colours, once each side's language has loaded
 const tokens = shallowRef<{ head: Token[][] | null, base: Token[][] | null }>({ head: null, base: null })
@@ -204,7 +204,7 @@ const STATUS_KEY = { added: 'added', deleted: 'deleted', modified: 'modified' } 
     >
       <table
         class="w-full table-fixed border-collapse [font-variant-ligatures:none]"
-        :class="isDescription ? 'text-sm leading-6' : 'font-mono text-xs leading-5'"
+        :class="isDescription ? 'text-sm leading-6' : 'font-mono text-xs leading-6'"
       >
         <colgroup>
           <col class="w-8 sm:w-10">
@@ -241,7 +241,7 @@ const STATUS_KEY = { added: 'added', deleted: 'deleted', modified: 'modified' } 
               >
                 <button
                   type="button"
-                  class="grid w-full cursor-pointer border-s-2 text-end tabular-nums select-none hover:bg-primary/20 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
+                  class="grid min-h-6 w-full cursor-pointer items-center border-s-2 text-end tabular-nums select-none hover:bg-primary/20 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
                   :class="[isDescription ? 'grid-cols-1 py-0.5 font-mono text-xs leading-6' : 'grid-cols-2', NUMBER_TONE[row.kind], isActive(file.path, h, index) ? 'border-primary bg-primary/25 text-highlighted' : inComment(file.path, h, index) ? 'border-info' : 'border-transparent']"
                   :tabindex="flatIndex(h, index) === focused ? 0 : -1"
                   :aria-label="rowLabel(row)"

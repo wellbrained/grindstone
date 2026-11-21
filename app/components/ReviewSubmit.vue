@@ -67,6 +67,13 @@ function steerOutcome(result: NonNullable<typeof sent.value>['result']) {
   return { tone: 'warning', text: `${parts.join(' ')} ${out ? t('review.steer.reset') : t('review.result.again')}` }
 }
 
+const VERDICTS: { id: Verdict, icon: string, tone: string }[] = [
+  { id: 'approve', icon: 'i-lucide-check', tone: 'text-success' },
+  { id: 'request-changes', icon: 'i-lucide-file-diff', tone: 'text-error' }
+]
+/** The verdict of the last review you sent (its button says "sent"). */
+const sentVerdict = computed(() => sent.value?.result.verdict ?? null)
+
 const box = useTemplateRef<HTMLElement>('box')
 defineExpose({ focus: () => box.value?.focus() })
 </script>
@@ -127,21 +134,23 @@ defineExpose({ focus: () => box.value?.focus() })
     >
       {{ roundNote }}
     </p>
+    <!-- the verdicts: neutral buttons, the colour only on their icons; the one your last review sent says so in words -->
     <div class="flex flex-wrap gap-2">
       <UButton
-        color="success"
-        icon="i-lucide-check"
-        :label="t('review.verdict.approve')"
-        data-testid="approve"
-        @click="send('approve')"
-      />
-      <UButton
-        color="error"
-        icon="i-lucide-file-diff"
-        :label="t('review.verdict.request-changes')"
-        data-testid="request-changes"
-        @click="send('request-changes')"
-      />
+        v-for="verdict in VERDICTS"
+        :key="verdict.id"
+        color="neutral"
+        :icon="verdict.icon"
+        :ui="{ leadingIcon: verdict.tone }"
+        :data-testid="verdict.id"
+        :data-sent="sentVerdict === verdict.id || undefined"
+        @click="send(verdict.id)"
+      >
+        {{ t(`review.verdict.${verdict.id}`) }}<span
+          v-if="sentVerdict === verdict.id"
+          class="text-xs font-normal text-muted"
+        > · {{ t('review.submit.sent') }}</span>
+      </UButton>
     </div>
     <p
       v-if="refused === 'comments'"

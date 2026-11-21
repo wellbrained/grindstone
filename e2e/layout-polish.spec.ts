@@ -25,7 +25,8 @@ for (const [width, height] of [[1024, 800], [1440, 900], [390, 844]] as const) {
     await page.goto('/debugging/practice-pass-the-data-on')
     const trail = page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('list')
     await expect(trail).toBeVisible()
-    expect((await trail.boundingBox())!.height).toBeLessThan(24)
+    // one line: the links are 24px tap targets (0.5.2), two lines would be 48
+    expect((await trail.boundingBox())!.height).toBeLessThanOrEqual(24)
     const last = trail.getByRole('link').last()
     await expect(last).toHaveAttribute('title', /^\d+\.\d+ .{20,}/)
     expect(await last.evaluate(el => el.scrollWidth > el.clientWidth)).toBe(true)

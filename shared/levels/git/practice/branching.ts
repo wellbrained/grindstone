@@ -74,7 +74,7 @@ export const listRemoteBranches = practice({
     .build(),
   goals: [{
     id: 'shown',
-    label: 'You listed the origin/* branches',
+    label: 'You listed the `origin/*` branches',
     check: ({ history }) => ran(history, 'branch', args => lists(args) && (hasFlag(args, 'r', '--remotes') || hasFlag(args, 'a', '--all')))
   }],
   hints: ['`git branch -r` lists the branches on origin as of your last fetch; `git branch -a` lists yours too.'],

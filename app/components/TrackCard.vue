@@ -94,7 +94,7 @@ const primary = computed(() => {
         <NuxtLink
           v-if="track.cheatSheet"
           :to="track.cheatSheet"
-          class="inline-flex items-center gap-2 rounded-md px-1 text-sm text-muted hover:text-highlighted focus-visible:outline-2 focus-visible:outline-primary"
+          class="inline-flex min-h-6 items-center gap-2 rounded-md px-1 text-sm text-muted hover:text-highlighted pointer-coarse:min-h-11"
         >
           <UIcon
             name="i-lucide-book-open"

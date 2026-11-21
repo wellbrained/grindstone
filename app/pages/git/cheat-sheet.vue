@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { levelNumber } from '#shared/levels'
+import { levelNumber, trackById } from '#shared/levels'
 import { cheatGroups, groupKey, levelsUsing, noteKey, summaryKey } from '~/utils/git-cheatsheet'
 
 const { t } = useI18n()
+const trackTitle = trackById('git')!.title
 useHead({ title: t('cheat.title') })
 useSeoMeta({ description: t('cheat.intro') })
 
@@ -37,10 +38,21 @@ async function copy(line: string) {
 <template>
   <div class="mx-auto w-full max-w-[110rem] px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
     <!-- full page width like the header; as many columns of at least 20rem as fit (1 on phones, 4 on wide screens) -->
-    <p class="font-mono text-sm text-primary">
-      {{ t('cheat.kicker') }}
-    </p>
-    <h1 class="mt-3 text-3xl font-semibold tracking-tight text-highlighted sm:text-4xl">
+    <!-- no kicker above the title: the way back to the track's levels instead (a link, muted) -->
+    <nav :aria-label="t('play.breadcrumb')">
+      <NuxtLink
+        to="/git"
+        class="-ms-1 inline-flex min-h-6 items-center gap-1 rounded-sm px-1 text-sm text-muted hover:text-highlighted pointer-coarse:min-h-11"
+        data-testid="cheat-back"
+      >
+        <UIcon
+          name="i-lucide-arrow-left"
+          class="size-4"
+        />
+        {{ t('track.levelsOf', { track: trackTitle }) }}
+      </NuxtLink>
+    </nav>
+    <h1 class="mt-2 text-3xl font-semibold tracking-tight text-highlighted sm:text-4xl">
       {{ t('cheat.title') }}
     </h1>
     <p class="mt-4 max-w-3xl text-toned">
@@ -91,11 +103,11 @@ async function copy(line: string) {
             :key="command.name"
             class="rounded-lg border border-default bg-elevated p-5"
           >
-            <!-- the heading is itself a prompt: "$ git rebase" (owner's pick, option B6, 2026-11-12); its $ is the card's only ember mark -->
+            <!-- the heading is itself a prompt: "$ git rebase" (owner's pick, option B6, 2026-11-12); its $ is muted, like a prompt (ember only marks what is active or next) -->
             <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
               <h3 class="font-mono text-xl leading-tight font-bold tracking-tight text-highlighted">
                 <span
-                  class="mr-2 text-primary"
+                  class="mr-2 text-muted"
                   aria-hidden="true"
                 >$</span>git {{ command.name }}
               </h3>

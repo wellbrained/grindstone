@@ -1,8 +1,12 @@
 <script setup lang="ts">
-// Level text (story, debrief) marks commands with `backticks`; show them as monospace code chips.
+import { codeBreaks, inlineParts } from '~/utils/inline-text'
+
+// Level text (story, debrief, goals, hints, predictions): `backticks` as monospace code chips, **strong** and *emphasis*
+// as elements (app/utils/inline-text.ts; never v-html). A long chip wraps after a slash or a dot first, else anywhere,
+// so it never pushes a narrow column wider.
 const props = defineProps<{ text: string }>()
 
-const parts = computed(() => props.text.split(/`([^`]+)`/).map((text, index) => ({ text, code: index % 2 === 1 })))
+const parts = computed(() => inlineParts(props.text))
 </script>
 
 <template>
@@ -12,9 +16,17 @@ const parts = computed(() => props.text.split(/`([^`]+)`/).map((text, index) => 
       :key="index"
     >
       <code
-        v-if="part.code"
-        class="rounded-sm bg-accented px-1 py-0.5 font-mono text-[0.9em] text-highlighted"
-      >{{ part.text }}</code>
+        v-if="part.kind === 'code'"
+        class="rounded-sm bg-accented box-decoration-clone px-1 py-0.5 font-mono text-[0.9em] wrap-anywhere text-highlighted"
+      ><template
+        v-for="(piece, at) in codeBreaks(part.text)"
+        :key="at"
+      ><wbr v-if="at > 0">{{ piece }}</template></code>
+      <strong
+        v-else-if="part.kind === 'strong'"
+        class="font-semibold text-highlighted"
+      >{{ part.text }}</strong>
+      <em v-else-if="part.kind === 'em'">{{ part.text }}</em>
       <template v-else>{{ part.text }}</template>
     </template>
   </span>

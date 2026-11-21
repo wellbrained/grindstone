@@ -12,7 +12,7 @@
       "violet": { "role": "secondary", "displayName": "Dusk Violet", "canonical": "#bb9af7", "light": "#6d28d9", "tonalRamp": ["#2e1065", "#4c1d95", "#6d28d9", "#8b5cf6", "#bb9af7", "#cdb4f9", "#e0d0fb", "#f1eafd"] },
       "success-green": { "role": "semantic", "displayName": "Solved Green", "canonical": "#9ece6a", "light": "#1c7437", "tonalRamp": ["#0f3a1c", "#1c7437", "#2f9a4e", "#6db04a", "#9ece6a", "#b6dc8c", "#d0ebb2", "#ecf6dd"] },
       "warning-amber": { "role": "semantic", "displayName": "Amber Warning", "canonical": "#f0c05a", "light": "#8a5a00", "tonalRamp": ["#3d2800", "#6b4600", "#8a5a00", "#c08a14", "#f0c05a", "#f5d283", "#f9e3ae", "#fcf3d9"] },
-      "info-blue": { "role": "semantic", "displayName": "Teammate Blue", "canonical": "#7fb4ff", "light": "#1d63c9", "tonalRamp": ["#0c2a5c", "#1d63c9", "#3f84e8", "#5c9cf5", "#7fb4ff", "#a3c9ff", "#c8ddff", "#e6f0ff"] },
+      "info-blue": { "role": "semantic", "displayName": "Teammate Blue", "canonical": "#7fb4ff", "light": "#1a5ab8", "tonalRamp": ["#0c2a5c", "#1d63c9", "#3f84e8", "#5c9cf5", "#7fb4ff", "#a3c9ff", "#c8ddff", "#e6f0ff"] },
       "error-rose": { "role": "semantic", "displayName": "Error Rose", "canonical": "#f7768e", "light": "#be123c", "tonalRamp": ["#4a0a1c", "#8a0f2e", "#be123c", "#dd3a5d", "#f7768e", "#f99bac", "#fbc0cb", "#fde4e8"] },
       "branch-0": { "role": "branch", "displayName": "Branch Blue (main)", "canonical": "#7fb4ff", "light": "#1d63c9" },
       "branch-1": { "role": "branch", "displayName": "Branch Green", "canonical": "#8fd16a", "light": "#2a7210" },

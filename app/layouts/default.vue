@@ -15,17 +15,54 @@ const navigation = computed(() => navigationItems(route.path, tracks, {
   levels: t('layout.nav.levels'),
   cheat: t('layout.nav.cheat')
 }))
-// A track entry is a menu trigger (a button), so the header and the mobile menu get it without a link of its own; its Levels
-// child is the track page. The footer keeps the plain links.
-const menuItems = computed(() => navigation.value.map(item => item.children ? { ...item, to: undefined } : item))
+// A track entry is a menu trigger (a button), so the header gets it without a link of its own; its Levels child is the
+// track page. The entry you are in says so (aria-current, not colour alone): the trigger of your track is "true", the
+// page you are on "page". The current child carries a filled background in the dropdown as well.
+const CHILD_ICONS = ['i-lucide-list', 'i-lucide-scroll-text']
+const currentPath = computed(() => route.path.replace(/\/$/, '') || '/')
+const ariaCurrent = (value: 'true' | 'page' | false) => value ? { 'aria-current': value } : {}
+const menuItems = computed(() => navigation.value.map(item => item.children
+  ? {
+      label: item.label,
+      active: item.active,
+      ...ariaCurrent(item.active && 'true'),
+      children: item.children.map((child, index) => ({
+        label: child.label,
+        to: child.to,
+        icon: CHILD_ICONS[index],
+        active: child.current,
+        ...ariaCurrent(child.current && 'page'),
+        class: child.current ? 'before:bg-accented font-medium' : undefined
+      }))
+    }
+  : { label: item.label, to: item.to, active: item.active, ...ariaCurrent(item.active && 'page') }))
+
+// the mobile menu: one compact row per track, closed on any tap of a link (the page you are on included)
+const menuOpen = ref(false)
+
+// the skip link moves the focus to the page's content (a hash link would change the route and restart a play page)
+function skipToContent() {
+  document.getElementById('main')?.focus()
+}
 </script>
 
 <template>
   <div class="flex min-h-dvh flex-col">
+    <!-- the skip link: hidden above the window until it has the focus, then a chip over the header's top-left corner -->
+    <a
+      href="#main"
+      class="fixed top-2 left-2 z-100 -translate-y-[200%] rounded-lg border border-accented bg-elevated px-3.5 py-2 text-sm font-medium text-highlighted focus:translate-y-0"
+      data-testid="skip-link"
+      @click.prevent="skipToContent"
+    >{{ t('layout.skip') }}</a>
+
     <!-- the nav sits in the header from md; below md the menu button opens it -->
     <UHeader
+      v-model:open="menuOpen"
       :title="site.name"
       to="/"
+      :menu="{ title: t('layout.nav.dialog') }"
+      :toggle="{ variant: 'outline', class: 'justify-center max-sm:size-11 pointer-coarse:size-11' }"
       :ui="{ container: 'max-w-[110rem]', center: 'hidden md:flex', toggle: 'md:hidden', content: 'md:hidden', overlay: 'md:hidden' }"
     >
       <template #title>
@@ -44,22 +81,62 @@ const menuItems = computed(() => navigation.value.map(item => item.children ? { 
       <template #right>
         <UColorModeButton
           :aria-label="t('layout.colorMode')"
-          class="max-sm:size-11 pointer-coarse:size-11"
+          class="justify-center max-sm:size-11 pointer-coarse:size-11"
         />
       </template>
 
       <template #body>
-        <UNavigationMenu
-          :items="menuItems"
-          orientation="vertical"
+        <nav
           :aria-label="t('layout.nav.label')"
-          class="-mx-2.5"
-        />
+          data-testid="mobile-nav"
+        >
+          <ul class="divide-y divide-default">
+            <li
+              v-for="item in navigation"
+              :key="item.to"
+            >
+              <div
+                v-if="item.children"
+                role="group"
+                :aria-labelledby="`mobile-nav${item.to.replace(/\//g, '-')}`"
+                class="flex items-center gap-1 py-1"
+              >
+                <span
+                  :id="`mobile-nav${item.to.replace(/\//g, '-')}`"
+                  class="min-w-0 flex-1 truncate font-medium"
+                  :class="item.active ? 'text-highlighted' : 'text-toned'"
+                >{{ item.label }}</span>
+                <NuxtLink
+                  v-for="child in item.children"
+                  :key="child.to"
+                  :to="child.to"
+                  :aria-current="child.current ? 'page' : undefined"
+                  class="inline-flex min-h-11 shrink-0 items-center rounded-md px-3 text-sm hover:bg-elevated hover:text-highlighted"
+                  :class="child.current ? 'bg-elevated font-medium text-highlighted ring ring-accented' : 'text-muted'"
+                  @click="menuOpen = false"
+                >{{ child.label }}</NuxtLink>
+              </div>
+              <NuxtLink
+                v-else
+                :to="item.to"
+                :aria-current="item.active ? 'page' : undefined"
+                class="-mx-3 flex min-h-11 items-center rounded-md px-3 font-medium hover:bg-elevated hover:text-highlighted"
+                :class="item.active ? 'bg-elevated text-highlighted ring ring-accented' : 'text-toned'"
+                @click="menuOpen = false"
+              >{{ item.label }}</NuxtLink>
+            </li>
+          </ul>
+        </nav>
       </template>
     </UHeader>
 
-    <!-- min-h-0 overrides UMain's full-screen min height, so the footer sits at the bottom of the screen on short pages (sticky footer) -->
-    <UMain class="min-h-0 flex-1">
+    <!-- min-h-0 overrides UMain's full-screen min height, so the footer sits at the bottom of the screen on short pages (sticky footer);
+         the skip link focuses it (tabindex -1, no outline of its own: the next Tab goes to the first control in it) -->
+    <UMain
+      id="main"
+      tabindex="-1"
+      class="min-h-0 flex-1"
+    >
       <slot />
     </UMain>
 
@@ -86,7 +163,8 @@ const menuItems = computed(() => navigation.value.map(item => item.children ? { 
             >
               <NuxtLink
                 :to="item.to"
-                class="inline-flex min-h-11 items-center rounded-sm text-muted hover:text-highlighted sm:min-h-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                :aria-current="item.to === currentPath ? 'page' : undefined"
+                class="inline-flex min-h-11 items-center rounded-sm text-muted hover:text-highlighted sm:min-h-6"
                 :class="{ 'text-highlighted': item.active }"
               >{{ item.label }}</NuxtLink>
             </li>

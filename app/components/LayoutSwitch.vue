@@ -2,7 +2,8 @@
 import { PLAY_LAYOUTS } from '~/utils/play-layout'
 import type { PlayLayout } from '~/utils/play-layout'
 
-// The segmented control above the play page: Terminal / IDE. A radio group: Tab reaches it, arrows move the choice.
+// The segmented control above the play page: Terminal / IDE. A radio group: Tab reaches it, arrows move the choice. The
+// chosen one is a toggled button: a neutral filled ("subtle") segment, no ember (DESIGN.md "The One Ember Rule").
 const model = defineModel<PlayLayout>({ required: true })
 
 const { t } = useI18n()
@@ -43,7 +44,7 @@ function onKeydown(event: KeyboardEvent) {
       :title="t(`play.layout.${layout}Help`)"
       :data-layout="layout"
       class="flex items-center gap-1.5 rounded px-2 py-1 font-mono text-xs transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
-      :class="model === layout ? 'bg-primary/15 text-highlighted ring-1 ring-primary/60' : 'text-muted hover:bg-accented hover:text-highlighted'"
+      :class="model === layout ? 'bg-accented font-medium text-highlighted ring-1 ring-accented' : 'text-muted hover:bg-accented hover:text-highlighted'"
       @click="model = layout"
     >
       <UIcon

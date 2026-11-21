@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { createReusableTemplate } from '@vueuse/core'
 import { levelIntro } from '#shared/levels'
 import type { Level, LevelPlace } from '#shared/levels'
 import { timeText } from '~/utils/track-view'
@@ -9,6 +10,9 @@ import { timeText } from '~/utils/track-view'
 // solved a one-line why with Next and Again. The ⋯ menu beside the title holds Play again, "practise again" and
 // Mark as not solved. The default slot (under the goals) is the track's own (Debugging: revealed hints, a click's verdict),
 // the `intro` slot (under the story) too (Web fundamentals: the prediction card).
+// `storyCollapsed` (Web fundamentals while the prediction is the step that blocks): the intro comes right under the title
+// and the story follows it, cut to the start of its first paragraph with a toggle to read it all, so every answer of the
+// prediction is on screen.
 const props = withDefaults(defineProps<{
   level: Level
   /** Track, chapter and number of the level, for the breadcrumb back to the track page. */
@@ -19,7 +23,8 @@ const props = withDefaults(defineProps<{
   /** Files with conflicts, each a button that opens it (git); none in other tracks. */
   conflictedFiles?: string[]
   next: Level | null
-}>(), { conflictedFiles: () => [] })
+  storyCollapsed?: boolean
+}>(), { conflictedFiles: () => [], storyCollapsed: false })
 
 const emit = defineEmits<{
   hint: []
@@ -39,10 +44,60 @@ const hintsTotal = computed(() => props.level.hints.length)
 const time = computed(() => timeText(t, props.level.minutes))
 // Play again restarts this page; Mark as not solved restarts it too (useProgress restarts open play pages)
 const menu = computed(() => entryItems(props.place, { onPlayAgain: () => emit('again') }))
+
+const [DefineStory, ReuseStory] = createReusableTemplate()
+const storyOpen = ref(false)
+watch(() => props.storyCollapsed, (collapsed) => {
+  if (!collapsed) storyOpen.value = false
+})
+const storyShort = computed(() => props.storyCollapsed && !storyOpen.value)
+
+// A click on Hint or Reset hands the focus back to where you were working (the terminal, the Console, the editor, a
+// panel): a button that kept it would fire again on the next Enter you type. With the keyboard the focus stays on the
+// button, where you put it. `workFocus` is the last such place outside this panel.
+const root = useTemplateRef<HTMLElement>('root')
+let workFocus: HTMLElement | null = null
+function onFocusIn(event: FocusEvent) {
+  const target = event.target
+  if (!(target instanceof HTMLElement) || root.value?.contains(target) || target.tagName === 'IFRAME') return
+  // a field you type in, or a panel's own focusable region (a log, a list); never a button, which Enter would fire again
+  const typing = target.matches('input:not([type="button"], [type="submit"], [type="checkbox"], [type="radio"]), textarea, [contenteditable="true"]')
+  const region = !target.matches('button, a, select, summary, [role="button"], [role="tab"], [role="menuitem"]') && target.closest('[role="tabpanel"], [role="log"]')
+  if (typing || region) workFocus = target
+}
+onMounted(() => document.addEventListener('focusin', onFocusIn))
+onBeforeUnmount(() => document.removeEventListener('focusin', onFocusIn))
+
+function act(event: MouseEvent, name: 'hint' | 'reset') {
+  const button = event.currentTarget instanceof HTMLElement ? event.currentTarget : null
+  if (name === 'hint') emit('hint')
+  else emit('reset')
+  // keyboard (Enter or Space give no click count): the focus stays
+  if (event.detail === 0) return
+  nextTick(() => {
+    if (workFocus?.isConnected && !workFocus.closest('[inert]')) workFocus.focus({ preventScroll: true })
+    else button?.blur()
+  })
+}
+
+// Solved: the card with Next level comes into view inside the rail (it scrolls on its own from lg), smoothly unless you
+// asked for reduced motion. On a page that opens already solved it is simply there.
+const solvedCard = useTemplateRef<HTMLElement>('solvedCard')
+function showSolved(behavior: ScrollBehavior) {
+  nextTick(() => solvedCard.value?.scrollIntoView({ block: 'nearest', behavior }))
+}
+watch(() => props.solved, (solved, was) => {
+  if (!solved || was) return
+  showSolved(window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth')
+})
+onMounted(() => {
+  if (props.solved) showSolved('auto')
+})
 </script>
 
 <template>
   <div
+    ref="root"
     class="flex flex-col gap-5"
     :data-kind="level.kind"
   >
@@ -52,7 +107,7 @@ const menu = computed(() => entryItems(props.place, { onPlayAgain: () => emit('a
           <li class="shrink-0">
             <NuxtLink
               :to="trackPath(place.track.id)"
-              class="rounded-sm hover:text-highlighted hover:underline focus-visible:outline-2 focus-visible:outline-primary"
+              class="inline-flex min-h-6 items-center rounded-sm hover:text-highlighted hover:underline pointer-coarse:min-h-11"
               data-testid="crumb-track"
             >{{ place.track.title }}</NuxtLink>
           </li>
@@ -63,7 +118,7 @@ const menu = computed(() => entryItems(props.place, { onPlayAgain: () => emit('a
             />
             <NuxtLink
               :to="trackPath(place.track.id, place.chapter.id)"
-              class="min-w-0 truncate rounded-sm hover:text-highlighted hover:underline focus-visible:overflow-visible focus-visible:whitespace-normal focus-visible:outline-2 focus-visible:outline-primary"
+              class="block min-h-6 min-w-0 truncate rounded-sm leading-6 hover:text-highlighted hover:underline focus-visible:overflow-visible focus-visible:whitespace-normal pointer-coarse:min-h-11 pointer-coarse:leading-11"
               :title="place.chapter.title"
             >{{ place.chapter.title }}</NuxtLink>
           </li>
@@ -79,7 +134,7 @@ const menu = computed(() => entryItems(props.place, { onPlayAgain: () => emit('a
             />
             <NuxtLink
               :to="levelPath(place.scenario.level)"
-              class="min-w-0 truncate rounded-sm hover:text-highlighted hover:underline focus-visible:overflow-visible focus-visible:whitespace-normal focus-visible:outline-2 focus-visible:outline-primary"
+              class="block min-h-6 min-w-0 truncate rounded-sm leading-6 hover:text-highlighted hover:underline focus-visible:overflow-visible focus-visible:whitespace-normal pointer-coarse:min-h-11 pointer-coarse:leading-11"
               :title="`${place.scenario.number} ${place.scenario.level.title}`"
             ><span class="font-mono tabular-nums">{{ place.scenario.number }}</span> {{ place.scenario.level.title }}</NuxtLink>
           </li>
@@ -106,17 +161,44 @@ const menu = computed(() => entryItems(props.place, { onPlayAgain: () => emit('a
       </p>
     </header>
 
-    <div class="space-y-3 text-sm text-default">
-      <p
-        v-for="(paragraph, index) in paragraphs"
-        :key="index"
-      >
-        <InlineText :text="paragraph" />
-      </p>
-    </div>
+    <!-- the story: under the title; while the track's intro blocks (a prediction to make) it moves under the intro, cut
+         to the start of its first paragraph with a toggle. The intro slot itself never moves, so its form keeps its state. -->
+    <DefineStory>
+      <div class="space-y-3 text-sm text-default">
+        <div
+          id="level-story"
+          class="space-y-3"
+          data-testid="level-story"
+          :data-collapsed="storyShort || undefined"
+        >
+          <p
+            v-for="(paragraph, index) in storyShort ? paragraphs.slice(0, 1) : paragraphs"
+            :key="index"
+            :class="{ 'line-clamp-3': storyShort }"
+          >
+            <InlineText :text="paragraph" />
+          </p>
+        </div>
+        <UButton
+          v-if="storyCollapsed"
+          size="xs"
+          color="neutral"
+          :trailing-icon="storyOpen ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
+          :label="storyOpen ? t('play.storyLess') : t('play.storyMore')"
+          aria-controls="level-story"
+          :aria-expanded="storyOpen"
+          data-testid="story-toggle"
+          @click="storyOpen = !storyOpen"
+        />
+      </div>
+    </DefineStory>
+
+    <ReuseStory v-if="!storyCollapsed" />
 
     <!-- what a track asks before the goals (Web fundamentals: the prediction card) -->
     <slot name="intro" />
+
+    <ReuseStory v-if="storyCollapsed" />
 
     <section aria-labelledby="goals-heading">
       <h2
@@ -197,19 +279,21 @@ const menu = computed(() => entryItems(props.place, { onPlayAgain: () => emit('a
         icon="i-lucide-lightbulb"
         :label="practice ? t('practice.showHint') : t('play.hint', { used: hintsUsed, total: hintsTotal })"
         :disabled="!!practice && hintsUsed > 0"
-        @click="$emit('hint')"
+        data-testid="hint-button"
+        @click="act($event, 'hint')"
       />
       <UButton
         color="neutral"
         icon="i-lucide-rotate-ccw"
         :label="t('play.reset')"
-        @click="$emit('reset')"
+        @click="act($event, 'reset')"
       />
     </div>
 
     <div
       v-if="solved && practice"
-      class="space-y-3 rounded-lg border border-success bg-success/10 p-3"
+      ref="solvedCard"
+      class="scroll-my-2 space-y-3 rounded-lg border border-success bg-success/10 p-3"
       data-testid="practice-solved"
     >
       <p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
@@ -249,7 +333,9 @@ const menu = computed(() => entryItems(props.place, { onPlayAgain: () => emit('a
 
     <div
       v-else-if="solved"
-      class="space-y-3 rounded-lg border border-success bg-success/10 p-3"
+      ref="solvedCard"
+      class="scroll-my-2 space-y-3 rounded-lg border border-success bg-success/10 p-3"
+      data-testid="level-solved"
     >
       <p class="flex items-center gap-2 text-sm font-semibold text-highlighted">
         <UIcon
