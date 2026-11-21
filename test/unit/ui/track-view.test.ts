@@ -228,6 +228,12 @@ describe('folded chapters', () => {
     expect(chapterStartsFolded(chapterIds(view, 'merging'))).toBe(false)
   })
 
+  it('keeps open a solved chapter with a level flagged to practise again', () => {
+    const chapter = chapterIds(trackView(git, solvedProgress(basicsIds, null, [basicsIds[0]!])), 'basics')
+    expect(chapter.state).toBe('solved')
+    expect(chapterStartsFolded(chapter)).toBe(false)
+  })
+
   it('keeps open the chapter a level was just solved in, so its lane can draw in', () => {
     const chapter = chapterIds(trackView(git, solvedProgress(basicsIds)), 'basics')
     expect(chapterStartsFolded(chapter, basicsIds.at(-1)!)).toBe(false)

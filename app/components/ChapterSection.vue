@@ -72,6 +72,7 @@ const draws = computed(() => {
           size="sm"
           :trailing-icon="open ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
           :label="open ? t('track.fold.hide') : t('track.fold.show', view.count.total)"
+          :aria-label="`${open ? t('track.fold.hide') : t('track.fold.show', view.count.total)}: ${view.chapter.title}`"
           :aria-expanded="open"
           :aria-controls="listId"
           :data-testid="`fold-${view.chapter.id}`"

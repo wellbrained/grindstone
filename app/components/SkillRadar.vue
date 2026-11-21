@@ -68,7 +68,8 @@ const shape = computed(() => radarShape(before.value && grown.value < 1
 const point = (index: number, share: number) => radarPoint(index, count.value, share)
 
 /** The drawing's box: the radar alone, or with room around it for the labels. */
-const LABEL_X = 84
+// wide enough for the longest one-word line ("fundamentals") beside the radar
+const LABEL_X = 100
 const LABEL_Y = 34
 const LINE = 15
 const viewBox = computed(() => props.labels

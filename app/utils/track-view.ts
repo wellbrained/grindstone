@@ -227,7 +227,8 @@ export function trackCardAction(track: Track, progress: Progress, continueTrackI
  */
 export function chapterStartsFolded(view: Pick<ChapterView, 'state' | 'rows'>, justSolved: string | null = null): boolean {
   if (view.state !== 'solved') return false
-  return !view.rows.some(row => row.place.level.id === justSolved)
+  // a level flagged "practise again" keeps its chapter open: the flag lives on the row
+  return !view.rows.some(row => row.place.level.id === justSolved || row.progress?.practiseAgain === true)
 }
 
 /**

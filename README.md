@@ -6,7 +6,9 @@ The second track is **Debugging**: small real apps from a bakery's ordering site
 
 The third is **Working with AI**: review the pull requests of Sous, the bakery's (scripted) coding assistant. Comment on the lines that are wrong, say what kind of problem it is, run the change, then approve it or request changes.
 
-Status: in development (v0.1 in progress). Plan: [docs/adr/0001-plan.md](docs/adr/0001-plan.md).
+The fourth is **Web fundamentals**: predict what the browser does with CORS, cookies, tokens, caching, the event loop, accessibility and CSP, then fix the app or its `server.js`.
+
+Status: live at https://grindstone.dkiessling.de, four tracks complete; Framework deep dives is next. Plan: [docs/adr/0001-plan.md](docs/adr/0001-plan.md).
 
 ## Why another git trainer?
 

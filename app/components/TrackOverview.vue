@@ -96,7 +96,7 @@ watch(active, (id) => {
         <button
           v-if="view.nextUp"
           type="button"
-          class="mt-3 inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-sm text-left text-sm text-toned hover:text-highlighted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          class="mt-3 inline-flex min-h-8 max-w-full cursor-pointer items-center gap-1.5 rounded-sm py-1.5 text-left max-sm:min-h-11 text-sm text-toned hover:text-highlighted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
           data-testid="jump-next"
           @click="jumpToNext"
         >
