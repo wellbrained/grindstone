@@ -101,7 +101,7 @@ test('plays 1.2: a wrong prediction, the preflight in the Network panel, the fix
   await page.goto('/web')
   const row = page.locator('[data-level="web-02-order-preflight"]')
   await expect(row).toContainText('Solved')
-  await expect(row).toContainText('best: 1 wrong prediction, no hints, 1 reload')
+  await expect(row).toContainText('best 1 wrong · 0 hints · 1 reload')
   await expect(page.locator('[data-level="web-practice-simple-or-preflight"]')).toContainText('predict')
 })
 

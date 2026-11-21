@@ -93,7 +93,7 @@ test('steers What offices save over two rounds: a misleading kind gets a wrong f
   await page.goto('/ai')
   const row = page.locator('[data-level="ai-31-what-offices-save"]')
   await expect(row).toContainText('Solved')
-  await expect(row).toContainText('best: no hints, no false alarms, 2 rounds')
+  await expect(row).toContainText('best 0 hints · 0 false alarms · 2 rounds')
   await expect(row).toContainText('bug, not security')
   await expect(page.locator('[data-level="ai-practice-fixed-not-pinned"]')).toContainText('steer')
   await expect(page.locator('#steer')).toContainText('1 of 10 solved')

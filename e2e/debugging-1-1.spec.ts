@@ -64,7 +64,7 @@ test('plays Debugging 1.1 end to end', async ({ page }) => {
   await page.goto('/debugging')
   const row = page.locator('[data-level="debugging-01-add-to-cart"]')
   await expect(row).toContainText('Solved')
-  await expect(row).toContainText('best: no hints, 1 reload')
+  await expect(row).toContainText('best 0 hints · 1 reload')
   await expect(page.locator('[data-level="debugging-practice-line-that-throws"]')).toHaveAttribute('data-state', 'next')
 })
 

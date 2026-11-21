@@ -3,6 +3,7 @@ import { tracks } from '#shared/levels'
 import { navigationItems } from '~/utils/navigation'
 
 const { site } = useAppConfig()
+const { appVersion } = useRuntimeConfig().public
 const { t } = useI18n()
 const route = useRoute()
 
@@ -38,7 +39,10 @@ const menuItems = computed(() => navigation.value.map(item => item.children ? { 
       />
 
       <template #right>
-        <UColorModeButton :aria-label="t('layout.colorMode')" />
+        <UColorModeButton
+          :aria-label="t('layout.colorMode')"
+          class="max-sm:size-11 pointer-coarse:size-11"
+        />
       </template>
 
       <template #body>
@@ -61,8 +65,12 @@ const menuItems = computed(() => navigation.value.map(item => item.children ? { 
       :ui="{ container: 'max-w-[110rem]' }"
     >
       <template #left>
-        <p class="text-sm text-muted">
-          {{ t('layout.footer', { name: site.name }) }}
+        <p class="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-sm text-muted">
+          <span>{{ t('layout.footer', { name: site.name }) }}</span>
+          <span
+            class="font-mono text-xs text-dimmed"
+            data-testid="app-version"
+          >{{ t('layout.version', { version: appVersion }) }}</span>
         </p>
       </template>
 
@@ -75,7 +83,7 @@ const menuItems = computed(() => navigation.value.map(item => item.children ? { 
             >
               <NuxtLink
                 :to="item.to"
-                class="rounded-sm text-muted hover:text-highlighted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+                class="inline-flex min-h-11 items-center rounded-sm text-muted hover:text-highlighted sm:min-h-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
                 :class="{ 'text-highlighted': item.active }"
               >{{ item.label }}</NuxtLink>
             </li>

@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import type { ChapterView } from '~/utils/track-view'
-import { drawSteps } from '~/utils/track-view'
+import { chapterStartsFolded, drawSteps } from '~/utils/track-view'
 
 // One chapter on the track page: heading with its commit dot and count, the chapter ⋯ menu, a one-line description, the
 // rows (scenarios on the main line, practice tasks on side branches). A chapter without levels shows its description
 // and a quiet "Coming". The heading takes the focus after a jump from the rail (tabindex -1), so keyboard and screen
-// reader users land where they asked to go.
+// reader users land where they asked to go. A chapter with every level solved folds its rows (a toggle button next to
+// the heading; open when there is anything left to do, or a level was just solved in it); your own choice sticks until
+// the chapter stops being fully solved.
 const props = defineProps<{
   view: ChapterView
   /** A level solved for the first time since the page was last shown: its lane draws in once. */
@@ -16,6 +18,14 @@ const { t } = useI18n()
 const { chapterItems } = useProgressActions()
 
 const headingId = computed(() => `${props.view.chapter.id}-heading`)
+
+const listId = computed(() => `${props.view.chapter.id}-levels`)
+const choice = ref<boolean | null>(null)
+const solved = computed(() => props.view.state === 'solved')
+const open = computed(() => !solved.value || (choice.value ?? !chapterStartsFolded(props.view, props.justSolved)))
+watch(solved, () => {
+  choice.value = null
+})
 
 // a just solved entry's lane draws in once (drawSteps)
 const draws = computed(() => {
@@ -52,18 +62,34 @@ const draws = computed(() => {
           class="rounded-sm border border-default px-1.5 text-xs leading-5 font-normal text-muted"
         >{{ t('track.coming') }}</span>
       </h2>
-      <MoreMenu
+      <div
         v-if="!view.coming"
-        class="mr-1.5 shrink-0"
-        :items="chapterItems(view.chapter)"
-        :label="t('menu.chapter.label', { chapter: view.chapter.title })"
-      />
+        class="mr-1.5 flex shrink-0 items-center gap-1.5"
+      >
+        <UButton
+          v-if="solved"
+          color="neutral"
+          size="sm"
+          :trailing-icon="open ? 'i-lucide-chevron-up' : 'i-lucide-chevron-down'"
+          :label="open ? t('track.fold.hide') : t('track.fold.show', view.count.total)"
+          :aria-expanded="open"
+          :aria-controls="listId"
+          :data-testid="`fold-${view.chapter.id}`"
+          @click="choice = !open"
+        />
+        <MoreMenu
+          :items="chapterItems(view.chapter)"
+          :label="t('menu.chapter.label', { chapter: view.chapter.title })"
+        />
+      </div>
     </div>
     <p class="mt-1.5 max-w-2xl text-sm text-pretty text-muted">
       {{ view.chapter.description }}
     </p>
     <ol
       v-if="view.rows.length"
+      v-show="open"
+      :id="listId"
       class="mt-4"
     >
       <LevelRow

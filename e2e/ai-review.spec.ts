@@ -63,7 +63,7 @@ test('plays Working with AI 1.1 end to end: a false alarm, the right line, Reque
   await page.goto('/ai')
   const row = page.locator('[data-level="ai-01-twelve-croissants"]')
   await expect(row).toContainText('Solved')
-  await expect(row).toContainText('best: no hints, 1 false alarm')
+  await expect(row).toContainText('best 0 hints · 1 false alarm')
   await expect(row).toContainText('off-by-one')
   await expect(page.locator('[data-level="ai-practice-open-days"]')).toHaveAttribute('data-state', 'next')
   await expect(page.locator('[data-level="ai-practice-same-loop"]')).toContainText('verdict')

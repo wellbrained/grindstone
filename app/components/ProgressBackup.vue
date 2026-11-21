@@ -115,6 +115,7 @@ async function onFile(event: Event) {
         class="sr-only"
         tabindex="-1"
         aria-hidden="true"
+        :aria-label="t('backup.load')"
         data-testid="load-progress-file"
         @change="onFile"
       >
@@ -138,6 +139,7 @@ async function onFile(event: Event) {
         icon="i-lucide-trash-2"
         :label="t('backup.resetAll')"
         :disabled="!hasAny"
+        class="disabled:text-muted disabled:opacity-100 disabled:ring-accented"
         data-testid="reset-everything"
         @click="askResetAll"
       />

@@ -220,6 +220,24 @@ export function trackCardAction(track: Track, progress: Progress, continueTrackI
   return trackProgress(track, progress).solved > 0 ? { kind: 'continue', place: next } : { kind: 'start', place: next }
 }
 
+/**
+ * Whether a chapter on the track page starts folded: only one with every level solved, and not the one a level was just
+ * solved in (back from the debrief, its lane draws in once, so it stays open). Nothing solved, or anything left to do,
+ * keeps it open.
+ */
+export function chapterStartsFolded(view: Pick<ChapterView, 'state' | 'rows'>, justSolved: string | null = null): boolean {
+  if (view.state !== 'solved') return false
+  return !view.rows.some(row => row.place.level.id === justSolved)
+}
+
+/**
+ * The home page's one ember action besides the Continue card: with a Continue card (a visitor with progress) none; on a
+ * first visit the first live track's Start (One Ember Rule, docs/adr/0003-look.md). Every other track action is outlined.
+ */
+export function emphasisTrackId(live: readonly Track[], continueTrackId: string | null): string | null {
+  return continueTrackId === null ? live[0]?.id ?? null : null
+}
+
 /** Width of a progress bar, '0%' ... '100%'; an empty count is 0%. */
 export function percent(count: Count): string {
   return count.total === 0 ? '0%' : `${Math.round((count.solved / count.total) * 100)}%`

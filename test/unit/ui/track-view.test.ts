@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { defineTrack, emptyProgress, gitLevels, trackById } from '../../../shared/levels'
-import { bestRunCounters, drawSteps, percent, storyLead, timeLabel, trackCardAction, trackView } from '../../../app/utils/track-view'
+import { bestRunCounters, chapterStartsFolded, drawSteps, emphasisTrackId, percent, storyLead, timeLabel, trackCardAction, trackView } from '../../../app/utils/track-view'
 import { bigTrack, practiceTrack, solvedProgress } from '../levels/fixtures'
 
 const git = trackById('git')!
@@ -192,6 +192,46 @@ describe('track card action', () => {
 
   it('opens a track with every level solved', () => {
     expect(trackCardAction(git, solvedProgress(gitLevels.map(level => level.id)), null)).toEqual({ kind: 'open' })
+  })
+})
+
+describe('home emphasis (One Ember Rule)', () => {
+  const live = [git, trackById('debugging')!]
+
+  it('gives the first live track the one ember action on a first visit', () => {
+    expect(emphasisTrackId(live, null)).toBe('git')
+  })
+
+  it('gives none to the track cards once the Continue card holds the ember action', () => {
+    expect(emphasisTrackId(live, 'git')).toBeNull()
+    expect(emphasisTrackId(live, 'debugging')).toBeNull()
+  })
+
+  it('has none without tracks', () => {
+    expect(emphasisTrackId([], null)).toBeNull()
+  })
+})
+
+describe('folded chapters', () => {
+  const chapterIds = (view: ReturnType<typeof trackView>, id: string) => view.chapters.find(chapter => chapter.chapter.id === id)!
+  const basicsIds = git.chapters[0]!.levels.map(level => level.id)
+
+  it('keeps everything open when nothing is solved or a chapter has anything left', () => {
+    expect(chapterStartsFolded(chapterIds(trackView(git, emptyProgress()), 'basics'))).toBe(false)
+    expect(chapterStartsFolded(chapterIds(trackView(git, solvedProgress(basicsIds.slice(1))), 'basics'))).toBe(false)
+  })
+
+  it('folds a chapter with every level solved', () => {
+    const view = trackView(git, solvedProgress(basicsIds))
+    expect(chapterIds(view, 'basics').state).toBe('solved')
+    expect(chapterStartsFolded(chapterIds(view, 'basics'))).toBe(true)
+    expect(chapterStartsFolded(chapterIds(view, 'merging'))).toBe(false)
+  })
+
+  it('keeps open the chapter a level was just solved in, so its lane can draw in', () => {
+    const chapter = chapterIds(trackView(git, solvedProgress(basicsIds)), 'basics')
+    expect(chapterStartsFolded(chapter, basicsIds.at(-1)!)).toBe(false)
+    expect(chapterStartsFolded(chapter, 'git-03-merge')).toBe(true)
   })
 })
 

@@ -5,11 +5,15 @@ import { trackCardAction, trackView } from '~/utils/track-view'
 
 // A live track on the home page, from its data alone (title, tagline, description, cheat sheet): its weight, its progress
 // and its chapters drawn as in the track page's rail. The primary button never repeats the Continue card above it
-// (`trackCardAction`): Start for an untouched track, Open the track once Continue points here.
+// (`trackCardAction`): Start for an untouched track, Open the track once Continue points here. One Ember Rule: the page's
+// one ember action is the Continue card's; without one (a first visit) the first track's Start, so every other card's
+// action is outlined.
 const props = defineProps<{
   track: Track
   /** The track the page's Continue card points at, if any. */
   continueTrackId: string | null
+  /** This card holds the page's one ember action (a first visit's first track). */
+  emphasis?: boolean
 }>()
 
 const { t } = useI18n()
@@ -70,13 +74,14 @@ const primary = computed(() => {
       <div class="mt-7 flex flex-wrap items-center gap-3 lg:mt-auto lg:pt-8">
         <UButton
           size="xl"
-          color="primary"
-          variant="solid"
+          :color="emphasis ? 'primary' : 'neutral'"
+          :variant="emphasis ? 'solid' : 'outline'"
           trailing-icon="i-lucide-arrow-right"
           :to="primary.to"
           :label="primary.label"
           :data-testid="`track-${track.id}-primary`"
           :data-action="action.kind"
+          :data-emphasis="emphasis ? 'true' : 'false'"
         />
         <UButton
           v-if="action.kind !== 'open'"

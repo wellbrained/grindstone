@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { trackRadar } from '#shared/levels'
+import { placeName, trackRadar } from '#shared/levels'
 import type { Track } from '#shared/levels'
 import { trackView } from '~/utils/track-view'
 
@@ -37,6 +37,17 @@ function jump(id: string) {
   // vue-router keeps its own entry in history.state, so it is passed on unchanged
   history.replaceState(history.state, '', `#${id}`)
   document.getElementById(`${id}-heading`)?.focus({ preventScroll: true })
+}
+
+/** "Jump to next up": the next-up row, scrolled to and focused (its chapter becomes the active one). */
+function jumpToNext() {
+  const place = view.value.nextUp
+  if (!place) return
+  const row = document.querySelector<HTMLElement>(`[data-level="${place.level.id}"]`)
+  if (!row) return
+  pin(place.chapter.id)
+  row.scrollIntoView({ behavior: behavior(), block: 'center' })
+  row.focus({ preventScroll: true })
 }
 
 function onStripClick(event: MouseEvent, id: string) {
@@ -81,6 +92,20 @@ watch(active, (id) => {
         >
           {{ t('track.solvedCount', { solved: view.count.solved, total: view.count.total }) }}
         </p>
+        <!-- 70 to 85 levels: one step to the next-up row, wherever it is on the page -->
+        <button
+          v-if="view.nextUp"
+          type="button"
+          class="mt-3 inline-flex max-w-full cursor-pointer items-center gap-1.5 rounded-sm text-left text-sm text-toned hover:text-highlighted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary"
+          data-testid="jump-next"
+          @click="jumpToNext"
+        >
+          <UIcon
+            name="i-lucide-arrow-down"
+            class="size-4 shrink-0"
+          />
+          <span class="truncate">{{ t('track.jumpNext', { name: placeName(view.nextUp) }) }}</span>
+        </button>
       </header>
 
       <SkillRadar

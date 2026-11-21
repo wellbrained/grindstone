@@ -16,7 +16,7 @@ const later = ['tracks', 'profile'] as const
     <h1 class="mt-3 text-3xl font-semibold tracking-tight text-highlighted sm:text-4xl">
       {{ t('about.title') }}
     </h1>
-    <p class="mt-4 max-w-3xl text-lg text-toned">
+    <p class="mt-4 max-w-[70ch] text-lg text-pretty text-toned">
       {{ t('about.intro') }}
     </p>
 

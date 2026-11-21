@@ -20,12 +20,15 @@ import {
 // dashed spoke and dot. The picture is decoration (aria-hidden); screen readers get the list below it.
 // `from` (the debrief): the radar before the solve, drawn as a faint dashed outline; the shape grows from it once.
 // `hoverable` (the track page): hovering near an axis reports its chapter, so the page can light up the list row.
+// `labels` (home, one axis per track): each axis also names its track and its solved count beside its dot, so the
+// picture reads without the list; the drawing grows a margin for them.
 const props = defineProps<{
   axes: RadarAxis[]
   /** The chapter whose axis is lit (spoke in its colour). */
   highlight?: string | null
   from?: RadarAxis[] | null
   hoverable?: boolean
+  labels?: boolean
 }>()
 
 const emit = defineEmits<{ highlight: [chapterId: string | null] }>()
@@ -63,6 +66,29 @@ const shape = computed(() => radarShape(before.value && grown.value < 1
   : shares.value))
 
 const point = (index: number, share: number) => radarPoint(index, count.value, share)
+
+/** The drawing's box: the radar alone, or with room around it for the labels. */
+const LABEL_X = 84
+const LABEL_Y = 34
+const LINE = 15
+const viewBox = computed(() => props.labels
+  ? `${-LABEL_X} ${-LABEL_Y} ${RADAR_VIEW + 2 * LABEL_X} ${RADAR_VIEW + 2 * LABEL_Y}`
+  : `0 0 ${RADAR_VIEW} ${RADAR_VIEW}`)
+/** Where an axis's label sits and which way it reads: centred above or below a vertical axis, else away from the centre;
+ *  a long name beside the radar takes two lines. */
+const labelOf = (axis: RadarAxis, index: number) => {
+  const [x, y] = point(index, 1.24)
+  const dx = x - RADAR_CENTRE
+  const dy = y - RADAR_CENTRE
+  const anchor = Math.abs(dx) < 8 ? 'middle' : dx > 0 ? 'start' : 'end'
+  const title = axis.chapter.title
+  const split = anchor !== 'middle' && title.length > 10 ? title.indexOf(' ') : -1
+  const lines = split > 0 ? [title.slice(0, split), title.slice(split + 1)] : [title]
+  // above the top axis the label ends at the dot; below the bottom one it starts there; beside, it is centred on it
+  const height = (lines.length + 1) * LINE
+  const top = Math.abs(dx) < 8 ? (dy < 0 ? y - height + 8 : y + 6) : y - height / 2 + 11
+  return { x, top, anchor, lines, count: axis.coming ? t('radar.comingShort') : `${axis.solved}/${axis.total}` }
+}
 const ring = (share: number) => radarPolygon(props.axes.map(() => share))
 
 // hovering near an axis (track page): lights it up here and tells the page
@@ -79,8 +105,11 @@ function onPointerMove(event: PointerEvent) {
   if (!props.hoverable) return
   const box = (event.currentTarget as SVGSVGElement).getBoundingClientRect()
   if (box.width === 0) return
-  const scale = RADAR_VIEW / box.width
-  const index = nearestRadarAxis((event.clientX - box.left) * scale, (event.clientY - box.top) * scale, count.value)
+  // the drawing's own units: with labels the box has a margin around the radar
+  const marginX = props.labels ? LABEL_X : 0
+  const marginY = props.labels ? LABEL_Y : 0
+  const scale = (RADAR_VIEW + 2 * marginX) / box.width
+  const index = nearestRadarAxis((event.clientX - box.left) * scale - marginX, (event.clientY - box.top) * scale - marginY, count.value)
   hover(index === null ? null : props.axes[index]!.chapter.id)
 }
 
@@ -92,7 +121,7 @@ function onPointerLeave() {
 <template>
   <div class="flex flex-col items-center">
     <svg
-      :viewBox="`0 0 ${RADAR_VIEW} ${RADAR_VIEW}`"
+      :viewBox="viewBox"
       class="block h-auto w-full overflow-visible"
       fill="none"
       stroke-linejoin="round"
@@ -175,6 +204,33 @@ function onPointerLeave() {
         :stroke-dasharray="axis.coming ? '2 2' : undefined"
         :opacity="axis.coming ? 0.7 : 1"
       />
+
+      <!-- home: the track's name and count beside its dot (the list below stays the accessible version) -->
+      <template v-if="labels">
+        <text
+          v-for="(axis, index) in axes"
+          :key="`label-${axis.chapter.id}`"
+          :text-anchor="labelOf(axis, index).anchor"
+          stroke="none"
+          :class="lit === axis.chapter.id ? 'fill-(--ui-text-highlighted)' : 'fill-(--ui-text-toned)'"
+          :data-label="axis.chapter.id"
+        >
+          <tspan
+            v-for="(line, lineIndex) in labelOf(axis, index).lines"
+            :key="lineIndex"
+            :x="labelOf(axis, index).x"
+            :y="labelOf(axis, index).top + lineIndex * LINE"
+            font-size="13"
+            font-weight="500"
+          >{{ line }}</tspan>
+          <tspan
+            :x="labelOf(axis, index).x"
+            :y="labelOf(axis, index).top + labelOf(axis, index).lines.length * LINE"
+            font-size="11"
+            class="fill-(--ui-text-muted) font-mono"
+          >{{ labelOf(axis, index).count }}</tspan>
+        </text>
+      </template>
     </svg>
 
     <p

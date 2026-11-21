@@ -1,4 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+import { version } from './package.json'
+
 export default defineNuxtConfig({
   modules: [
     '@nuxt/eslint',
@@ -36,7 +38,9 @@ export default defineNuxtConfig({
   runtimeConfig: {
     // Available on server and client
     public: {
-      siteUrl: 'http://localhost:4003'
+      siteUrl: 'http://localhost:4003',
+      // shown in the footer; package.json's version, bumped with every deploy
+      appVersion: version
     }
   },
 

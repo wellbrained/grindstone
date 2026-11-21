@@ -33,7 +33,9 @@ const bestText = computed(() => {
   const run = best.value
   if (counters.value[0] === 'commands') return { short: t('track.best', run.commands), long: t('track.statusBest', { status: status.value, n: run.commands }) }
   const parts = counters.value.map(counter => t(`track.counter.${counter}`, run[counter] ?? 0)).join(', ')
-  return { short: t('track.bestRun', { run: parts }), long: t('track.statusBestRun', { status: status.value, run: parts }) }
+  // on the row a compact mono line ("best 1 wrong · 0 hints · 1 reload"); the row's name keeps the words
+  const compact = counters.value.map(counter => t(`track.counterShort.${counter}`, run[counter] ?? 0)).join(' · ')
+  return { short: t('track.bestRunShort', { run: compact }), long: t('track.statusBestRun', { status: status.value, run: parts }) }
 })
 const kindTag = computed(() => props.row.taskKind ? t(`track.taskKind.${props.row.taskKind}`) : null)
 const tagsSpoken = computed(() => {
@@ -72,7 +74,7 @@ const laneClass = (part: keyof RowLanes) => [{ 'opacity-35': props.row.lane[part
   <li class="relative border-t border-muted">
     <NuxtLink
       :to="levelPath(row.place.level)"
-      class="relative grid grid-cols-[2rem_1.75rem_minmax(0,1fr)] items-center gap-x-2.5 gap-y-1 rounded-lg pr-11 pl-3 transition-colors hover:bg-elevated hover:[--dot-ground:var(--ui-bg-elevated)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary md:grid-cols-[2rem_2.75rem_minmax(0,1fr)_5.5rem_12rem] md:gap-x-4 xl:grid-cols-[2rem_2.75rem_minmax(0,1fr)_5.5rem_16rem]"
+      class="relative grid grid-cols-[2rem_1.75rem_minmax(0,1fr)] items-center gap-x-2.5 gap-y-1 rounded-lg pr-11 pl-3 transition-colors hover:bg-elevated hover:[--dot-ground:var(--ui-bg-elevated)] focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary md:grid-cols-[2rem_2.75rem_minmax(0,1fr)_5.5rem_13rem] md:gap-x-4 xl:grid-cols-[2rem_2.75rem_minmax(0,1fr)_5.5rem_17rem]"
       :class="[paletteClass(row.place.chapter.colour), practice ? 'py-2' : 'py-3', { 'bg-elevated [--dot-ground:var(--ui-bg-elevated)]': row.state === 'next' }]"
       :aria-label="label"
       :data-level="row.place.level.id"
@@ -192,10 +194,14 @@ const laneClass = (part: keyof RowLanes) => [{ 'opacity-35': props.row.lane[part
           data-testid="row-status"
         >
           <span :class="{ 'text-success': row.state === 'solved', 'font-medium text-primary': row.state === 'next', 'text-muted': row.state === 'open' }">{{ status }}</span>
+          <!-- from md the best run is a line of its own under the status -->
           <span
             v-if="bestText"
-            class="font-mono text-xs text-muted tabular-nums"
-          ><span aria-hidden="true">· </span>{{ bestText.short }}</span>
+            class="font-mono text-xs text-muted tabular-nums md:basis-full"
+          ><span
+            aria-hidden="true"
+            class="md:hidden"
+          >· </span>{{ bestText.short }}</span>
           <span
             v-if="flagged"
             class="flex items-center gap-1 text-xs whitespace-nowrap text-warning"
