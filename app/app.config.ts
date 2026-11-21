@@ -3,7 +3,7 @@ export default defineAppConfig({
     name: 'Grindstone',
     // the public address, for absolute links such as the share image
     url: 'https://grindstone.dkiessling.de',
-    description: 'Practice real developer skills in short, game-like scenarios. Four tracks: Git, Debugging, Working with AI and Web fundamentals.'
+    description: 'Practice real developer skills in short, game-like scenarios. Five tracks: Git, Debugging, Working with AI, Web fundamentals and Framework deep dives.'
   },
 
   ui: {

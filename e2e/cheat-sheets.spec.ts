@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 // The cheat sheets' cards (docs/features/ui.md, "Debugging cheat sheet"): copy a line, open the detail behind a card's
-// disclosure, the "Practise it in" links as tap targets (all four sheets), and the sections in the order of the chips.
+// disclosure, the "Practise it in" links as tap targets (all five sheets), and the sections in the order of the chips.
 const sheets = [
   {
     path: '/debugging/cheat-sheet',
@@ -24,6 +24,18 @@ const sheets = [
     summaryWord: 'registrable',
     summaryCard: 'site',
     firstChip: 'Same-origin & CORS'
+  },
+  {
+    path: '/frameworks/cheat-sheet',
+    card: 'source',
+    line: 'watch(() => stock.croissant, (left) => { … })',
+    link: /4\.1 The kitchen never hears/,
+    to: /\/frameworks\/10-watch-source$/,
+    summaryWord: 'abort',
+    summaryCard: 'cleanup',
+    firstChip: 'ref & reactive',
+    // six chapters and Vue's warnings
+    chips: 7
   }
 ]
 
@@ -98,7 +110,7 @@ for (const sheet of sheets) {
       await page.goto(sheet.path)
       await expect(page.getByTestId('cheat-group').first()).toBeVisible()
       const chips = await page.getByTestId('cheat-chip').evaluateAll(all => all.map(el => (el.getAttribute('href') ?? '').slice(1)))
-      expect(chips.length).toBeGreaterThanOrEqual(8)
+      expect(chips.length).toBeGreaterThanOrEqual('chips' in sheet ? sheet.chips : 8)
       const sections = await page.getByTestId('cheat-group').evaluateAll(all => all.map(el => ({ id: el.id, top: el.getBoundingClientRect().top + window.scrollY })))
       expect(sections.map(section => section.id)).toEqual(chips)
       const tops = sections.map(section => section.top)

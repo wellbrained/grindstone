@@ -23,6 +23,7 @@ import type {
   A11yMessage, A11yKey, CookiesMessage, LoopEntry, PredictionAnswer, ReaderLine, Profile, RecordEndReason, RecordedStep, ReplayMessage, ScopeEntries, SecurityMessage, ServerOutputMessage, SourceLine, SourceMapping, CacheMessage, StorageMessage, WebLevel
 } from '#shared/levels'
 import type { CompiledCondition } from '#shared/levels/debugging/condition'
+import type { ReactionKind } from '#shared/levels/frameworks/vue'
 import type { LineTone } from '~/editor/codemirror'
 import type { AppLoad, BridgeLink } from '~/utils/sandbox-host'
 import { appLoad, bridgeLink, runCheck } from '~/utils/sandbox-host'
@@ -59,6 +60,24 @@ export const MAX_SERVER_LINES = 300
 export type ServerLine = (Omit<ServerOutputMessage, 'type'> | { level: 'outside', replay: Omit<ReplayMessage, 'type'>, text: string, line: null }) & { id: number }
 /** A line of the Event loop panel: what the frame posted, numbered, with the line of the level it was set up on (if any). */
 export type LoopRow = LoopEntry & { id: number, line: SourceLine | null }
+
+/** Framework deep dives: a line of the Reactivity panel, a reaction Vue made or a Console line of the app between them. */
+export type ReactionRow
+  = | { id: number, kind: ReactionKind, name: string, why: string[], line: SourceLine | null }
+    | { id: number, kind: 'log', level: string, text: string, line: SourceLine | null }
+
+/** The Reactivity panel keeps at most this many lines a load (the bridge posts at most REACTION_LIMITS.reactions reactions). */
+export const MAX_REACTION_ROWS = 1500
+
+let vueLoading: Promise<string> | null = null
+/** Loads Vue's development build once (its own chunk: only a Framework deep dives level needs it). */
+function loadVue(): Promise<string> {
+  vueLoading ??= import('~/utils/vue-source').then(module => module.vueBuild()).catch((error: unknown) => {
+    vueLoading = null
+    throw error
+  })
+  return vueLoading
+}
 /** The Event loop panel keeps at most this many lines per load (the frame stops at LOOP_LIMITS.entries and says so). */
 export const MAX_LOOP_ROWS = LOOP_LIMITS.entries + 2
 /** A line of the Accessibility panel's reader: what the frame posted, numbered. */
@@ -287,6 +306,24 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
     loopRows.value = []
   }
 
+  /** Framework deep dives: real Vue runs in the frame (its build loads once, before the first load). */
+  const hasVue = level.sandbox.vue === true
+  const vueBuild = shallowRef<string | null>(null)
+  /** Vue's build could not be loaded (offline after a deploy): the App says so. */
+  const vueFailed = ref(false)
+  let vueWaiting = false
+  /** The Reactivity panel's lines of this load (Clear empties what shows; the next lines still come). */
+  const reactionRows = shallowRef<ReactionRow[]>([])
+  let nextReactionRow = 0
+
+  function clearReactions() {
+    reactionRows.value = []
+  }
+
+  function addReactionRow(row: ReactionRow) {
+    if (reactionRows.value.length < MAX_REACTION_ROWS) reactionRows.value = [...reactionRows.value, row]
+  }
+
   /** Chapter 6: what the reader said in this load (Clear empties what shows; the next lines still come). */
   const readerRows = shallowRef<ReaderRow[]>([])
   let readerReceived = 0
@@ -442,7 +479,29 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
       load.value = null
       return
     }
-    const started = appLoad(files, { backend, web, page: web ? level.sandbox.page : undefined, elements: hasElements, record: recorded, profile, logs: logsSpec ?? undefined })
+    reactionRows.value = []
+    // Framework deep dives: no load before Vue's build is here; it starts the app once it is
+    if (hasVue && vueBuild.value === null) {
+      link?.close()
+      link = null
+      load.value = null
+      // one start waits for the build, whoever asked (the page, a reload): it starts the files saved by then
+      if (vueWaiting) return
+      vueWaiting = true
+      loadVue().then((build) => {
+        vueWaiting = false
+        vueFailed.value = false
+        vueBuild.value = build
+        if (!disposed) startApp(session.value.state.files)
+      }).catch((error: unknown) => {
+        vueWaiting = false
+        console.error(error)
+        vueFailed.value = true
+      })
+      return
+    }
+    const vue = vueBuild.value ?? undefined
+    const started = appLoad(files, { backend, web, page: web ? level.sandbox.page : undefined, elements: hasElements, record: recorded, profile, logs: logsSpec ?? undefined, vue })
     link?.close()
     link = bridgeLink(() => frameWindow(), started.token, message => onBridgeMessage(message, started))
     load.value = started
@@ -578,6 +637,10 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
         return frame ? { path: frame.path, line: frame.line } : null
       }
       loopRows.value = [...loopRows.value, ...message.entries.slice(0, room).map(entry => ({ ...entry, id: nextLoopRow++, line: lineOf(entry.stack) }))]
+    } else if (message.type === 'reaction') {
+      if (!hasVue) return
+      const frame = message.stack ? mapFrames(parseStack(message.stack), mapping.value)[0] : undefined
+      addReactionRow({ id: nextReactionRow++, kind: message.kind, name: message.name, why: message.why, line: frame ? { path: frame.path, line: frame.line } : null })
     } else if (message.type === 'serverlog') {
       takeServerLog(message)
     } else if (message.type === 'request') {
@@ -598,7 +661,11 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
       const entry = found && current.recorded ? { ...found, text: withoutInstrumentation(found.text) } : found
       if (entry) {
         if (message.type === 'result') push(entry)
-        else pushFromApp(entry)
+        else {
+          pushFromApp(entry)
+          // Framework deep dives: the app's Console lines between the reactions
+          if (hasVue) addReactionRow({ id: nextReactionRow++, kind: 'log', level: entry.level, text: entry.text, line: entry.source ?? null })
+        }
       }
     }
   }
@@ -1070,7 +1137,13 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
       counted = (await ensureTools())?.instrumentFiles(saved)
       if (disposed || startedIn !== attempt) return
     }
-    const observation = await runCheck(saved, level.sandbox.probes, { backend, web, page: web ? level.sandbox.page : undefined, performance: hasPerformance, counted, logs: logsSpec ?? undefined })
+    // Framework deep dives: the check runs on the same Vue build
+    let vue: string | undefined
+    if (hasVue) {
+      vue = vueBuild.value ?? await loadVue().catch(() => undefined)
+      if (disposed || startedIn !== attempt) return
+    }
+    const observation = await runCheck(saved, level.sandbox.probes, { backend, web, page: web ? level.sandbox.page : undefined, performance: hasPerformance, counted, logs: logsSpec ?? undefined, vue })
     // a Reset or Again while the check ran started a new attempt: this result belongs to the old one
     if (disposed || startedIn !== attempt) return
     checking.value = false
@@ -1174,6 +1247,10 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
     hasLoop,
     loopRows,
     clearLoop,
+    hasVue,
+    vueFailed,
+    reactionRows,
+    clearReactions,
     hasA11y,
     readerRows,
     clearReader,

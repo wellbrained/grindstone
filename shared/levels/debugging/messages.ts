@@ -19,6 +19,8 @@ import type { SourceMapping } from './trace'
 import type { Observation, ObservedError, ProbeValue, SourceLine, TraceFrame } from './types'
 import type { LoopEntry, LoopEntryKind } from '../web/loop'
 import { READER_KINDS } from '../web/a11y'
+import { REACTION_KINDS, REACTION_LIMITS } from '../frameworks/vue'
+import type { ReactionKind } from '../frameworks/vue'
 import type { A11yRow, ReaderLine } from '../web/a11y'
 
 export type ConsoleLevel = 'log' | 'info' | 'warn' | 'error' | 'debug'
@@ -59,6 +61,8 @@ export type BridgeMessage
     | SecurityMessage
   /** Web fundamentals (chapter 5): what ran on the event loop since the last message (tasks, listeners, frames, forced layouts, logs). */
     | LoopMessage
+  /** Framework deep dives: one reaction Vue made (a render, a computed's getter, a watch callback, an effect), and why. */
+    | ReactionMessage
   /** Web fundamentals (chapter 6): what the screen reader said since the last message (focus, states, live regions). */
     | ReaderMessage
   /** Web fundamentals (chapter 6): the accessibility tree, when the Accessibility panel asked for it. */
@@ -274,6 +278,16 @@ export interface CacheMessage {
 }
 
 /** Chapter 5: entries of the event loop's timeline, `from` the index of the first (the page appends them in order). */
+/** Framework deep dives: a reaction, with what triggered it and (a computed or a watcher) the raw stack where it was made. */
+export interface ReactionMessage {
+  type: 'reaction'
+  kind: ReactionKind
+  /** A render's component; '' for the other kinds. */
+  name: string
+  why: string[]
+  stack: string
+}
+
 export interface LoopMessage {
   type: 'loop'
   from: number
@@ -837,6 +851,14 @@ export function readBridgeMessage(data: unknown): BridgeMessage | null {
       const log = raw.log.slice(-MAX_CDN_LOG).map(cdnLogRow)
       if (browser.some(row => row === null) || (cdn && cdn.some(row => row === null)) || log.some(row => row === null)) return null
       return { type: 'cache', now: raw.now as number, browser: browser as CacheRow[], cdn: cdn as CacheRow[] | null, log: log as CdnLogRow[] }
+    }
+    case 'reaction': {
+      const kind = REACTION_KINDS.find(each => each === raw.kind)
+      const name = typeof raw.name === 'string' ? raw.name.slice(0, 60) : null
+      const stack = typeof raw.stack === 'string' ? raw.stack.slice(0, 4000) : null
+      if (!kind || name === null || stack === null || !Array.isArray(raw.why) || raw.why.some(item => typeof item !== 'string')) return null
+      const why = (raw.why as string[]).slice(0, REACTION_LIMITS.why).map(item => item.slice(0, REACTION_LIMITS.text))
+      return { type: 'reaction', kind, name, why, stack }
     }
     case 'loop': {
       const from = whole(raw.from, 1e6)

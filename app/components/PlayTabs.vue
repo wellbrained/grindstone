@@ -49,7 +49,7 @@ function onKeydown(event: KeyboardEvent) {
       :aria-controls="`${idPrefix}-${name}`"
       :tabindex="model === name ? 0 : -1"
       :data-panel="name"
-      class="relative min-w-0 cursor-pointer rounded-md px-1 py-1.5 text-sm focus-visible:outline-2 focus-visible:outline-primary sm:px-3"
+      class="relative min-h-11 min-w-0 cursor-pointer rounded-md px-1 py-1.5 text-sm focus-visible:outline-2 focus-visible:outline-primary sm:px-3"
       :class="model === name ? 'bg-accented font-medium text-highlighted' : 'text-muted hover:text-highlighted'"
       @click="model = name"
     >

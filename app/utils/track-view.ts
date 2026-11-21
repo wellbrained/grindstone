@@ -257,7 +257,8 @@ export function timeLabel(minutes: number): { value: number, unit: 's' | 'min' }
 /** The estimated time as text through i18n: short for the eye (track.time), long for screen readers (track.timeLong). */
 export function timeText(t: (key: string, named: Record<string, unknown>) => string, minutes: number, form: 'short' | 'long' = 'short'): string {
   const { value, unit } = timeLabel(minutes)
-  return t(`track.${form === 'short' ? 'time' : 'timeLong'}.${unit}`, { n: value })
+  // read aloud, one is singular ("about 1 minute")
+  return t(`track.${form === 'short' ? 'time' : 'timeLong'}.${unit}${form === 'long' && value === 1 ? 'One' : ''}`, { n: value })
 }
 
 /**

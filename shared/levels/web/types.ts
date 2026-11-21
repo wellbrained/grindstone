@@ -35,8 +35,11 @@ import type { Level, PracticeTask, Scenario, Session } from '../types'
  *   'polite: Saved'); chapter 6, the Accessibility panel's reader shows it,
  * - `referer`: a request of the page carried this Referer, 'METHOD address referer' ('GET https://stats.example/hit
  *   https://cornerbakery.shop/'; 'none' for none). Chapter 7, the Network panel shows it.
+ * - `probe` with `is`: a probe of the starting files read exactly this (Framework deep dives: what the page shows),
+ * - `reaction`: Vue made a reaction of this kind or component ('watch', 'render Basket'), at least `times` (default 1)
+ *   or, with `times: 0`, none (Framework deep dives, the Reactivity panel shows it).
  */
-export type PredictionFact = { row: string } | { server: string, times?: number } | { says: string } | { asks: string } | { sent: string } | { stored: string } | { refused: string } | { readable: string } | { storage: string } | { replayed: string } | { cdn: string } | { painted: string } | { forced: string } | { layouts: number } | { animated: string } | { heard: string } | { referer: string }
+export type PredictionFact = { row: string } | { server: string, times?: number } | { says: string } | { asks: string } | { sent: string } | { stored: string } | { refused: string } | { readable: string } | { storage: string } | { replayed: string } | { cdn: string } | { painted: string } | { forced: string } | { layouts: number } | { animated: string } | { heard: string } | { referer: string } | { probe: string, is: string | number } | { reaction: string, times?: number }
 
 /** One answer to choose, one line to order or to pick. */
 export interface PredictionOption {
@@ -98,13 +101,21 @@ export type WebStep = DebugStep | { predict: PredictionAnswer }
 declare module '../types' {
   interface Environments {
     web: { state: DebugState, record: DebugRecord, step: WebStep, fields: WebFields }
+    /** Framework deep dives (ADR 0010): the same environment, with real Vue in the sandbox instead of server.js. */
+    frameworks: { state: DebugState, record: DebugRecord, step: WebStep, fields: WebFields }
   }
 }
 
-export type WebLevel = Level<'web'>
+/** A level played with a prediction first: Web fundamentals' or Framework deep dives' (ADR 0010). */
+export type WebLevel = Level<'web'> | Level<'frameworks'>
 export type WebScenario = Scenario<'web'>
 export type WebPracticeTask = PracticeTask<'web'>
 export type WebSession = Session<'web'>
+export type FrameworksScenario = Scenario<'frameworks'>
+export type FrameworksPracticeTask = PracticeTask<'frameworks'>
 
-/** A level of the Web fundamentals track (the play page runs it with DebuggingPlay and the prediction card). */
-export const isWebLevel = (level: Pick<Level, 'track'>): level is WebLevel => level.track === 'web'
+/**
+ * A level of the predict-then-fix mechanic: Web fundamentals' or Framework deep dives' (the play page runs both with
+ * DebuggingPlay and the prediction card; what a level's sandbox brings decides its panels).
+ */
+export const isWebLevel = (level: Pick<Level, 'track'>): level is WebLevel => level.track === 'web' || level.track === 'frameworks'

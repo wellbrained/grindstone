@@ -15,6 +15,7 @@ import type { BackendSpec, LogsSpec, Probe } from './types'
 import { webConfig } from '../web/backend'
 import type { ServerSeeds, WebSpec } from '../web/backend'
 import { loopMarker } from '../web/loop'
+import { VUE_MODULE, reactionHook, vueFacade } from '../frameworks/vue'
 import { INERT_HTTP_EQUIV, INERT_SCRIPT_TYPE, NONCE_TAG, SCRIPT_INDEX } from '../web/pageload'
 import type { PageScript } from '../web/pageload'
 
@@ -204,6 +205,11 @@ export interface SandboxOptions {
   page?: string
   /** Chapter 7, tests only: fixed seeds for the servers' scripted values (random per load otherwise). */
   seeds?: ServerSeeds
+  /**
+   * Framework deep dives (ADR 0010): Vue's development build as the frame gets it (`prepareVue`): the app imports `vue`,
+   * a facade over it that reports each reaction. Loaded lazily by the play page, never part of the levels chunk.
+   */
+  vue?: string
 }
 
 /** What the bridge needs for the Elements panel: the page's rules (to test which match), the linked stylesheets' names, what to read. */
@@ -313,9 +319,12 @@ function rewriteStylesheets(html: string, files: Readonly<Record<string, string>
 /** The document of one load of the app: the app you see (no probes) or a check run (with the level's probes). */
 export function sandboxDocument(files: Readonly<Record<string, string>>, options: SandboxOptions): SandboxDocument {
   const recording = options.record ?? null
+  // Framework deep dives: every module imports `vue` first (on its first line, so no line moves), so the facade runs
+  // and takes its channel before any of the level's own code
+  const first = options.vue === undefined ? '' : 'import \'vue\';'
   const modules = Object.fromEntries(Object.entries(files)
     .filter(([path]) => /\.m?js$/.test(path) && path !== options.web?.server)
-    .map(([path, source]) => [path, rewriteImports(recording?.[path] ?? source, path, files)]))
+    .map(([path, source]) => [path, first + rewriteImports(recording?.[path] ?? source, path, files)]))
   // the config is JSON inside a <script>: no raw "<", so no text in it can close the script or open a comment
   const backend = options.backend ? backendConfig(options.backend, SHOP_ORIGIN, options.logs ? { first: options.logs.firstRequest } : null) : null
   const elements = options.elements && !options.probes ? elementsConfig(files) : null
@@ -328,7 +337,11 @@ export function sandboxDocument(files: Readonly<Record<string, string>>, options
   const inert = web?.security ? inertPage(files['index.html'] ?? '') : null
   const nonce = web?.security ? loadNonce() : null
   if (web?.security && inert && nonce) web.security = { ...web.security, nonce, scripts: inert.scripts }
-  const config = JSON.stringify({ token: options.token, modules, probes: options.probes ?? null, backend, elements, record, perf, web }).replace(/</g, '\\u003c')
+  // Framework deep dives: Vue and the facade the app imports, as modules of the frame that are no level file (never linked)
+  const hook = options.vue === undefined ? null : reactionHook()
+  const libraries = options.vue === undefined || hook === null ? null : { [VUE_MODULE]: options.vue, vue: vueFacade(hook) }
+  const vue = hook === null ? null : { hook }
+  const config = JSON.stringify({ token: options.token, modules, libraries, vue, probes: options.probes ?? null, backend, elements, record, perf, web }).replace(/</g, '\\u003c')
   const policies = `<meta http-equiv="Content-Security-Policy" content="${options.count === 'check' ? COUNTING_CSP : SANDBOX_CSP}">${nonce ? `<meta http-equiv="Content-Security-Policy" content="${lockdownPolicy(nonce)}">` : ''}`
   const injected = `<base href="${SHOP_ORIGIN}">${policies}<script${nonce ? ` nonce="${nonce}"` : ''}>${BRIDGE_SOURCE}(${config});</script>`
 

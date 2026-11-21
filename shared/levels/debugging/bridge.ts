@@ -28,6 +28,7 @@
 import { BACKEND_SOURCE } from './backend'
 import { INSPECTOR_SOURCE } from './inspector'
 import { BRIDGE_HELLO } from './messages'
+import { REACTION_KINDS, REACTION_LIMITS } from '../frameworks/vue'
 import { RECORDER_GLOBAL, RECORDER_SOURCE } from './recorder'
 import { WEB_BACKEND_SOURCE } from '../web/backend'
 import { LOOP_SOURCE } from '../web/loop'
@@ -398,7 +399,33 @@ const SOURCE = String.raw`(function (config) {
     ['click', 'input', 'change', 'keydown', 'submit'].forEach(function (type) { onWindow(type, onAction); });
   }
 
-  /* The level's modules: blob URLs made here, and an import map from each file's name (and ./name) to its URL. */
+  /* Framework deep dives: the facade over Vue reports each reaction through a one-shot name it deletes before the app
+     runs; every one is counted for the reactions probes, the first ${REACTION_LIMITS.reactions} are posted. */
+  var reactions = createObject(null);
+  var reactionCount = 0;
+  var cutText = uncurry(String.prototype.slice);
+  var toString = String;
+  if (config.vue) {
+    Object.defineProperty(window, config.vue.hook, { configurable: true, value: function (kind, name, why, stack) {
+      var kinds = ${JSON.stringify(REACTION_KINDS)};
+      var known = false;
+      for (var k = 0; k < kinds.length; k++) if (kinds[k] === kind) known = true;
+      if (!known) return;
+      var named = typeof name === 'string' ? cutText(name, 0, 60) : '';
+      var texts = [];
+      if (isArray(why)) for (var w = 0; w < why.length && w < ${REACTION_LIMITS.why}; w++) texts[w] = cutText(toString(why[w]), 0, ${REACTION_LIMITS.text});
+      var entry = createObject(null);
+      entry.kind = kind;
+      entry.label = named ? kind + ' ' + named : kind;
+      /* a runaway effect keeps counting, but only the first ${REACTION_LIMITS.kept} are kept for the probes */
+      if (reactionCount < ${REACTION_LIMITS.kept}) reactions[reactionCount] = entry;
+      reactionCount += 1;
+      if (reactionCount <= ${REACTION_LIMITS.reactions}) post({ type: 'reaction', kind: kind, name: named, why: texts, stack: typeof stack === 'string' ? cutText(stack, 0, 4000) : '' });
+    } });
+  }
+
+  /* The level's modules: blob URLs made here, and an import map from each file's name (and ./name) to its URL. A
+     library (Vue and its facade) is in the map too, but no file of the level: its frames are never linked. */
   var imports = {};
   var urls = {};
   Object.keys(config.modules).forEach(function (path) {
@@ -406,6 +433,9 @@ const SOURCE = String.raw`(function (config) {
     urls[url] = path;
     imports[path] = url;
     imports['./' + path] = url;
+  });
+  if (config.libraries) Object.keys(config.libraries).forEach(function (name) {
+    imports[name] = URL.createObjectURL(new Blob([config.libraries[name]], { type: 'text/javascript' }));
   });
   post({ type: 'files', urls: urls });
   var map = document.createElement('script');
@@ -824,6 +854,7 @@ const SOURCE = String.raw`(function (config) {
     var startWork = workNow();
     var startLoop = loop ? loop.mark() : null;
     var startReader = a11y ? a11y.mark() : 0;
+    var startReactions = reactionCount;
     var finish = function () {
       if (!quiet) post({ type: 'probe', id: probe.id, ok: problem === null, value: problem === null ? value : null, error: problem });
       then();
@@ -1011,6 +1042,12 @@ const SOURCE = String.raw`(function (config) {
       }
       if (typeof step.count === 'string') {
         try { value = listLength(querySelectorAll(doc, step.count)); } catch (error) { value = 0; }
+        return next();
+      }
+      /* Framework deep dives: the reactions Vue made since this probe started, of a kind or a component's renders */
+      if (typeof step.reactions === 'string') {
+        value = 0;
+        for (var r = startReactions; r < reactionCount && r < ${REACTION_LIMITS.kept}; r++) if (reactions[r].label === step.reactions || reactions[r].kind === step.reactions) value += 1;
         return next();
       }
       if (typeof step.requests === 'string') {

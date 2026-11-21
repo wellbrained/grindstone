@@ -159,7 +159,7 @@ const LOG_TONE: Record<string, string> = { warn: 'text-warning', error: 'text-er
         <button
           v-if="row.line"
           type="button"
-          class="shrink-0 rounded-sm font-mono text-info underline underline-offset-2 hover:text-highlighted focus-visible:outline-2 focus-visible:outline-primary"
+          class="inline-flex min-h-6 shrink-0 items-center rounded-sm font-mono text-info underline underline-offset-2 hover:text-highlighted focus-visible:outline-2 focus-visible:outline-primary pointer-coarse:min-h-11"
           :aria-label="t('debugging.console.open', { path: row.line.path, line: row.line.line })"
           data-testid="loop-source"
           @click="revealLine(row.line)"

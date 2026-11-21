@@ -135,4 +135,11 @@ export { SERVER_LIMITS } from './web/server'
 export { LOOP_LIMITS, loopFacts } from './web/loop'
 export { A11Y_KEYS, A11Y_LIMITS, heardFacts, heardLine } from './web/a11y'
 export { webLevels, webTrack } from './web'
+
+// Framework deep dives (ADR 0010): the same environment with real Vue in the frame
+export { isFrameworksLevel } from './frameworks/types'
+export type { FrameworksLevel } from './frameworks/types'
+export { REACTION_KINDS, REACTION_LIMITS, VUE_MODULE, prepareVue } from './frameworks/vue'
+export type { ReactionKind } from './frameworks/vue'
+export { frameworksLevels, frameworksTrack } from './frameworks'
 export { isTestFile, planTests, readTestRun, testDocument, testFilesOf, testRunFiles, testSummary } from './review/test-sandbox'

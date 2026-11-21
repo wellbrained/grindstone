@@ -4,6 +4,7 @@ import {
   chapterProgress,
   continueTarget,
   defineTrack,
+  frameworksLevels,
   emptyProgress,
   gitLevels,
   gitTrack,
@@ -31,13 +32,13 @@ import { BIG_CHAPTER_SIZES, bigTrack, fakePractice, practiceTrack, solvedProgres
 const git = trackById('git')!
 
 describe('track registry', () => {
-  it('lists Git, Debugging, Working with AI and Web fundamentals as the live tracks and the upcoming one as coming, without chapters', () => {
+  it('lists Git, Debugging, Working with AI, Web fundamentals and Framework deep dives as the live tracks', () => {
     expect(tracks.map(track => [track.id, track.status])).toEqual([
       ['git', 'live'],
       ['debugging', 'live'],
       ['ai', 'live'],
       ['web', 'live'],
-      ['frameworks', 'coming']
+      ['frameworks', 'live']
     ])
     for (const track of tracks) {
       expect(track.title).not.toBe('')
@@ -734,7 +735,7 @@ describe('progress counts', () => {
       { solved: 0, total: 11 },
       { solved: 0, total: 12 }
     ])
-    expect(trackProgress(trackById('frameworks')!, progress)).toEqual({ solved: 0, total: 0 })
+    expect(trackProgress(trackById('frameworks')!, progress)).toEqual({ solved: 0, total: frameworksLevels.length })
   })
 })
 

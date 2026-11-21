@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { tracks } from '../../../shared/levels'
+import { defineTrack, tracks } from '../../../shared/levels'
 import { notFoundFor } from '../../../app/utils/not-found'
 
 const summary = (path: string) => {
@@ -20,9 +20,15 @@ describe('notFoundFor', () => {
   })
 
   it('tells a coming track from an unknown one', () => {
-    const coming = tracks.find(track => track.status === 'coming')!
-    expect(summary(`/${coming.id}`)).toEqual(['coming', coming.id])
-    expect(summary(`/${coming.id}/01-anything`)).toEqual(['coming', coming.id])
+    // every track of the registry is live since Framework deep dives (ADR 0010): a coming one as data
+    const coming = defineTrack({ id: 'frameworks', title: 'Coming', scope: 'Fixture.', description: 'Fixture.', status: 'coming' })
+    const withComing = [...tracks.filter(track => track.id !== coming.id), coming]
+    const of = (path: string) => {
+      const found = notFoundFor(path, withComing)
+      return found.kind === 'coming' ? ['coming', found.track.id] : [found.kind]
+    }
+    expect(of(`/${coming.id}`)).toEqual(['coming', coming.id])
+    expect(of(`/${coming.id}/01-anything`)).toEqual(['coming', coming.id])
   })
 
   it('falls back to a plain page not found', () => {

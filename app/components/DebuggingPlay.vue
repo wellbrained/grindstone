@@ -22,12 +22,13 @@ const props = defineProps<{
 const { t } = useI18n()
 
 const play = useDebuggingPlay(props.level)
-const { session, store, goals, next, stats, reloads, find, webLevel, predictionOnly, predicting, hasNetwork, hasServer, hasApplication, hasSites, hasLoop, hasA11y, hasSecurity, hasElements, hasDebugger, hasPerformance, hasLogs, hasDeploys, requests, requestShown, picking, pickedAt, recordStatus, profileStatus, debriefOpen, progressBefore, sparkKey, mark, hint, reset, again } = play
+const { session, store, goals, next, stats, reloads, find, webLevel, predictionOnly, predicting, hasNetwork, hasServer, hasApplication, hasSites, hasLoop, hasA11y, hasSecurity, hasVue, hasElements, hasDebugger, hasPerformance, hasLogs, hasDeploys, requests, requestShown, picking, pickedAt, recordStatus, profileStatus, debriefOpen, progressBefore, sparkKey, mark, hint, reset, again } = play
 
-type Lower = 'loop' | 'a11y' | 'elements' | 'debugger' | 'performance' | 'logs' | 'deploys' | 'console' | 'network' | 'server' | 'application' | 'site'
+type Lower = 'reactivity' | 'loop' | 'a11y' | 'elements' | 'debugger' | 'performance' | 'logs' | 'deploys' | 'console' | 'network' | 'server' | 'application' | 'site'
 type Panel = 'app' | Lower | 'code'
 /** The panels under the code (from lg one at a time, as tabs): the ones this level has, the chapter's own panel first. */
 const LOWER: Lower[] = [
+  ...(hasVue ? ['reactivity' as const] : []),
   ...(hasLoop ? ['loop' as const] : []),
   ...(hasA11y ? ['a11y' as const] : []),
   ...(hasElements ? ['elements' as const] : []),
@@ -124,7 +125,8 @@ const applicationPanel = useTemplateRef<{ focus: () => void }>('applicationPanel
 const sitePanel = useTemplateRef<{ focus: () => void }>('sitePanel')
 const loopPanel = useTemplateRef<{ focus: () => void }>('loopPanel')
 const a11yPanel = useTemplateRef<{ focus: () => void }>('a11yPanel')
-const focusConsole = () => ({ loop: loopPanel, a11y: a11yPanel, console: consolePanel, network: networkPanel, elements: elementsPanel, debugger: debuggerPanel, performance: performancePanel, logs: logsPanel, deploys: deploysPanel, server: serverPanel, application: applicationPanel, site: sitePanel })[lower.value].value?.focus()
+const reactivityPanel = useTemplateRef<{ focus: () => void }>('reactivityPanel')
+const focusConsole = () => ({ reactivity: reactivityPanel, loop: loopPanel, a11y: a11yPanel, console: consolePanel, network: networkPanel, elements: elementsPanel, debugger: debuggerPanel, performance: performancePanel, logs: logsPanel, deploys: deploysPanel, server: serverPanel, application: applicationPanel, site: sitePanel })[lower.value].value?.focus()
 
 const shown = (name: Panel) => panel.value === name ? '' : 'max-lg:hidden'
 /** A lower panel: shown below lg as a tab of its own, from lg as the chosen one under the code. */
@@ -147,6 +149,7 @@ const answerWhere = computed(() => {
 })
 const topNote = computed(() => {
   if (predictionOnly) return t('web.practiceNote')
+  if (webLevel && hasVue) return t('frameworks.note')
   if (webLevel && hasLoop) return t('web.loopNote')
   if (webLevel && hasA11y) return t('web.a11yNote')
   if (webLevel && hasSecurity) return t('web.securityNote')
@@ -164,7 +167,7 @@ const counters = computed(() => stripCounters(webLevel
 
 <template>
   <PlayStrip
-    :icon="webLevel ? 'i-lucide-telescope' : find ? 'i-lucide-mouse-pointer-click' : 'i-lucide-bug'"
+    :icon="hasVue ? 'i-lucide-atom' : webLevel ? 'i-lucide-telescope' : find ? 'i-lucide-mouse-pointer-click' : 'i-lucide-bug'"
     :note="topNote"
     :counters="counters"
   />
@@ -306,6 +309,16 @@ const counters = computed(() => stripCounters(webLevel
               class="flex shrink-0 items-center gap-1.5"
             />
           </div>
+          <VueReactivity
+            v-if="hasVue"
+            id="debugging-reactivity"
+            ref="reactivityPanel"
+            role="tabpanel"
+            :aria-labelledby="labelledBy('reactivity')"
+            :play="play"
+            class="max-lg:h-[30rem] lg:min-h-0 lg:flex-1"
+            :class="shownLower('reactivity')"
+          />
           <WebLoop
             v-if="hasLoop"
             id="debugging-loop"

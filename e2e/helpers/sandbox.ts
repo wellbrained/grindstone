@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 // Runs a Debugging level's app the way the play page's check run does (a sealed srcdoc iframe with the bridge, one frame
 // per width the probes ask for, a phone's first), in a real browser page, and reads its messages with the same pure code
 // as the app (shared/levels/debugging). `record` runs it instrumented (chapter 5) and keeps the steps it posts; with
@@ -9,6 +11,12 @@ import { BRIDGE_HELLO, checkFrames, consoleEntry, heardFacts, loopFacts, mergeOb
 import type { A11yMessage, BackendSpec, BridgeMessage, ConsoleEntryBody, LogsSpec, LoopEntry, ReaderLine, NetworkEntry, Observation, Probe, Profile, RecordedStep, ServerLogMessage, ServerOutputMessage, WebSpec } from '../../shared/levels'
 import { checkFrameStyle } from '../../app/utils/sandbox-host'
 import { TEST_SEEDS } from '../../shared/levels/web/backend'
+import { prepareVue } from '../../shared/levels/frameworks/vue'
+import type { ReactionMessage } from '../../shared/levels/debugging/messages'
+
+let vue: string | null = null
+/** Vue's development build as the frame gets it, read once from node_modules (the play page imports the same file). */
+const vueSource = () => vue ??= prepareVue(readFileSync(fileURLToPath(new URL('../../node_modules/vue/dist/vue.esm-browser.js', import.meta.url)), 'utf8'))
 
 export interface CheckResult {
   observation: Observation
@@ -64,6 +72,8 @@ export interface CheckResult {
   tree: A11yMessage | null
   /** Chapter 7: the Referer each request carried, 'METHOD address referer' ('none' without one), in the order sent. */
   referers: string[]
+  /** Framework deep dives: Vue's reactions in order, 'kind' or 'render Name', each with what triggered it. */
+  reactions: { label: string, why: string[] }[]
 }
 
 export interface RunOptions {
@@ -79,12 +89,14 @@ export interface RunOptions {
   page?: string
   /** Chapter 7: draw the servers' scripted values at random, as the play page does (default: fixed, for the tables). */
   randomSeeds?: boolean
+  /** Framework deep dives: real Vue in the frame (the play page loads the same build). */
+  vue?: boolean
 }
 
 async function runFrame(page: Page, files: Readonly<Record<string, string>>, probes: readonly Probe[], width: number, height: number, backend: BackendSpec | undefined, options: RunOptions): Promise<CheckResult> {
   const token = `t-${Math.random().toString(36).slice(2)}`
   // chapter 7: the servers' scripted values fixed, so a run is the same every time (the play page draws them per load)
-  const document = sandboxDocument(files, { token, probes, backend, record: options.record, count: options.count, performance: options.performance, logs: options.logs, web: options.web, page: options.page, seeds: options.web?.security && !options.randomSeeds ? TEST_SEEDS : undefined })
+  const document = sandboxDocument(files, { token, probes, backend, record: options.record, count: options.count, performance: options.performance, logs: options.logs, web: options.web, page: options.page, seeds: options.web?.security && !options.randomSeeds ? TEST_SEEDS : undefined, vue: options.vue ? vueSource() : undefined })
   const raw = await page.evaluate(async ({ html, style, token, profile, hello }) => {
     const messages: unknown[] = []
     const frame = window.document.createElement('iframe')
@@ -168,6 +180,7 @@ async function runFrame(page: Page, files: Readonly<Record<string, string>>, pro
     reader,
     heard: heardFacts(reader),
     tree,
+    reactions: messages.filter((message): message is ReactionMessage => message.type === 'reaction').map(message => ({ label: message.name ? `${message.kind} ${message.name}` : message.kind, why: message.why })),
     referers: requests.map(entry => `${entry.method} ${entry.url} ${entry.requestHeaders.find(([name]) => name === 'referer')?.[1] ?? 'none'}`)
   }
 }

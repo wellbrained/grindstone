@@ -8,7 +8,9 @@ The third is **Working with AI**: review the pull requests of Sous, the bakery's
 
 The fourth is **Web fundamentals**: predict what the browser does with CORS, cookies, tokens, caching, the event loop, accessibility and CSP, then fix the app or its `server.js`.
 
-Status: live at https://grindstone.dkiessling.de, four tracks complete; Framework deep dives is next. Plan: [docs/adr/0001-plan.md](docs/adr/0001-plan.md).
+The fifth is **Framework deep dives**, starting with Vue reactivity: predict what Vue renders, computes and watches, then fix the app. Real Vue runs in the sealed frame, and a Reactivity panel lists every render, computed and watcher run with what triggered it.
+
+Status: live at https://grindstone.dkiessling.de, five tracks complete ([ADR 0010](docs/adr/0010-framework-deep-dives-track.md) for the newest). Plan: [docs/adr/0001-plan.md](docs/adr/0001-plan.md).
 
 ## Why another git trainer?
 

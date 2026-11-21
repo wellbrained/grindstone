@@ -8,7 +8,7 @@ The browser UI of the Git, Debugging, Working with AI and Web fundamentals track
 | --- | --- | --- |
 | `/` | `app/pages/index.vue` | Home, all tracks (see "Home"). |
 | `/<track>` | `app/pages/[track]/index.vue` | A live track's page, e.g. `/git` (`TrackOverview`, see "Track page"); a coming or unknown track is a 404 (see "Error page"). |
-| `/<track>/<slug>` | `app/pages/[track]/[level].vue` | The play page: it picks the level's track's play component (Git: `GitPlay`, Debugging and Web fundamentals: `DebuggingPlay`, Working with AI: `ReviewPlay`; see "Play page" and "Web fundamentals play page"). The slug is the level id without the track: `/git/01-first-commit` for `git-01-first-commit` (`app/utils/level-route.ts`). An unknown slug shows the 404 page. |
+| `/<track>/<slug>` | `app/pages/[track]/[level].vue` | The play page: it picks the level's track's play component (Git: `GitPlay`, Debugging, Web fundamentals and Framework deep dives: `DebuggingPlay`, Working with AI: `ReviewPlay`; see "Play page" and "Web fundamentals play page"). The slug is the level id without the track: `/git/01-first-commit` for `git-01-first-commit` (`app/utils/level-route.ts`). An unknown slug shows the 404 page. |
 | `/git/cheat-sheet` | `app/pages/git/cheat-sheet.vue` | The cheat sheet; "Practise it in" links each command to its levels by number (`3.3 Merge conflict`). |
 | `/debugging/cheat-sheet` | `app/pages/debugging/cheat-sheet.vue` | The Debugging cheat sheet (see "Debugging cheat sheet"). |
 | `/ai/cheat-sheet` | `app/pages/ai/cheat-sheet.vue` | The Working with AI cheat sheet (see "Working with AI cheat sheet"). |
@@ -272,6 +272,20 @@ The engine's working tree as a folder tree (`UTree`: arrow keys move, Enter open
 | ignored | I | dimmed | untracked and named by a `.gitignore`; does not colour its folder |
 
 The letter sits next to the name and the status is also in the accessible name (`footer.ts (conflicted)`), never colour alone. A folder shows a dot in the colour of its most urgent status. Before `git init` there are no statuses. A legend under the tree explains the letters.
+
+## Framework deep dives play page
+
+ADR 0010. The Web fundamentals play page (`DebuggingPlay` with the prediction card; the app runs once it is answered) for a level with `sandbox.vue`: the strip's icon is an atom and its note "Predict first, then read the Reactivity panel, fix app.js, Save and Reload."; the App's footer says real Vue runs in the sealed frame. Until Vue's build has loaded there is no load (a failed load says so in the App, `role="alert"`). Panels: App, **Reactivity** (the chapter's own, first under the code), Console, Code.
+
+**Reactivity panel** (`VueReactivity.vue`): what Vue did in this load, in order: a badge per kind (render, computed, watch, effect, log), "Basket renders" or "A computed's getter runs", below it "because: …" (what triggered it), the app's Console lines between them (warnings and errors in their tone), a computed's or watcher's line linking to where it was made (`app.js:12`). A summary in the header ("1 render · 2 computed runs · no watcher runs") and Clear; at most 1,500 lines a load. A `role="log"` that takes the keyboard, like the Event loop panel.
+
+**Phone tabs are 44 px high** since 0.5.4 (`PlayTabs`, every track): the tap-size rule.
+
+**Framework deep dives cheat sheet** (`/frameworks/cheat-sheet`, `app/utils/frameworks-cheatsheet.ts`, texts under `fwCheat.*`): the Web fundamentals sheet's frame (`CheatSheetPage`, `buildCheatSheet`): a section per chapter (the first one has five cards) and one for Vue's warnings, each quoted as the levels' runs print it (`[Vue warn]: …`; the unit test checks each against the levels' facts), with what it means and where to look first. Every scenario is linked from somewhere on the sheet.
+
+**Header nav from lg** since 0.5.4: with five tracks the inline nav needs the room, so from 768 to 1023 px the menu button opens it; a track may give a `shortTitle` for the header (Framework deep dives: “Frameworks”), the menu and the footer keep the full name.
+
+**Chapter descriptions** on a track page go through `InlineText` since 0.5.4, so their backticks are code chips (Web fundamentals' too).
 
 ## Components (`app/components/`)
 

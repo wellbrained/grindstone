@@ -85,7 +85,7 @@ const draws = computed(() => {
       </div>
     </div>
     <p class="mt-1.5 max-w-2xl text-sm text-pretty text-muted">
-      {{ view.chapter.description }}
+      <InlineText :text="view.chapter.description" />
     </p>
     <ol
       v-if="view.rows.length"

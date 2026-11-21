@@ -7,8 +7,8 @@ import type { CheatSectionView } from '~/utils/cheat-sheet'
 // header's width, a filter, the section chips, and the sections in the chips' order, each a grid of cards. The pages
 // only name their track and hand over the translated sections (`buildCheatSheet`).
 const props = defineProps<{
-  track: 'debugging' | 'web'
-  /** The sheet's i18n prefix: `debugCheat`, `webCheat`. */
+  track: 'debugging' | 'web' | 'frameworks'
+  /** The sheet's i18n prefix: `debugCheat`, `webCheat`, `fwCheat`. */
   prefix: string
   sections: readonly CheatSectionView[]
 }>()

@@ -4,8 +4,9 @@ import { debuggingTrack } from './debugging'
 import { gitTrack } from './git'
 import { aiTrack } from './review'
 import { webTrack } from './web'
+import { frameworksTrack } from './frameworks'
 import { lastPlayed } from './progress'
-import { defineTrack, placeIn, trackLevels, trackProgress } from './track'
+import { placeIn, trackLevels, trackProgress } from './track'
 import type { Chapter, LevelPlace, Track } from './track'
 import type { Progress } from './progress'
 import type { Level } from './types'
@@ -15,13 +16,7 @@ export const tracks: readonly Track[] = [
   debuggingTrack,
   aiTrack,
   webTrack,
-  defineTrack({
-    id: 'frameworks',
-    title: 'Framework deep dives',
-    scope: 'How a framework works inside, starting with Vue reactivity.',
-    description: 'How a framework works inside, starting with Vue reactivity.',
-    status: 'coming'
-  })
+  frameworksTrack
 ]
 
 export function trackById(id: string, all: readonly Track[] = tracks): Track | null {

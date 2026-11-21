@@ -13,7 +13,7 @@ import type { DebuggingPlaySession } from '~/composables/useDebuggingPlay'
 const props = defineProps<{ play: DebuggingPlaySession }>()
 
 const { t } = useI18n()
-const { level, load, checking, stale, hasNetwork, hasLoop, hasA11y, hasSecurity, hasElements, picking, setPicking, reloadApp, onFrameEvent, connectFrame, recordStatus, stepCount, stopRecording, profileStatus, profileWork, stopProfile, predicting, webLevel } = props.play
+const { level, load, checking, stale, hasNetwork, hasLoop, hasA11y, hasSecurity, hasVue, vueFailed, hasElements, picking, setPicking, reloadApp, onFrameEvent, connectFrame, recordStatus, stepCount, stopRecording, profileStatus, profileWork, stopProfile, predicting, webLevel } = props.play
 
 /** A recording is on (the Debugger's steps, or the Performance panel's count), and what its banner counts. */
 const counting = computed(() => profileStatus.value === 'recording' || profileStatus.value === 'stopping')
@@ -141,6 +141,14 @@ const address = `${SHOP_ORIGIN.replace(/^https:\/\//, '').replace(/\/$/, '')}${l
         />
         {{ t('web.appWaits') }}
       </p>
+      <p
+        v-if="vueFailed"
+        class="flex max-w-[26rem] items-center gap-2 self-center px-4 text-center text-sm text-error"
+        role="alert"
+        data-testid="vue-failed"
+      >
+        {{ t('frameworks.vueFailed') }}
+      </p>
       <iframe
         v-if="load"
         ref="frame"
@@ -154,7 +162,7 @@ const address = `${SHOP_ORIGIN.replace(/^https:\/\//, '').replace(/\/$/, '')}${l
       />
     </div>
     <p class="border-t border-(--app-terminal-border) px-3 py-1.5 text-xs text-dimmed">
-      {{ webLevel ? (hasLoop ? t('web.loopSealed') : hasA11y ? t('web.a11ySealed') : hasSecurity ? t('web.securitySealed') : t('web.sealed')) : hasNetwork ? t('debugging.app.sealedBackend') : t('debugging.app.sealed') }}
+      {{ webLevel ? (hasVue ? t('frameworks.sealed') : hasLoop ? t('web.loopSealed') : hasA11y ? t('web.a11ySealed') : hasSecurity ? t('web.securitySealed') : t('web.sealed')) : hasNetwork ? t('debugging.app.sealedBackend') : t('debugging.app.sealed') }}
     </p>
   </section>
 </template>

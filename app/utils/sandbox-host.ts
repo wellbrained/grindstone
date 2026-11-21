@@ -119,13 +119,15 @@ export interface LoadOptions {
   web?: WebSpec
   /** Web fundamentals: the page's path (the address bar's): document.cookie's URL and the Referer's. */
   page?: string
+  /** Framework deep dives: Vue's development build as the frame gets it (loaded lazily: vue-source.ts). */
+  vue?: string
 }
 
 /** A load of the app you see. */
 export function appLoad(files: Readonly<Record<string, string>>, options: LoadOptions = {}): AppLoad {
   const token = newToken()
-  const { backend, web, page, elements, record, profile, logs } = options
-  const document_ = sandboxDocument(files, { token, backend, web, page, elements, record, logs, ...(profile && record ? { count: 'profile' as const, performance: true } : {}) })
+  const { backend, web, page, elements, record, profile, logs, vue } = options
+  const document_ = sandboxDocument(files, { token, backend, web, page, elements, record, logs, vue, ...(profile && record ? { count: 'profile' as const, performance: true } : {}) })
   return { ...document_, token, files, recorded: record !== undefined }
 }
 
@@ -143,6 +145,8 @@ export interface CheckOptions {
   web?: WebSpec
   /** Web fundamentals: the page's path. */
   page?: string
+  /** Framework deep dives: Vue's development build as the frame gets it. */
+  vue?: string
   timeoutMs?: number
 }
 
@@ -161,10 +165,10 @@ export async function runCheck(files: Readonly<Record<string, string>>, probes: 
 
 /** One frame of a check run, at its width. */
 function runFrame(files: Readonly<Record<string, string>>, { width, height, probes }: CheckFrame, options: CheckOptions): Promise<Observation> {
-  const { backend, web, page, performance, counted, logs, timeoutMs = CHECK_TIMEOUT_MS } = options
+  const { backend, web, page, performance, counted, logs, vue, timeoutMs = CHECK_TIMEOUT_MS } = options
   return new Promise((resolve) => {
     const token = newToken()
-    const document_ = sandboxDocument(files, { token, probes, backend, web, page, performance, logs, ...(counted ? { record: counted.modules, count: 'check' as const } : {}) })
+    const document_ = sandboxDocument(files, { token, probes, backend, web, page, performance, logs, vue, ...(counted ? { record: counted.modules, count: 'check' as const } : {}) })
     const frame = document.createElement('iframe')
     frame.setAttribute('sandbox', SANDBOX_FLAGS)
     frame.setAttribute('aria-hidden', 'true')

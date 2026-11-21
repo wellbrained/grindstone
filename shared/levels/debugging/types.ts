@@ -122,6 +122,11 @@ export type ProbeStep
   /** Web fundamentals (chapter 7): how often a script from this address ran in the load (the page loader's record: the page can't add to it). */
     | { ran: string }
   /**
+   * Framework deep dives: how many reactions Vue made since this probe started, of a kind ('render', 'computed',
+   * 'watch', 'effect') or of a component's renders ('render Basket').
+   */
+    | { reactions: string }
+  /**
    * Web fundamentals (chapter 2): Lena opens another site of the level (`sandbox.web.sites`): what its page does runs in
    * the panels, then the app gets 20 ms (and its answers). The value: the status of the last thing the page did (a form's,
    * a link's), or 'blocked' / 'failed'.
@@ -388,6 +393,11 @@ export interface SandboxSpec {
    * server.js did.
    */
   web?: WebSpec
+  /**
+   * Framework deep dives (ADR 0010): real Vue runs in the frame (the module `vue`, a facade over its development build
+   * that reports every reaction for the Reactivity panel and the `reactions` probes).
+   */
+  vue?: true
 }
 
 /** How bad a server log line is. */

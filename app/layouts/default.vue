@@ -23,7 +23,8 @@ const currentPath = computed(() => route.path.replace(/\/$/, '') || '/')
 const ariaCurrent = (value: 'true' | 'page' | false) => value ? { 'aria-current': value } : {}
 const menuItems = computed(() => navigation.value.map(item => item.children
   ? {
-      label: item.label,
+      // the header's row is narrow: a track may name itself shorter there (the menu and the footer use the full name)
+      label: item.short ?? item.label,
       active: item.active,
       ...ariaCurrent(item.active && 'true'),
       children: item.children.map((child, index) => ({
@@ -56,14 +57,14 @@ function skipToContent() {
       @click.prevent="skipToContent"
     >{{ t('layout.skip') }}</a>
 
-    <!-- the nav sits in the header from md; below md the menu button opens it -->
+    <!-- the nav sits in the header from lg (five tracks need the room); below lg the menu button opens it -->
     <UHeader
       v-model:open="menuOpen"
       :title="site.name"
       to="/"
       :menu="{ title: t('layout.nav.dialog') }"
       :toggle="{ variant: 'outline', class: 'justify-center max-sm:size-11 pointer-coarse:size-11' }"
-      :ui="{ container: 'max-w-[110rem]', center: 'hidden md:flex', toggle: 'md:hidden', content: 'md:hidden', overlay: 'md:hidden' }"
+      :ui="{ container: 'max-w-[110rem]', center: 'hidden lg:flex', toggle: 'lg:hidden', content: 'lg:hidden', overlay: 'lg:hidden' }"
     >
       <template #title>
         <AppLogo class="shrink-0" />

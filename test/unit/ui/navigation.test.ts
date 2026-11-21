@@ -15,7 +15,8 @@ const web = defineTrack({
   status: 'live',
   chapters: [{ id: 'cors', title: 'CORS', description: 'Fixture.', colour: 0, levels: [{ ...firstCommit, id: 'web-01-cors', track: 'web' } as unknown as Level] }]
 })
-const withWeb = [gitTrack, web, ...tracks.filter(track => track.status === 'coming' && track.id !== 'web')]
+const coming = defineTrack({ id: 'frameworks', title: 'Coming', scope: 'Fixture.', description: 'Fixture.', status: 'coming' })
+const withWeb = [gitTrack, web, coming]
 
 describe('navigation', () => {
   it('lists home, one entry per live track, and About; no global cheat sheet entry', () => {
@@ -25,6 +26,7 @@ describe('navigation', () => {
       ['Debugging', '/debugging', false],
       ['Working with AI', '/ai', false],
       ['Web fundamentals', '/web', false],
+      ['Framework deep dives', '/frameworks', false],
       ['About', '/about', false]
     ])
   })

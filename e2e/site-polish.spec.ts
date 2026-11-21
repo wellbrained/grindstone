@@ -40,7 +40,7 @@ test('home: a first visit has one ember action (the first track), a returning on
   expect(await filled()).toEqual([])
   // the Continue card's action is the page's ember one
   await expect(page.getByTestId('continue-card').getByRole('link').first()).toBeVisible()
-  await expect(page.getByTestId('overview-radar').locator('text[data-label]')).toHaveCount(4)
+  await expect(page.getByTestId('overview-radar').locator('text[data-label]')).toHaveCount(5)
 })
 
 test('track page: Next up jumps to the next unsolved level and solved chapters fold', async ({ page }) => {
