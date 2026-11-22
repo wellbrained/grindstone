@@ -38,7 +38,7 @@ export type ReactionKind = typeof REACTION_KINDS[number]
 /**
  * The `vue` module the app imports, reporting to `window[hook]`. A reaction is posted as `{ kind, name, why, stack }`:
  * `name` a component's name (renders only), `why` what triggered it in Vue's own debugger events ('set .value: 1 → 2',
- * 'add [3]', 'mount', 'props'), `stack` where the computed or watcher was made (raw; the page maps it to the app's files).
+ * 'add [3]', 'mount', 'prop price: 2 → 3', 'no reactive change (slots or $forceUpdate)'), `stack` where the computed or watcher was made (raw; the page maps it to the app's files).
  */
 export function vueFacade(hook: string): string {
   return `import * as Vue from '${VUE_MODULE}';
@@ -144,6 +144,23 @@ const nameOf = function (instance) {
   return String((type && (type.name || type.__name)) || 'Anonymous').slice(0, 60);
 };
 const triggers = new WeakMap();
+/* the props each component last rendered with: Vue sets new props before beforeUpdate, so the keys that differ are named */
+const rendered = new WeakMap();
+const keepProps = function (instance) {
+  const props = Vue.toRaw(instance.props || {});
+  rendered.set(instance, Object.assign({}, props));
+};
+const changedProps = function (instance) {
+  const before = rendered.get(instance) || {};
+  const now = Vue.toRaw(instance.props || {});
+  const keys = Object.keys(Object.assign({}, before, now));
+  const changed = [];
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i];
+    if (!Object.is(before[key], now[key])) changed.push('prop ' + key + ': ' + short(before[key]) + ' → ' + short(now[key]));
+  }
+  return changed.slice(-${REACTION_LIMITS.why});
+};
 const RENDERS = {
   renderTriggered(event) {
     const list = triggers.get(this.$) || [];
@@ -151,12 +168,16 @@ const RENDERS = {
     triggers.set(this.$, list);
   },
   beforeMount() {
+    keepProps(this.$);
     send('render', nameOf(this.$), ['mount'], '');
   },
   beforeUpdate() {
     const list = triggers.get(this.$) || [];
     triggers.delete(this.$);
-    send('render', nameOf(this.$), list.length ? list : ['props'], '');
+    const props = list.length ? [] : changedProps(this.$);
+    keepProps(this.$);
+    /* no reactive change of its own and the same props: the parent's slots, or a $forceUpdate */
+    send('render', nameOf(this.$), list.length ? list : props.length ? props : ['no reactive change (slots or $forceUpdate)'], '');
   }
 };
 export function createApp() {
