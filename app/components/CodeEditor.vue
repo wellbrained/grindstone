@@ -79,8 +79,9 @@ defineExpose({
 </script>
 
 <template>
+  <!-- the keyboard focus: the 2px ember ring, drawn over CodeMirror's own layers (the gutters sit at z-index 200; an outline on the host sits under them) -->
   <div
     ref="host"
-    class="h-full min-h-0 overflow-hidden"
+    class="relative h-full min-h-0 overflow-hidden rounded-[inherit] focus-within:after:pointer-events-none focus-within:after:absolute focus-within:after:inset-0 focus-within:after:z-[300] focus-within:after:rounded-[inherit] focus-within:after:outline-2 focus-within:after:-outline-offset-2 focus-within:after:outline-primary"
   />
 </template>

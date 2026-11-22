@@ -156,7 +156,7 @@ watch(active, (id) => {
         >
           <a
             :href="`#${item.chapter.id}`"
-            class="flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
+            class="flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm whitespace-nowrap pointer-coarse:min-h-11 transition-colors focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
             :class="active === item.chapter.id ? 'border-accented bg-elevated font-medium text-highlighted' : 'border-transparent text-toned hover:bg-elevated'"
             :aria-current="active === item.chapter.id ? 'true' : undefined"
             :data-chip="item.chapter.id"

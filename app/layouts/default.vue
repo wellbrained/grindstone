@@ -52,7 +52,7 @@ function skipToContent() {
     <!-- the skip link: hidden above the window until it has the focus, then a chip over the header's top-left corner -->
     <a
       href="#main"
-      class="fixed top-2 left-2 z-100 -translate-y-[200%] rounded-lg border border-accented bg-elevated px-3.5 py-2 text-sm font-medium text-highlighted focus:translate-y-0"
+      class="fixed top-2 left-2 z-100 -translate-y-[200%] rounded-lg border border-accented bg-elevated px-3.5 py-2 text-sm font-medium text-highlighted focus:translate-y-0 pointer-coarse:py-3"
       data-testid="skip-link"
       @click.prevent="skipToContent"
     >{{ t('layout.skip') }}</a>
@@ -64,7 +64,7 @@ function skipToContent() {
       to="/"
       :menu="{ title: t('layout.nav.dialog') }"
       :toggle="{ variant: 'outline', class: 'justify-center max-sm:size-11 pointer-coarse:size-11' }"
-      :ui="{ container: 'max-w-[110rem]', center: 'hidden lg:flex', toggle: 'lg:hidden', content: 'lg:hidden', overlay: 'lg:hidden' }"
+      :ui="{ container: 'max-w-[110rem]', title: 'pointer-coarse:min-h-11 pointer-coarse:items-center', center: 'hidden lg:flex', toggle: 'lg:hidden', content: 'lg:hidden', overlay: 'lg:hidden' }"
     >
       <template #title>
         <AppLogo class="shrink-0" />

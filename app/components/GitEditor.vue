@@ -69,7 +69,7 @@ defineExpose({ focus: () => code.value?.focus() })
         />
       </div>
     </header>
-    <div class="min-h-0 flex-1 focus-within:ring-2 focus-within:ring-primary focus-within:ring-inset">
+    <div class="min-h-0 flex-1">
       <LazyCodeEditor
         ref="code"
         v-model="model"

@@ -57,7 +57,7 @@ function onKeydown(event: KeyboardEvent) {
         class="mb-3"
       />
       <div
-        class="h-[min(26rem,60dvh)] overflow-hidden rounded-md border border-(--app-terminal-border) focus-within:ring-2 focus-within:ring-primary"
+        class="h-[min(26rem,60dvh)] overflow-hidden rounded-md border border-(--app-terminal-border)"
         @keydown.capture="onKeydown"
       >
         <LazyCodeEditor

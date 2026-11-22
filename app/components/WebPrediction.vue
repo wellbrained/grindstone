@@ -225,7 +225,7 @@ const rightText = (item: Question) => answerText(item, item.answer)
           <label
             v-for="option in question.options"
             :key="option.id"
-            class="flex cursor-pointer items-start gap-2 rounded-md border border-default bg-default px-2.5 py-1.5 text-sm text-toned has-checked:border-primary has-checked:bg-primary/10 has-focus-visible:outline-2 has-focus-visible:outline-primary"
+            class="flex cursor-pointer items-start gap-2 rounded-md border border-default bg-default px-2.5 py-1.5 text-sm pointer-coarse:min-h-11 text-toned has-checked:border-primary has-checked:bg-primary/10 has-focus-visible:outline-2 has-focus-visible:outline-primary"
           >
             <input
               v-model="choice"
@@ -246,7 +246,7 @@ const rightText = (item: Question) => answerText(item, item.answer)
           <label
             v-for="option in question.options"
             :key="option.id"
-            class="flex cursor-pointer items-start gap-2 rounded-md border border-default bg-default px-2.5 py-1.5 text-sm text-toned has-checked:border-primary has-checked:bg-primary/10 has-focus-visible:outline-2 has-focus-visible:outline-primary"
+            class="flex cursor-pointer items-start gap-2 rounded-md border border-default bg-default px-2.5 py-1.5 text-sm pointer-coarse:min-h-11 text-toned has-checked:border-primary has-checked:bg-primary/10 has-focus-visible:outline-2 has-focus-visible:outline-primary"
           >
             <input
               v-model="lines"

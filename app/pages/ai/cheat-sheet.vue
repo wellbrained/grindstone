@@ -83,7 +83,7 @@ async function copy(line: string) {
           v-for="group in aiCheatGroups"
           :key="group.id"
           :href="`#${group.id}`"
-          class="text-muted hover:text-highlighted"
+          class="text-muted hover:text-highlighted pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center"
         >{{ t(aiGroupKey(group.id)) }}</a>
       </nav>
     </div>

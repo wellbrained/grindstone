@@ -21,12 +21,15 @@ export default defineAppConfig({
     // toward the highlighted text on hover, so it keeps 4.5:1 on its tint (main.css, --app-ink-*)
     button: {
       slots: {
-        base: 'cursor-pointer'
+        // a finger gets 44px whatever the size (DESIGN.md, phone targets); a mouse keeps the compact sizes
+        base: 'cursor-pointer pointer-coarse:min-h-11'
       },
       defaultVariants: {
         variant: 'outline'
       },
       compoundVariants: [
+        // an icon-only button is a 44px square for a finger, a text button only gets the height
+        { square: true, class: 'pointer-coarse:min-w-11' },
         { color: 'primary', variant: 'outline', class: 'not-disabled:hover:bg-primary/15 not-disabled:hover:ring-primary not-disabled:hover:text-(--app-ink-primary) not-disabled:active:bg-primary/25 not-disabled:active:text-(--app-ink-primary)' },
         { color: 'secondary', variant: 'outline', class: 'not-disabled:hover:bg-secondary/15 not-disabled:hover:ring-secondary not-disabled:hover:text-(--app-ink-secondary) not-disabled:active:bg-secondary/25 not-disabled:active:text-(--app-ink-secondary)' },
         { color: 'success', variant: 'outline', class: 'not-disabled:hover:bg-success/15 not-disabled:hover:ring-success not-disabled:hover:text-(--app-ink-success) not-disabled:active:bg-success/25 not-disabled:active:text-(--app-ink-success)' },
@@ -39,8 +42,12 @@ export default defineAppConfig({
     // focus: one 2px ember outline everywhere (main.css); the nav's own faint ring on a pseudo element goes
     navigationMenu: { slots: { link: 'focus-visible:before:outline-0', childLink: 'focus-visible:before:outline-0' } },
     // a dialog's title and description keep clear of its close button (absolute, top-4 end-4) at every width
-    modal: { slots: { header: 'pe-14 sm:pe-14' } },
+    modal: { slots: { header: 'pe-14 sm:pe-14 pointer-coarse:pe-16 pointer-coarse:sm:pe-16' } },
     // fields stand out from the page in light, sit on it in dark
+    // a field a finger taps is 44px high too
+    input: { slots: { base: 'pointer-coarse:min-h-11' } },
+    // the Git file list: a row a finger taps
+    tree: { slots: { link: 'pointer-coarse:min-h-11' } },
     textarea: { compoundVariants: [{ variant: 'outline', class: 'bg-elevated dark:bg-default' }] }
   }
 })

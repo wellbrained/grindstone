@@ -44,7 +44,7 @@ function onClick(event: MouseEvent, id: string) {
       >
         <a
           :href="trackId ? trackPath(trackId, item.chapter.id) : `#${item.chapter.id}`"
-          class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors hover:text-highlighted focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
+          class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors pointer-coarse:min-h-11 hover:text-highlighted focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
           :class="[
             // on the page the rail sits on the ground; on the home page's track card (trackId) it sits on an elevated card
             trackId ? 'hover:bg-accented' : 'hover:bg-elevated',

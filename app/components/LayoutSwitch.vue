@@ -43,7 +43,7 @@ function onKeydown(event: KeyboardEvent) {
       :tabindex="model === layout ? 0 : -1"
       :title="t(`play.layout.${layout}Help`)"
       :data-layout="layout"
-      class="flex items-center gap-1.5 rounded px-2 py-1 font-mono text-xs transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
+      class="flex items-center gap-1.5 rounded px-2 py-1 font-mono text-xs pointer-coarse:min-h-10 transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary"
       :class="model === layout ? 'bg-accented font-medium text-highlighted ring-1 ring-accented' : 'text-muted hover:bg-accented hover:text-highlighted'"
       @click="model = layout"
     >

@@ -48,7 +48,7 @@ const primary = computed(() => {
       >
         <NuxtLink
           :to="trackPath(track.id)"
-          class="rounded-md hover:text-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
+          class="rounded-md hover:text-primary pointer-coarse:inline-flex pointer-coarse:min-h-11 pointer-coarse:items-center focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-primary"
         >{{ track.title }}</NuxtLink>
       </h2>
       <p
