@@ -37,7 +37,7 @@ Status: accepted, 2026-11-21. Designed on the Mac by Claude (Opus, high effort) 
 
 ## Q5 · Environment and play page
 
-- **The Web fundamentals environment, registered for a second track**: `frameworks` registers the same state, records, steps and fields as `web` (`DebugState`, `DebugRecord`, `WebStep`, `WebFields`), so the engine, the prediction card, progress and the Debugging play page run it unchanged. A predicate `isPredictLevel` (web or frameworks) replaces the places that ask `isWebLevel` for the mechanic; `isWebLevel` keeps meaning the web track. Considered: a new environment (a third copy of the sandbox play page), folding the levels into the web track (a different skill, a different radar).
+- **The Web fundamentals environment, registered for a second track**: `frameworks` registers the same state, records, steps and fields as `web` (`DebugState`, `DebugRecord`, `WebStep`, `WebFields`), so the engine, the prediction card, progress and the Debugging play page run it unchanged. `isWebLevel` asks for the mechanic, so it is true for both tracks (`WebLevel` is `Level<'web'> | Level<'frameworks'>`); `isFrameworksLevel` picks out this track. (Planned as a new `isPredictLevel`; built by widening `isWebLevel`, 2026-11-22.) Considered: a new environment (a third copy of the sandbox play page), folding the levels into the web track (a different skill, a different radar).
 - **No server, no modelled browser**: a level's `WebSpec` is `{ vue: { … } }` only; the panels are App, Code (the app's files, editable), Console and Reactivity. Its strip says "Predict what Vue does, then fix it".
 
 ## Q6 · World, release, radar, home

@@ -31,7 +31,7 @@ export const fwCheatGroups: WebCheatGroup[] = [
     id: 'computed',
     entries: [
       { id: 'tracked', examples: [line('export const settings = reactive({ takeaway: true })')], levels: ['frameworks-07-plain-setting'] },
-      { id: 'lazy', examples: [], levels: [] },
+      { id: 'lazy', examples: [line('const total = computed(() => lines.reduce(addPrice, 0))')], levels: [] },
       { id: 'pure', examples: [line('computed(() => [...lines].sort(byPrice))'), line('computed(() => lines.toSorted(byPrice))')], levels: ['frameworks-08-sorting-computed'] },
       { id: 'writable', examples: [line('computed({ get: () => line.quantity, set: value => { line.quantity = value } })')], levels: ['frameworks-09-readonly-computed'] }
     ]

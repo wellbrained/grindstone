@@ -75,9 +75,9 @@ export const passedValue: FrameworksScenario = {
       prompt: 'The basket calls `useDeliveryFee(total.value)` in setup, when the basket is empty. `useDeliveryFee` returns `computed(() => toValue(amount) >= 10 ? 0 : 3.5)`. Lena adds two rye loaves (10 €). What does the delivery line show?',
       options: [
         { id: 'free', text: '“Delivery free”: `toValue` reads the total each time.' },
-        { id: 'fee', text: '“Delivery 3.50 €”: `total.value` was 0 when setup ran; the composable got that number, and `toValue(0)` stays 0.', fact: shows('fee', 'Delivery 3.50 €') },
         { id: 'warn', text: '“Delivery 3.50 €”, and Vue warns that a composable got a plain number.' },
-        { id: 'nan', text: '“Delivery NaN €”: a number can\'t be compared after the basket changed.' }
+        { id: 'nan', text: '“Delivery NaN €”: a number can\'t be compared after the basket changed.' },
+        { id: 'fee', text: '“Delivery 3.50 €”: `total.value` was 0 when setup ran; the composable got that number, and `toValue(0)` stays 0.', fact: shows('fee', 'Delivery 3.50 €') }
       ],
       answer: 'fee',
       rule: '`.value` is a read: passing it hands over the number of that moment. Pass the ref itself, or a getter (`() => total.value`), and let the composable read it inside its computed.'

@@ -60,8 +60,8 @@ export const oldDom: FrameworksScenario = {
       prompt: '`add` pushes the line, then runs `document.querySelector(\'#line-\' + item.id).classList.add(\'new\')` on the next line. Ben taps Add on the rye loaf. What happens?',
       options: [
         { id: 'flashes', text: 'The rye loaf\'s line flashes: the push renders it at once.' },
-        { id: 'error', text: 'A TypeError: Vue renders the new line later, in a microtask after the change, so it isn\'t in the DOM yet and `querySelector` returns null.', fact: { says: 'Uncaught TypeError' } },
         { id: 'previous', text: 'The line added before flashes instead.' },
+        { id: 'error', text: 'A TypeError: Vue renders the new line later, in a microtask after the change, so it isn\'t in the DOM yet and `querySelector` returns null.', fact: { says: 'Uncaught TypeError' } },
         { id: 'nothing', text: 'Nothing at all, and no error: `querySelector` waits until the line exists.' }
       ],
       answer: 'error',

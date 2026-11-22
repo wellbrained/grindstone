@@ -44,10 +44,10 @@ export const whenDomChanges: FrameworksPracticeTask = {
       form: 'order',
       prompt: 'In what order are the lines logged?',
       options: [
-        { id: 'timeout', text: '`timeout sees 1`', fact: { says: 'timeout sees 1' } },
         { id: 'tick', text: '`nextTick sees 1`', fact: { says: 'nextTick sees 1' } },
-        { id: 'micro', text: '`microtask sees 1`', fact: { says: 'microtask sees 1' } },
-        { id: 'sync', text: '`right after the change sees 0`', fact: { says: 'right after the change sees 0' } }
+        { id: 'sync', text: '`right after the change sees 0`', fact: { says: 'right after the change sees 0' } },
+        { id: 'timeout', text: '`timeout sees 1`', fact: { says: 'timeout sees 1' } },
+        { id: 'micro', text: '`microtask sees 1`', fact: { says: 'microtask sees 1' } }
       ],
       answer: ['sync', 'micro', 'tick', 'timeout'],
       rule: 'The change queues Vue\'s render as a microtask; a microtask queued after it runs after the render (and sees the new DOM), nextTick waits for the render to finish, and a timeout comes after all microtasks.'
@@ -149,10 +149,10 @@ export const flushOrder: FrameworksPracticeTask = {
       form: 'order',
       prompt: 'In what order do they run after the change? (The page\'s first render is over.)',
       options: [
-        { id: 'post', text: '`post watcher`', fact: { says: 'post watcher' } },
         { id: 'render', text: '`render 1`', fact: { says: 'render 1' } },
-        { id: 'pre', text: '`pre watcher`', fact: { says: 'pre watcher' } },
-        { id: 'sync', text: '`sync watcher`', fact: { says: 'sync watcher' } }
+        { id: 'sync', text: '`sync watcher`', fact: { says: 'sync watcher' } },
+        { id: 'post', text: '`post watcher`', fact: { says: 'post watcher' } },
+        { id: 'pre', text: '`pre watcher`', fact: { says: 'pre watcher' } }
       ],
       answer: ['sync', 'pre', 'render', 'post'],
       rule: 'A sync watcher runs inside the write; then, in the flush, pre watchers, the renders and post watchers, whatever order they were made in.'

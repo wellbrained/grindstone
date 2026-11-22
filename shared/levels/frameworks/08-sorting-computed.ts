@@ -64,9 +64,9 @@ export const sortingComputed: FrameworksScenario = {
       prompt: 'The receipt is `computed(() => basket.lines.sort((a, b) => a.price - b.price))`, and both lists are on screen. Lena adds a rye loaf (5.00 €), a cinnamon bun (3.20 €) and a croissant (2.40 €). In what order does “In the order you added them” list them?',
       options: [
         { id: 'added', text: 'Rye loaf, cinnamon bun, croissant: the computed works on its own result.' },
-        { id: 'sorted', text: 'Croissant, cinnamon bun, rye loaf: `sort` reorders the array it is called on, so the getter sorted the basket itself.', fact: shows('added', 'Butter croissantCinnamon bunRye loaf') },
         { id: 'loop', text: 'Nothing: sorting inside a computed loops forever, and Vue stops the page.' },
-        { id: 'reversed', text: 'Croissant, cinnamon bun, rye loaf, but only until the next render.' }
+        { id: 'reversed', text: 'Croissant, cinnamon bun, rye loaf, but only until the next render.' },
+        { id: 'sorted', text: 'Croissant, cinnamon bun, rye loaf: `sort` reorders the array it is called on, so the getter sorted the basket itself.', fact: shows('added', 'Butter croissantCinnamon bunRye loaf') }
       ],
       answer: 'sorted',
       rule: 'A computed\'s getter should only read: `sort`, `reverse` and `splice` change the reactive array they are called on, so sort a copy (`[...lines].sort(…)` or `lines.toSorted(…)`).'

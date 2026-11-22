@@ -65,8 +65,8 @@ export const plainSetting: FrameworksScenario = {
       prompt: '`total` is `computed(() => net.value * (settings.takeaway ? 1.07 : 1.19))`, and `settings` is the plain object `{ takeaway: true }` from settings.js. Lena taps Eat in, which sets `settings.takeaway = false`. What does the total show?',
       options: [
         { id: 'eat', text: '10.00 € (19 %): the computed reads `settings.takeaway` every time it is shown.' },
-        { id: 'same', text: '8.99 € (7 %): the computed tracked `net` only; `settings` is no reactive object, so nothing tells it to run again, and it keeps its cached total.', fact: shows('total', 'Total 8.99 € with VAT') },
         { id: 'warn', text: '8.99 €, and Vue warns that a computed read a plain object.' },
+        { id: 'same', text: '8.99 € (7 %): the computed tracked `net` only; `settings` is no reactive object, so nothing tells it to run again, and it keeps its cached total.', fact: shows('total', 'Total 8.99 € with VAT') },
         { id: 'nan', text: 'NaN: `settings` changed while the computed was cached.' }
       ],
       answer: 'same',

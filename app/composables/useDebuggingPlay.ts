@@ -1142,6 +1142,12 @@ export function useDebuggingPlay(level: DebugLevel | WebLevel, options: Debuggin
     if (hasVue) {
       vue = vueBuild.value ?? await loadVue().catch(() => undefined)
       if (disposed || startedIn !== attempt) return
+      // no Vue, no check: the app would only throw on `import 'vue'`, which says nothing about the code (not counted)
+      if (vue === undefined) {
+        vueFailed.value = true
+        checking.value = false
+        return
+      }
     }
     const observation = await runCheck(saved, level.sandbox.probes, { backend, web, page: web ? level.sandbox.page : undefined, performance: hasPerformance, counted, logs: logsSpec ?? undefined, vue })
     // a Reset or Again while the check ran started a new attempt: this result belongs to the old one

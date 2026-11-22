@@ -59,8 +59,8 @@ export const watchSource: FrameworksScenario = {
       prompt: 'The watcher is `watch(stock.croissant, (left) => …)`, with `stock = reactive({ croissant: 5 })`. Mia sells three croissants. What happens?',
       options: [
         { id: 'told', text: 'The kitchen is told “2 left” after the third sale.' },
-        { id: 'never', text: 'Nothing: `stock.croissant` passed the number 5, which Vue can\'t watch; it warns “Invalid watch source” once, at setup, and the callback never runs.', fact: { says: '[Vue warn]: Invalid watch source' } },
         { id: 'once', text: 'The kitchen is told once, at setup, that 5 are left.' },
+        { id: 'never', text: 'Nothing: `stock.croissant` passed the number 5, which Vue can\'t watch; it warns “Invalid watch source” once, at setup, and the callback never runs.', fact: { says: '[Vue warn]: Invalid watch source' } },
         { id: 'every', text: 'The kitchen is told after every sale: the number is watched by value.' }
       ],
       answer: 'never',

@@ -91,7 +91,7 @@ const LOG_TONE: Record<string, string> = { warn: 'text-warning', error: 'text-er
       role="log"
       tabindex="0"
       :aria-label="t('frameworks.reactivity.lines')"
-      class="min-h-0 flex-1 overflow-y-auto px-3 py-1.5 text-xs focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
+      class="min-h-0 flex-1 overflow-y-auto px-3 py-1.5 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-primary"
       data-testid="reactions-log"
     >
       <p

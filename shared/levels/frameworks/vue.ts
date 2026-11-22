@@ -107,12 +107,18 @@ export function watch(source, callback, options) {
   const stack = origin();
   const pending = [];
   const own = watching(options, pending);
+  /* a getter source runs on every trigger but calls back only when its result differs: take the reasons per run */
+  let last = [];
+  const read = typeof source === 'function' ? function () {
+    last = pending.splice(0);
+    return source.apply(this, arguments);
+  } : source;
   const reacting = typeof callback === 'function' ? function () {
-    const why = pending.splice(0);
+    const why = typeof source === 'function' ? last.splice(0) : pending.splice(0);
     send('watch', '', why.length ? why : ['immediate'], stack);
     return callback.apply(this, arguments);
   } : callback;
-  return Vue.watch(source, reacting, own);
+  return Vue.watch(read, reacting, own);
 }
 const effect = function (fn, options, stack) {
   const pending = [];

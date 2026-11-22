@@ -90,9 +90,9 @@ export const frozenBadge: FrameworksScenario = {
       prompt: 'The header does `const { count } = useBasket()` in setup and shows `{{ count }}`. Lena adds two things. What does the badge show?',
       options: [
         { id: 'two', text: '“Basket (2)”: `useBasket()` returns the reactive basket, so `count` is reactive too.' },
-        { id: 'zero', text: '“Basket (0)”: destructuring read `basket.count` once, in setup, and kept the number 0.', fact: shows('badge', 'Basket (0)') },
         { id: 'one', text: '“Basket (1)”: Vue renders the header once more, for the first change.' },
-        { id: 'blank', text: '“Basket ()”: a destructured value is undefined in the template.' }
+        { id: 'blank', text: '“Basket ()”: a destructured value is undefined in the template.' },
+        { id: 'zero', text: '“Basket (0)”: destructuring read `basket.count` once, in setup, and kept the number 0.', fact: shows('badge', 'Basket (0)') }
       ],
       answer: 'zero',
       rule: 'Destructuring a reactive object copies its values; `toRefs(obj)` turns each property into a ref linked to it, so destructuring keeps the link.'

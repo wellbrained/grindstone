@@ -2686,7 +2686,9 @@
         "title": "Lazy and cached",
         "rule": "A getter runs when it is read after a change of what it read, once however often it is read.",
         "summary": "A computed nobody reads never runs. Read twice in one render, it runs once. Three changes before the next read make it run once. It tracks only the branch its last run took, and it notifies what reads it only when its value changed.",
-        "examples": {}
+        "examples": {
+          "0": "Runs at the first read of total.value, then only after lines change"
+        }
       },
       "pure": {
         "title": "A getter only reads",

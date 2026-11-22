@@ -65,8 +65,8 @@ export const staleSearch: FrameworksScenario = {
       form: 'one',
       prompt: 'The watcher does `results.value = await searchMenu(query)`. “c” takes 300 ms to answer, “cr” 60 ms. Lena types “c”, then, a moment later, “r” (two keystrokes, “cr” while “c” is still on its way). Which results are on screen half a second later?',
       options: [
-        { id: 'cr', text: 'The ones for “cr”: Vue runs the watcher for the latest value only.' },
         { id: 'c', text: 'The ones for “c”: each change started its own search, “cr” answered first, and “c”\'s late answer overwrote it.', fact: shows('results', 'Butter croissantCinnamon bunChocolate croissantCarrot cake') },
+        { id: 'cr', text: 'The ones for “cr”: Vue runs the watcher for the latest value only.' },
         { id: 'both', text: 'Both lists one after the other: a ref keeps every value it was given.' },
         { id: 'none', text: 'None: Vue cancels a watcher that is still waiting when its source changes.' }
       ],

@@ -104,7 +104,7 @@ function skipToContent() {
               >
                 <span
                   :id="`mobile-nav${item.to.replace(/\//g, '-')}`"
-                  class="min-w-0 flex-1 truncate font-medium"
+                  class="min-w-0 flex-1 font-medium wrap-break-word"
                   :class="item.active ? 'text-highlighted' : 'text-toned'"
                 >{{ item.label }}</span>
                 <NuxtLink

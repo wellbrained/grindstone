@@ -81,8 +81,8 @@ export const destructuredProps: FrameworksScenario = {
       prompt: '`LineTotal` does `const { price, quantity } = props` in setup, then `computed(() => formatPrice(price * quantity))`. Lena taps + twice. What does the line total show?',
       options: [
         { id: 'follows', text: '7.20 €: props are reactive, so the computed follows them.' },
-        { id: 'stays', text: '2.40 €: LineTotal renders again with the new props, but its computed only ever read two plain numbers, so it never runs again.', fact: shows('line', '2.40 €') },
         { id: 'warns', text: '2.40 €, and Vue warns that props must not be destructured.' },
+        { id: 'stays', text: '2.40 €: LineTotal renders again with the new props, but its computed only ever read two plain numbers, so it never runs again.', fact: shows('line', '2.40 €') },
         { id: 'error', text: 'Nothing: `quantity` is read-only, so the + throws.' }
       ],
       answer: 'stays',

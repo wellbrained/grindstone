@@ -54,9 +54,9 @@ export const readonlyComputed: FrameworksScenario = {
       prompt: '`quantity` is `computed(() => line.quantity)`, and the field has `v-model.number="quantity"`. Lena types 4. What happens?',
       options: [
         { id: 'works', text: 'The total says 9.60 €: v-model writes through the computed to the line.' },
-        { id: 'refused', text: 'The total stays 2.40 €, and Vue warns “Write operation failed: computed value is readonly”: a computed without a setter can\'t be written.', fact: { says: '[Vue warn] Write operation failed: computed value is readonly' } },
         { id: 'error', text: 'A TypeError, and the field goes back to 1.' },
-        { id: 'stale', text: 'The total says 9.60 € once, then the field snaps back to 1.' }
+        { id: 'stale', text: 'The total says 9.60 € once, then the field snaps back to 1.' },
+        { id: 'refused', text: 'The total stays 2.40 €, and Vue warns “Write operation failed: computed value is readonly”: a computed without a setter can\'t be written.', fact: { says: '[Vue warn] Write operation failed: computed value is readonly' } }
       ],
       answer: 'refused',
       rule: 'A computed made from a getter is read-only: writing its `.value` changes nothing and Vue warns. Give it a setter (`computed({ get, set })`) or bind v-model to the state itself.'

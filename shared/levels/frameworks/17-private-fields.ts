@@ -82,9 +82,9 @@ export const privateFields: FrameworksScenario = {
       prompt: '`basket = reactive(new Basket())`, and the template reads `basket.count`, a getter that uses `this.#lines`. What happens when the page loads?',
       options: [
         { id: 'works', text: 'It works: Vue makes the private field reactive too.' },
-        { id: 'error', text: 'A TypeError at the first render: the getter runs with the proxy as `this`, and a proxy has none of the class\'s private fields.', fact: { says: 'Uncaught TypeError' } },
         { id: 'stale', text: 'The page shows “Basket (0)” and never changes: Vue can\'t see private fields, so it never re-renders.' },
-        { id: 'warn', text: 'A Vue warning that classes can\'t be reactive, and the page shows the basket without updates.' }
+        { id: 'warn', text: 'A Vue warning that classes can\'t be reactive, and the page shows the basket without updates.' },
+        { id: 'error', text: 'A TypeError at the first render: the getter runs with the proxy as `this`, and a proxy has none of the class\'s private fields.', fact: { says: 'Uncaught TypeError' } }
       ],
       answer: 'error',
       rule: 'Private fields belong to the object, and a proxy is another object: methods called through `reactive()` throw. Keep such an object raw (`markRaw`, or a `shallowRef`) and trigger the page yourself.'

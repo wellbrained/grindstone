@@ -68,8 +68,8 @@ export const shallowMenu: FrameworksScenario = {
       prompt: '`catalogue = shallowRef(loadCatalogue())`. Mark sold out does `catalogue.value.find(…).soldOut = true`. What does the croissants\' price line say?',
       options: [
         { id: 'sold', text: '“Sold out”: the item\'s `soldOut` changed, and the template reads it.' },
-        { id: 'price', text: '“40.00 €”: a shallowRef tracks `.value` only; the items inside are plain objects, so changing one triggers nothing.', fact: shows('price', '40.00 €') },
         { id: 'error', text: 'A TypeError: the items of a shallowRef are frozen.' },
+        { id: 'price', text: '“40.00 €”: a shallowRef tracks `.value` only; the items inside are plain objects, so changing one triggers nothing.', fact: shows('price', '40.00 €') },
         { id: 'warn', text: '“40.00 €”, and Vue warns that a shallowRef was changed inside.' }
       ],
       answer: 'price',

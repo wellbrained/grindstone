@@ -67,8 +67,8 @@ export const readonlyProp: FrameworksScenario = {
       form: 'one',
       prompt: 'In QuantityPicker, − emits `update:quantity` with one less; + does `quantity++` on its prop. Lena has 2 croissants and taps + once. What happens?',
       options: [
-        { id: 'three', text: '3 croissants, 7.20 €: the prop is the parent\'s value, so the change goes up.' },
         { id: 'refused', text: 'Still 2, and Vue warns that props are read-only: a component may not change its props; it asks its parent with an event.', fact: { says: '[Vue warn]: Attempting to mutate prop "quantity"' } },
+        { id: 'three', text: '3 croissants, 7.20 €: the prop is the parent\'s value, so the change goes up.' },
         { id: 'local', text: 'The picker shows 3, the total stays at 4.80 €: the child keeps its own copy.' },
         { id: 'error', text: 'A TypeError: props are frozen objects.' }
       ],

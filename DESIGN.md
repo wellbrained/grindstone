@@ -255,7 +255,7 @@ Elevated 1rem-radius card on the home page, title 1.875rem linking to the track,
 The whole row is the link: commit dot, mono number, title (medium, highlighted), command tags, status text. Hover and the next-up row sit on the elevated surface; rows are separated by a muted top border. Status: "Solved" success, "Next up" ember medium weight, "Not solved" muted. Command tags are mono 12px in a 1px bordered 0.25rem box.
 
 ### Navigation (rail, strip, header)
-Rail item: commit dot (small), chapter name, 44px mini bar in the chapter colour, mono n/m; active is the elevated surface with highlighted medium text and `aria-current`; coming chapters are muted with "Coming". Below lg the same items become rounded-full chips. Header is Nuxt UI's `UHeader` with the logo, nav from md (menu button below md) and a colour-mode toggle; footer repeats the nav in muted 14px text.
+Rail item: commit dot (small), chapter name, 44px mini bar in the chapter colour, mono n/m; active is the elevated surface with highlighted medium text and `aria-current`; coming chapters are muted with "Coming". Below lg the same items become rounded-full chips. Header is Nuxt UI's `UHeader` with the logo, nav from lg with each track's short name (menu button below lg; five tracks overflowed md) and a colour-mode toggle; footer repeats the nav in muted 14px text.
 
 ### Commit dot (signature)
 Filled in the chapter colour when solved, hollow (filled with the ground behind it, so lanes do not show through) when open, hollow plus a 2px ember outline offset 2px when next up, plain dimmed ring when coming. Chapter markers repeat the same dots and mean: filled = all solved, ember ring = holds next up. Always `aria-hidden`.

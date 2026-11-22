@@ -66,8 +66,8 @@ export const specialProxy: FrameworksScenario = {
       form: 'one',
       prompt: '`SPECIAL` is `MENU[2]`, the cinnamon bun from the plain list; the menu the template loops over is `reactive(…)` and holds that very object. `isSpecial(item)` returns `item === SPECIAL`. Which item gets the badge?',
       options: [
-        { id: 'bun', text: 'The cinnamon bun: the reactive menu holds the same object.' },
         { id: 'none', text: 'None: every item the template gets from a reactive list is a proxy, and a proxy is never `===` the object it wraps.', fact: shows('badges', 0) },
+        { id: 'bun', text: 'The cinnamon bun: the reactive menu holds the same object.' },
         { id: 'all', text: 'All three: a proxy compares equal to anything.' },
         { id: 'error', text: 'None, and a TypeError in the Console: proxies can\'t be compared.' }
       ],

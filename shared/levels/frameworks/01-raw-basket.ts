@@ -79,9 +79,9 @@ export const rawBasket: FrameworksScenario = {
       prompt: 'Lena taps Add on the croissant twice and on the rye loaf once. `add` pushes the lines into `basket.lines`, the object `reactive()` was given. What does the basket show?',
       options: [
         { id: 'filled', text: 'Two croissants and a rye loaf, 9.80 €: `state` and `basket` are the same object.' },
-        { id: 'empty', text: '“Your basket is empty.”: the lines are in the object, but only a change made through the proxy `state` tells Vue to render again.', fact: shows('basket', EMPTY) },
         { id: 'warns', text: 'A Vue warning in the Console that `basket` is not reactive, and nothing on the page.' },
-        { id: 'last', text: 'Only the rye loaf: Vue renders once, for the last change.' }
+        { id: 'last', text: 'Only the rye loaf: Vue renders once, for the last change.' },
+        { id: 'empty', text: '“Your basket is empty.”: the lines are in the object, but only a change made through the proxy `state` tells Vue to render again.', fact: shows('basket', EMPTY) }
       ],
       answer: 'empty',
       rule: '`reactive(obj)` returns a proxy that tracks reads and triggers on writes; the original object changes the same data without telling anyone.'

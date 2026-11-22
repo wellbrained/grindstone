@@ -69,9 +69,9 @@ export const batchedHistory: FrameworksScenario = {
       prompt: 'A watcher, `watch(quantity, (now, before) => …)`, pushes `before` on the history. Ben taps “+3, one at a time” (three `quantity.value++` in a row), then Undo once. What is the quantity?',
       options: [
         { id: 'three', text: '3: the watcher recorded 1, 2 and 3, and Undo takes back the last step.' },
-        { id: 'one', text: '1: Vue runs the watcher once for the three changes, before the next render, with 4 and 1: one step on the history.', fact: shows('undo', '1 in the basket') },
         { id: 'four', text: '4: Undo needs a render first, so nothing happens yet.' },
-        { id: 'none', text: '4: three changes in one handler never reach the watcher at all.' }
+        { id: 'none', text: '4: three changes in one handler never reach the watcher at all.' },
+        { id: 'one', text: '1: Vue runs the watcher once for the three changes, before the next render, with 4 and 1: one step on the history.', fact: shows('undo', '1 in the basket') }
       ],
       answer: 'one',
       rule: 'Vue batches changes: a watcher (flush \'pre\', the default) runs once before the next render, with the value then and the value before the batch; it never sees the steps in between.'

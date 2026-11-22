@@ -84,8 +84,8 @@ export const chartBehind: FrameworksScenario = {
       prompt: 'The watcher `watch(() => orders.length, () => drawChart(…))` redraws the chart from the list\'s `<li>` rows. There are 2 orders; Ben takes one more. How many bars does the chart have?',
       options: [
         { id: 'three', text: '3: the watcher runs after the change.' },
-        { id: 'two', text: '2: a watcher runs before the render by default, so the list still has two rows when `drawChart` reads them.', fact: shows('bars', 2) },
         { id: 'zero', text: '0: the chart is emptied while Vue renders the list.' },
+        { id: 'two', text: '2: a watcher runs before the render by default, so the list still has two rows when `drawChart` reads them.', fact: shows('bars', 2) },
         { id: 'four', text: '4: the watcher and `mounted` both add a bar.' }
       ],
       answer: 'two',

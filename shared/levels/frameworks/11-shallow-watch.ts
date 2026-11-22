@@ -66,9 +66,9 @@ export const shallowWatch: FrameworksScenario = {
       prompt: '`basket = ref({ lines: [] })`, watched with `watch(basket, …)`. Add pushes into `basket.value.lines`. Lena adds two things. What does the draft line say?',
       options: [
         { id: 'saved', text: '“Draft saved: Butter croissant, Rye loaf”: refs are deeply reactive.' },
-        { id: 'none', text: '“No draft yet”: watching a ref fires when `.value` is replaced; a push changes the object inside, which a ref\'s watcher doesn\'t look into.', fact: shows('saved', 'No draft yet') },
         { id: 'first', text: '“Draft saved: Butter croissant”: the watcher fires once, then needs `deep`.' },
-        { id: 'warn', text: '“No draft yet”, and Vue warns that a ref of an object needs `deep`.' }
+        { id: 'warn', text: '“No draft yet”, and Vue warns that a ref of an object needs `deep`.' },
+        { id: 'none', text: '“No draft yet”: watching a ref fires when `.value` is replaced; a push changes the object inside, which a ref\'s watcher doesn\'t look into.', fact: shows('saved', 'No draft yet') }
       ],
       answer: 'none',
       rule: 'Watching a ref is shallow (only `.value =` triggers it), though the object inside is reactive; `{ deep: true }`, or a getter of what you need, watches inside it.'
