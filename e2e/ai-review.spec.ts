@@ -252,9 +252,11 @@ test('a Console link in Run the PR shows its line in the diff', async ({ page })
   await expect(page.getByTestId('run-line-missing')).toHaveCount(0)
 })
 
-test('shows the overview radar on home once you have progress: one axis per live track', async ({ page }) => {
+test('shows the overview radar in the home hero, empty at first, then one axis per live track', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByTestId('overview-radar')).toHaveCount(0)
+  // always there: an empty outline before the first solve
+  await expect(page.getByTestId('overview-radar')).toBeVisible()
+  await expect(page.getByTestId('overview-radar').locator('[data-axis-track="ai"]')).toContainText('0 of 100 solved')
   await page.goto('/ai/practice-open-days')
   await comment(page, 'hours.js:5', 'bug', 'Stops before Sunday.')
   await page.getByTestId('request-changes').click()
