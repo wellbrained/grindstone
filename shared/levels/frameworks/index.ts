@@ -31,7 +31,6 @@ import { readonlyView, shallowOrDeep, whatGetsProxy } from './practice/depth'
 export const frameworksTrack = defineTrack({
   id: 'frameworks',
   title: 'Framework deep dives',
-  shortTitle: 'Frameworks',
   scope: 'How a framework works inside, starting with Vue reactivity: refs, proxies, computed, watchers and the scheduler.',
   tagline: 'Predict what the framework does, then fix it.',
   description: 'How Vue\'s reactivity really works, on Corner Bakery\'s new Vue storefront. Before each app runs you predict what Vue will do: what the basket shows after a tap, which change renders, when a watcher fires, what the DOM says right after a change. Then read the Reactivity panel, which lists every render, computed and watcher run with what triggered it, and fix the code until the page does what it should. Real Vue runs in the sealed frame, so its rules and its warnings are Vue\'s own.',

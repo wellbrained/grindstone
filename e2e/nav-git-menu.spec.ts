@@ -1,25 +1,31 @@
 import { expect, test } from '@playwright/test'
 
-// The header's Git entry is a small menu: Levels (the track page) and Cheat sheet. The entry stays active below /git.
-// Debugging's entry is the same menu, with its own cheat sheet (ADR 0007).
-test('opens the Git menu in the header and goes to the cheat sheet', async ({ page }) => {
+// The header's one menu, Tracks: a panel with every live track (its page and its cheat sheet). Inside a track the header
+// goes on as a trail, "Tracks / Git · Levels · Cheat sheet" (docs/features/ui.md, "Navigation").
+test('opens the Tracks panel from the keyboard and goes to the Git cheat sheet', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/')
 
   const nav = page.getByRole('navigation', { name: 'Main' }).filter({ visible: true })
-  const trigger = nav.getByRole('button', { name: 'Git' })
+  const trigger = nav.getByRole('button', { name: 'Tracks' })
   await trigger.focus()
   await page.keyboard.press('Enter')
   await expect(trigger).toHaveAttribute('aria-expanded', 'true')
-  await expect(page.getByRole('link', { name: 'Levels', exact: true })).toBeVisible()
+  const panel = page.getByTestId('tracks-panel')
+  // every live track, in the registry's order
+  await expect(panel.locator('[data-track]')).toHaveCount(5)
+  await expect(panel.getByRole('link', { name: /^Git Practice/ })).toHaveAttribute('href', '/git')
 
-  await page.getByRole('link', { name: 'Cheat sheet', exact: true }).click()
+  await panel.getByRole('link', { name: 'Git cheat sheet' }).click()
   await expect(page).toHaveURL(/\/git\/cheat-sheet$/)
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible()
+  await expect(panel).toBeHidden()
 
-  // the entry keeps the active style on a page below the track, the other links do not
-  await expect(nav.getByRole('button', { name: 'Git' })).toHaveClass(/text-primary/)
-  await expect(nav.getByRole('link', { name: 'Tracks' })).not.toHaveClass(/text-primary/)
+  // the trail names the track and marks the page you are on
+  await expect(nav).toContainText('Git')
+  await expect(nav.getByRole('link', { name: 'Cheat sheet', exact: true })).toHaveAttribute('aria-current', 'page')
+  await nav.getByRole('link', { name: 'Levels', exact: true }).click()
+  await expect(page).toHaveURL(/\/git$/)
 })
 
 test('shows Levels and Cheat sheet under Git in the mobile menu', async ({ page }) => {
@@ -46,28 +52,24 @@ test('shows Levels and Cheat sheet under Git in the mobile menu', async ({ page 
   await expect(page).toHaveURL(/\/git\/cheat-sheet$/)
 })
 
-test('opens the Debugging menu in the header and goes to its cheat sheet', async ({ page }) => {
+test('goes to the Debugging cheat sheet from the Tracks panel', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/')
 
   const nav = page.getByRole('navigation', { name: 'Main' }).filter({ visible: true })
-  const trigger = nav.getByRole('button', { name: 'Debugging' })
-  await trigger.click()
-  await expect(trigger).toHaveAttribute('aria-expanded', 'true')
-  await expect(page.getByRole('link', { name: 'Levels', exact: true })).toBeVisible()
-  await page.getByRole('link', { name: 'Cheat sheet', exact: true }).click()
+  await nav.getByRole('button', { name: 'Tracks' }).click()
+  await page.getByTestId('tracks-panel').getByRole('link', { name: 'Debugging cheat sheet' }).click()
   await expect(page).toHaveURL(/\/debugging\/cheat-sheet$/)
   await expect(page.getByRole('heading', { level: 1, name: 'Debugging cheat sheet' })).toBeVisible()
-  await expect(nav.getByRole('button', { name: 'Debugging' })).toHaveClass(/text-primary/)
+  await expect(nav.getByRole('link', { name: 'Cheat sheet', exact: true })).toHaveAttribute('aria-current', 'page')
 
   // an entry links to the level that teaches it
   const levelLink = page.locator('#network').getByRole('link', { name: /2\.1 The menu won't load/ }).first()
   await levelLink.click()
   await expect(page).toHaveURL(/\/debugging\/06-menu-wont-load$/)
 
-  // the track page's Levels entry still goes to the track page
-  await nav.getByRole('button', { name: 'Debugging' }).click()
-  await page.getByRole('link', { name: 'Levels', exact: true }).click()
+  // on a level the trail's Levels still goes to the track page
+  await nav.getByRole('link', { name: 'Levels', exact: true }).click()
   await expect(page).toHaveURL(/\/debugging$/)
   await expect(page.getByRole('heading', { level: 1, name: 'Debugging' })).toBeVisible()
 })
@@ -88,15 +90,15 @@ test('filters the Debugging cheat sheet and finds an error message', async ({ pa
 
 // The Web fundamentals cheat sheet: reached from its track's menu, a filter over entries and the browser's messages,
 // and an entry links to its level.
-test('opens the Web fundamentals cheat sheet from its menu, filters it and finds a browser message', async ({ page }) => {
+test('opens the Web fundamentals cheat sheet from the Tracks panel, filters it and finds a browser message', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await page.goto('/')
   const nav = page.getByRole('navigation', { name: 'Main' }).filter({ visible: true })
-  await nav.getByRole('button', { name: 'Web fundamentals' }).click()
-  await page.getByRole('link', { name: 'Cheat sheet', exact: true }).click()
+  await nav.getByRole('button', { name: 'Tracks' }).click()
+  await page.getByTestId('tracks-panel').getByRole('link', { name: 'Web fundamentals cheat sheet' }).click()
   await expect(page).toHaveURL(/\/web\/cheat-sheet$/)
   await expect(page.getByRole('heading', { level: 1, name: 'Web fundamentals cheat sheet' })).toBeVisible()
-  await expect(nav.getByRole('button', { name: 'Web fundamentals' })).toHaveClass(/text-primary/)
+  await expect(nav.getByRole('link', { name: 'Cheat sheet', exact: true })).toHaveAttribute('aria-current', 'page')
   await expect(page.locator('#messages')).toContainText('Executing inline event handler violates the following Content Security Policy directive')
 
   await page.getByRole('textbox', { name: 'Filter the sheet' }).fill('frame-ancestors')

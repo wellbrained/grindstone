@@ -13,8 +13,6 @@ export interface NavChild extends NavLink {
 }
 
 export interface NavItem extends NavLink {
-  /** The header's shorter name for it (a track's shortTitle); the label when it has none. */
-  short?: string
   /** You are on this entry's page or below it (a track: its page, its levels, its cheat sheet). */
   active: boolean
   /** A live track: its Levels page and, when it has one, its cheat sheet, shown as a menu under the entry. */
@@ -34,7 +32,6 @@ export function navigationItems(path: string, all: readonly Track[], labels: { h
     { label: labels.home, to: '/', active: current === '/' },
     ...liveTracks(all).map(track => ({
       label: track.title,
-      ...(track.shortTitle ? { short: track.shortTitle } : {}),
       to: `/${track.id}`,
       active: current === `/${track.id}` || current.startsWith(`/${track.id}/`),
       children: [

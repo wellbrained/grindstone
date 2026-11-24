@@ -105,11 +105,11 @@ components:
     textColor: "{colors.text-highlighted}"
     rounded: "{rounded.xl}"
     padding: "20px"
-  track-card:
-    backgroundColor: "{colors.surface}"
+  track-terminal:
+    backgroundColor: "{colors.terminal}"
     textColor: "{colors.text-toned}"
-    rounded: "{rounded.2xl}"
-    padding: "40px"
+    rounded: "{rounded.xl}"
+    padding: "20px 24px"
   level-row:
     backgroundColor: "{colors.ground}"
     textColor: "{colors.text-highlighted}"
@@ -203,10 +203,11 @@ Eight slots, `--branch-0` to `--branch-7` (dark values in the frontmatter, light
 
 ### Hierarchy
 - **Display** (600, 1.875rem scaling to 3rem at lg, 1.1): home page title only.
-- **Headline** (600, 1.875rem, 2.125rem at lg, tight): the track page title in the rail; track card titles use 1.875rem.
+- **Headline** (600, 1.875rem, 2.125rem at lg, tight): the track page title in the rail; home window titles use 1.5rem.
 - **Title** (600, 1.25rem): chapter section headings, "Coming tracks" heading; the Continue card heading is 1.125rem semibold with a mono level number at 1rem.
 - **Body** (400, 0.875rem, comfortable): descriptions, meta, level titles (500 weight, highlighted). Lead paragraphs go to 1.125rem to 1.25rem. Prose keeps `max-w-2xl` to `max-w-3xl`, balanced or pretty wrapped.
 - **Label** (mono 400, 0.75rem, tabular numerals): level numbers (2.1), "n of N solved", n/m counts, command tags.
+- **Terminal small** (mono 400, 0.8125rem): the home windows' prompt lines and chapter trees, the Reactivity panel's log.
 - **Terminal** (mono, 0.875rem, relaxed 1.625): output, prompt, input.
 
 ### Named Rules
@@ -215,7 +216,7 @@ Eight slots, `--branch-0` to `--branch-7` (dark values in the frontmatter, light
 
 ## Layout
 
-Full-width pages inside a 1760px container (`max-w-[110rem]`) with `px-4 sm:px-6 lg:px-8`, so content lines up with the logo. Each page lays out its own content. Track page: from lg a sticky rail (17rem, 18.75rem from xl) beside a fluid column with 3rem to 3.5rem gutter; below lg the rail heading scrolls away and chapters become a sticky chip strip under the header, scrolling sideways. Home: pitch with the Continue card beside it from lg, track cards two-column inside (copy and chapter list, 24 to 28rem), coming tracks as a two-column quiet list from md. Play page: three-column viewport-high grid (level panel, terminal, commit graph) at lg; the IDE layout is the same skeleton with Files and the editor opening in place; stacked below lg. The Git and Working with AI cheat sheets use CSS columns of at least 20rem; the Debugging and Web ones stack their sections top to bottom in the order of the section chips, each section's cards in columns of at least 20rem; About three columns from xl.
+Full-width pages inside a 1760px container (`max-w-[110rem]`) with `px-4 sm:px-6 lg:px-8`, so content lines up with the logo. Each page lays out its own content. Track page: from lg a sticky rail (17rem, 18.75rem from xl) beside a fluid column with 3rem to 3.5rem gutter; below lg the rail heading scrolls away and chapters become a sticky chip strip under the header, scrolling sideways. Home: pitch with the Continue card beside it from lg, then the tracks as terminal windows two to a row from lg (one column below), the sixth window your skills or a word about Grindstone; coming tracks as a two-column quiet list from md. Play page: three-column viewport-high grid (level panel, terminal, commit graph) at lg; the IDE layout is the same skeleton with Files and the editor opening in place; stacked below lg. The Git and Working with AI cheat sheets use CSS columns of at least 20rem; the Debugging and Web ones stack their sections top to bottom in the order of the section chips, each section's cards in columns of at least 20rem; About three columns from xl.
 
 Rhythm is Tailwind's 4px base: row padding 12px, section gaps 48 to 56px, page padding 40 to 64px vertical. Level rows are a four-to-five track grid (dot 0.75rem, number 2.25 to 2.75rem, title, commands up to 15rem, status 6rem). No horizontal page scroll down to 360px.
 
@@ -229,12 +230,12 @@ Flat and tonal. Depth is a step in surface (ground, elevated, accented, terminal
 
 ## Shapes
 
-Soft but restrained. Rows and buttons use 0.5rem (rounded-lg), the Continue card 0.75rem, track cards 1rem, tags and "Coming" labels 0.25rem, chips and progress bars fully round, dots are circles. Borders are 1px hairlines (`--ui-border`, muted variant between rows); commit dots are 12px (10px small) with a 2px current-colour border. A 2px lane in the chapter colour runs vertically through the dots of a chapter, solid between two solved levels and 35% opacity around open ones.
+Soft but restrained. Rows and buttons use 0.5rem (rounded-lg), the Continue card and the home windows 0.75rem, tags and "Coming" labels 0.25rem, chips and progress bars fully round, dots are circles. Borders are 1px hairlines (`--ui-border`, muted variant between rows); commit dots are 12px (10px small) with a 2px current-colour border. A 2px lane in the chapter colour runs vertically through the dots of a chapter, solid between two solved levels and 35% opacity around open ones.
 
 ## Components
 
 ### Buttons
-- **Shape:** 0.5rem radius; sizes lg (Continue) and xl (track card).
+- **Shape:** 0.5rem radius; size lg (Continue, the home windows).
 - **Primary:** solid ember fill with the terminal-well ink, trailing arrow icon (Lucide through UIcon). One per context.
 - **Default (outline):** every other button is outlined, transparent, with a visible hover (15% tint of its colour and a coloured ring, its text a step toward the highlighted text so it keeps 4.5:1 on the tint; neutral goes to accented fill) and a pointer cursor. Active is 25% tint.
 - **Focus:** one style for every control you can reach with Tab, site-wide: a 2px ember outline 2px outside it (inside the box for items of a menu, list or tab strip, and for panels that scroll). Set once in `main.css` (a base-layer rule, plus an unlayered rule over Nuxt UI's own 25%-alpha outline), never per component; 6.3:1 on the dark page, 5.1:1 on the light one.
@@ -249,14 +250,16 @@ Every play page opens with one slim strip (`PlayStrip`), the same on every track
 ### Continue card
 Elevated surface, 1px strong border, 0.75rem radius, 16 to 20px padding, container-query layout (row from 42rem of its own width). Heading is the level ("3.2 Merge conflict") with a mono number, a muted meta line, a two-line story, an ember button. Done state shows a success check and links to the cheat sheet.
 
-### Track card
-Elevated 1rem-radius card on the home page, title 1.875rem linking to the track, tagline, description, count line plus an ember 6px progress bar, a primary action that never repeats Continue, and the chapter list divided by a hairline.
+### Track terminal (home)
+Since 0.6.4 each live track on the home page is a terminal window (`TrackTerminal` on `TerminalWindow`): terminal-well fill, 1px terminal border, 0.75rem radius. A tab strip in mono 12px (the track's icon in its colour, `~/git`, size and count on the right), then a prompt line in mono 13px (`you@grindstone ~ $ grindstone show git`, decoration, `aria-hidden`), then real content in Inter: the title at 1.5rem linking to the track, the tagline at 1.125rem in the track's colour, the description in toned text, the chapters as a mono 13px tree (`├ 1 Basics`, progress in 12 blocks of the track's colour, n/m), the actions. The terminal look is earned by the product (every track runs real tools in a terminal-like frame); the prompt and tree glyphs are output, never icons.
+
+**The Track Colour Rule.** A track owns one palette slot and one Lucide icon (`app/utils/track-look.ts`: Git slot 1 green, Debugging 5 pink, Working with AI 2 violet, Web fundamentals 0 blue, Framework deep dives 4 teal), used where tracks sit side by side (the Tracks menu, the home windows with their tab icon, tagline, blocks and tree glyphs, the overview radar, the mobile menu) and for the track's icon in the header trail. Inside a track's pages its chapters keep their own slots.
 
 ### Level row
 The whole row is the link: commit dot, mono number, title (medium, highlighted), command tags, status text. Hover and the next-up row sit on the elevated surface; rows are separated by a muted top border. Status: "Solved" success, "Next up" ember medium weight, "Not solved" muted. Command tags are mono 12px in a 1px bordered 0.25rem box.
 
 ### Navigation (rail, strip, header)
-Rail item: commit dot (small), chapter name, 44px mini bar in the chapter colour, mono n/m; active is the elevated surface with highlighted medium text and `aria-current`; coming chapters are muted with "Coming". Below lg the same items become rounded-full chips. Header is Nuxt UI's `UHeader` with the logo, nav from lg with each track's short name (menu button below lg; five tracks overflowed md) and a colour-mode toggle; footer repeats the nav in muted 14px text.
+Rail item: commit dot (small), chapter name, 44px mini bar in the chapter colour, mono n/m; active is the elevated surface with highlighted medium text and `aria-current`; coming chapters are muted with "Coming". Below lg the same items become rounded-full chips. Header is Nuxt UI's `UHeader` with the logo, then from md one **Tracks** menu (a popover panel: a row per live track with its icon tile, name, tagline, n/N with a thin bar in its colour, and its Cheat sheet link; "All tracks" goes home) and, inside a track, a trail "Tracks / Git · Levels · Cheat sheet" (current page filled, `aria-current="page"`); About and the colour-mode toggle on the right; below md a menu button opens a sheet with one block per track. Footer repeats Tracks, each track and About in muted 14px text.
 
 ### Commit dot (signature)
 Filled in the chapter colour when solved, hollow (filled with the ground behind it, so lanes do not show through) when open, hollow plus a 2px ember outline offset 2px when next up, plain dimmed ring when coming. Chapter markers repeat the same dots and mean: filled = all solved, ember ring = holds next up. Always `aria-hidden`.

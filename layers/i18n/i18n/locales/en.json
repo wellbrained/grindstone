@@ -27,7 +27,8 @@
       "tracks": "Tracks",
       "about": "About",
       "levels": "Levels",
-      "cheat": "Cheat sheet"
+      "cheat": "Cheat sheet",
+      "allTracks": "All tracks"
     }
   },
   "home": {
@@ -49,7 +50,9 @@
       "title": "Your skills",
       "intro": "One axis per track: the share of its levels you solved. A solve that needed the last hint (or, in Web fundamentals and Framework deep dives, had a wrong prediction) counts half.",
       "track": "{solved} of {total} solved"
-    }
+    },
+    "aboutTitle": "What Grindstone is",
+    "aboutText": "A practice platform that runs entirely in your browser: short levels in situations you meet at work, with real tools and apps that behave like the real ones. No account, and nothing you type is sent anywhere."
   },
   "play": {
     "hint": "Hint ({used}/{total})",

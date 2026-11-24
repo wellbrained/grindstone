@@ -72,8 +72,8 @@ export default defineNuxtConfig({
   icon: {
     clientBundle: {
       scan: true,
-      // the header's menu button (Nuxt UI's own icons are not found by the scan)
-      icons: ['simple-icons:github', 'lucide:menu', 'lucide:x']
+      // the header's menu button (Nuxt UI's own icons are not found by the scan) and the track icons (app/utils/track-look.ts)
+      icons: ['simple-icons:github', 'lucide:menu', 'lucide:x', 'lucide:git-branch', 'lucide:bug', 'lucide:bot', 'lucide:globe', 'lucide:atom', 'lucide:layers']
     }
   }
 })

@@ -28,8 +28,6 @@ export interface Chapter {
 export interface Track {
   id: TrackId
   title: string
-  /** The name in the header's nav, where five tracks share one row ('Frameworks'); the title when it has none. */
-  shortTitle?: string
   /** One line: what the track covers. */
   scope: string
   /** One short line that sells the track, shown large on its home page card; empty for none. */
@@ -56,7 +54,6 @@ export interface ChapterDefinition {
 export interface TrackDefinition {
   id: TrackId
   title: string
-  shortTitle?: string
   scope: string
   tagline?: string
   description: string
@@ -96,7 +93,6 @@ export function defineTrack(definition: TrackDefinition): Track {
   return {
     id: definition.id,
     title: definition.title,
-    ...(definition.shortTitle ? { shortTitle: definition.shortTitle } : {}),
     scope: definition.scope,
     tagline: definition.tagline ?? '',
     description: definition.description,

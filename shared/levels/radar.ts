@@ -58,14 +58,14 @@ export function trackRadar(track: Track, progress: Progress): RadarAxis[] {
  * levels (its id the track's, its colour the slot of its place among the live tracks). Coming tracks are left out: they
  * have nothing to practise yet, and their axes would only dent the shape.
  */
-export function overviewRadar(all: readonly Track[], progress: Progress): RadarAxis[] {
+export function overviewRadar(all: readonly Track[], progress: Progress, colourOf: (trackId: string, index: number) => ChapterColour = (_id, index) => Math.min(index, 7) as ChapterColour): RadarAxis[] {
   return all.filter(track => track.status === 'live').map((track, index) => axisOf({
     id: track.id,
     trackId: track.id,
     number: index + 1,
     title: track.title,
     description: track.scope,
-    colour: Math.min(index, 7) as ChapterColour,
+    colour: colourOf(track.id, index),
     levels: trackLevels(track)
   }, progress))
 }

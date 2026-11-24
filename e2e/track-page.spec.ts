@@ -40,7 +40,7 @@ test('goes from home to a level through the track page and back', async ({ page 
   await expect(page.getByTestId('continue-card')).toHaveAttribute('data-kind', 'resume')
   await expect(page.getByTestId('continue-card')).toContainText('Merge conflict')
 
-  await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Tracks' }).click()
+  await page.getByRole('banner').getByRole('link', { name: 'Grindstone', exact: true }).click()
   await expect(page.getByTestId('continue-card')).toContainText('3.3')
   // one Continue on the page: the git card now opens the track instead
   await expect(page.getByTestId('track-git-primary')).toHaveAttribute('data-action', 'open')
